@@ -13,7 +13,7 @@ evaluator, the Docker review sandbox, the criteria-first judge, and the frozen
 results reported in the paper. The construction pipeline that collected and
 verified the cases is not part of this repository. Results and saved review
 trajectories are browsable at the
-[results website](https://yijan4845.github.io/secprbench-results/).
+[results website](https://secprbench.github.io/).
 
 | Project | Cases | Tasks |
 |---|---:|---:|
