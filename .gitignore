@@ -12,5 +12,5 @@ runs/
 .cache/
 configs/local/
 .env.*
-*.key
-auth.json
+/*.key
+/auth.json
