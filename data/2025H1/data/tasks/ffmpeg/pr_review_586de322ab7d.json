@@ -1,0 +1,113 @@
+{
+  "task_id": "pr_review_586de322ab7d",
+  "bug_id": "586de322ab7d",
+  "commit_sha": "89828417b0629400cf66ba6dec333281dbdbdca8",
+  "commit_message": "avcodec/threadprogress: Add new API for frame-threaded progress\n\nThe API is similar to the ThreadFrame API, with the exception\nthat it no longer has an included AVFrame and that it has its\nown mutexes and condition variables which makes it more independent\nof pthread_frame.c. One can wait on anything via a ThreadProgress.\nOne just has to ensure that the lifetime of the object containing\nthe ThreadProgress is long enough. This will typically be solved\nby putting a ThreadProgress in a refcounted structure that is\nshared between threads.\n\nReviewed-by: Anton Khirnov <anton@khirnov.net>\nReviewed-by: epirat07@gmail.com\nSigned-off-by: Andreas Rheinhardt <andreas.rheinhardt@outlook.com>",
+  "commit_author": "Andreas Rheinhardt",
+  "commit_date": "2022-08-09T23:18:00+02:00",
+  "pr_title": "avcodec/threadprogress: Add new API for frame-threaded progress",
+  "pr_description": "The API is similar to the ThreadFrame API, with the exception\nthat it no longer has an included AVFrame and that it has its\nown mutexes and condition variables which makes it more independent\nof pthread_frame.c. One can wait on anything via a ThreadProgress.\nOne just has to ensure that the lifetime of the object containing\nthe ThreadProgress is long enough. This will typically be solved\nby putting a ThreadProgress in a refcounted structure that is\nshared between threads.\n\nReviewed-by: Anton Khirnov <anton@khirnov.net>\nReviewed-by: epirat07@gmail.com\nSigned-off-by: Andreas Rheinhardt <andreas.rheinhardt@outlook.com>\n",
+  "files": [
+    {
+      "path": "libavcodec/threadprogress.c",
+      "status": "added",
+      "additions": 79,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/threadprogress.c b/libavcodec/threadprogress.c\nnew file mode 100644\nindex 0000000000..62c4fd898b\n--- /dev/null\n+++ b/libavcodec/threadprogress.c\n@@ -0,0 +1,79 @@\n+/*\n+ * Copyright (c) 2022 Andreas Rheinhardt <andreas.rheinhardt@outlook.com>\n+ *\n+ * This file is part of FFmpeg.\n+ *\n+ * FFmpeg is free software; you can redistribute it and/or\n+ * modify it under the terms of the GNU Lesser General Public\n+ * License as published by the Free Software Foundation; either\n+ * version 2.1 of the License, or (at your option) any later version.\n+ *\n+ * FFmpeg is distributed in the hope that it will be useful,\n+ * but WITHOUT ANY WARRANTY; without even the implied warranty of\n+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n+ * Lesser General Public License for more details.\n+ *\n+ * You should have received a copy of the GNU Lesser General Public\n+ * License along with FFmpeg; if not, write to the Free Software\n+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n+ */\n+\n+#include <limits.h>\n+#include <stdatomic.h>\n+\n+#include \"pthread_internal.h\"\n+#include \"threadprogress.h\"\n+#include \"libavutil/attributes.h\"\n+#include \"libavutil/thread.h\"\n+\n+DEFINE_OFFSET_ARRAY(ThreadProgress, thread_progress, init,\n+                    (offsetof(ThreadProgress, progress_mutex)),\n+                    (offsetof(ThreadProgress, progress_cond)));\n+\n+av_cold int ff_thread_progress_init(ThreadProgress *pro, int init_mode)\n+{\n+    atomic_init(&pro->progress, init_mode ? -1 : INT_MAX);\n+#if HAVE_THREADS\n+    if (init_mode)\n+        return ff_pthread_init(pro, thread_progress_offsets);\n+#endif\n+    pro->init = init_mode;\n+    return 0;\n+}\n+\n+av_cold void ff_thread_progress_destroy(ThreadProgress *pro)\n+{\n+#if HAVE_THREADS\n+    ff_pthread_free(pro, thread_progress_offsets);\n+#else\n+    pro->init = 0;\n+#endif\n+}\n+\n+void ff_thread_progress_report(ThreadProgress *pro, int n)\n+{\n+    if (atomic_load_explicit(&pro->progress, memory_order_relaxed) >= n)\n+        return;\n+\n+    atomic_store_explicit(&pro->progress, n, memory_order_release);\n+\n+    ff_mutex_lock(&pro->progress_mutex);\n+    ff_cond_broadcast(&pro->progress_cond);\n+    ff_mutex_unlock(&pro->progress_mutex);\n+}\n+\n+void ff_thread_progress_await(const ThreadProgress *pro_c, int n)\n+{\n+    /* Casting const away here is safe, because we only read from progress\n+     * and will leave pro_c in the same state upon leaving the function\n+     * as it had at the beginning. */\n+    ThreadProgress *pro = (ThreadProgress*)pro_c;\n+\n+    if (atomic_load_explicit(&pro->progress, memory_order_acquire) >= n)\n+        return;\n+\n+    ff_mutex_lock(&pro->progress_mutex);\n+    while (atomic_load_explicit(&pro->progress, memory_order_relaxed) < n)\n+        ff_cond_wait(&pro->progress_cond, &pro->progress_mutex);\n+    ff_mutex_unlock(&pro->progress_mutex);\n+}\n"
+    },
+    {
+      "path": "libavcodec/threadprogress.h",
+      "status": "added",
+      "additions": 92,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/threadprogress.h b/libavcodec/threadprogress.h\nnew file mode 100644\nindex 0000000000..cc3414c2ce\n--- /dev/null\n+++ b/libavcodec/threadprogress.h\n@@ -0,0 +1,92 @@\n+/*\n+ * Copyright (c) 2022 Andreas Rheinhardt <andreas.rheinhardt@outlook.com>\n+ *\n+ * This file is part of FFmpeg.\n+ *\n+ * FFmpeg is free software; you can redistribute it and/or\n+ * modify it under the terms of the GNU Lesser General Public\n+ * License as published by the Free Software Foundation; either\n+ * version 2.1 of the License, or (at your option) any later version.\n+ *\n+ * FFmpeg is distributed in the hope that it will be useful,\n+ * but WITHOUT ANY WARRANTY; without even the implied warranty of\n+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n+ * Lesser General Public License for more details.\n+ *\n+ * You should have received a copy of the GNU Lesser General Public\n+ * License along with FFmpeg; if not, write to the Free Software\n+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n+ */\n+\n+#ifndef AVCODEC_THREADPROGRESS_H\n+#define AVCODEC_THREADPROGRESS_H\n+\n+/**\n+ * ThreadProgress is an API to easily notify other threads about progress\n+ * of any kind as long as it can be packaged into an int and is consistent\n+ * with the natural ordering of integers.\n+ *\n+ * Each initialized ThreadProgress can be in one of two modes: No-op mode\n+ * or ordinary mode. In the former mode, ff_thread_report_progress() and\n+ * ff_thread_await_progress() are no-ops to simply support usecases like\n+ * non-frame-threading. Only in the latter case perform these functions\n+ * what their name already implies.\n+ */\n+\n+#include <limits.h>\n+#include <stdatomic.h>\n+#include \"libavutil/thread.h\"\n+\n+/**\n+ * This struct should be treated as opaque by users.\n+ */\n+typedef struct ThreadProgress {\n+    atomic_int progress;\n+    unsigned   init;\n+    AVMutex progress_mutex;\n+    AVCond  progress_cond;\n+} ThreadProgress;\n+\n+/**\n+ * Initialize a ThreadProgress.\n+ *\n+ * @param init_mode If zero, the ThreadProgress will be initialized\n+ *                  to be in no-op mode as described above. Otherwise\n+ *                  it is initialized to be in ordinary mode.\n+ */\n+int ff_thread_progress_init(ThreadProgress *pro, int init_mode);\n+\n+/**\n+ * Destroy a ThreadProgress. Can be called on a ThreadProgress that\n+ * has never been initialized provided that the ThreadProgress struct\n+ * has been initially zeroed. Must be called even if ff_thread_progress_init()\n+ * failed.\n+ */\n+void ff_thread_progress_destroy(ThreadProgress *pro);\n+\n+/**\n+ * Reset the ::ThreadProgress.progress counter; must only be called\n+ * if the ThreadProgress is not in use in any way (e.g. no thread\n+ * may wait on it via ff_thread_progress_await()).\n+ */\n+static inline void ff_thread_progress_reset(ThreadProgress *pro)\n+{\n+    atomic_init(&pro->progress, pro->init ? -1 : INT_MAX);\n+}\n+\n+/**\n+ * This function is a no-op in no-op mode; otherwise it notifies\n+ * other threads that a certain level of progress has been reached.\n+ * Later calls with lower values of progress have no effect.\n+ */\n+void ff_thread_progress_report(ThreadProgress *pro, int progress);\n+\n+/**\n+ * This function is a no-op in no-op mode; otherwise it waits\n+ * until other threads have reached a certain level of progress:\n+ * This function will return after another thread has called\n+ * ff_thread_progress_report() with the same or higher value for progress.\n+ */\n+void ff_thread_progress_await(const ThreadProgress *pro, int progress);\n+\n+#endif /* AVCODEC_THREADPROGRESS_H */\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/threadprogress.c b/libavcodec/threadprogress.c\nnew file mode 100644\nindex 0000000000..62c4fd898b\n--- /dev/null\n+++ b/libavcodec/threadprogress.c\n@@ -0,0 +1,79 @@\n+/*\n+ * Copyright (c) 2022 Andreas Rheinhardt <andreas.rheinhardt@outlook.com>\n+ *\n+ * This file is part of FFmpeg.\n+ *\n+ * FFmpeg is free software; you can redistribute it and/or\n+ * modify it under the terms of the GNU Lesser General Public\n+ * License as published by the Free Software Foundation; either\n+ * version 2.1 of the License, or (at your option) any later version.\n+ *\n+ * FFmpeg is distributed in the hope that it will be useful,\n+ * but WITHOUT ANY WARRANTY; without even the implied warranty of\n+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n+ * Lesser General Public License for more details.\n+ *\n+ * You should have received a copy of the GNU Lesser General Public\n+ * License along with FFmpeg; if not, write to the Free Software\n+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n+ */\n+\n+#include <limits.h>\n+#include <stdatomic.h>\n+\n+#include \"pthread_internal.h\"\n+#include \"threadprogress.h\"\n+#include \"libavutil/attributes.h\"\n+#include \"libavutil/thread.h\"\n+\n+DEFINE_OFFSET_ARRAY(ThreadProgress, thread_progress, init,\n+                    (offsetof(ThreadProgress, progress_mutex)),\n+                    (offsetof(ThreadProgress, progress_cond)));\n+\n+av_cold int ff_thread_progress_init(ThreadProgress *pro, int init_mode)\n+{\n+    atomic_init(&pro->progress, init_mode ? -1 : INT_MAX);\n+#if HAVE_THREADS\n+    if (init_mode)\n+        return ff_pthread_init(pro, thread_progress_offsets);\n+#endif\n+    pro->init = init_mode;\n+    return 0;\n+}\n+\n+av_cold void ff_thread_progress_destroy(ThreadProgress *pro)\n+{\n+#if HAVE_THREADS\n+    ff_pthread_free(pro, thread_progress_offsets);\n+#else\n+    pro->init = 0;\n+#endif\n+}\n+\n+void ff_thread_progress_report(ThreadProgress *pro, int n)\n+{\n+    if (atomic_load_explicit(&pro->progress, memory_order_relaxed) >= n)\n+        return;\n+\n+    atomic_store_explicit(&pro->progress, n, memory_order_release);\n+\n+    ff_mutex_lock(&pro->progress_mutex);\n+    ff_cond_broadcast(&pro->progress_cond);\n+    ff_mutex_unlock(&pro->progress_mutex);\n+}\n+\n+void ff_thread_progress_await(const ThreadProgress *pro_c, int n)\n+{\n+    /* Casting const away here is safe, because we only read from progress\n+     * and will leave pro_c in the same state upon leaving the function\n+     * as it had at the beginning. */\n+    ThreadProgress *pro = (ThreadProgress*)pro_c;\n+\n+    if (atomic_load_explicit(&pro->progress, memory_order_acquire) >= n)\n+        return;\n+\n+    ff_mutex_lock(&pro->progress_mutex);\n+    while (atomic_load_explicit(&pro->progress, memory_order_relaxed) < n)\n+        ff_cond_wait(&pro->progress_cond, &pro->progress_mutex);\n+    ff_mutex_unlock(&pro->progress_mutex);\n+}\ndiff --git a/libavcodec/threadprogress.h b/libavcodec/threadprogress.h\nnew file mode 100644\nindex 0000000000..cc3414c2ce\n--- /dev/null\n+++ b/libavcodec/threadprogress.h\n@@ -0,0 +1,92 @@\n+/*\n+ * Copyright (c) 2022 Andreas Rheinhardt <andreas.rheinhardt@outlook.com>\n+ *\n+ * This file is part of FFmpeg.\n+ *\n+ * FFmpeg is free software; you can redistribute it and/or\n+ * modify it under the terms of the GNU Lesser General Public\n+ * License as published by the Free Software Foundation; either\n+ * version 2.1 of the License, or (at your option) any later version.\n+ *\n+ * FFmpeg is distributed in the hope that it will be useful,\n+ * but WITHOUT ANY WARRANTY; without even the implied warranty of\n+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n+ * Lesser General Public License for more details.\n+ *\n+ * You should have received a copy of the GNU Lesser General Public\n+ * License along with FFmpeg; if not, write to the Free Software\n+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n+ */\n+\n+#ifndef AVCODEC_THREADPROGRESS_H\n+#define AVCODEC_THREADPROGRESS_H\n+\n+/**\n+ * ThreadProgress is an API to easily notify other threads about progress\n+ * of any kind as long as it can be packaged into an int and is consistent\n+ * with the natural ordering of integers.\n+ *\n+ * Each initialized ThreadProgress can be in one of two modes: No-op mode\n+ * or ordinary mode. In the former mode, ff_thread_report_progress() and\n+ * ff_thread_await_progress() are no-ops to simply support usecases like\n+ * non-frame-threading. Only in the latter case perform these functions\n+ * what their name already implies.\n+ */\n+\n+#include <limits.h>\n+#include <stdatomic.h>\n+#include \"libavutil/thread.h\"\n+\n+/**\n+ * This struct should be treated as opaque by users.\n+ */\n+typedef struct ThreadProgress {\n+    atomic_int progress;\n+    unsigned   init;\n+    AVMutex progress_mutex;\n+    AVCond  progress_cond;\n+} ThreadProgress;\n+\n+/**\n+ * Initialize a ThreadProgress.\n+ *\n+ * @param init_mode If zero, the ThreadProgress will be initialized\n+ *                  to be in no-op mode as described above. Otherwise\n+ *                  it is initialized to be in ordinary mode.\n+ */\n+int ff_thread_progress_init(ThreadProgress *pro, int init_mode);\n+\n+/**\n+ * Destroy a ThreadProgress. Can be called on a ThreadProgress that\n+ * has never been initialized provided that the ThreadProgress struct\n+ * has been initially zeroed. Must be called even if ff_thread_progress_init()\n+ * failed.\n+ */\n+void ff_thread_progress_destroy(ThreadProgress *pro);\n+\n+/**\n+ * Reset the ::ThreadProgress.progress counter; must only be called\n+ * if the ThreadProgress is not in use in any way (e.g. no thread\n+ * may wait on it via ff_thread_progress_await()).\n+ */\n+static inline void ff_thread_progress_reset(ThreadProgress *pro)\n+{\n+    atomic_init(&pro->progress, pro->init ? -1 : INT_MAX);\n+}\n+\n+/**\n+ * This function is a no-op in no-op mode; otherwise it notifies\n+ * other threads that a certain level of progress has been reached.\n+ * Later calls with lower values of progress have no effect.\n+ */\n+void ff_thread_progress_report(ThreadProgress *pro, int progress);\n+\n+/**\n+ * This function is a no-op in no-op mode; otherwise it waits\n+ * until other threads have reached a certain level of progress:\n+ * This function will return after another thread has called\n+ * ff_thread_progress_report() with the same or higher value for progress.\n+ */\n+void ff_thread_progress_await(const ThreadProgress *pro, int progress);\n+\n+#endif /* AVCODEC_THREADPROGRESS_H */\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "89828417b0629400cf66ba6dec333281dbdbdca8",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "586de322ab7d",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Atomic progress store outside mutex causes data race with awaiting threads",
+        "message": "In ff_thread_progress_report(), the atomic_store_explicit with memory_order_release is performed OUTSIDE the mutex lock (line 58), before ff_mutex_lock on line 60. This creates a data race when ff_thread_progress_await() takes its slow path (lines 75-78). In the slow path, the awaiting thread holds progress_mutex and reads progress with memory_order_relaxed. If the reporting thread has already done the release-store (line 58) but has not yet acquired the mutex (line 60), the awaiting thread can observe the updated progress value via the relaxed load inside the mutex. However, the relaxed load does not form a proper acquire-release pair with the release store that occurred outside the mutex, so the mutex lock/unlock cannot provide happens-before ordering for the non-atomic shared data (e.g., VP9 motion vectors, decoded block data) written by the reporting thread before calling ff_thread_progress_report(). The awaiting thread may then proceed to read this shared data before the reporting thread's writes are guaranteed visible, causing a data race. ThreadSanitizer confirms this with concurrent read/write accesses to VP9 decoder data (ff_vp9_fill_mv reading, ff_vp9_decode_block writing) across different frame-threading worker threads.",
+        "bug_type": "DataRace",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-362",
+          "CWE-667"
+        ],
+        "location": {
+          "file": "libavcodec/threadprogress.c",
+          "function": "ff_thread_progress_report",
+          "start_line": 58,
+          "end_line": 62,
+          "snippet": "    atomic_store_explicit(&pro->progress, n, memory_order_release);\n\n    ff_mutex_lock(&pro->progress_mutex);\n    ff_cond_broadcast(&pro->progress_cond);\n    ff_mutex_unlock(&pro->progress_mutex);"
+        },
+        "related_locations": [
+          {
+            "file": "libavcodec/threadprogress.c",
+            "start_line": 72,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "ff_thread_progress_await",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "libavcodec/threadprogress.c",
+            "start_line": 76,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "ff_thread_progress_await",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Move the atomic_store_explicit call inside the mutex lock, so that it is protected by progress_mutex. This ensures that when ff_thread_progress_await's slow path observes the updated progress value under the mutex, the mutex lock/unlock provides the necessary happens-before ordering for all non-atomic shared data written by the reporting thread.",
+        "rule_id": "sec-race-001"
+      }
+    ],
+    "bug_type": "DataRace",
+    "affected_files": [
+      "libavcodec/threadprogress.c",
+      "libavcodec/threadprogress.h"
+    ],
+    "root_cause": "The atomic_store_explicit(&pro->progress, n, memory_order_release) in ff_thread_progress_report() is placed before ff_mutex_lock(), outside the critical section. In the corresponding ff_thread_progress_await() slow path, the progress is read with memory_order_relaxed inside the mutex. Since the store happened outside the mutex and the load uses relaxed ordering, no proper synchronization (neither acquire-release pair nor mutex happens-before) is established for the non-atomic shared data that the progress value is meant to gate access to.",
+    "must_cover": [
+      {
+        "file": "libavcodec/threadprogress.c",
+        "function": "ff_thread_progress_report",
+        "reason": "Primary location of finding: Atomic progress store outside mutex causes data race with awaiting threads"
+      },
+      {
+        "file": "libavcodec/threadprogress.c",
+        "function": "ff_thread_progress_await",
+        "reason": "Related location for: Atomic progress store outside mutex causes data race with awaiting threads"
+      },
+      {
+        "file": "libavcodec/threadprogress.c",
+        "function": "ff_thread_progress_await",
+        "reason": "Related location for: Atomic progress store outside mutex causes data race with awaiting threads"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "ffmpeg__586de322ab7d__buggy",
+    "project": "ffmpeg",
+    "repo_url": "https://github.com/FFmpeg/FFmpeg.git",
+    "parent_sha": "0fb0946de7d35e4d0c1455b82a04f8833106260e",
+    "diff_stats": {
+      "files_changed": 2,
+      "lines_changed": 171
+    }
+  }
+}

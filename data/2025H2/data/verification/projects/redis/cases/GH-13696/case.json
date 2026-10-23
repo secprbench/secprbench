@@ -1,0 +1,230 @@
+{
+  "bug_id": "GH-13696",
+  "project": "redis",
+  "bug_type": "DataRace",
+  "commits": {
+    "intro": "7665bdc91aa6f98289eefdcbdb2def4467864b7a",
+    "parent": "64a40b20d906f019a32fcb227c938768079dd9ed",
+    "fix": "6ea4e2c949c7fa50b85ff59647ee5e3f95e97037"
+  },
+  "affected_files": [
+    "src/networking.c",
+    "src/dict.h",
+    "src/module.c",
+    "src/server.c",
+    "src/dict.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/redis/9a192042f65574ec2b13/attempts/02/replay/pr_review_GH-13696.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/redis/9a192042f65574ec2b13/attempts/02/replay/pr_review_GH-13696.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "64a40b20d906f019a32fcb227c938768079dd9ed",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "mmand docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ sleep 1\n+ kill 12\n+ sleep 1\n+ echo '=== tsan reports ==='\n+ ls -la '/tmp/tsan*'\n+ FOUND=0\n+ for f in /tmp/tsan.*\n+ '[' -e '/tmp/tsan.*' ']'\n+ continue\n+ echo '=== server log tail ==='\n+ tail -n 60 /tmp/redis_tsan.log\n+ '[' 0 = 1 ']'\n+ echo NO_RACE_DETECTED\n+ exit 0\n",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d4f609cfb346f791aebb8fba4c3e03958b82e1fa3c8995357a2d0ec16d4e7fb9"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "7665bdc91aa6f98289eefdcbdb2def4467864b7a",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 66,
+        "crashed": true,
+        "sanitizer_report": "PONG\n=== tsan reports ===\n-rw-r----- 1 playground playground 2829 Sep 29 17:59 /tmp/tsan.12\n==================\nWARNING: ThreadSanitizer: data race (pid=12)\n  Write of size 2 at 0x7f3c104084c8 by main thread (mutexes: write M76):\n    #0 dictNext /work/src/dict.c:1073 (redis-server+0x9065f)\n    #1 addReplyCommandSubCommands /work/src/server.c:5024 (redis-server+0xc8c56)\n    #2 addReplyCommandDocs /work/src/server.c:5129 (redis-server+0xc8c56)\n    #3 commandDocsCommand /work/src/server.c:5356 (redis-server+0xcc9a8)\n    #4 call /work/src/server.c:3643 (redis-server+0xc3e43)\n    #5 processCommand /work/src/server.c:4275 (redis-server+0xc524c)\n    #6 processCommandAndResetClient /work/src/networking.c:2599 (redis-server+0x103d97)\n    #7 processPendingCommandAndInputBuffer /work/src/networking.c:2632 (redis-server+0x103d97)\n    #8 processClientsFromIOThread /work/src/iothread.c:357 (redis-server+0xb1c02)\n    #9 handleClientsFromIOThread /work/src/iothread.c:430 (redis-server+0xb21a7)\n    #10 aeProcessEvents /work/src/ae.c:434 (redis-server+0x9d015)\n    #11 aeMain /work/src/ae.c:494 (redis-server+0x9d015)\n    #12 main /work/src/server.c:7391 (redis-server+0x896dd)\n\n  Previous read of size 1 at 0x7f3c104084c9 by thread T6:\n    #0 dictFind /work/src/dict.c:808 (redis-server+0x940e7)\n    #1 dictFetchValue /work/src/dict.c:815 (redis-server+0x94c25)\n    #2 lookupSubcommand /work/src/server.c:3241 (redis-server+0xb70c1)\n    #3 lookupCommandLogic /work/src/server.c:3264 (redis-server+0xb70c1)\n    #4 lookupCommand /work/src/server.c:3269 (redis-server+0x102fed)\n    #5 processInputBuffer /work/src/networking.c:2781 (redis-server+0x102fed)\n    #6 readQueryFromClient /work/src/networking.c:2951 (redis-server+0x103b0f)\n    #7 callHandler /work/src/connhelpers.h:58 (redis-server+0x2ccbd2)\n    #8 connSocketEventHandler /work/src/socket.c:287 (redis-server+0x2ccbd2)\n    #9 aeProcessEvents /work/src/ae.c:434 (redis-server+0x9d015)\n    #10 aeMain /work/src/ae.c:494 (redis-server+0x9d015)\n    #11 IOThreadMain /work/src/iothread.c:547 (redis-server+0xac78a)\n\n  Mutex M76 (0x55684c9c05c0) created at:\n    #0 pthread_mutex_lock ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:4240 (libtsan.so.0+0x53908)\n    #1 moduleInitModulesSystem /work/src/module.c:12144 (redis-server+0x26b84c)\n    #2 main /work/src/server.c:7131 (redis-server+0x892f7)\n\n  Thread T6 'io_thd_3' (tid=20, running) created by main thread at:\n    #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:969 (libtsan.so.0+0x605b8)\n    #1 initThreadedIO /work/src/iothread.c:592 (redis-server+0xacc3e)\n    #2 initThreadedIO /work/src/iothread.c:552 (redis-server+0xacc3e)\n    #3 InitServerLast /work/src/server.c:2950 (redis-server+0xbd2d0)\n    #4 main /work/src/server.c:7341 (redis-server+0x8959d)\n\nSUMMARY: ThreadSanitizer: data race /work/src/dict.c:1073 in dictNext\n==================\n=== server log tail ===\n12:C 29 Sep 2026 17:59:08.453 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. Being disabled, it can also cause failures without low memory condition, see https://github.com/jemalloc/jemalloc/issues/1328. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n12:C 29 Sep 2026 17:59:08.453 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n12:C 29 Sep 2026 17:59:08.453 * ",
+        "build_log_tail": "",
+        "run_log_tail": " 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ sleep 1\n+ kill 12\n+ sleep 1\n+ echo '=== tsan reports ==='\n+ ls -la /tmp/tsan.12\n+ FOUND=0\n+ for f in /tmp/tsan.*\n+ '[' -e /tmp/tsan.12 ']'\n+ cat /tmp/tsan.12\n+ grep -q 'ThreadSanitizer: data race' /tmp/tsan.12\n+ FOUND=1\n+ echo '=== server log tail ==='\n+ tail -n 60 /tmp/redis_tsan.log\n+ '[' 1 = 1 ']'\n+ echo RACE_DETECTED\n+ exit 66\n",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "44a4a5816ce2b0d68fcb858d7259e0e7023bdc15f8ca327716f6b2c7d17cf137"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "64a40b20d906f019a32fcb227c938768079dd9ed",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "mmand docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ sleep 1\n+ kill 12\n+ sleep 1\n+ echo '=== tsan reports ==='\n+ ls -la '/tmp/tsan*'\n+ FOUND=0\n+ for f in /tmp/tsan.*\n+ '[' -e '/tmp/tsan.*' ']'\n+ continue\n+ echo '=== server log tail ==='\n+ tail -n 60 /tmp/redis_tsan.log\n+ '[' 0 = 1 ']'\n+ echo NO_RACE_DETECTED\n+ exit 0\n",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "72325c1789615226702e77db540340707e7ab73e27dee2afb51c8616fb0c6b44"
+        }
+      }
+    }
+  },
+  "task_hashes": {
+    "buggy": "5994f8a5d6252ed5343e7dfc620338d41e1e28b6fdb6d54970daa291362a0df6",
+    "benign": "58be589246757e94576b5cdbf3473dce3ef09d0a88541c56cb603de614b04d0f"
+  },
+  "previous_records": [
+    {
+      "bug_id": "GH-13696",
+      "project": "redis",
+      "bug_type": "DataRace",
+      "commits": {
+        "intro": "7665bdc91aa6f98289eefdcbdb2def4467864b7a",
+        "parent": "64a40b20d906f019a32fcb227c938768079dd9ed",
+        "fix": "6ea4e2c949c7fa50b85ff59647ee5e3f95e97037"
+      },
+      "affected_files": [
+        "src/networking.c",
+        "src/dict.h",
+        "src/module.c",
+        "src/server.c",
+        "src/dict.c"
+      ],
+      "baseline": {
+        "status": "inconclusive",
+        "intro_verified": true,
+        "benign_verified": true,
+        "reason": "Verified via run_poc with the identical /poc/run.sh across all three revisions (same command, same input). pre_intro: exit=0, no TSAN report — expected because src/networking.c in pre_intro has no `c->iolookedcmd = lookupCommand(c->argv, c->argc)` call from the I/O thread (confirmed absent by source diff). post_intro: exit=66, TSAN fired reliably (2 extra confirmation runs outside run_poc also hit it) with report \"ThreadSanitizer: data race /work/src/dict.c:1073 in dictNext\", where the racing read is `dictFind (dict.c:808) <- dictFetchValue <- lookupSubcommand <- lookupCommandLogic <- lookupCommand <- processInputBuffer (networking.c:2781) <- readQueryFromClient <- IOThreadMain` (i.e. an I/O thread reading dict->useStoredKeyApi during a command lookup) racing against the main thread's dictNext() safe-iterator pause/resume-rehash bookkeeping (dict->pauserehash) on the same dict object — exactly the hazard described in the fix commit message (\"main thread modifies pauserehash in dictNext while IO thread reads useStoredKeyApi() in lookupCommand()->dictFind() path\"). This matches the intro commit's structural change (PR #13696 offloading lookupCommand to I/O threads) combined with the pre-existing bitfield-packing hazard in struct dict (pauserehash/useStoredKeyApi sharing one storage word in both pre_intro and post_intro's dict.h). post_benign: exit=0, no TSAN report, and source diff confirms the fix commit's change is present — dict.h's `pauserehash` is now a full non-shared unsigned word, and `useStoredKeyApi` instead shares a word with `pauseAutoResize` (which the fix message states is never mutated for command dicts), eliminating the concurrent RMW hazard while the racy I/O-thread lookupCommand call path itself remains unchanged/present. This satisfies the crash/no-crash/no-crash pattern required to confirm both bug introduction and the benign fix for this DataRace.",
+        "source": "secprbench replay"
+      },
+      "final_disposition": "inconclusive",
+      "evidence": {
+        "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/redis/9a192042f65574ec2b13/attempts/01/replay/pr_review_GH-13696.result.json",
+        "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/redis/9a192042f65574ec2b13/attempts/01/replay/pr_review_GH-13696.report.md",
+        "runs": {},
+        "agent": {
+          "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/redis/9a192042f65574ec2b13/attempts/01/replay/pr_review_GH-13696.agent_verdict.json",
+          "executions": {
+            "post_intro": {
+              "command": "cd /work && bash /poc/run.sh",
+              "input": null,
+              "poc_sha256": "9ad2cc801f04ecd23c322b7de9bce8decf3a25fefff771ae57ce148a7ac7e9ee",
+              "build": {
+                "version": "post_intro",
+                "base_commit": "7665bdc91aa6f98289eefdcbdb2def4467864b7a",
+                "patched": false,
+                "patch_method": "",
+                "patch_clean": null,
+                "build_ok": true,
+                "poc_ran": false,
+                "exit_code": null,
+                "crashed": false,
+                "sanitizer_report": "",
+                "build_log_tail": "",
+                "run_log_tail": "",
+                "note": "build cached",
+                "source_integrity": {
+                  "ok": true,
+                  "stage": "after_poc",
+                  "fingerprint": "44a4a5816ce2b0d68fcb858d7259e0e7023bdc15f8ca327716f6b2c7d17cf137"
+                }
+              },
+              "run": {
+                "exit_code": 66,
+                "crashed": false,
+                "sanitizer": "",
+                "stdout_tail": "in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ sleep 1\n+ kill 12\n+ sleep 1\n+ echo '=== tsan reports ==='\n+ ls -la /tmp/tsan.12\n+ FOUND=0\n+ for f in /tmp/tsan.*\n+ '[' -e /tmp/tsan.12 ']'\n+ cat /tmp/tsan.12\n+ grep -q 'ThreadSanitizer: data race' /tmp/tsan.12\n+ FOUND=1\n+ echo '=== server log tail ==='\n+ tail -n 60 /tmp/redis_tsan.log\n+ '[' 1 = 1 ']'\n+ echo RACE_DETECTED\n+ exit 66\n"
+              }
+            },
+            "pre_intro": {
+              "command": "cd /work && bash /poc/run.sh",
+              "input": null,
+              "poc_sha256": "9ad2cc801f04ecd23c322b7de9bce8decf3a25fefff771ae57ce148a7ac7e9ee",
+              "build": {
+                "version": "pre_intro",
+                "base_commit": "64a40b20d906f019a32fcb227c938768079dd9ed",
+                "patched": false,
+                "patch_method": "",
+                "patch_clean": null,
+                "build_ok": true,
+                "poc_ran": false,
+                "exit_code": null,
+                "crashed": false,
+                "sanitizer_report": "",
+                "build_log_tail": "",
+                "run_log_tail": "",
+                "note": "build cached",
+                "source_integrity": {
+                  "ok": true,
+                  "stage": "after_poc",
+                  "fingerprint": "d4f609cfb346f791aebb8fba4c3e03958b82e1fa3c8995357a2d0ec16d4e7fb9"
+                }
+              },
+              "run": {
+                "exit_code": 0,
+                "crashed": false,
+                "sanitizer": "",
+                "stdout_tail": "-p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ sleep 1\n+ kill 12\n+ sleep 1\n+ echo '=== tsan reports ==='\n+ ls -la '/tmp/tsan*'\n+ FOUND=0\n+ for f in /tmp/tsan.*\n+ '[' -e '/tmp/tsan.*' ']'\n+ continue\n+ echo '=== server log tail ==='\n+ tail -n 60 /tmp/redis_tsan.log\n+ '[' 0 = 1 ']'\n+ echo NO_RACE_DETECTED\n+ exit 0\n"
+              }
+            },
+            "post_benign": {
+              "command": "cd /work && bash /poc/run.sh",
+              "input": null,
+              "poc_sha256": "9ad2cc801f04ecd23c322b7de9bce8decf3a25fefff771ae57ce148a7ac7e9ee",
+              "build": {
+                "version": "post_benign",
+                "base_commit": "64a40b20d906f019a32fcb227c938768079dd9ed",
+                "patched": true,
+                "patch_method": "plain",
+                "patch_clean": true,
+                "build_ok": true,
+                "poc_ran": false,
+                "exit_code": null,
+                "crashed": false,
+                "sanitizer_report": "",
+                "build_log_tail": "",
+                "run_log_tail": "",
+                "note": "build cached",
+                "source_integrity": {
+                  "ok": true,
+                  "stage": "after_poc",
+                  "fingerprint": "72325c1789615226702e77db540340707e7ab73e27dee2afb51c8616fb0c6b44"
+                }
+              },
+              "run": {
+                "exit_code": 0,
+                "crashed": false,
+                "sanitizer": "",
+                "stdout_tail": "-p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ for i in $(seq 1 400)\n+ src/redis-cli -p 7333 command docs\n+ src/redis-cli -p 7333 command count\n+ sleep 1\n+ kill 12\n+ sleep 1\n+ echo '=== tsan reports ==='\n+ ls -la '/tmp/tsan*'\n+ FOUND=0\n+ for f in /tmp/tsan.*\n+ '[' -e '/tmp/tsan.*' ']'\n+ continue\n+ echo '=== server log tail ==='\n+ tail -n 60 /tmp/redis_tsan.log\n+ '[' 0 = 1 ']'\n+ echo NO_RACE_DETECTED\n+ exit 0\n"
+              }
+            }
+          },
+          "explanation": "Verified via run_poc with the identical /poc/run.sh across all three revisions (same command, same input). pre_intro: exit=0, no TSAN report — expected because src/networking.c in pre_intro has no `c->iolookedcmd = lookupCommand(c->argv, c->argc)` call from the I/O thread (confirmed absent by source diff). post_intro: exit=66, TSAN fired reliably (2 extra confirmation runs outside run_poc also hit it) with report \"ThreadSanitizer: data race /work/src/dict.c:1073 in dictNext\", where the racing read is `dictFind (dict.c:808) <- dictFetchValue <- lookupSubcommand <- lookupCommandLogic <- lookupCommand <- processInputBuffer (networking.c:2781) <- readQueryFromClient <- IOThreadMain` (i.e. an I/O thread reading dict->useStoredKeyApi during a command lookup) racing against the main thread's dictNext() safe-iterator pause/resume-rehash bookkeeping (dict->pauserehash) on the same dict object — exactly the hazard described in the fix commit message (\"main thread modifies pauserehash in dictNext while IO thread reads useStoredKeyApi() in lookupCommand()->dictFind() path\"). This matches the intro commit's structural change (PR #13696 offloading lookupCommand to I/O threads) combined with the pre-existing bitfield-packing hazard in struct dict (pauserehash/useStoredKeyApi sharing one storage word in both pre_intro and post_intro's dict.h). post_benign: exit=0, no TSAN report, and source diff confirms the fix commit's change is present — dict.h's `pauserehash` is now a full non-shared unsigned word, and `useStoredKeyApi` instead shares a word with `pauseAutoResize` (which the fix message states is never mutated for command dicts), eliminating the concurrent RMW hazard while the racy I/O-thread lookupCommand call path itself remains unchanged/present. This satisfies the crash/no-crash/no-crash pattern required to confirm both bug introduction and the benign fix for this DataRace."
+        }
+      },
+      "task_hashes": {
+        "buggy": "5994f8a5d6252ed5343e7dfc620338d41e1e28b6fdb6d54970daa291362a0df6",
+        "benign": "58be589246757e94576b5cdbf3473dce3ef09d0a88541c56cb603de614b04d0f"
+      }
+    }
+  ]
+}

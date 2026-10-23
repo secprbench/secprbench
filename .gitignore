@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.env
+runs/
+.work/
+.cache/
+configs/local/
+.env.*
+*.key
+auth.json

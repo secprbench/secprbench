@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-18574",
+  "bug_id": "GH-18574",
+  "bug_type": "LogicError",
+  "intro_commit": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+  "intro_parent": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+  "fix_commit": "ad147ec53de822a18b5dec63b72f43688ae53869",
+  "affected_files": [
+    "lib/tftp.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A refactor of the TFTP timeout logic (commit d3d90ad9c0) replaced the old wall-clock deadline comparison with a Curl_timeleft()-based negative-value convention, but in the branch that handles an already-expired timer it kept returning the literal 0 (a holdover from the old code's 'return 0' pattern for absolute timeout) instead of returning the negative timeout_ms. The same commit also tightened the caller's guard from '<= 0' to '< 0', which had previously masked this exact bug (0 used to also trigger the abort). The combination silently disables timeout propagation for the expired-timer branch.",
+  "findings": [
+    "In tftp_state_timeout(), when Curl_timeleft() reports the overall operation time budget has been exhausted (timeout_ms < 0), the function sets state->error = TFTP_ERR_TIMEOUT and state->state = TFTP_STATE_FIN, but then returns the literal value 0 instead of propagating the negative timeout_ms. The sole caller, tftp_multi_statemach(), checks 'if(timeout_ms < 0)' to decide whether to abort the trans"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "70304e18fb2e65d8b6d57660b7bdb12e56d13882aecac61d146d974c5a4eaa94",
+  "generated_artifact_sha256": {
+    "reference": "1bf735d6c73ceb6bf18977109589b3efc7f9251cf01072c6c5e4e477a1dad210",
+    "introducing": "cd8d9543ed4ed308551bc197a6e1b1a801fb96fc81e41730d71b3a6f7b7636c4",
+    "companion": "5d9b6292a2caf9c090c897fb209707d82918f93861df4ae8f2790cd61deae5e3"
+  }
+}

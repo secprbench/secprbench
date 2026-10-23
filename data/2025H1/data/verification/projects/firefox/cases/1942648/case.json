@@ -1,0 +1,34 @@
+{
+  "bug_id": "1942648",
+  "project": "firefox",
+  "bug_type": "TypeConfusion",
+  "commits": {
+    "intro": "9385dab26b9068d849e2766768d2eacf99c7dfc2",
+    "parent": "602f317a6a04910da8298c0c03aeb6292c5ee209",
+    "fix": "8354ae880cf5c7999ce47e94249450148d5d0db4"
+  },
+  "affected_files": [
+    "js/src/jit/WarpCacheIRTranspiler.cpp",
+    "js/src/jit/Lowering.cpp",
+    "js/src/jit/MIR.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, None)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": null,
+    "poc_source": "saved/era-harness",
+    "reason": "",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1942648.json"
+  },
+  "final_disposition": "verified"
+}

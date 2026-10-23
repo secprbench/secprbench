@@ -1,0 +1,7 @@
+{
+  "initial_cookie": "race.test host-only foo=old",
+  "main_path": "/main",
+  "pause_at_main_cookie_unlock": 3,
+  "replace_path": "/replace",
+  "response_header": "Set-Cookie: foo=new; Path=/"
+}

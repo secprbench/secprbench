@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-471525116",
+  "bug_id": "OSSFUZZ-471525116",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "771449f14a35afa324cbf089f569e915ac9501ed",
+  "intro_parent": "7099b09e9629d8ea39231520739b4b6d90691d0c",
+  "fix_commit": "7b72c0f238ff00ede4a74e7d283d233d1c0bafca",
+  "affected_files": [
+    "src/autofit/aflatin.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "freetype",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The multiplication `(p->y - min_y) * target_height` was written with a comment claiming the operands are always small enough to avoid overflow, without any actual bounds validation. This assumption does not hold for arbitrary/fuzzed font glyph coordinates, allowing the signed multiplication to overflow FT_Pos (a signed long), which is undefined behavior in C and can yield incorrect or attacker-influenced results.",
+  "findings": [
+    "In the tilde-unflattening scaling code, each point's y-coordinate is rescaled with a raw C expression `( ( p->y - min_y ) * target_height / height ) + min_y`. The comment claims 'we are never dealing with large numbers and can thus avoid `FT_MulFix`', but `p->y - min_y` and `target_height` are both `FT_Pos` (a signed long) values derived from font outline coordinates, which for malformed/fuzzed fo"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "ac6c09af493ea821ae3f4b5b09dbda44607b3c15638016a631da5ba7da7a759b",
+  "generated_artifact_sha256": {
+    "reference": "31cf45de5213e379ab872b3dc5a38530ab8c4e5bb1a4c74d4dc780c984b59d84",
+    "introducing": "e2532f44aad6a3a9e23b087ef95d64f537cf600f0968c95e4a7f24f4a4a6578e",
+    "companion": "7c43294ec05d58eba455a7d750f9748b91c06faf9170eb7ba33436c0dd13955c"
+  }
+}

@@ -1,0 +1,201 @@
+{
+  "affected_files": [
+    "lib/http2.c"
+  ],
+  "aliases": [
+    "PR-16960"
+  ],
+  "bug_discussion": "Official GH-16955 reports a supported libcurl HTTP/2 multiplexed download that hangs after its 10,485,760-byte stream receive window is consumed while the application repeatedly pauses/unpauses under backpressure. Public reporter C++/Caddy evidence and fixing PR are archived. A source-exact host replay with nghttp2 1.64.0 and the functional February 2025 introduction shows parent/buggy/repaired slow application progress of 16,777,216/10,485,760/16,777,216 bytes under identical remote response bytes; the buggy stream has zero peer window and no later WINDOW_UPDATE. Independent security review and normal Docker verification remain pending.",
+  "bug_id": "GH-16955",
+  "candidate_status": "targeted_public_report_review_only_host_oracle_passed",
+  "changed_lines": 63,
+  "commit_ids": [
+    "5fbd78eb2dc4afbd8884e8eed27147fc3d4318f6"
+  ],
+  "component": "libcurl HTTP/2 flow control",
+  "creation_time": "2025-04-04T00:25:44Z",
+  "date_basis": "git_committer_date_on_captured_origin_master",
+  "fix_commit_sha": "5fbd78eb2dc4afbd8884e8eed27147fc3d4318f6",
+  "fix_date": "2025-04-05T14:54:40+02:00",
+  "keywords": [
+    "HTTP/2",
+    "flow control",
+    "remote response",
+    "deadlock",
+    "availability",
+    "pause",
+    "window update"
+  ],
+  "mainline_verified": true,
+  "product": "curl",
+  "provenance": {
+    "collector": "targeted_curl_h1_flow_control_functional_20261002_v2",
+    "commit_object": {
+      "bytes": 1288,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/git/fix-5fbd78eb2dc4afbd8884e8eed27147fc3d4318f6.commit",
+      "sha256": "fe9be930a16ba692f2452460ee463140e68747e7520d690b020737761bc7202c"
+    },
+    "dedup_snapshot": {
+      "bug": {
+        "bytes": 41884,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-h1-targeted-search-v1/dedup-gh16955.json",
+        "sha256": "8af71614475c7044e641eab645c9bc5e78ce7ba6d1846ae6826815482ab77627"
+      },
+      "hits_before_v1_freeze": 0,
+      "identity_rows_read": 23197,
+      "input_count": 194,
+      "pr": {
+        "bytes": 41884,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-h1-targeted-search-v1/dedup-pr16960.json",
+        "sha256": "5804493a7032c828ed9a9463308a5298b2040ee3381f3be3121234fa3f77c7aa"
+      },
+      "source_records_read": 1789,
+      "v1_status": "superseded_held_not_live"
+    },
+    "equivalent_intro_companion": {
+      "bytes": 706,
+      "path": "/research-data/secprbench/curl-gh16955-functional-oracle-v2/intro_companion_exact.patch",
+      "sha256": "8bb3b0f79ad8b6e08a5692896f49c759ab9147cbd02da71fb777d8b14d95b2c5"
+    },
+    "functional_parent": {
+      "commit_object": {
+        "bytes": 1242,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/functional_parent-279a4772ae67dd4d9770e11e60040f9113b1c345.commit",
+        "sha256": "8db2f0c35a26fe7a1d7e23bf3a7b44e0361886a22b0fb859abe086c8f764e8a7"
+      },
+      "http2_source": {
+        "bytes": 93727,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/snapshots/functional_parent/lib/http2.c",
+        "sha256": "aeb8d5de0b8547a8c00a6de7e233a712b5dfdb69b3e358e688f522c32264fa4a"
+      },
+      "sha": "279a4772ae67dd4d9770e11e60040f9113b1c345"
+    },
+    "gist_index": {
+      "bytes": 63192,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/reports/gist-276cb01858d894f4946787f69254a923.json",
+      "sha256": "9ecbe3d08262a8a778515e7f5d236a774a1d8bdf65499d6f18b27b047f49b7d5"
+    },
+    "git_evidence_index": {
+      "bytes": 4872,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/evidence-index.json",
+      "sha256": "f5c534b150d4c218e0872ba7b23f09156b2f7b21778ece459729aa9db5e8bd0b"
+    },
+    "host_oracle": {
+      "bytes": 15307,
+      "path": "/research-data/secprbench/curl-gh16955-functional-oracle-v2/manifest.json",
+      "sha256": "cd80d342f46b3ba5f68cbeffeb96c3df60628eecc9465e1b9227c78a6321dae1"
+    },
+    "introduction_candidate": {
+      "basis": "This commit adds the cw-pause writer and h2_stream_ctx.write_paused transition that shrinks a paused response stream's local receive window to zero. The 2024 submit-only helper is a textual ancestor, but the new output-pause path makes the missing setter reachable. The exact parent/intro/repaired host replay proves the functional absent/present/absent stall.",
+      "blame": {
+        "bytes": 2112,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/functional_intro-pause-blame.txt",
+        "sha256": "1764c98dcdfff99f05852cde7253a5593c37369c9cabd3fbfc74c30607aa3ab1"
+      },
+      "changed_lines": 521,
+      "commit_object": {
+        "bytes": 2241,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/functional_intro-f78700814d702c523a7a2c3766a1ca60f3db7edc.commit",
+        "sha256": "424e544c18bdf4e10ad4d25102b9ed0b65e330746906f410795b0a5dc2201a55"
+      },
+      "committer_date": "2025-02-20T15:53:18+01:00",
+      "files": 14,
+      "parent": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+      "patch": {
+        "bytes": 33241,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/functional_intro-f78700814d702c523a7a2c3766a1ca60f3db7edc.patch",
+        "sha256": "edf61ea3f72be2d6567cb07605b2189f8044ea8ca7c22e88677f331c3610d8dd"
+      },
+      "sha": "f78700814d702c523a7a2c3766a1ca60f3db7edc",
+      "window_blame": {
+        "bytes": 3486,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/raw/git/functional_intro-window-blame.txt",
+        "sha256": "47f5c75a0d1318daef528fe536a3ae662bd4ce59eb0fa874adabf080cf581754"
+      }
+    },
+    "lineage_audit": {
+      "bytes": 3045,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-functional-intro-v2/lineage.md",
+      "sha256": "745dc570c6cf9fcdcfd191e9eba3fea121548b8579311f49c111717e5d607080"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "dfa444f1e59c52b56fb0d16152e610e4c29c7115",
+    "oracle_feasibility": "Host source-exact three-version replay passed with upstream-derived client, exact nghttp2 1.64.0, deterministic local TLS/HTTP2 bytes, and one-file repair. Normal Docker construction and verification remain separate pending gates.",
+    "original_reporter_poc": {
+      "bytes": 16557,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/reports/gist-files/repro.cc",
+      "sha256": "f388ce44862cee7ed1342769292dd5a3f02c6b70748c1472026294e34c09c29c"
+    },
+    "patch": {
+      "bytes": 6198,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/git/fix-5fbd78eb2dc4afbd8884e8eed27147fc3d4318f6.patch",
+      "sha256": "6d36f23389f5b32adc4a9ec4e80b5a3555fa40ce30d11f8596687359dfe88e2f"
+    },
+    "raw_report": {
+      "bytes": 35464,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/reports/github-issue-16955.json",
+      "sha256": "a58dcc01dc905f02e5b4bb15d25f369b277c94248beaa86141a41173fd51ba77"
+    },
+    "report_details": "fetched_exact_public_issue_pr_gist_and_git_objects",
+    "reporter_fixture": {
+      "bytes": 287,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/reports/gist-files/Caddyfile",
+      "sha256": "a48f2e9078a3b0276ad690f43bc54e67983a02ab2003b121f707a4ae198bc8ba"
+    },
+    "source_url": "https://github.com/curl/curl/issues/16955",
+    "test_evidence": {
+      "bytes": 34563,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/tests/test_02_download.py",
+      "sha256": "fc62dfa98b8fd31ef7a97684c88cb021a680d82160e6148095f93032adc7ea51"
+    },
+    "textual_ancestor_superseded": {
+      "disposition": "held_wrong_functional_intro_not_for_admission",
+      "previous_lineage": {
+        "bytes": 1896,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/lineage.md",
+        "sha256": "70cf7fe4394f5ac685942852667c305c0d30f20ae396b071c47259f44634759a"
+      },
+      "previous_source": {
+        "bytes": 8269,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/normalizedsources/2025H1/source_b23d8348737d087d7160.json",
+        "sha256": "a26e75fa73200d1898bc947540615377e6dfdebdaa3008118b48d009463b8025"
+      },
+      "sha": "eb0a366b7035952f63b2cf61c9bc97982068a543"
+    },
+    "upstream_comments": {
+      "bytes": 3496,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/reports/github-issue-16955-comments.json",
+      "sha256": "72424dfc876a2c1152c18d3da74d6cbc579287b32a1c83bb7640435a3401321a"
+    },
+    "upstream_pr": {
+      "bytes": 16121,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh16955-v1/raw/reports/github-pr-16960.json",
+      "sha256": "e299a4a07cce758a8b86bc9dc8eb1de47fd0909e56808cd2890d9a5e81b73ed6"
+    }
+  },
+  "report_references": [
+    {
+      "id": "GH-16955",
+      "kind": "public_upstream_issue",
+      "url": "https://github.com/curl/curl/issues/16955"
+    },
+    {
+      "id": "PR-16960",
+      "kind": "exact_fixing_pr",
+      "url": "https://github.com/curl/curl/pull/16960"
+    }
+  ],
+  "resolution_time": "2025-04-05T14:54:40+02:00",
+  "season": "2025H1",
+  "security_screen": {
+    "oracle": "Host same-input parent/functional-intro/intro-plus-one-line-repair replay produced full/10-MiB-stall/full application bytes, with matching server-side WINDOW_UPDATE and flow-window evidence.",
+    "preliminary_impact": "remote_HTTP2_response_induced_fetcher_availability_loss",
+    "qualification": "The remote data stalls the application at its initial stream window in the buggy revision. Impact is conditional on a slow consumer and the embedding's pause policy; no memory corruption, page-only trigger, or host compromise is claimed. Independent paper-policy security review is required before admission.",
+    "status": "pending_independent_review",
+    "untrusted_input_boundary": "A lower-trust HTTP/2 peer supplies the response bytes and timing on a transfer whose embedding legitimately uses the documented libcurl pause/unpause API for backpressure."
+  },
+  "severity": "conditional_remote_availability_candidate",
+  "target_type": "libcurl_tls_http2_multiplexed_pause_unpause",
+  "title": "HTTP/2 transfer deadlock after pause and unpause",
+  "verification": "host_three_version_replay_passed_pending_docker_verification"
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-65fc0db581c4ee2a",
+  "bug_id": "REPORT-65fc0db581c4ee2a",
+  "bug_type": "LogicError",
+  "intro_commit": "425c3234206c042273e001c8865391a53ce5855e",
+  "intro_parent": "de976eaf30df33e86c58c8c9af9905c1d8441934",
+  "fix_commit": "65fc0db581c4ee2a891b7b72f6056357ceb3b0bd",
+  "affected_files": [
+    "libavformat/hlsenc.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The code assumes that the VTT basename always contains a well-formed, single `%d`-style placeholder intended for the segment index and unconditionally forwards that string as the fmt argument of snprintf(), rather than treating the basename as opaque data and only substituting the index through a controlled, format-string-free mechanism.",
+  "findings": [
+    "In parse_playlist(), when handling HLS `-hls_flags append_list` for subtitle (.vtt) playlists, the code derives `vtt_basename` from `vs->vtt_basename` (the user-configured VTT filename template, e.g. via `-hls_segment_filename`/`vtt_basename` option or its default derived from output naming) and passes it directly as the *format string* argument to `snprintf()`:\n\n    snprintf(vtt_file, len, vtt_ba"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "7bcf1e2a6162b79cd3252da192d3821eaaf8d6525270e040e67b61225adf3c03",
+  "generated_artifact_sha256": {
+    "reference": "11a62fa6613efe244a4cba39189c09a213ae2cd7666f8f830a46d7676971518c",
+    "introducing": "7acca30f50e9a81e9c4eb152afa5f3e81f54a8c5b52311f145e7cf8e59c8a21d",
+    "companion": "9bf419be92bd5f676b06db8a58de54cd8094f2153c505179461b295ce54d53e5"
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "task_id": "pr_review_FORUM-7c483444a125",
+  "bug_id": "FORUM-7c483444a125",
+  "commit_sha": "62546d4b1ff9211ccff922f622ee73871b1ed2b0",
+  "commit_message": "In the decimal extension, an optional second argument to the decimal() and decimal_exp() functions rounds the value to the number of significant digits specified by that argument.\n\nFossilOrigin-Name: cb24edf1afc3f9083a4963c5fe232933eccc7c0cb8872aa5fcd336d226b885ef",
+  "commit_author": "drh",
+  "commit_date": "2026-02-20T16:21:58Z",
+  "pr_title": "In the decimal extension, an optional second argument to the decimal() and decimal_exp() functions rounds the value to the number of significant digits specified by that argument.",
+  "pr_description": "FossilOrigin-Name: cb24edf1afc3f9083a4963c5fe232933eccc7c0cb8872aa5fcd336d226b885ef",
+  "files": [
+    {
+      "path": "ext/misc/decimal.c",
+      "status": "modified",
+      "additions": 39,
+      "deletions": 5,
+      "diff": "diff --git a/ext/misc/decimal.c b/ext/misc/decimal.c\nindex f87699f96b..ac9c7c7e5e 100644\n--- a/ext/misc/decimal.c\n+++ b/ext/misc/decimal.c\n@@ -289,16 +289,40 @@ static void decimal_result(sqlite3_context *pCtx, Decimal *p){\n   }\n   z[i] = 0;\n   sqlite3_result_text(pCtx, z, i, sqlite3_free);\n }\n \n+/*\n+** Round a decimal value to N significant digits.  N must be positive.\n+*/\n+static void decimal_round(Decimal *p, int N){\n+  int i;\n+  int nZero;\n+  if( N<1 ) return;\n+  for(nZero=0; nZero<p->nDigit && p->a[nZero]==0; nZero++){}\n+  N += nZero;\n+  if( p->nDigit<=N ) return;\n+  if( p->a[N]>4 ){\n+    p->a[N-1]++;\n+    for(i=N-1; i>0 && p->a[i]>9; i--){\n+      p->a[i] = 0;\n+      p->a[i-1]++;\n+    }\n+    if( p->a[0]>9 ){\n+      p->a[0] = 1;\n+      p->nFrac--;\n+    }\n+  }\n+  memset(&p->a[N], 0, p->nDigit - N);\n+}\n+\n /*\n ** Make the given Decimal the result in an format similar to  '%+#e'.\n ** In other words, show exponential notation with leading and trailing\n ** zeros omitted.\n */\n-static void decimal_result_sci(sqlite3_context *pCtx, Decimal *p){\n+static void decimal_result_sci(sqlite3_context *pCtx, Decimal *p, int N){\n   char *z;       /* The output buffer */\n   int i;         /* Loop counter */\n   int nZero;     /* Number of leading zeros */\n   int nDigit;    /* Number of digits not counting trailing zeros */\n   int nFrac;     /* Digits to the right of the decimal point */\n@@ -312,12 +336,14 @@ static void decimal_result_sci(sqlite3_context *pCtx, Decimal *p){\n   }\n   if( p->isNull ){\n     sqlite3_result_null(pCtx);\n     return;\n   }\n-  for(nDigit=p->nDigit; nDigit>0 && p->a[nDigit-1]==0; nDigit--){}\n+  if( N<1 ) N = 0;\n+  for(nDigit=p->nDigit; nDigit>N && p->a[nDigit-1]==0; nDigit--){}\n   for(nZero=0; nZero<nDigit && p->a[nZero]==0; nZero++){}\n+  N += nZero;\n   nFrac = p->nFrac + (nDigit - p->nDigit);\n   nDigit -= nZero;\n   z = sqlite3_malloc64( (sqlite3_int64)nDigit+20 );\n   if( z==0 ){\n     sqlite3_result_error_nomem(pCtx);\n@@ -675,14 +701,20 @@ static void decimalFunc(\n   sqlite3_context *context,\n   int argc,\n   sqlite3_value **argv\n ){\n   Decimal *p =  decimal_new(context, argv[0], 0);\n-  UNUSED_PARAMETER(argc);\n+  int N;\n+  if( argc==2 ){\n+    N = sqlite3_value_int(argv[1]);\n+    if( N>0 ) decimal_round(p, N);\n+  }else{\n+    N = 0;\n+  }\n   if( p ){\n     if( sqlite3_user_data(context)!=0 ){\n-      decimal_result_sci(context, p);\n+      decimal_result_sci(context, p, N);\n     }else{\n       decimal_result(context, p);\n     }\n     decimal_free(p);\n   }\n@@ -848,11 +880,11 @@ static void decimalPow2Func(\n   sqlite3_value **argv\n ){\n   UNUSED_PARAMETER(argc);\n   if( sqlite3_value_type(argv[0])==SQLITE_INTEGER ){\n     Decimal *pA = decimalPow2(sqlite3_value_int(argv[0]));\n-    decimal_result_sci(context, pA);\n+    decimal_result_sci(context, pA, 0);\n     decimal_free(pA);\n   }\n }\n \n #ifdef _WIN32\n@@ -869,11 +901,13 @@ int sqlite3_decimal_init(\n     int nArg;\n     int iArg;\n     void (*xFunc)(sqlite3_context*,int,sqlite3_value**);\n   } aFunc[] = {\n     { \"decimal\",       1, 0,  decimalFunc        },\n+    { \"decimal\",       2, 0,  decimalFunc        },\n     { \"decimal_exp\",   1, 1,  decimalFunc        },\n+    { \"decimal_exp\",   2, 1,  decimalFunc        },\n     { \"decimal_cmp\",   2, 0,  decimalCmpFunc     },\n     { \"decimal_add\",   2, 0,  decimalAddFunc     },\n     { \"decimal_sub\",   2, 0,  decimalSubFunc     },\n     { \"decimal_mul\",   2, 0,  decimalMulFunc     },\n     { \"decimal_pow2\",  1, 0,  decimalPow2Func    },\n"
+    },
+    {
+      "path": "manifest",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 7,
+      "diff": "diff --git a/manifest b/manifest\nindex d1d740ff1c..257c23a120 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Fix\\sa\\scse\\sin\\sthe\\sfiddle.debug\\sbuild\\swhere\\sit\\scould\\snot\\soverwrite\\sits\\sread-only/generated\\sindex.html.\n-D 2026-02-20T14:22:09.912\n+C In\\sthe\\sdecimal\\sextension,\\san\\soptional\\ssecond\\sargument\\sto\\sthe\\ndecimal()\\sand\\sdecimal_exp()\\sfunctions\\srounds\\sthe\\svalue\\sto\\sthe\\nnumber\\sof\\ssignificant\\sdigits\\sspecified\\sby\\sthat\\sargument.\n+D 2026-02-20T16:21:58.730\n F .fossil-settings/binary-glob 61195414528fb3ea9693577e1980230d78a1f8b0a54c78cf1b9b24d0a409ed6a x\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md 6bc480fc673fb4acbc4094e77edb326267dd460162d7723c7f30bee2d3d9e97d\n F Makefile.in 3ce07126d7e87c7464301482e161fdae6a51d0a2aa06b200b8f0000ef4d6163b\n@@ -368,11 +368,11 @@ F ext/misc/cksumvfs.c 9d7d0cf1a8893ac5d48922bfe9f3f217b4a61a6265f559263a02bb2001\n F ext/misc/closure.c 5559daf1daf742228431db929d1aa86dd535a4224cc634a81d2fd0d1e6ad7839\n F ext/misc/completion.c c27b64fdd0943c1b7f152376599814cee2641f7d67a7bb9bd2b957c2a64a5591\n F ext/misc/compress.c 8191118b9b73e7796c961790db62d35d9b0fb724b045e005a5713dc9e0795565\n F ext/misc/csv.c e82124eabee0e692d7b90ab8b2c34fadbf7b375279f102567fa06e4da4b771bf\n F ext/misc/dbdump.c 678f1b9ae2317b4473f65d03132a2482c3f4b08920799ed80feedd2941a06680\n-F ext/misc/decimal.c d4883de142f6dcd36eda23da40b55e2b51374e7b01eb54a7173940191389fc5e\n+F ext/misc/decimal.c 38aa18b29e96c745c78725ef3740a53f4b2b8cdfa226dfab13aaf2168a071db7\n F ext/misc/eval.c 04bc9aada78c888394204b4ed996ab834b99726fb59603b0ee3ed6e049755dc1\n F ext/misc/explain.c 606100185fb90d6a1eade1ed0414d53503c86820d8956a06e3b0a56291894f2b\n F ext/misc/fileio.c 452300ca34fadafd2bb9eb09557de5a518da1fd2349f9f9cedd22b1566a7164f\n F ext/misc/fossildelta.c 86dfa83f85f7ccd640591d8a5c6865346d0c2ee6a949d78591eceb892f1cbfec\n F ext/misc/fuzzer.c 6b231352815304ba60d8e9ec2ee73d4918e74d9b76bda8940ba2b64e8777515e\n@@ -2193,10 +2193,10 @@ F tool/vdbe_profile.tcl 3ac5a4a9449f4baf77059358ea050db3e34395ccf59c5464d29b9174\n F tool/version-info.c 33d0390ef484b3b1cb685d59362be891ea162123cea181cb8e6d2cf6ddf2700c\n F tool/warnings-clang.sh bbf6a1e685e534c92ec2bfba5b1745f34fb6f0bc2a362850723a9ee87c1b31a7\n F tool/warnings.sh d924598cf2f55a4ecbc2aeb055c10bd5f48114793e7ba25f9585435da29e7e98\n F tool/win/sqlite.vsix deb315d026cc8400325c5863eef847784a219a2f\n F tool/winmain.c 00c8fb88e365c9017db14c73d3c78af62194d9644feaf60e220ab0f411f3604c\n-P 8660d3e94cbe892693554df282bce0fa8c7aedbc5e020cab647cbbff3d7e55b7\n-R 389af95283f5ab275172b5b1245f2df2\n-U stephan\n-Z 85bcd6f2a42107fa459e33d70b89b165\n+P 7adb2c0f438a97d377760436b1ac81fffab36e541a2b5ee733bfc7108e0180e5\n+R d3925fd721dfabc8744fb8ec5748bbad\n+U drh\n+Z a53353c83d76fce8dcafd070d72a5289\n # Remove this line to create a well-formed Fossil manifest.\n"
+    },
+    {
+      "path": "manifest.uuid",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/manifest.uuid b/manifest.uuid\nindex b83452454a..02ddfbd494 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-7adb2c0f438a97d377760436b1ac81fffab36e541a2b5ee733bfc7108e0180e5\n+cb24edf1afc3f9083a4963c5fe232933eccc7c0cb8872aa5fcd336d226b885ef\n"
+    }
+  ],
+  "full_diff": "diff --git a/ext/misc/decimal.c b/ext/misc/decimal.c\nindex f87699f96b..ac9c7c7e5e 100644\n--- a/ext/misc/decimal.c\n+++ b/ext/misc/decimal.c\n@@ -289,16 +289,40 @@ static void decimal_result(sqlite3_context *pCtx, Decimal *p){\n   }\n   z[i] = 0;\n   sqlite3_result_text(pCtx, z, i, sqlite3_free);\n }\n \n+/*\n+** Round a decimal value to N significant digits.  N must be positive.\n+*/\n+static void decimal_round(Decimal *p, int N){\n+  int i;\n+  int nZero;\n+  if( N<1 ) return;\n+  for(nZero=0; nZero<p->nDigit && p->a[nZero]==0; nZero++){}\n+  N += nZero;\n+  if( p->nDigit<=N ) return;\n+  if( p->a[N]>4 ){\n+    p->a[N-1]++;\n+    for(i=N-1; i>0 && p->a[i]>9; i--){\n+      p->a[i] = 0;\n+      p->a[i-1]++;\n+    }\n+    if( p->a[0]>9 ){\n+      p->a[0] = 1;\n+      p->nFrac--;\n+    }\n+  }\n+  memset(&p->a[N], 0, p->nDigit - N);\n+}\n+\n /*\n ** Make the given Decimal the result in an format similar to  '%+#e'.\n ** In other words, show exponential notation with leading and trailing\n ** zeros omitted.\n */\n-static void decimal_result_sci(sqlite3_context *pCtx, Decimal *p){\n+static void decimal_result_sci(sqlite3_context *pCtx, Decimal *p, int N){\n   char *z;       /* The output buffer */\n   int i;         /* Loop counter */\n   int nZero;     /* Number of leading zeros */\n   int nDigit;    /* Number of digits not counting trailing zeros */\n   int nFrac;     /* Digits to the right of the decimal point */\n@@ -312,12 +336,14 @@ static void decimal_result_sci(sqlite3_context *pCtx, Decimal *p){\n   }\n   if( p->isNull ){\n     sqlite3_result_null(pCtx);\n     return;\n   }\n-  for(nDigit=p->nDigit; nDigit>0 && p->a[nDigit-1]==0; nDigit--){}\n+  if( N<1 ) N = 0;\n+  for(nDigit=p->nDigit; nDigit>N && p->a[nDigit-1]==0; nDigit--){}\n   for(nZero=0; nZero<nDigit && p->a[nZero]==0; nZero++){}\n+  N += nZero;\n   nFrac = p->nFrac + (nDigit - p->nDigit);\n   nDigit -= nZero;\n   z = sqlite3_malloc64( (sqlite3_int64)nDigit+20 );\n   if( z==0 ){\n     sqlite3_result_error_nomem(pCtx);\n@@ -675,14 +701,20 @@ static void decimalFunc(\n   sqlite3_context *context,\n   int argc,\n   sqlite3_value **argv\n ){\n   Decimal *p =  decimal_new(context, argv[0], 0);\n-  UNUSED_PARAMETER(argc);\n+  int N;\n+  if( argc==2 ){\n+    N = sqlite3_value_int(argv[1]);\n+    if( N>0 ) decimal_round(p, N);\n+  }else{\n+    N = 0;\n+  }\n   if( p ){\n     if( sqlite3_user_data(context)!=0 ){\n-      decimal_result_sci(context, p);\n+      decimal_result_sci(context, p, N);\n     }else{\n       decimal_result(context, p);\n     }\n     decimal_free(p);\n   }\n@@ -848,11 +880,11 @@ static void decimalPow2Func(\n   sqlite3_value **argv\n ){\n   UNUSED_PARAMETER(argc);\n   if( sqlite3_value_type(argv[0])==SQLITE_INTEGER ){\n     Decimal *pA = decimalPow2(sqlite3_value_int(argv[0]));\n-    decimal_result_sci(context, pA);\n+    decimal_result_sci(context, pA, 0);\n     decimal_free(pA);\n   }\n }\n \n #ifdef _WIN32\n@@ -869,11 +901,13 @@ int sqlite3_decimal_init(\n     int nArg;\n     int iArg;\n     void (*xFunc)(sqlite3_context*,int,sqlite3_value**);\n   } aFunc[] = {\n     { \"decimal\",       1, 0,  decimalFunc        },\n+    { \"decimal\",       2, 0,  decimalFunc        },\n     { \"decimal_exp\",   1, 1,  decimalFunc        },\n+    { \"decimal_exp\",   2, 1,  decimalFunc        },\n     { \"decimal_cmp\",   2, 0,  decimalCmpFunc     },\n     { \"decimal_add\",   2, 0,  decimalAddFunc     },\n     { \"decimal_sub\",   2, 0,  decimalSubFunc     },\n     { \"decimal_mul\",   2, 0,  decimalMulFunc     },\n     { \"decimal_pow2\",  1, 0,  decimalPow2Func    },\ndiff --git a/manifest b/manifest\nindex d1d740ff1c..257c23a120 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Fix\\sa\\scse\\sin\\sthe\\sfiddle.debug\\sbuild\\swhere\\sit\\scould\\snot\\soverwrite\\sits\\sread-only/generated\\sindex.html.\n-D 2026-02-20T14:22:09.912\n+C In\\sthe\\sdecimal\\sextension,\\san\\soptional\\ssecond\\sargument\\sto\\sthe\\ndecimal()\\sand\\sdecimal_exp()\\sfunctions\\srounds\\sthe\\svalue\\sto\\sthe\\nnumber\\sof\\ssignificant\\sdigits\\sspecified\\sby\\sthat\\sargument.\n+D 2026-02-20T16:21:58.730\n F .fossil-settings/binary-glob 61195414528fb3ea9693577e1980230d78a1f8b0a54c78cf1b9b24d0a409ed6a x\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md 6bc480fc673fb4acbc4094e77edb326267dd460162d7723c7f30bee2d3d9e97d\n F Makefile.in 3ce07126d7e87c7464301482e161fdae6a51d0a2aa06b200b8f0000ef4d6163b\n@@ -368,11 +368,11 @@ F ext/misc/cksumvfs.c 9d7d0cf1a8893ac5d48922bfe9f3f217b4a61a6265f559263a02bb2001\n F ext/misc/closure.c 5559daf1daf742228431db929d1aa86dd535a4224cc634a81d2fd0d1e6ad7839\n F ext/misc/completion.c c27b64fdd0943c1b7f152376599814cee2641f7d67a7bb9bd2b957c2a64a5591\n F ext/misc/compress.c 8191118b9b73e7796c961790db62d35d9b0fb724b045e005a5713dc9e0795565\n F ext/misc/csv.c e82124eabee0e692d7b90ab8b2c34fadbf7b375279f102567fa06e4da4b771bf\n F ext/misc/dbdump.c 678f1b9ae2317b4473f65d03132a2482c3f4b08920799ed80feedd2941a06680\n-F ext/misc/decimal.c d4883de142f6dcd36eda23da40b55e2b51374e7b01eb54a7173940191389fc5e\n+F ext/misc/decimal.c 38aa18b29e96c745c78725ef3740a53f4b2b8cdfa226dfab13aaf2168a071db7\n F ext/misc/eval.c 04bc9aada78c888394204b4ed996ab834b99726fb59603b0ee3ed6e049755dc1\n F ext/misc/explain.c 606100185fb90d6a1eade1ed0414d53503c86820d8956a06e3b0a56291894f2b\n F ext/misc/fileio.c 452300ca34fadafd2bb9eb09557de5a518da1fd2349f9f9cedd22b1566a7164f\n F ext/misc/fossildelta.c 86dfa83f85f7ccd640591d8a5c6865346d0c2ee6a949d78591eceb892f1cbfec\n F ext/misc/fuzzer.c 6b231352815304ba60d8e9ec2ee73d4918e74d9b76bda8940ba2b64e8777515e\n@@ -2193,10 +2193,10 @@ F tool/vdbe_profile.tcl 3ac5a4a9449f4baf77059358ea050db3e34395ccf59c5464d29b9174\n F tool/version-info.c 33d0390ef484b3b1cb685d59362be891ea162123cea181cb8e6d2cf6ddf2700c\n F tool/warnings-clang.sh bbf6a1e685e534c92ec2bfba5b1745f34fb6f0bc2a362850723a9ee87c1b31a7\n F tool/warnings.sh d924598cf2f55a4ecbc2aeb055c10bd5f48114793e7ba25f9585435da29e7e98\n F tool/win/sqlite.vsix deb315d026cc8400325c5863eef847784a219a2f\n F tool/winmain.c 00c8fb88e365c9017db14c73d3c78af62194d9644feaf60e220ab0f411f3604c\n-P 8660d3e94cbe892693554df282bce0fa8c7aedbc5e020cab647cbbff3d7e55b7\n-R 389af95283f5ab275172b5b1245f2df2\n-U stephan\n-Z 85bcd6f2a42107fa459e33d70b89b165\n+P 7adb2c0f438a97d377760436b1ac81fffab36e541a2b5ee733bfc7108e0180e5\n+R d3925fd721dfabc8744fb8ec5748bbad\n+U drh\n+Z a53353c83d76fce8dcafd070d72a5289\n # Remove this line to create a well-formed Fossil manifest.\ndiff --git a/manifest.uuid b/manifest.uuid\nindex b83452454a..02ddfbd494 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-7adb2c0f438a97d377760436b1ac81fffab36e541a2b5ee733bfc7108e0180e5\n+cb24edf1afc3f9083a4963c5fe232933eccc7c0cb8872aa5fcd336d226b885ef\n",
+  "ground_truth": {
+    "bug_id": "FORUM-7c483444a125",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "7c483444a1259e15ffdc4191e54370721dd054e2",
+      "short_sha": "7c483444a",
+      "message": "Fix a NULL pointer dereference in the (undocumented) two-argument version of the decimal() extension SQL function. [forum:/forumpost/fa9c2dc83f|Forum post fa9c2dc83f].",
+      "author": "drh",
+      "date": "2026-03-06T21:31:07Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullderef-1",
+        "title": "NULL pointer dereference in decimalFunc() when first argument is SQL NULL",
+        "message": "In decimalFunc(), when the two-argument form of decimal() or decimal_exp() is called, decimal_round(p, N) is invoked before checking whether p is NULL. The pointer p is the return value of decimal_new(), which can return NULL if the first SQL argument is NULL or if memory allocation fails. The NULL check for p appears only after the decimal_round() call (at 'if( p ){'), so any call like SELECT decimal(NULL, 5) causes decimal_round() to be entered with p==0. Inside decimal_round(), the very first meaningful operation dereferences p->nDigit without any null guard, resulting in a crash.",
+        "location": {
+          "file": "ext/misc/decimal.c",
+          "start_line": 705,
+          "end_line": 714,
+          "start_column": null,
+          "end_column": null,
+          "function": "decimalFunc",
+          "snippet": "  Decimal *p =  decimal_new(context, argv[0], 0);\n  int N;\n  if( argc==2 ){\n    N = sqlite3_value_int(argv[1]);\n    if( N>0 ) decimal_round(p, N);  /* BUG: p may be NULL */\n  }else{\n    N = 0;\n  }\n  if( p ){",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "ext/misc/decimal.c",
+            "start_line": 297,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "decimal_round",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.98,
+        "suggestion": "Check p for NULL before calling decimal_round(), or add a null guard at the top of decimal_round() itself. The fix chosen was to add 'if( p==0 ) return;' as the second statement of decimal_round(), ensuring it safely returns when passed a NULL pointer.",
+        "suggestion_code": "static void decimal_round(Decimal *p, int N){\n  int i;\n  int nZero;\n  if( N<1 ) return;\n  if( p==0 ) return;  /* added null guard */\n  for(nZero=0; nZero<p->nDigit && p->a[nZero]==0; nZero++){}\n  ...\n}",
+        "tags": [
+          "security",
+          "null-deref",
+          "sqlite-extension"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "ext/misc/decimal.c"
+    ],
+    "root_cause": "The introducing commit added the two-argument variant of decimalFunc and placed the decimal_round() call outside (before) the existing NULL check on p ('if( p ){\u2026}'). The decimal_round() function itself also lacked a defensive NULL guard, trusting callers to ensure a valid pointer.",
+    "must_cover": [
+      {
+        "file": "ext/misc/decimal.c",
+        "function": "decimalFunc",
+        "start_line": 705,
+        "end_line": 714,
+        "role": "primary",
+        "reason": "Primary location of finding: NULL pointer dereference in decimalFunc() when first argument is SQL NULL"
+      },
+      {
+        "file": "ext/misc/decimal.c",
+        "function": "decimal_round",
+        "start_line": 297,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: NULL pointer dereference in decimalFunc() when first argument is SQL NULL"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "62546d4b1ff9211ccff922f622ee73871b1ed2b0",
+  "fix_commit_sha": null
+}

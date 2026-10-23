@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_TESTCASE-49a116e656eb0bb4",
+    "bug_id": "TESTCASE-49a116e656eb0bb4",
+    "bug_type": "BufferOverflow",
+    "intro_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+    "intro_parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+    "fix_commit": "2e32276872d330b9a9e97de68d62dd7a679b1221",
+    "affected_files": [
+      "libavcodec/aac/aacdec_usac_mps212.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Verified via run_poc with the identical /poc/run.sh + /poc/poc.c against all three built revisions, all runs completing (no build/usage errors).\n\npost_intro (baad75cafa6b): exit=134, crashed=True. AddressSanitizer reports a stack-buffer-overflow: 'READ of size 2 ... #0 attach_lsb aacdec_usac_mps212.c:368:19 #1 ec_pair_dec aacdec_usac_mps212.c:533:9 #2 ff_aac_ec_data_dec aacdec_usac_mps212.c:646:19'. The frame dump shows the access at offset 448 overflowing the 112-byte 'data_pair.i' stack object (int16_t data_pair[2][28], declared at aacdec_usac_mps212.c:426 \u2014 exactly the array named in meta.json's root_cause) \u2014 caused by attach_lsb() iterating the full nb_bands=28 count starting from the pointer huff_decode() had advanced by one element via its undocumented 'data[0] += 1; data[1] += 1;' mutation.\n\npre_intro (86977fdb6bb0, direct parent of the intro commit): exit=0, crashed=False. The harness's __has_include check correctly detects that libavcodec/aac/aacdec_usac_mps212.h does not exist in this revision (confirmed independently via find/grep across /work: no aacdec_usac_mps212.* files, no ff_aac_ec_data_dec symbol anywhere) and cleanly prints 'MPS212 decoder not present in this revision; nothing to test', exiting 0. This is a clean, non-crashing completion: the entire USAC MPS-212 lossless-data decoder (and the vulnerable ec_pair_dec/attach_lsb/huff_decode logic) was introduced wholesale by the intro commit, so pre_intro structurally cannot exhibit this defect \u2014 there is no prior code path to regress from.\n\npost_benign (fix applied on top of the intro commit): exit=0, crashed=False. The header/symbol exist and match, so the harness runs the real test with the byte-for-byte identical crafted input and completes normally: 'ff_aac_ec_data_dec returned 0', no sanitizer report. Source inspection of this revision confirms the fix: the two attach_lsb() calls in ec_pair_dec() now use the unshifted base arrays 'data_pair[0]'/'data_pair[1]' instead of the possibly-advanced p_data[0]/p_data[1] pointers, removing the pointer/iteration-count mismatch.\n\nTogether: post_intro crashes with an unambiguous, target-specific AddressSanitizer stack-buffer-overflow at the exact call site named in the root cause; pre_intro completes cleanly because the vulnerable code was not yet introduced; post_benign completes cleanly with the same input because the fix removes the pointer/loop-bound mismatch. intro_verified=yes, benign_verified=yes."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/f2ad7d64afbcaf463806/attempts/04/pocs/ffmpeg/TESTCASE-49a116e656eb0bb4",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ab01e4f61c6cf108d709cc2140f2721e58331766c3c0c31f5cdd25d1bd4bf0ae",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "89bf8afd0b3bd7f1f95ee54c535c7b6dbe5ce0d759f2971bb39bf8a1cc8605b3"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=134\n\n=================================================================\n==8==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffee7a8d580 at pc 0x557633c70f02 bp 0x7ffee7a8d3b0 sp 0x7ffee7a8d3a8\nREAD of size 2 at 0x7ffee7a8d580 thread T0\n    #0 0x557633c70f01 in attach_lsb /work/libavcodec/aac/aacdec_usac_mps212.c:368:19\n    #1 0x557633c70f01 in ec_pair_dec /work/libavcodec/aac/aacdec_usac_mps212.c:533:9\n    #2 0x557633c70f01 in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:646:19\n    #3 0x557633c6db46 in main /poc/poc.c:66:15\n    #4 0x7f2500b31d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7f2500b31e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x557633bafc84 in _start (/tmp/poc_run+0x28c84) (BuildId: 4c9a80cfd328238d977341d7f05f232f795fbe60)\n\nAddress 0x7ffee7a8d580 is located in stack of thread T0 at offset 448 in frame\n    #0 0x557633c6dcdf in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:597\n\n  This frame has 5 object(s):\n    [32, 144) 'pair_vec.i.i' (line 245)\n    [176, 208) 'p0_data.i.i' (line 247)\n    [240, 296) 'last_msb.i' (line 425)\n    [336, 448) 'data_pair.i' (line 426) <== Memory access at offset 448 overflows this variable\n    [480, 592) 'data_diff.i' (line 427)\nHINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork\n      (longjmp and C++ exceptions *are* supported)\nSUMMARY: AddressSanitizer: stack-buffer-overflow /work/libavcodec/aac/aacdec_usac_mps212.c:368:19 in attach_lsb\nShadow bytes around the buggy address:\n  0x10005cf49a60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49a70: 00 00 00 00 00 00 00 00 f1 f1 f1 f1 f8 f8 f8 f8\n  0x10005cf49a80: f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f2 f2 f2 f2 f8 f8\n  0x10005cf49a90: f8 f8 f2 f2 f2 f2 00 00 00 00 00 00 00 f2 f2 f2\n  0x10005cf49aa0: f2 f2 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x10005cf49ab0:[f2]f2 f2 f2 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49ac0: 00 00 f3 f3 f3 f3 f3 f3 00 00 00 00 00 00 00 00\n  0x10005cf49ad0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49ae0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49af0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49b00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n",
+        "stdout_tail": "===========\n==8==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffee7a8d580 at pc 0x557633c70f02 bp 0x7ffee7a8d3b0 sp 0x7ffee7a8d3a8\nREAD of size 2 at 0x7ffee7a8d580 thread T0\n    #0 0x557633c70f01 in attach_lsb /work/libavcodec/aac/aacdec_usac_mps212.c:368:19\n    #1 0x557633c70f01 in ec_pair_dec /work/libavcodec/aac/aacdec_usac_mps212.c:533:9\n    #2 0x557633c70f01 in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:646:19\n    #3 0x557633c6db46 in main /poc/poc.c:66:15\n    #4 0x7f2500b31d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7f2500b31e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x557633bafc84 in _start (/tmp/poc_run+0x28c84) (BuildId: 4c9a80cfd328238d977341d7f05f232f795fbe60)\n\nAddress 0x7ffee7a8d580 is located in stack of thread T0 at offset 448 in frame\n    #0 0x557633c6dcdf in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:597\n\n  This frame has 5 object(s):\n    [32, 144) 'pair_vec.i.i' (line 245)\n    [176, 208) 'p0_data.i.i' (line 247)\n    [240, 296) 'last_msb.i' (line 425)\n    [336, 448) 'data_pair.i' (line 426) <== Memory access at offset 448 overflows this variable\n    [480, 592) 'data_diff.i' (line 427)\nHINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork\n      (longjmp and C++ exceptions *are* supported)\nSUMMARY: AddressSanitizer: stack-buffer-overflow /work/libavcodec/aac/aacdec_usac_mps212.c:368:19 in attach_lsb\nShadow bytes around the buggy address:\n  0x10005cf49a60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49a70: 00 00 00 00 00 00 00 00 f1 f1 f1 f1 f8 f8 f8 f8\n  0x10005cf49a80: f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f2 f2 f2 f2 f8 f8\n  0x10005cf49a90: f8 f8 f2 f2 f2 f2 00 00 00 00 00 00 00 f2 f2 f2\n  0x10005cf49aa0: f2 f2 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x10005cf49ab0:[f2]f2 f2 f2 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49ac0: 00 00 f3 f3 f3 f3 f3 f3 00 00 00 00 00 00 00 00\n  0x10005cf49ad0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49ae0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49af0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x10005cf49b00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ab01e4f61c6cf108d709cc2140f2721e58331766c3c0c31f5cdd25d1bd4bf0ae",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9af90dafddd28adaca2c55baf2c0185f140cb56b5583eb6297d3422fa7ff580d"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "MPS212 decoder not present in this revision; nothing to test\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ab01e4f61c6cf108d709cc2140f2721e58331766c3c0c31f5cdd25d1bd4bf0ae",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "05f6ca2c1ec2a6f1581eebd6bacc3d00043204efb8588d718d1f6af4e56ac937"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "ff_aac_ec_data_dec returned 0\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/run.sh compiles /poc/poc.c against the target's own build tree (/work), linking the target's compiled libavcodec.a/libavutil.a under the same -fsanitize=address flags used for the build, then runs it. poc.c uses '#if __has_include(\"libavcodec/aac/aacdec_usac_mps212.h\")' to detect whether the USAC MPS212 lossless-data decoder exists in the checked-out revision. When present, it calls the exported ff_aac_ec_data_dec(gb, ld, MPS_CLD, default_val=0, start_band=0, end_band=28, frame_indep_flag=0, indep_flag=0, nb_param_sets=1) with a hand-crafted, mostly-zero 4096-byte GetBitContext buffer whose leading bits set: data_mode[0]=3 (EC_DATA), pair=1, coarse_quant=0, freq_res=3 (band-stride 28 => nb_bands=28=MPS_MAX_PARAM_BANDS), pcm_coding=0, diff_freq[0]=1, diff_freq[1]=1, dim=1 (2D), time_pair=1, plus the first bit of the lav-index Huffman code (selects lav=3). This drives huff_decode()'s 2D time_pair branch, which executes 'data[0] += 1; data[1] += 1;' \u2014 advancing the caller ec_pair_dec()'s p_data[0]/p_data[1] pointers by one int16 element each (the documented root cause) \u2014 after which ec_pair_dec() calls attach_lsb(gb, p_data[1], quant_offset, attach_lsb_flag, nb_bands=28, p_data[1]) using the shifted pointer but the unshifted, full nb_bands=28 iteration count, reading/writing 2 bytes past the end of the local int16_t data_pair[2][28] stack array. When the header/feature is absent, the harness prints a note and exits 0 without touching any decoder code (so it still \"completes\" identically across revisions, per the SAME-command requirement).",
+    "target_evidence": "post_intro: \"AddressSanitizer: stack-buffer-overflow ... READ of size 2 ... #0 attach_lsb aacdec_usac_mps212.c:368:19 #1 ec_pair_dec aacdec_usac_mps212.c:533:9 #2 ff_aac_ec_data_dec aacdec_usac_mps212.c:646:19\"; frame dump \"[336, 448) 'data_pair.i' (line 426) <== Memory access at offset 448 overflows this variable\". pre_intro: \"MPS212 decoder not present in this revision; nothing to test\" (exit 0, header confirmed absent via find/grep). post_benign: \"ff_aac_ec_data_dec returned 0\" (exit 0, no sanitizer output); source shows attach_lsb() calls now pass unshifted data_pair[0]/data_pair[1]."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

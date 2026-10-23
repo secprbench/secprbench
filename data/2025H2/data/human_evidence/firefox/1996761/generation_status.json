@@ -1,0 +1,99 @@
+{
+  "identity": "firefox/1996761",
+  "case_id": "aa51699f501d6d454ce7",
+  "project": "firefox",
+  "season": "2025H2",
+  "bug_id": "1996761",
+  "source": "/research-data/secprbench/campaign-100-20260928/intake/firefox-advisories/normalizedsources/2025H2/source_aa51699f501d6d454ce7.json",
+  "source_sha256": "391bc291322edfcab5d280a5ffdcc84b08796587905c975887df63c35e9aaa69",
+  "repo": "/research/firefox",
+  "source_fix_date": "2025-11-22T19:41:49Z",
+  "source_fix_sha": "5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e",
+  "status": "generated",
+  "attempts": [
+    {
+      "number": 1,
+      "started_at": "2026-09-29T03:08:24.319149+00:00",
+      "status": "generated",
+      "directory": "attempts/01",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800.0,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01"
+      },
+      "returncode": 0,
+      "artifact_scan": {
+        "regular_files_scanned": 22,
+        "bytes_scanned": 449564,
+        "entries_scanned": 32,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-09-29T03:16:19.679619+00:00",
+      "elapsed_seconds": 475.359,
+      "usage": {
+        "input_tokens": 56,
+        "output_tokens": 16576,
+        "cache_read_tokens": 365756,
+        "cache_write_tokens": 46038,
+        "cost_usd": 0.35411820000000005,
+        "sessions": 2,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.35413
+      }
+    }
+  ],
+  "verification_status": "not_run",
+  "scheduled_at": "2026-09-29T03:08:24.317720+00:00",
+  "updated_at": "2026-09-29T03:16:19.679645+00:00",
+  "fix_proof": {
+    "fix_sha": "5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e",
+    "fix_date": "2025-11-22T19:41:49Z",
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_verified": true,
+    "date_basis": "earliest_mainline_fix",
+    "source_date_provenance": null,
+    "season": "2025H2"
+  },
+  "artifacts": {
+    "reference": {
+      "path": "attempts/01/reference/bug_1996761.json",
+      "sha256": "cd6f8c8c5c8c4d867b7270b607f34a3dd29c8fe104e303d31315f775c42e4e15"
+    },
+    "introducing": {
+      "path": "attempts/01/tasks/pr_review_1996761.json",
+      "sha256": "6b1469f3a9f09b4c4e9d59d5973fd0a967754edf3a3efeb21f15bc32758f6efa"
+    },
+    "companion": {
+      "path": "attempts/01/tasks/pr_review_1996761_benign.json",
+      "sha256": "49dcc233ac9025ec58292628013a87c51ebd512c1b56135ea90e2d41cdff36fa"
+    }
+  },
+  "intro_eligibility": {
+    "intro_sha": "2c22bbfb8ce709cb8679672fd836f9f03161568b",
+    "intro_committer_timestamp": "2022-12-12T11:20:18Z",
+    "intro_timestamp_utc": "2022-12-12T11:20:18+00:00",
+    "intro_date_utc": "2022-12-12",
+    "min_intro_date": "2021-01-01",
+    "cutoff_inclusive": true,
+    "date_basis": "git_committer_date_utc",
+    "eligible": true
+  }
+}

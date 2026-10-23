@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-17274",
+  "bug_id": "GH-17274",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "ebd9d67b8a4fb50673b8a255ee3b14180d7313c2",
+  "intro_parent": "9b0c0d6ade052c46cf72d2fd43017bacb0ba07f6",
+  "fix_commit": "3a2689712afb0c8e2b489bf17d17cbd392c6aa7b",
+  "affected_files": [
+    "lib/vtls/vtls.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When pubkey_pem_to_der() was converted from a fixed malloc'd buffer (which was always allocated to at least 1 byte, guaranteeing a valid, if empty, C string) to a lazily-allocated dynbuf (struct dynbuf), the code failed to account for the case where zero bytes are ever appended to the dynbuf. In that case Curl_dyn_ptr()/curlx_dyn_ptr() legitimately returns NULL (mirroring the dynbuf's internal unallocated state), but the caller did not check for this before handing the pointer to the base64 decoder.",
+  "findings": [
+    "pubkey_pem_to_der() strips newlines/CRs from the base64 body found between the '-----BEGIN PUBLIC KEY-----' and '-----END PUBLIC KEY-----' markers by appending each non-newline character into a dynbuf (pbuf) via Curl_dyn_addn(). If the PEM content between the markers consists solely of '\\n'/'\\r' characters (or is empty), Curl_dyn_addn() is never called, so pbuf's internal buffer (bufr) is never al"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "17dbd9f2c086ae3b570bd5a3f407f692d731fe523c9fd63712d064ad2cc42a43",
+  "generated_artifact_sha256": {
+    "reference": "2f4fbff60aef3383eaec131ae6b11fb6976dcaca79a2db8a5cca4b1040ce93dd",
+    "introducing": "bfa8e47e217150b137b2726b25b3c9f27c36c7fbdf3ad997bb40680a9419debf",
+    "companion": "eb26a959a9519cd22665c8499900ea2ff461f53efc5d7ab20c391152dd071ce9"
+  }
+}

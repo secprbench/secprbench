@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-13521",
+  "bug_id": "GH-13521",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "701f06657d20ec42f0cf78de0ac9d7197e44c00c",
+  "intro_parent": "cf838038802b6d5049e3368953a3a737dd3aaee5",
+  "fix_commit": "08d714d0e5d59f1c1ca37cff1724849220fb6daf",
+  "affected_files": [
+    "src/server.c",
+    "src/networking.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_c09f42efc39296e4_protocol.tcl: tests/unit/protocol.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "Missing/incorrect idle-check condition: the function used to decide whether it's safe to free a client's argv only considered c->argc, not c->multibulklen, so it incorrectly treated a client that is mid-command-parse (multibulk header received but args pending) as idle/safe-to-free. This is compounded by replaceClientCommandVector() not keeping c->argv_len in sync with c->argc, which the companion fix also addresses.",
+  "findings": [
+    "clientsCronFreeArgvIfIdle() frees c->argv and resets c->argv_len to 0 whenever `c->argc == 0` and the client has been idle for more than 2 seconds. However, `c->argc == 0` does not mean the client is not in the middle of receiving a command: if the client has sent a partial multibulk request (e.g. only the `*3\\r\\n$3\\r\\nSET\\r\\n` header), `c->multibulklen` is non-zero while `c->argc` is still 0, bec"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "a4aa8c81d0ef3c479ea33f0b3a08104334ca340e9d7ea314cd8c25d392ccc33f",
+  "generated_artifact_sha256": {
+    "reference": "c30ff055d178f2e2ef28de105605bd0e6cfca5bad81bcaf29ef23ab3aa224980",
+    "introducing": "6e6b57a15fa1762a54fa27072a6dcbfa5ba60e6cb430e15dc53e5e212e7d356e",
+    "companion": "e77538baabfb5dabd4315621b46abb65872f2e53843acb6be0e08ae8708abc4f"
+  }
+}

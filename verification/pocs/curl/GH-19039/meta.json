@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-19039",
+  "bug_id": "GH-19039",
+  "bug_type": "LogicError",
+  "intro_commit": "4cd10ee28b5ee5ad9206c34c2c7887b2ac0cbfd2",
+  "intro_parent": "bc81292ea62cb7141e03d266ef8a50ba66d896bf",
+  "fix_commit": "67c4256f7e4f00d8e85b9a7da0b6004bfe5669e1",
+  "affected_files": [
+    "lib/pop3.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A caller (pop3_perform) read a shared state field (data->req.no_body) to make a decision, while the callee it subsequently invokes (pop3_perform_command) is the one responsible for computing/updating that same field for the current operation. The call order was wrong: the read-and-decide step happened before the compute step, so decisions were based on stale state.",
+  "findings": [
+    "Commit 4cd10ee28b introduced logic in pop3_perform_command() that recomputes data->req.no_body based on whether the outgoing POP3 command is multi-line (data->req.no_body = !pop3_is_multiline(command);). However, pop3_perform() (the caller) reads data->req.no_body BEFORE calling pop3_perform_command(), using its value (set previously, e.g. from a prior request or left over from handle state) to de"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "5d0f0425536cc0c51a4c2732c2ed30b5bdb8657d640f68e9d565225caaffc8d4",
+  "generated_artifact_sha256": {
+    "reference": "3ab3c24ff951725fa59f9fb9df770516757bda449792f1aad263c3dbc4544e8d",
+    "introducing": "c2054376a4ff3aae7495d6bb534a0373ed6b9048bfaa1b451296200ebf3a6c72",
+    "companion": "dc91e546929a31cfdd23539b59a750c04539c7a47b6c04bf63226acd5d43ba63"
+  }
+}

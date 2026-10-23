@@ -1,0 +1,38 @@
+{
+  "bug_id": "OSSFUZZ-505900175",
+  "project": "freetype",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+    "parent": "7974be74d8b5a2fbf99aa88f0461d1f80af51cee",
+    "fix": "7d600a022e1d813e85a8c94ffd395f6135872267"
+  },
+  "affected_files": [
+    "src/truetype/ttinterp.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "no PoC available: no PoC under pocs/freetype/OSSFUZZ-505900175/ or pocs/freetype/OSSFUZZ-505900175.*; add a PoC directory (input file and/or run.sh) or a flat input file",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "project": "freetype",
+    "status": "verified",
+    "method": "benchmark-verify engine (build parent/intro/benign + run PoC, ASan)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "poc_source": "anypoc-generated/fetched",
+    "reason": "",
+    "target_match": null,
+    "correct_vulnerable_rev": null,
+    "verified_by": "benchmark-verify",
+    "poc_files": [
+      "poc.ttf",
+      "run.sh",
+      "test_poc.c"
+    ]
+  },
+  "final_disposition": "verified"
+}

@@ -1,0 +1,35 @@
+{
+  "bug_id": "GH-27608",
+  "project": "openssl",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "9a055c89170b3e8a2a6e210ec7f7f3df8f67f8a7",
+    "parent": "3649a47f823fb366a5dc71216e0a0fb07072158a",
+    "fix": "99ea6b38430dc977ba63c832694cdb3c2cb3c2c9"
+  },
+  "affected_files": [
+    "ssl/quic/quic_impl.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "The supplied PoC fast path found no run.sh or recognizable input. Sanitized configured builds of pre_intro, post_intro, and post_benign all failed before linking: ssl/quic/quic_tls.c references undeclared QRL_SUITE_AES128GCM, QRL_SUITE_AES256GCM, and QRL_SUITE_CHACHA20POLY1305, causing make build_sw to exit with error 2. Therefore no revision was runnable, no sanitizer crash/non-crash comparison could be made, and both labels are unknown. The task describes a NULL-key dereference, so the bug cla",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "asan",
+    "environment": "docker image anypoc-openssl (source pre-cloned at /opt/openssl, ASan-configured via `./Configure enable-asan -g -O1 -fno-omit-frame-pointer`). Container run with --cpus 8 --memory 24g. Checked out each revision with `git checkout -f <sha>`, incrementally rebuilt with `make -j8 build_libs`, then compiled a small standalone C harness with gcc -fsanitize=address and linked it directly against the freshly built ../libssl.a and ../libcrypto.a (the same static-link pattern OpenSSL's own test/quic_*_test.c programs use to reach internal ossl_-prefixed symbols). No new image was built.",
+    "parent": "3649a47f823fb366a5dc71216e0a0fb07072158a builds cleanly (after a one-line unrelated-build-blocker workaround, see reason). ossl_quic_get_peer_token does not exist yet at this revision (it is introduced by the very next commit, the intro commit) -> harness fails to LINK: 'undefined reference to ossl_quic_get_peer_token'. Feature-absent control, not a clean-pass control -- recorded explicitly per instructions.",
+    "intro": "9a055c89170b3e8a2a6e210ec7f7f3df8f67f8a7 builds cleanly. Harness: SSL_CTX_new(OSSL_QUIC_client_method()) (auto-creates ctx->tokencache), BIO_ADDR_new() peer left unset (family AF_UNSPEC, never bound to an address), call ossl_quic_get_peer_token(ctx, peer, &tokptr, &tok_len). Result: AddressSanitizer SEGV on address 0x000000000008, stack: quic_token_hash (quic_impl.c:4658) <- lh_QUIC_TOKEN_hfn_thunk <- OPENSSL_LH_retrieve <- lh_QUIC_TOKEN_retrieve <- ossl_quic_get_peer_token (quic_impl.c:4850) <- main. This is an exact match to the ground-truth must_cover primary location (quic_impl.c:4848-4850, function ossl_quic_get_peer_token) and related location (ossl_quic_build_new_token, L4783).",
+    "benign": "99ea6b38430dc977ba63c832694cdb3c2cb3c2c9 builds cleanly (no workaround needed -- already inherits the unrelated upstream include fix). Token-store API was refactored between intro and fix (3 months apart): a second harness (repro_gh27608_fix.c) was written matching the new ossl_quic_get_peer_token(ctx, peer, QUIC_TOKEN**) signature, but constructs the identical trigger (unset BIO_ADDR via OSSL_QUIC_client_method's auto-created cache). Result: runs to completion, stderr shows 'ossl_quic_get_peer_token returned rc=0 (no crash)' -- matches the fix's added `if (key == NULL) return 0;` guard immediately after the build_new_token call.",
+    "evidence": "AddressSanitizer: SEGV on unknown address 0x000000000008 ... #0 quic_token_hash ssl/quic/quic_impl.c:4658 #1 lh_QUIC_TOKEN_hfn_thunk ssl/quic/quic_impl.c:4636 #2 getrn crypto/lhash/lhash.c:327 #3 OPENSSL_LH_retrieve crypto/lhash/lhash.c:181 #4 lh_QUIC_TOKEN_retrieve ssl/quic/quic_impl.c:4636 #5 ossl_quic_get_peer_token ssl/quic/quic_impl.c:4850 -- reproduced identically twice at the intro revision (once with the initial harness variant, once with the final simplified one). Full ASan report saved in asan_intro_crash.log; fix-revision clean run in asan_fix_ok.log; parent link-failure tail in parent_link_failure.log.",
+    "poc_source": "constructed",
+    "reason": "The labelled defect is a pure in-process logic bug with no network/wire dependency: ossl_quic_get_peer_token() passes the return of ossl_quic_build_new_token(peer, NULL, 0) straight into lh_QUIC_TOKEN_retrieve() without a NULL check. build_new_token() returns NULL whenever BIO_ADDR_rawaddress() fails, which happens for any BIO_ADDR whose address family is not AF_INET/AF_INET6/AF_UNIX -- concretely, a freshly allocated BIO_ADDR_new() (family AF_UNSPEC), exactly the state of a QUIC channel's peer address before the handshake has progressed far enough to learn it, as the ground truth's root_cause states. I confirmed this precondition by reading crypto/bio/bio_addr.c directly rather than assuming it. I wrote a ~50-line standalone C harness that drives exactly this call sequence and linked it against OpenSSL's own static libs (the same technique OpenSSL's internal quic_*_test.c suite uses to ",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/openssl__GH-27608/result.json"
+  },
+  "final_disposition": "verified"
+}

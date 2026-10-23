@@ -1,0 +1,23 @@
+{
+  "bug_id": "FORUM-a20f63e0ef79",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "fc7f31742de0fea66610ac3211b40e27a467c923",
+    "parent": "4d34766f4e537d570de4e280b1d4667244efed15",
+    "fix": "a20f63e0ef79a3c6fc4353ad7b0f01ddf59a4510"
+  },
+  "affected_files": [
+    "ext/fts3/fts3_expr.c",
+    "ext/fts3/fts3.c"
+  ],
+  "baseline": {
+    "status": "anomaly",
+    "intro_verified": false,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. With the identical trigger.sql and command, post_intro exits 1 with UBSan reporting signed integer overflow (2147483647 + 1) in fts3EvalNearTrim, but pre_intro also exits 1 with the same UBSan overflow in fts3EvalNearTrim. Thus fc7f31742de0 does not introduce the labelled bug; the accepted INT_MAX boundary already reaches the same downstream overflow in its parent. post_benign clamps the NEAR span, exits 0, prints rowid 1, and has no sanitizer report, so the",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "anomaly"
+}

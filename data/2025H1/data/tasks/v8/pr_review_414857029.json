@@ -1,0 +1,96 @@
+{
+  "task_id": "pr_review_414857029",
+  "bug_id": "414857029",
+  "commit_sha": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+  "commit_message": "[regexp] Simdify global atom match with single character pattern\n\nUse highway to find matching characters for RegExp with a single\ncharacter atom pattern.\n\nBug: 413411337\nChange-Id: I9bf686aca2da37025613a9227eb0ec69176a676f\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6487695\nReviewed-by: Jakob Linke <jgruber@chromium.org>\nCommit-Queue: Patrick Thier <pthier@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100006}",
+  "commit_author": "pthier",
+  "commit_date": "2025-04-30T16:36:02+02:00",
+  "pr_title": "[regexp] Simdify global atom match with single character pattern",
+  "pr_description": "Use highway to find matching characters for RegExp with a single\ncharacter atom pattern.\n\nBug: 413411337\nChange-Id: I9bf686aca2da37025613a9227eb0ec69176a676f\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6487695\nReviewed-by: Jakob Linke <jgruber@chromium.org>\nCommit-Queue: Patrick Thier <pthier@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100006}\n",
+  "files": [
+    {
+      "path": "src/runtime/runtime-regexp.cc",
+      "status": "modified",
+      "additions": 88,
+      "deletions": 7,
+      "diff": "diff --git a/src/runtime/runtime-regexp.cc b/src/runtime/runtime-regexp.cc\nindex 5689cdc8d1d..f8e504e7fc9 100644\n--- a/src/runtime/runtime-regexp.cc\n+++ b/src/runtime/runtime-regexp.cc\n@@ -1,11 +1,13 @@\n // Copyright 2014 the V8 project authors. All rights reserved.\n // Use of this source code is governed by a BSD-style license that can be\n // found in the LICENSE file.\n \n #include <functional>\n+#include <type_traits>\n \n+#include \"hwy/highway.h\"\n #include \"src/base/small-vector.h\"\n #include \"src/base/strings.h\"\n #include \"src/common/message-template.h\"\n #include \"src/execution/arguments-inl.h\"\n #include \"src/execution/isolate-inl.h\"\n@@ -2162,17 +2164,96 @@ namespace {\n template <typename SChar, typename PChar>\n inline void RegExpMatchGlobalAtom_OneCharPattern(\n     Isolate* isolate, base::Vector<const SChar> subject, const PChar pattern,\n     int start_index, int* number_of_matches, int* last_match_index,\n     const DisallowGarbageCollection& no_gc) {\n-  for (int i = start_index; i < subject.length(); i++) {\n-    // Subtle: the valid variants are {SChar,PChar} in:\n-    // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n-    // we cast the uint8_t pattern to uc16 for the comparison.\n-    if (subject[i] != static_cast<const SChar>(pattern)) continue;\n-    (*number_of_matches)++;\n-    (*last_match_index) = i;\n+  static_assert(std::is_unsigned_v<SChar>);\n+  static_assert(std::is_unsigned_v<PChar>);\n+  // We can utilize SIMD to check multiple characters at once.\n+  // Since the pattern is a single char, we create a mask setting each lane in\n+  // the vector to the pattern char.\n+  // Since reductions from a vector to a general purpose register (i.e.\n+  // ReduceSum in this algorithm) are expensive, we keep a count for each lane\n+  // in a vector until the count could potentially overflow and only reduce to\n+  // a general purpose register then. I.e. if SChar is uint8_t, we have a\n+  // 16xuint8_t vector to count matches, which we reduce to an int every 255\n+  // blocks.\n+  namespace hw = hwy::HWY_NAMESPACE;\n+  hw::ScalableTag<SChar> tag;\n+  // We need a wider tag to avoid overflows on lanes when summing up submatches.\n+  using WidenedTag = hw::RepartitionToWide<decltype(tag)>;\n+  WidenedTag sum_tag;\n+  static constexpr size_t stride = hw::Lanes(tag);\n+  // Subtle: the valid variants are {SChar,PChar} in:\n+  // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n+  // we cast the uint8_t pattern to uc16 for the comparison.\n+  const auto mask = hw::Set(tag, static_cast<const SChar>(pattern));\n+\n+  int matches = 0;\n+  auto submatches = hw::Zero(tag);\n+  const SChar* last_match_block = nullptr;\n+  hw::Mask<decltype(tag)> last_match_vec;\n+\n+  const SChar* block = subject.data() + start_index;\n+  const SChar* end = subject.data() + subject.length();\n+\n+  // ReduceSum is expensive, so we gather matches into a vector. max_count is\n+  // the maximum number of matches we can count in the vector before it\n+  // overflows.\n+  int max_count = std::numeric_limits<SChar>::max();\n+  while (block + stride * max_count <= end) {\n+    for (int i = 0; i < max_count; i++, block += stride) {\n+      const auto input = hw::LoadU(tag, block);\n+      const auto match = input == mask;\n+      // Lanes with matches have all bits set, so we subtract to increase the\n+      // count by 1.\n+      submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+      if (!hw::AllFalse(tag, match)) {\n+        last_match_block = block;\n+        last_match_vec = match;\n+      }\n+    }\n+    // SumsOf2 promotes the sum of 2 consecutive lanes into a wider lane.\n+    auto promoted_submatches = hw::SumsOf2(submatches);\n+    // Wider lane sums can be reduces without overflows.\n+    matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+    submatches = hw::Zero(tag);\n+  }\n+\n+  // For blocks shorter than stride * max_count, lanes in submatches can't\n+  // overflow.\n+  DCHECK_LT(end - block, stride * max_count);\n+  for (; block + stride <= end; block += stride) {\n+    const auto input = hw::LoadU(tag, block);\n+    const auto match = input == mask;\n+    submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+    if (!hw::AllFalse(tag, match)) {\n+      last_match_block = block;\n+      last_match_vec = match;\n+    }\n+  }\n+  auto promoted_submatches = hw::SumsOf2(submatches);\n+  matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+\n+  // Handle remaining chars.\n+  // last_match_block already contains the last match position, so use a special\n+  // vector with lane 0 set to extract the last_match_index later.\n+  const auto scalar_last_match_vec = hw::FirstN(tag, 1);\n+  for (SChar c = *block; block < end; c = *(++block)) {\n+    if (c != static_cast<const SChar>(pattern)) continue;\n+    matches++;\n+    last_match_block = block;\n+    last_match_vec = scalar_last_match_vec;\n+  }\n+\n+  // Store results.\n+  *number_of_matches = matches;\n+  if (last_match_block != nullptr) {\n+    DCHECK(!hw::AllFalse(tag, last_match_vec));\n+    *last_match_index = static_cast<int>(\n+        last_match_block + hw::FindKnownLastTrue(tag, last_match_vec) -\n+        subject.data());\n   }\n }\n \n // Unimplemented.\n template <>\n"
+    },
+    {
+      "path": "test/mjsunit/regexp-global.js",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/regexp-global.js b/test/mjsunit/regexp-global.js\nindex 85016994581..8588a763c60 100644\n--- a/test/mjsunit/regexp-global.js\n+++ b/test/mjsunit/regexp-global.js\n@@ -250,5 +250,23 @@ new RegExp(crosscheck);\n var subject = \"ascii~only~string~here~\";\n var replacement = \"\\x80\";\n var result = subject.replace(/~/g, replacement);\n for (var i = 0; i < 5; i++) result += result;\n new RegExp(result);\n+\n+// Global Atom RegExp with a single char pattern.\n+// We chose a match count greater then 255*16, as this is the maximum count\n+// we can keep in a vector register before it overflows.\n+// In addition the string length shouldn't be a multiple of 16 to also test\n+// the scalar part.\n+// See RegExpMatchGlobalAtom_OneCharPattern() for details.\n+let text = 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n+\n+// Two-byte.\n+const smiley = '\\u{D83D}\\u{DE0A}';\n+text = smiley.repeat(255*17+5)\n+assertEquals(4340, text.match(new RegExp(smiley,'g')).length);\n+\n+// Two-byte subject with one-byte pattern.\n+text = smiley + 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/runtime/runtime-regexp.cc b/src/runtime/runtime-regexp.cc\nindex 5689cdc8d1d..f8e504e7fc9 100644\n--- a/src/runtime/runtime-regexp.cc\n+++ b/src/runtime/runtime-regexp.cc\n@@ -1,11 +1,13 @@\n // Copyright 2014 the V8 project authors. All rights reserved.\n // Use of this source code is governed by a BSD-style license that can be\n // found in the LICENSE file.\n \n #include <functional>\n+#include <type_traits>\n \n+#include \"hwy/highway.h\"\n #include \"src/base/small-vector.h\"\n #include \"src/base/strings.h\"\n #include \"src/common/message-template.h\"\n #include \"src/execution/arguments-inl.h\"\n #include \"src/execution/isolate-inl.h\"\n@@ -2162,17 +2164,96 @@ namespace {\n template <typename SChar, typename PChar>\n inline void RegExpMatchGlobalAtom_OneCharPattern(\n     Isolate* isolate, base::Vector<const SChar> subject, const PChar pattern,\n     int start_index, int* number_of_matches, int* last_match_index,\n     const DisallowGarbageCollection& no_gc) {\n-  for (int i = start_index; i < subject.length(); i++) {\n-    // Subtle: the valid variants are {SChar,PChar} in:\n-    // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n-    // we cast the uint8_t pattern to uc16 for the comparison.\n-    if (subject[i] != static_cast<const SChar>(pattern)) continue;\n-    (*number_of_matches)++;\n-    (*last_match_index) = i;\n+  static_assert(std::is_unsigned_v<SChar>);\n+  static_assert(std::is_unsigned_v<PChar>);\n+  // We can utilize SIMD to check multiple characters at once.\n+  // Since the pattern is a single char, we create a mask setting each lane in\n+  // the vector to the pattern char.\n+  // Since reductions from a vector to a general purpose register (i.e.\n+  // ReduceSum in this algorithm) are expensive, we keep a count for each lane\n+  // in a vector until the count could potentially overflow and only reduce to\n+  // a general purpose register then. I.e. if SChar is uint8_t, we have a\n+  // 16xuint8_t vector to count matches, which we reduce to an int every 255\n+  // blocks.\n+  namespace hw = hwy::HWY_NAMESPACE;\n+  hw::ScalableTag<SChar> tag;\n+  // We need a wider tag to avoid overflows on lanes when summing up submatches.\n+  using WidenedTag = hw::RepartitionToWide<decltype(tag)>;\n+  WidenedTag sum_tag;\n+  static constexpr size_t stride = hw::Lanes(tag);\n+  // Subtle: the valid variants are {SChar,PChar} in:\n+  // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n+  // we cast the uint8_t pattern to uc16 for the comparison.\n+  const auto mask = hw::Set(tag, static_cast<const SChar>(pattern));\n+\n+  int matches = 0;\n+  auto submatches = hw::Zero(tag);\n+  const SChar* last_match_block = nullptr;\n+  hw::Mask<decltype(tag)> last_match_vec;\n+\n+  const SChar* block = subject.data() + start_index;\n+  const SChar* end = subject.data() + subject.length();\n+\n+  // ReduceSum is expensive, so we gather matches into a vector. max_count is\n+  // the maximum number of matches we can count in the vector before it\n+  // overflows.\n+  int max_count = std::numeric_limits<SChar>::max();\n+  while (block + stride * max_count <= end) {\n+    for (int i = 0; i < max_count; i++, block += stride) {\n+      const auto input = hw::LoadU(tag, block);\n+      const auto match = input == mask;\n+      // Lanes with matches have all bits set, so we subtract to increase the\n+      // count by 1.\n+      submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+      if (!hw::AllFalse(tag, match)) {\n+        last_match_block = block;\n+        last_match_vec = match;\n+      }\n+    }\n+    // SumsOf2 promotes the sum of 2 consecutive lanes into a wider lane.\n+    auto promoted_submatches = hw::SumsOf2(submatches);\n+    // Wider lane sums can be reduces without overflows.\n+    matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+    submatches = hw::Zero(tag);\n+  }\n+\n+  // For blocks shorter than stride * max_count, lanes in submatches can't\n+  // overflow.\n+  DCHECK_LT(end - block, stride * max_count);\n+  for (; block + stride <= end; block += stride) {\n+    const auto input = hw::LoadU(tag, block);\n+    const auto match = input == mask;\n+    submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+    if (!hw::AllFalse(tag, match)) {\n+      last_match_block = block;\n+      last_match_vec = match;\n+    }\n+  }\n+  auto promoted_submatches = hw::SumsOf2(submatches);\n+  matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+\n+  // Handle remaining chars.\n+  // last_match_block already contains the last match position, so use a special\n+  // vector with lane 0 set to extract the last_match_index later.\n+  const auto scalar_last_match_vec = hw::FirstN(tag, 1);\n+  for (SChar c = *block; block < end; c = *(++block)) {\n+    if (c != static_cast<const SChar>(pattern)) continue;\n+    matches++;\n+    last_match_block = block;\n+    last_match_vec = scalar_last_match_vec;\n+  }\n+\n+  // Store results.\n+  *number_of_matches = matches;\n+  if (last_match_block != nullptr) {\n+    DCHECK(!hw::AllFalse(tag, last_match_vec));\n+    *last_match_index = static_cast<int>(\n+        last_match_block + hw::FindKnownLastTrue(tag, last_match_vec) -\n+        subject.data());\n   }\n }\n \n // Unimplemented.\n template <>\ndiff --git a/test/mjsunit/regexp-global.js b/test/mjsunit/regexp-global.js\nindex 85016994581..8588a763c60 100644\n--- a/test/mjsunit/regexp-global.js\n+++ b/test/mjsunit/regexp-global.js\n@@ -250,5 +250,23 @@ new RegExp(crosscheck);\n var subject = \"ascii~only~string~here~\";\n var replacement = \"\\x80\";\n var result = subject.replace(/~/g, replacement);\n for (var i = 0; i < 5; i++) result += result;\n new RegExp(result);\n+\n+// Global Atom RegExp with a single char pattern.\n+// We chose a match count greater then 255*16, as this is the maximum count\n+// we can keep in a vector register before it overflows.\n+// In addition the string length shouldn't be a multiple of 16 to also test\n+// the scalar part.\n+// See RegExpMatchGlobalAtom_OneCharPattern() for details.\n+let text = 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n+\n+// Two-byte.\n+const smiley = '\\u{D83D}\\u{DE0A}';\n+text = smiley.repeat(255*17+5)\n+assertEquals(4340, text.match(new RegExp(smiley,'g')).length);\n+\n+// Two-byte subject with one-byte pattern.\n+text = smiley + 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "414857029",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Match count overwritten instead of accumulated in SIMD regexp path",
+        "message": "In `RegExpMatchGlobalAtom_OneCharPattern`, the SIMD-optimized implementation stores its match count with an assignment `*number_of_matches = matches` rather than accumulation `*number_of_matches += matches`. The caller (`RegExpMatchGlobalAtom`) first calls `RegExpResultsCache_MatchGlobalAtom::TryGet` which, on a cache hit, pre-populates `number_of_matches` with the previously cached count before invoking the dispatch function. The assignment inside the SIMD path silently discards this cached count and replaces it with only the new (incremental) count. The corrupted value (which can be 0 when no additional matches exist beyond the cached position) is then stored back into the cache via `TryInsert`. On the next call with the same subject/pattern, `TryGet` retrieves the corrupted cache entry with `number_of_matches == 0`, immediately triggering the `DCHECK_GT(number_of_matches, 0)` assertion in the caller.",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-682"
+        ],
+        "location": {
+          "file": "src/runtime/runtime-regexp.cc",
+          "function": "RegExpMatchGlobalAtom_OneCharPattern",
+          "start_line": 2249,
+          "end_line": 2249,
+          "snippet": "  // Store results.\n  *number_of_matches = matches;\n  if (last_match_block != nullptr) {\n    DCHECK(!hw::AllFalse(tag, last_match_vec));\n    *last_match_index = static_cast<int>(\n        last_match_block + hw::FindKnownLastTrue(tag, last_match_vec) -\n        subject.data());\n  }"
+        },
+        "related_locations": [
+          {
+            "file": "src/runtime/runtime-regexp.cc",
+            "start_line": 2393,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Runtime_RegExpExecAtom (cache TryGet + DCHECK_GT site)",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Change the assignment to accumulation so that matches found in a prior (cached) invocation are preserved. The caller passes in the already-populated `number_of_matches` from a cache hit and expects the SIMD path to add onto it, not replace it.",
+        "rule_id": "sec-logicerror-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/runtime/runtime-regexp.cc",
+      "test/mjsunit/regexp-global.js"
+    ],
+    "root_cause": "The original scalar loop incremented `*number_of_matches` in-place (`(*number_of_matches)++`), naturally accumulating across any prior cached value. The SIMD rewrite introduced a local `int matches = 0` accumulator for vectorized counting efficiency, but the final store was written as assignment (`*number_of_matches = matches`) rather than as accumulation (`*number_of_matches += matches`), breaking the API contract that the output pointer is an in-out parameter when called after a cache hit.",
+    "must_cover": [
+      {
+        "file": "src/runtime/runtime-regexp.cc",
+        "function": "RegExpMatchGlobalAtom_OneCharPattern",
+        "reason": "Primary location of finding: Match count overwritten instead of accumulated in SIMD regexp path"
+      },
+      {
+        "file": "src/runtime/runtime-regexp.cc",
+        "function": "Runtime_RegExpExecAtom (cache TryGet + DCHECK_GT site)",
+        "reason": "Related location for: Match count overwritten instead of accumulated in SIMD regexp path"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__414857029__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "109a22dfaf1e080fd4c86e71e0b4a213a8ea1d9d",
+    "diff_stats": {
+      "files_changed": 2,
+      "lines_changed": 113
+    }
+  }
+}

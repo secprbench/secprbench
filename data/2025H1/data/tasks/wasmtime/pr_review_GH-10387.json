@@ -1,0 +1,90 @@
+{
+  "task_id": "pr_review_GH-10387",
+  "bug_id": "GH-10387",
+  "commit_sha": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+  "commit_message": "Show true error reason in `wasmtime serve` (#8026)\n\n* Show true error reason in `wasmtime serve`\n\nThe `wasmtime serve` command prints failed HTTP handling to `stderr`\nbut, when the reason was due to failure inside the HTTP handler itself,\nthe printed error message is not descriptive enough. After looking at\nlong dumps of `guest never invoked `response-outparam::set` method`, I\nrealized that errors inside the Tokio `task` are never propagated\noutwards. This change captures those errors and appends them to the\nprinted error message.\n\n* review: remove TODO comment\n\n* review: improve doc comment\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>\n\n* review: add comment about immediate resolution\n\n---------\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>",
+  "commit_author": "Andrew Brown",
+  "commit_date": "2024-03-01T11:55:19-08:00",
+  "pr_title": "Show true error reason in `wasmtime serve` (#8026)",
+  "pr_description": "* Show true error reason in `wasmtime serve`\n\nThe `wasmtime serve` command prints failed HTTP handling to `stderr`\nbut, when the reason was due to failure inside the HTTP handler itself,\nthe printed error message is not descriptive enough. After looking at\nlong dumps of `guest never invoked `response-outparam::set` method`, I\nrealized that errors inside the Tokio `task` are never propagated\noutwards. This change captures those errors and appends them to the\nprinted error message.\n\n* review: remove TODO comment\n\n* review: improve doc comment\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>\n\n* review: add comment about immediate resolution\n\n---------\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>",
+  "files": [
+    {
+      "path": "src/commands/serve.rs",
+      "status": "modified",
+      "additions": 15,
+      "deletions": 3,
+      "diff": "diff --git a/src/commands/serve.rs b/src/commands/serve.rs\nindex f11f6bc734..85e2a40c51 100644\n--- a/src/commands/serve.rs\n+++ b/src/commands/serve.rs\n@@ -383,12 +383,11 @@ async fn handle_request(\n ) -> Result<hyper::Response<HyperOutgoingBody>> {\n     use http_body_util::BodyExt;\n \n     let (sender, receiver) = tokio::sync::oneshot::channel();\n \n-    // TODO: need to track the join handle, but don't want to block the response on it\n-    tokio::task::spawn(async move {\n+    let task = tokio::task::spawn(async move {\n         let req_id = inner.next_req_id();\n         let (mut parts, body) = req.into_parts();\n \n         parts.uri = {\n             let uri_parts = parts.uri.into_parts();\n@@ -448,11 +447,24 @@ async fn handle_request(\n     });\n \n     match receiver.await {\n         Ok(Ok(resp)) => Ok(resp),\n         Ok(Err(e)) => Err(e.into()),\n-        Err(_) => bail!(\"guest never invoked `response-outparam::set` method\"),\n+        Err(_) => {\n+            // An error in the receiver (`RecvError`) only indicates that the\n+            // task exited before a response was sent (i.e., the sender was\n+            // dropped); it does not describe the underlying cause of failure.\n+            // Instead we retrieve and propagate the error from inside the task\n+            // which should more clearly tell the user what went wrong. Note\n+            // that we assume the task has already exited at this point so the\n+            // `await` should resolve immediately.\n+            let e = match task.await {\n+                Ok(r) => r.expect_err(\"if the receiver has an error, the task must have failed\"),\n+                Err(e) => e.into(),\n+            };\n+            bail!(\"guest never invoked `response-outparam::set` method: {e:?}\")\n+        }\n     }\n }\n \n #[derive(Clone)]\n enum Output {\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/commands/serve.rs b/src/commands/serve.rs\nindex f11f6bc734..85e2a40c51 100644\n--- a/src/commands/serve.rs\n+++ b/src/commands/serve.rs\n@@ -383,12 +383,11 @@ async fn handle_request(\n ) -> Result<hyper::Response<HyperOutgoingBody>> {\n     use http_body_util::BodyExt;\n \n     let (sender, receiver) = tokio::sync::oneshot::channel();\n \n-    // TODO: need to track the join handle, but don't want to block the response on it\n-    tokio::task::spawn(async move {\n+    let task = tokio::task::spawn(async move {\n         let req_id = inner.next_req_id();\n         let (mut parts, body) = req.into_parts();\n \n         parts.uri = {\n             let uri_parts = parts.uri.into_parts();\n@@ -448,11 +447,24 @@ async fn handle_request(\n     });\n \n     match receiver.await {\n         Ok(Ok(resp)) => Ok(resp),\n         Ok(Err(e)) => Err(e.into()),\n-        Err(_) => bail!(\"guest never invoked `response-outparam::set` method\"),\n+        Err(_) => {\n+            // An error in the receiver (`RecvError`) only indicates that the\n+            // task exited before a response was sent (i.e., the sender was\n+            // dropped); it does not describe the underlying cause of failure.\n+            // Instead we retrieve and propagate the error from inside the task\n+            // which should more clearly tell the user what went wrong. Note\n+            // that we assume the task has already exited at this point so the\n+            // `await` should resolve immediately.\n+            let e = match task.await {\n+                Ok(r) => r.expect_err(\"if the receiver has an error, the task must have failed\"),\n+                Err(e) => e.into(),\n+            };\n+            bail!(\"guest never invoked `response-outparam::set` method: {e:?}\")\n+        }\n     }\n }\n \n #[derive(Clone)]\n enum Output {\n",
+  "ground_truth": {
+    "bug_id": "GH-10387",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+      "short_sha": "ad21d9581d",
+      "message": "Don’t panic when http `handle` function returns before invoking `set` (#10387)",
+      "author": "primoly",
+      "date": "2025-03-12T23:03:29+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logicerror-001",
+        "title": "Reachable panic via `.expect_err()` when guest handler returns Ok without calling response-outparam::set",
+        "message": "In `handle_request` in `src/commands/serve.rs`, when the `receiver` oneshot channel errors out (meaning the response-outparam `set` method was never invoked by the guest), the code awaits the spawned task and calls `.expect_err(\"if the receiver has an error, the task must have failed\")` on its result. This assumes that if the guest never called `set`, the task must have returned an `Err`. However, a guest Wasm component can legitimately return `Ok(())` from its `handle` export without ever invoking `response-outparam::set` (e.g. it simply forgets to call it, or returns early without error). In that case `task.await` yields `Ok(Ok(()))`, so `r` is `Ok(())`, and `Result::expect_err` panics because the value is not an `Err`. Since this path is driven directly by externally-supplied/untrusted Wasm guest code processing an HTTP request in the `wasmtime serve` CLI command, any malicious or buggy guest component can deterministically crash the host process serving HTTP traffic, resulting in a remotely triggerable denial of service.",
+        "location": {
+          "file": "src/commands/serve.rs",
+          "start_line": 452,
+          "end_line": 465,
+          "start_column": null,
+          "end_column": null,
+          "function": "handle_request",
+          "snippet": "        Err(_) => {\n            // An error in the receiver (`RecvError`) only indicates that the\n            // task exited before a response was sent (i.e., the sender was\n            // dropped); it does not describe the underlying cause of failure.\n            // Instead we retrieve and propagate the error from inside the task\n            // which should more clearly tell the user what went wrong. Note\n            // that we assume the task has already exited at this point so the\n            // `await` should resolve immediately.\n            let e = match task.await {\n                Ok(r) => r.expect_err(\"if the receiver has an error, the task must have failed\"),\n                Err(e) => e.into(),\n            };\n            bail!(\"guest never invoked `response-outparam::set` method: {e:?}\")\n        }",
+          "snippet_hash": "d59be379ce0d966d6bb8a9c88bdee6c8fdc222b764806540447e06d0841f45ea",
+          "description": null,
+          "snippet_start_line": 452,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.93,
+        "suggestion": "Do not assume the task must have returned an error when the receiver fails. Instead, explicitly handle the `Ok(Ok(()))` case (task completed successfully but never invoked `set`) by producing a dedicated error/bail instead of calling `.expect_err()`, which panics on that input. The actual fix (commit ad21d9581d) matches on `task.await` as `Ok(Ok(())) => bail!(...)`, `Ok(Err(e)) => e`, `Err(e) => e.into()`, avoiding the panicking `expect_err` call entirely.",
+        "suggestion_code": "let e = match task.await {\n    Ok(Ok(())) => {\n        bail!(\"guest never invoked `response-outparam::set` method\")\n    }\n    Ok(Err(e)) => e,\n    Err(e) => e.into(),\n};\nreturn Err(e.context(\"guest never invoked `response-outparam::set` method\"));",
+        "tags": [
+          "security",
+          "denial-of-service",
+          "panic",
+          "wasi-http"
+        ],
+        "cwe_ids": [
+          "CWE-248",
+          "CWE-617",
+          "CWE-20"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/commands/serve.rs",
+      "crates/wasi-http/src/lib.rs"
+    ],
+    "root_cause": "The error-reporting logic conflated two independent failure signals: (1) the oneshot `receiver` erroring because the sender was dropped without sending a response, and (2) the task's own `Result` indicating whether an error occurred. The code assumed these always correlate (receiver error implies task error) and used a panicking `expect_err` to extract the task's error, without accounting for the case where the guest task completes with `Ok(())` yet never calls `set`.",
+    "must_cover": [
+      {
+        "file": "src/commands/serve.rs",
+        "function": "handle_request",
+        "start_line": 452,
+        "end_line": 465,
+        "role": "primary",
+        "reason": "Primary location of finding: Reachable panic via `.expect_err()` when guest handler returns Ok without calling response-outparam::set"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

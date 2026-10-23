@@ -1,0 +1,969 @@
+{
+  "cases": {
+    "curl/CVE-2025-0167": [
+      "data/2025H1/data/verification/projects/curl/cases/CVE-2025-0167/case.json",
+      "data/2025H1/data/human_evidence/curl/CVE-2025-0167/original_approval_collection.json",
+      "data/2025H1/data/human_evidence/curl/CVE-2025-0167/prior_00_generation_status.json",
+      "data/2025H1/data/human_evidence/curl/CVE-2025-0167/prior_01_case.json"
+    ],
+    "curl/CVE-2025-14017": [
+      "data/2025H2/data/verification/projects/curl/cases/CVE-2025-14017/case.json"
+    ],
+    "curl/CVE-2025-4947": [
+      "data/2025H1/data/verification/projects/curl/cases/CVE-2025-4947/case.json",
+      "data/2025H1/data/source_evidence/curl/CVE-2025-4947/source.json"
+    ],
+    "curl/CVE-2025-9086": [
+      "data/2025H2/data/verification/projects/curl/cases/CVE-2025-9086/case.json",
+      "data/2025H2/data/source_evidence/curl/CVE-2025-9086/source.json"
+    ],
+    "curl/CVE-2026-11586": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-11586/case.json",
+      "data/2026H1/data/human_evidence/curl/CVE-2026-11586/original_approval_collection.json",
+      "data/2026H1/data/human_evidence/curl/CVE-2026-11586/prior_00_generation_status.json",
+      "data/2026H1/data/human_evidence/curl/CVE-2026-11586/prior_01_case.json"
+    ],
+    "curl/CVE-2026-1965": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-1965/case.json"
+    ],
+    "curl/CVE-2026-3805": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-3805/case.json"
+    ],
+    "curl/CVE-2026-5545": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-5545/case.json"
+    ],
+    "curl/CVE-2026-7009": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-7009/case.json"
+    ],
+    "curl/CVE-2026-8925": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-8925/case.json"
+    ],
+    "curl/CVE-2026-9079": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-9079/case.json"
+    ],
+    "curl/CVE-2026-9546": [
+      "data/2026H1/data/verification/projects/curl/cases/CVE-2026-9546/case.json"
+    ],
+    "curl/GH-16823": [
+      "data/2025H1/data/verification/projects/curl/cases/GH-16823/case.json",
+      "data/2025H1/data/source_evidence/curl/GH-16823/source.json"
+    ],
+    "curl/GH-16955": [
+      "data/2025H1/data/verification/projects/curl/cases/GH-16955/case.json",
+      "data/2025H1/data/source_evidence/curl/GH-16955/source.json"
+    ],
+    "curl/GH-17274": [
+      "data/2025H1/data/verification/projects/curl/cases/GH-17274/case.json",
+      "data/2025H1/data/source_evidence/curl/GH-17274/source.json"
+    ],
+    "curl/GH-17830": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-17830/case.json"
+    ],
+    "curl/GH-17978": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-17978/case.json",
+      "data/2025H2/data/human_evidence/curl/GH-17978/original_approval_collection.json",
+      "data/2025H2/data/human_evidence/curl/GH-17978/prior_00_generation_status.json",
+      "data/2025H2/data/human_evidence/curl/GH-17978/prior_01_case.json"
+    ],
+    "curl/GH-18457": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-18457/case.json",
+      "data/2025H2/data/source_evidence/curl/GH-18457/source.json"
+    ],
+    "curl/GH-18574": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-18574/case.json"
+    ],
+    "curl/GH-18806": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-18806/case.json"
+    ],
+    "curl/GH-18902": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-18902/case.json",
+      "data/2025H2/data/source_evidence/curl/GH-18902/source.json"
+    ],
+    "curl/GH-18995": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-18995/case.json"
+    ],
+    "curl/GH-19039": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-19039/case.json"
+    ],
+    "curl/GH-19438": [
+      "data/2025H2/data/verification/projects/curl/cases/GH-19438/case.json"
+    ],
+    "curl/GH-20958": [
+      "data/2026H1/data/verification/projects/curl/cases/GH-20958/case.json",
+      "data/2026H1/data/source_evidence/curl/GH-20958/source.json"
+    ],
+    "curl/GH-21652": [
+      "data/2026H1/data/verification/projects/curl/cases/GH-21652/case.json",
+      "data/2026H1/data/source_evidence/curl/GH-21652/generation_status.json",
+      "data/2026H1/data/source_evidence/curl/GH-21652/replay_result.json",
+      "data/2026H1/data/source_evidence/curl/GH-21652/source.json",
+      "data/2026H1/data/source_evidence/curl/GH-21652/verification_status.json"
+    ],
+    "ffmpeg/041a6c36142f": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/041a6c36142f/case.json"
+    ],
+    "ffmpeg/0526535cd584": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/0526535cd584/case.json"
+    ],
+    "ffmpeg/35ea45835484": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/35ea45835484/case.json"
+    ],
+    "ffmpeg/45daaf2caaa3": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/45daaf2caaa3/case.json"
+    ],
+    "ffmpeg/4eca335d94ca": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/4eca335d94ca/case.json"
+    ],
+    "ffmpeg/5021764413a1": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/5021764413a1/case.json"
+    ],
+    "ffmpeg/586de322ab7d": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/586de322ab7d/case.json"
+    ],
+    "ffmpeg/7f9c7f9849a2": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/7f9c7f9849a2/case.json",
+      "data/2025H1/data/human_evidence/ffmpeg/7f9c7f9849a2/original_approval_collection.json"
+    ],
+    "ffmpeg/8d45dc858ecf": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/8d45dc858ecf/case.json"
+    ],
+    "ffmpeg/90551b7d80e3": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/90551b7d80e3/case.json"
+    ],
+    "ffmpeg/CVE-2025-12343": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/CVE-2025-12343/case.json"
+    ],
+    "ffmpeg/CVE-2025-22920": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/CVE-2025-22920/case.json"
+    ],
+    "ffmpeg/CVE-2025-59729": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/CVE-2025-59729/case.json"
+    ],
+    "ffmpeg/CVE-2025-59730": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/CVE-2025-59730/case.json"
+    ],
+    "ffmpeg/CVE-2025-59731": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/CVE-2025-59731/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-376496313": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-376496313/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-377736723": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-377736723/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-385224934": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-385224934/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-390565846": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-390565846/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-391935573": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-391935573/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-391962476": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-391962476/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-397731127": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-397731127/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-408304111": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-408304111/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-410609432": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-410609432/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-416811958": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-416811958/case.json",
+      "data/2025H1/data/human_evidence/ffmpeg/OSSFUZZ-416811958/original_approval_collection.json",
+      "data/2025H1/data/human_evidence/ffmpeg/OSSFUZZ-416811958/prior_00_generation_status.json",
+      "data/2025H1/data/human_evidence/ffmpeg/OSSFUZZ-416811958/prior_01_case.json"
+    ],
+    "ffmpeg/OSSFUZZ-418421333": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-418421333/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-421954767": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-421954767/case.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-421954767/generation_status.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-421954767/owner_attestation.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-421954767/replay_result.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-421954767/source.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-421954767/verification_status.json"
+    ],
+    "ffmpeg/OSSFUZZ-422217206": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-422217206/case.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-422217206/original_approval_collection.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-422217206/prior_00_generation_status.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-422217206/prior_01_case.json"
+    ],
+    "ffmpeg/OSSFUZZ-428055715": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-428055715/case.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-428055715/original_approval_collection.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-428055715/prior_00_generation_status.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-428055715/prior_01_case.json"
+    ],
+    "ffmpeg/OSSFUZZ-435225406": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-435225406/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-437528618": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-437528618/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-438961582": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-438961582/case.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-438961582/generation_status.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-438961582/owner_attestation.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-438961582/replay_result.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-438961582/source.json",
+      "data/2025H2/data/human_evidence/ffmpeg/OSSFUZZ-438961582/verification_status.json"
+    ],
+    "ffmpeg/OSSFUZZ-439711052": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-439711052/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-441131173": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-441131173/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-461519938": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/OSSFUZZ-461519938/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-471509958": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-471509958/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-471569982": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-471569982/case.json",
+      "data/2026H1/data/human_evidence/ffmpeg/OSSFUZZ-471569982/original_approval_collection.json",
+      "data/2026H1/data/human_evidence/ffmpeg/OSSFUZZ-471569982/prior_00_generation_status.json",
+      "data/2026H1/data/human_evidence/ffmpeg/OSSFUZZ-471569982/prior_01_case.json"
+    ],
+    "ffmpeg/OSSFUZZ-473569764": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-473569764/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-485866440": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-485866440/case.json",
+      "data/2026H1/data/human_evidence/ffmpeg/OSSFUZZ-485866440/original_approval_collection.json",
+      "data/2026H1/data/human_evidence/ffmpeg/OSSFUZZ-485866440/prior_00_generation_status.json",
+      "data/2026H1/data/human_evidence/ffmpeg/OSSFUZZ-485866440/prior_01_case.json"
+    ],
+    "ffmpeg/OSSFUZZ-490576036": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-490576036/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-492054712": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-492054712/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-504281984": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-504281984/case.json"
+    ],
+    "ffmpeg/OSSFUZZ-515703905": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/OSSFUZZ-515703905/case.json"
+    ],
+    "ffmpeg/REPORT-16f89d342ebd5f72": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/REPORT-16f89d342ebd5f72/case.json"
+    ],
+    "ffmpeg/REPORT-200e0cba677b0d47": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/REPORT-200e0cba677b0d47/case.json"
+    ],
+    "ffmpeg/REPORT-65fc0db581c4ee2a": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/REPORT-65fc0db581c4ee2a/case.json"
+    ],
+    "ffmpeg/REPORT-b45a6d3f76f11df8": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/REPORT-b45a6d3f76f11df8/case.json"
+    ],
+    "ffmpeg/REPORT-c911e0001115bbda": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/REPORT-c911e0001115bbda/case.json"
+    ],
+    "ffmpeg/REPORT-c9e93df4eed93fe0": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/REPORT-c9e93df4eed93fe0/case.json"
+    ],
+    "ffmpeg/REPORT-e90c2ff4b5a5922d": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/REPORT-e90c2ff4b5a5922d/case.json"
+    ],
+    "ffmpeg/REPORT-fa391e90fb00510e": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/REPORT-fa391e90fb00510e/case.json"
+    ],
+    "ffmpeg/TESTCASE-03d3ae7878f783b7": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/TESTCASE-03d3ae7878f783b7/case.json"
+    ],
+    "ffmpeg/TESTCASE-392550fb9400b0c0": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/TESTCASE-392550fb9400b0c0/case.json"
+    ],
+    "ffmpeg/TESTCASE-49a116e656eb0bb4": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/TESTCASE-49a116e656eb0bb4/case.json"
+    ],
+    "ffmpeg/TESTCASE-b3fe4bf6ce7c198e": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/TESTCASE-b3fe4bf6ce7c198e/case.json"
+    ],
+    "ffmpeg/TESTCASE-e41b1ba1b6253578": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/TESTCASE-e41b1ba1b6253578/case.json"
+    ],
+    "ffmpeg/TESTCASE-e6cc82c0ccb6ff6a": [
+      "data/2026H1/data/verification/projects/ffmpeg/cases/TESTCASE-e6cc82c0ccb6ff6a/case.json"
+    ],
+    "ffmpeg/bedfb6eca402": [
+      "data/2025H2/data/verification/projects/ffmpeg/cases/bedfb6eca402/case.json"
+    ],
+    "ffmpeg/c08d300481b8": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/c08d300481b8/case.json"
+    ],
+    "ffmpeg/d5873be583ad": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/d5873be583ad/case.json"
+    ],
+    "ffmpeg/e262411f329d": [
+      "data/2025H1/data/verification/projects/ffmpeg/cases/e262411f329d/case.json"
+    ],
+    "firefox/1941876": [
+      "data/2025H1/data/verification/projects/firefox/cases/1941876/case.json"
+    ],
+    "firefox/1942169": [
+      "data/2025H1/data/verification/projects/firefox/cases/1942169/case.json"
+    ],
+    "firefox/1942551": [
+      "data/2025H1/data/verification/projects/firefox/cases/1942551/case.json"
+    ],
+    "firefox/1942648": [
+      "data/2025H1/data/verification/projects/firefox/cases/1942648/case.json"
+    ],
+    "firefox/1943179": [
+      "data/2025H1/data/verification/projects/firefox/cases/1943179/case.json"
+    ],
+    "firefox/1945318": [
+      "data/2025H1/data/verification/projects/firefox/cases/1945318/case.json"
+    ],
+    "firefox/1947640": [
+      "data/2025H1/data/verification/projects/firefox/cases/1947640/case.json"
+    ],
+    "firefox/1948111": [
+      "data/2025H1/data/verification/projects/firefox/cases/1948111/case.json",
+      "data/2025H1/data/human_evidence/firefox/1948111/original_approval_collection.json"
+    ],
+    "firefox/1951154": [
+      "data/2025H1/data/verification/projects/firefox/cases/1951154/case.json"
+    ],
+    "firefox/1951554": [
+      "data/2025H1/data/verification/projects/firefox/cases/1951554/case.json",
+      "data/2025H1/data/human_evidence/firefox/1951554/original_approval_collection.json"
+    ],
+    "firefox/1952215": [
+      "data/2025H1/data/verification/projects/firefox/cases/1952215/case.json"
+    ],
+    "firefox/1954042": [
+      "data/2025H1/data/verification/projects/firefox/cases/1954042/case.json",
+      "data/2025H1/data/human_evidence/firefox/1954042/owner_attestation.json"
+    ],
+    "firefox/1965081": [
+      "data/2025H1/data/verification/projects/firefox/cases/1965081/case.json"
+    ],
+    "firefox/1965751": [
+      "data/2025H1/data/verification/projects/firefox/cases/1965751/case.json"
+    ],
+    "firefox/1970095": [
+      "data/2025H1/data/verification/projects/firefox/cases/1970095/case.json"
+    ],
+    "firefox/1970764": [
+      "data/2025H1/data/verification/projects/firefox/cases/1970764/case.json",
+      "data/2025H1/data/human_evidence/firefox/1970764/original_approval_collection.json"
+    ],
+    "firefox/1974596": [
+      "data/2025H2/data/verification/projects/firefox/cases/1974596/case.json",
+      "data/2025H2/data/human_evidence/firefox/1974596/original_approval_collection.json"
+    ],
+    "firefox/1987290": [
+      "data/2025H2/data/verification/projects/firefox/cases/1987290/case.json",
+      "data/2025H2/data/human_evidence/firefox/1987290/generation_status.json",
+      "data/2025H2/data/human_evidence/firefox/1987290/owner_attestation.json",
+      "data/2025H2/data/human_evidence/firefox/1987290/replay_result.json",
+      "data/2025H2/data/human_evidence/firefox/1987290/source.json",
+      "data/2025H2/data/human_evidence/firefox/1987290/verification_status.json"
+    ],
+    "firefox/1987624": [
+      "data/2025H2/data/verification/projects/firefox/cases/1987624/case.json",
+      "data/2025H2/data/source_evidence/firefox/1987624/source.json"
+    ],
+    "firefox/1992130": [
+      "data/2025H2/data/verification/projects/firefox/cases/1992130/case.json",
+      "data/2025H2/data/human_evidence/firefox/1992130/original_approval_collection.json",
+      "data/2025H2/data/human_evidence/firefox/1992130/prior_00_generation_status.json",
+      "data/2025H2/data/human_evidence/firefox/1992130/prior_01_case.json"
+    ],
+    "firefox/1996761": [
+      "data/2025H2/data/verification/projects/firefox/cases/1996761/case.json",
+      "data/2025H2/data/human_evidence/firefox/1996761/generation_status.json",
+      "data/2025H2/data/human_evidence/firefox/1996761/owner_attestation.json",
+      "data/2025H2/data/human_evidence/firefox/1996761/replay_result.json",
+      "data/2025H2/data/human_evidence/firefox/1996761/source.json",
+      "data/2025H2/data/human_evidence/firefox/1996761/verification_status.json"
+    ],
+    "firefox/2000469": [
+      "data/2025H2/data/verification/projects/firefox/cases/2000469/case.json",
+      "data/2025H2/data/source_evidence/firefox/2000469/source.json"
+    ],
+    "firefox/2003588": [
+      "data/2025H2/data/verification/projects/firefox/cases/2003588/case.json"
+    ],
+    "firefox/2003589": [
+      "data/2025H2/data/verification/projects/firefox/cases/2003589/case.json",
+      "data/2025H2/data/source_evidence/firefox/2003589/source.json"
+    ],
+    "firefox/2013562": [
+      "data/2026H1/data/verification/projects/firefox/cases/2013562/case.json",
+      "data/2026H1/data/human_evidence/firefox/2013562/original_approval_collection.json",
+      "data/2026H1/data/human_evidence/firefox/2013562/prior_00_generation_status.json",
+      "data/2026H1/data/human_evidence/firefox/2013562/prior_01_case.json"
+    ],
+    "firefox/2013739": [
+      "data/2026H1/data/verification/projects/firefox/cases/2013739/case.json",
+      "data/2026H1/data/source_evidence/firefox/2013739/generation_status.json",
+      "data/2026H1/data/source_evidence/firefox/2013739/replay_result.json",
+      "data/2026H1/data/source_evidence/firefox/2013739/source.json",
+      "data/2026H1/data/source_evidence/firefox/2013739/verification_status.json"
+    ],
+    "firefox/2018075": [
+      "data/2026H1/data/verification/projects/firefox/cases/2018075/case.json",
+      "data/2026H1/data/source_evidence/firefox/2018075/generation_status.json",
+      "data/2026H1/data/source_evidence/firefox/2018075/replay_result.json",
+      "data/2026H1/data/source_evidence/firefox/2018075/source.json",
+      "data/2026H1/data/source_evidence/firefox/2018075/verification_status.json"
+    ],
+    "freetype/GL-1336": [
+      "data/2025H1/data/verification/projects/freetype/cases/GL-1336/case.json"
+    ],
+    "freetype/GL-1356": [
+      "data/2025H2/data/verification/projects/freetype/cases/GL-1356/case.json"
+    ],
+    "freetype/GL-1392": [
+      "data/2026H1/data/verification/projects/freetype/cases/GL-1392/case.json"
+    ],
+    "freetype/GL-1394": [
+      "data/2026H1/data/verification/projects/freetype/cases/GL-1394/case.json"
+    ],
+    "freetype/GL-1398": [
+      "data/2026H1/data/verification/projects/freetype/cases/GL-1398/case.json"
+    ],
+    "freetype/OSSFUZZ-416538625": [
+      "data/2025H1/data/verification/projects/freetype/cases/OSSFUZZ-416538625/case.json",
+      "data/2025H1/data/human_evidence/freetype/OSSFUZZ-416538625/generation_status.json",
+      "data/2025H1/data/human_evidence/freetype/OSSFUZZ-416538625/owner_attestation.json",
+      "data/2025H1/data/human_evidence/freetype/OSSFUZZ-416538625/replay_result.json",
+      "data/2025H1/data/human_evidence/freetype/OSSFUZZ-416538625/source.json",
+      "data/2025H1/data/human_evidence/freetype/OSSFUZZ-416538625/verification_status.json"
+    ],
+    "freetype/OSSFUZZ-424613326": [
+      "data/2025H2/data/verification/projects/freetype/cases/OSSFUZZ-424613326/case.json",
+      "data/2025H2/data/source_evidence/freetype/OSSFUZZ-424613326/source.json"
+    ],
+    "freetype/OSSFUZZ-471525116": [
+      "data/2026H1/data/verification/projects/freetype/cases/OSSFUZZ-471525116/case.json"
+    ],
+    "freetype/OSSFUZZ-490433932": [
+      "data/2026H1/data/verification/projects/freetype/cases/OSSFUZZ-490433932/case.json"
+    ],
+    "freetype/OSSFUZZ-494362618": [
+      "data/2026H1/data/verification/projects/freetype/cases/OSSFUZZ-494362618/case.json"
+    ],
+    "freetype/OSSFUZZ-499135336": [
+      "data/2026H1/data/verification/projects/freetype/cases/OSSFUZZ-499135336/case.json"
+    ],
+    "freetype/OSSFUZZ-499455833": [
+      "data/2026H1/data/verification/projects/freetype/cases/OSSFUZZ-499455833/case.json",
+      "data/2026H1/data/human_evidence/freetype/OSSFUZZ-499455833/original_approval_collection.json"
+    ],
+    "freetype/OSSFUZZ-505900175": [
+      "data/2026H1/data/verification/projects/freetype/cases/OSSFUZZ-505900175/case.json"
+    ],
+    "freetype/REPORTED-582cea9ee1bfa873": [
+      "data/2025H2/data/verification/projects/freetype/cases/REPORTED-582cea9ee1bfa873/case.json",
+      "data/2025H2/data/human_evidence/freetype/REPORTED-582cea9ee1bfa873/generation_status.json",
+      "data/2025H2/data/human_evidence/freetype/REPORTED-582cea9ee1bfa873/owner_attestation.json",
+      "data/2025H2/data/human_evidence/freetype/REPORTED-582cea9ee1bfa873/replay_result.json",
+      "data/2025H2/data/human_evidence/freetype/REPORTED-582cea9ee1bfa873/source.json",
+      "data/2025H2/data/human_evidence/freetype/REPORTED-582cea9ee1bfa873/verification_status.json"
+    ],
+    "freetype/REPORTED-702e4a1d32e4": [
+      "data/2025H1/data/verification/projects/freetype/cases/REPORTED-702e4a1d32e4/case.json",
+      "data/2025H1/data/source_evidence/freetype/REPORTED-702e4a1d32e4/source.json"
+    ],
+    "openssl/CVE-2025-11187": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2025-11187/case.json"
+    ],
+    "openssl/CVE-2025-15467": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2025-15467/case.json"
+    ],
+    "openssl/CVE-2025-15468": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2025-15468/case.json"
+    ],
+    "openssl/CVE-2025-15469": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2025-15469/case.json"
+    ],
+    "openssl/CVE-2025-4575": [
+      "data/2025H1/data/verification/projects/openssl/cases/CVE-2025-4575/case.json"
+    ],
+    "openssl/CVE-2025-69418": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2025-69418/case.json"
+    ],
+    "openssl/CVE-2025-69419": [
+      "data/2025H2/data/verification/projects/openssl/cases/CVE-2025-69419/case.json"
+    ],
+    "openssl/CVE-2025-69420": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2025-69420/case.json"
+    ],
+    "openssl/CVE-2025-9230": [
+      "data/2025H2/data/verification/projects/openssl/cases/CVE-2025-9230/case.json"
+    ],
+    "openssl/CVE-2025-9232": [
+      "data/2025H2/data/verification/projects/openssl/cases/CVE-2025-9232/case.json"
+    ],
+    "openssl/CVE-2026-28386": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-28386/case.json"
+    ],
+    "openssl/CVE-2026-28388": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-28388/case.json"
+    ],
+    "openssl/CVE-2026-28389": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-28389/case.json"
+    ],
+    "openssl/CVE-2026-31789": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-31789/case.json"
+    ],
+    "openssl/CVE-2026-42764": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-42764/case.json"
+    ],
+    "openssl/CVE-2026-42768": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-42768/case.json",
+      "data/2026H1/data/human_evidence/openssl/CVE-2026-42768/original_approval_collection.json",
+      "data/2026H1/data/human_evidence/openssl/CVE-2026-42768/prior_00_generation_status.json",
+      "data/2026H1/data/human_evidence/openssl/CVE-2026-42768/prior_01_case.json"
+    ],
+    "openssl/CVE-2026-42769": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-42769/case.json"
+    ],
+    "openssl/CVE-2026-42771": [
+      "data/2026H1/data/verification/projects/openssl/cases/CVE-2026-42771/case.json"
+    ],
+    "openssl/GH-26952": [
+      "data/2025H1/data/verification/projects/openssl/cases/GH-26952/case.json",
+      "data/2025H1/data/source_evidence/openssl/GH-26952/source.json"
+    ],
+    "openssl/GH-27089": [
+      "data/2025H1/data/verification/projects/openssl/cases/GH-27089/case.json"
+    ],
+    "openssl/GH-27272": [
+      "data/2025H1/data/verification/projects/openssl/cases/GH-27272/case.json",
+      "data/2025H1/data/source_evidence/openssl/GH-27272/source.json"
+    ],
+    "openssl/GH-27608": [
+      "data/2025H1/data/verification/projects/openssl/cases/GH-27608/case.json"
+    ],
+    "openssl/GH-28216": [
+      "data/2025H2/data/verification/projects/openssl/cases/GH-28216/case.json"
+    ],
+    "openssl/GH-28221": [
+      "data/2025H2/data/verification/projects/openssl/cases/GH-28221/case.json",
+      "data/2025H2/data/source_evidence/openssl/GH-28221/source.json"
+    ],
+    "openssl/GH-28684": [
+      "data/2025H2/data/verification/projects/openssl/cases/GH-28684/case.json"
+    ],
+    "openssl/GH-28962": [
+      "data/2025H2/data/verification/projects/openssl/cases/GH-28962/case.json"
+    ],
+    "openssl/GH-29395": [
+      "data/2025H2/data/verification/projects/openssl/cases/GH-29395/case.json"
+    ],
+    "openssl/GH-29518": [
+      "data/2026H1/data/verification/projects/openssl/cases/GH-29518/case.json"
+    ],
+    "openssl/GH-30487": [
+      "data/2026H1/data/verification/projects/openssl/cases/GH-30487/case.json"
+    ],
+    "redis/CVE-2024-46981": [
+      "data/2025H1/data/verification/projects/redis/cases/CVE-2024-46981/case.json",
+      "data/2025H1/data/human_evidence/redis/CVE-2024-46981/original_approval_collection.json"
+    ],
+    "redis/CVE-2025-27151": [
+      "data/2025H1/data/verification/projects/redis/cases/CVE-2025-27151/case.json"
+    ],
+    "redis/CVE-2025-46818": [
+      "data/2025H2/data/verification/projects/redis/cases/CVE-2025-46818/case.json",
+      "data/2025H2/data/human_evidence/redis/CVE-2025-46818/original_approval_collection.json"
+    ],
+    "redis/CVE-2026-23479": [
+      "data/2026H1/data/verification/projects/redis/cases/CVE-2026-23479/case.json"
+    ],
+    "redis/CVE-2026-25243": [
+      "data/2026H1/data/verification/projects/redis/cases/CVE-2026-25243/case.json"
+    ],
+    "redis/GH-13108": [
+      "data/2025H2/data/verification/projects/redis/cases/GH-13108/case.json"
+    ],
+    "redis/GH-13495": [
+      "data/2025H1/data/verification/projects/redis/cases/GH-13495/case.json",
+      "data/2025H1/data/source_evidence/redis/GH-13495/source.json"
+    ],
+    "redis/GH-13512": [
+      "data/2025H2/data/verification/projects/redis/cases/GH-13512/case.json"
+    ],
+    "redis/GH-13521": [
+      "data/2025H1/data/verification/projects/redis/cases/GH-13521/case.json",
+      "data/2025H1/data/source_evidence/redis/GH-13521/source.json"
+    ],
+    "redis/GH-13696": [
+      "data/2025H2/data/verification/projects/redis/cases/GH-13696/case.json"
+    ],
+    "redis/GH-13862": [
+      "data/2025H1/data/verification/projects/redis/cases/GH-13862/case.json",
+      "data/2025H1/data/source_evidence/redis/GH-13862/source.json"
+    ],
+    "redis/GH-13875": [
+      "data/2025H1/data/verification/projects/redis/cases/GH-13875/case.json",
+      "data/2025H1/data/source_evidence/redis/GH-13875/source.json"
+    ],
+    "redis/GH-14134": [
+      "data/2025H1/data/verification/projects/redis/cases/GH-14134/case.json",
+      "data/2025H1/data/human_evidence/redis/GH-14134/generation_status.json",
+      "data/2025H1/data/human_evidence/redis/GH-14134/owner_attestation.json",
+      "data/2025H1/data/human_evidence/redis/GH-14134/replay_result.json",
+      "data/2025H1/data/human_evidence/redis/GH-14134/source.json",
+      "data/2025H1/data/human_evidence/redis/GH-14134/verification_status.json"
+    ],
+    "redis/GH-14143": [
+      "data/2025H1/data/verification/projects/redis/cases/GH-14143/case.json",
+      "data/2025H1/data/human_evidence/redis/GH-14143/generation_status.json",
+      "data/2025H1/data/human_evidence/redis/GH-14143/owner_attestation.json",
+      "data/2025H1/data/human_evidence/redis/GH-14143/replay_result.json",
+      "data/2025H1/data/human_evidence/redis/GH-14143/source.json",
+      "data/2025H1/data/human_evidence/redis/GH-14143/verification_status.json"
+    ],
+    "redis/GH-14163": [
+      "data/2025H2/data/verification/projects/redis/cases/GH-14163/case.json",
+      "data/2025H2/data/source_evidence/redis/GH-14163/source.json"
+    ],
+    "redis/GH-14323": [
+      "data/2025H2/data/verification/projects/redis/cases/GH-14323/case.json",
+      "data/2025H2/data/source_evidence/redis/GH-14323/source.json"
+    ],
+    "sqlite/CVE-2025-29088": [
+      "data/2025H1/data/verification/projects/sqlite/cases/CVE-2025-29088/case.json"
+    ],
+    "sqlite/CVE-2025-3277": [
+      "data/2025H1/data/verification/projects/sqlite/cases/CVE-2025-3277/case.json"
+    ],
+    "sqlite/CVE-2025-70873": [
+      "data/2025H2/data/verification/projects/sqlite/cases/CVE-2025-70873/case.json"
+    ],
+    "sqlite/CVE-2025-7709": [
+      "data/2025H2/data/verification/projects/sqlite/cases/CVE-2025-7709/case.json"
+    ],
+    "sqlite/FORUM-03380a55a521": [
+      "data/2025H2/data/verification/projects/sqlite/cases/FORUM-03380a55a521/case.json",
+      "data/2025H2/data/human_evidence/sqlite/FORUM-03380a55a521/original_approval_collection.json"
+    ],
+    "sqlite/FORUM-062016c2fd1d": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-062016c2fd1d/case.json"
+    ],
+    "sqlite/FORUM-23d0a08176a6": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-23d0a08176a6/case.json"
+    ],
+    "sqlite/FORUM-2ae4d56c05b1": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-2ae4d56c05b1/case.json"
+    ],
+    "sqlite/FORUM-2bd7ac67163c": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-2bd7ac67163c/case.json"
+    ],
+    "sqlite/FORUM-2cb57d9d4ac7": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-2cb57d9d4ac7/case.json"
+    ],
+    "sqlite/FORUM-51b2c3863b31": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-51b2c3863b31/case.json"
+    ],
+    "sqlite/FORUM-548127491255": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-548127491255/case.json"
+    ],
+    "sqlite/FORUM-61523e22f955": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-61523e22f955/case.json",
+      "data/2026H1/data/human_evidence/sqlite/FORUM-61523e22f955/original_approval_collection.json"
+    ],
+    "sqlite/FORUM-632b61806300": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-632b61806300/case.json"
+    ],
+    "sqlite/FORUM-6553a5d6a69b": [
+      "data/2025H2/data/verification/projects/sqlite/cases/FORUM-6553a5d6a69b/case.json"
+    ],
+    "sqlite/FORUM-65ee59bb2685": [
+      "data/2025H2/data/verification/projects/sqlite/cases/FORUM-65ee59bb2685/case.json"
+    ],
+    "sqlite/FORUM-764881119d63": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-764881119d63/case.json"
+    ],
+    "sqlite/FORUM-7c483444a125": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-7c483444a125/case.json"
+    ],
+    "sqlite/FORUM-8f384febcc9b": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-8f384febcc9b/case.json"
+    ],
+    "sqlite/FORUM-8f70ec615f4c": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-8f70ec615f4c/case.json"
+    ],
+    "sqlite/FORUM-97467fa8fa32": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-97467fa8fa32/case.json"
+    ],
+    "sqlite/FORUM-9a341c1edbde": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-9a341c1edbde/case.json"
+    ],
+    "sqlite/FORUM-a20f63e0ef79": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-a20f63e0ef79/case.json",
+      "data/2026H1/data/human_evidence/sqlite/FORUM-a20f63e0ef79/original_approval_collection.json"
+    ],
+    "sqlite/FORUM-a2d992a000bb": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-a2d992a000bb/case.json",
+      "data/2026H1/data/human_evidence/sqlite/FORUM-a2d992a000bb/original_approval_collection.json"
+    ],
+    "sqlite/FORUM-b1993c858f": [
+      "data/2025H2/data/verification/projects/sqlite/cases/FORUM-b1993c858f/case.json"
+    ],
+    "sqlite/FORUM-b617e497287235d0": [
+      "data/2025H1/data/verification/projects/sqlite/cases/FORUM-b617e497287235d0/case.json"
+    ],
+    "sqlite/FORUM-b677c5afd4d2": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-b677c5afd4d2/case.json"
+    ],
+    "sqlite/FORUM-b7c32f2f29cd": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-b7c32f2f29cd/case.json"
+    ],
+    "sqlite/FORUM-bc94e5dbb63f": [
+      "data/2026H1/data/verification/projects/sqlite/cases/FORUM-bc94e5dbb63f/case.json"
+    ],
+    "sqlite/FORUM-c1cc8b057a": [
+      "data/2025H1/data/verification/projects/sqlite/cases/FORUM-c1cc8b057a/case.json"
+    ],
+    "sqlite/FOSSIL-26f39ac806a5582f": [
+      "data/2025H2/data/verification/projects/sqlite/cases/FOSSIL-26f39ac806a5582f/case.json",
+      "data/2025H2/data/source_evidence/sqlite/FOSSIL-26f39ac806a5582f/source.json"
+    ],
+    "sqlite/FOSSIL-2adaee9aa90f280a": [
+      "data/2025H1/data/verification/projects/sqlite/cases/FOSSIL-2adaee9aa90f280a/case.json",
+      "data/2025H1/data/source_evidence/sqlite/FOSSIL-2adaee9aa90f280a/source.json"
+    ],
+    "sqlite/FOSSIL-f0dbd9d22f558dd0": [
+      "data/2025H2/data/verification/projects/sqlite/cases/FOSSIL-f0dbd9d22f558dd0/case.json",
+      "data/2025H2/data/source_evidence/sqlite/FOSSIL-f0dbd9d22f558dd0/source.json"
+    ],
+    "v8/391412545": [
+      "data/2025H1/data/verification/projects/v8/cases/391412545/case.json"
+    ],
+    "v8/391907159": [
+      "data/2025H1/data/verification/projects/v8/cases/391907159/case.json"
+    ],
+    "v8/394120667": [
+      "data/2025H1/data/verification/projects/v8/cases/394120667/case.json"
+    ],
+    "v8/395053819": [
+      "data/2025H1/data/verification/projects/v8/cases/395053819/case.json"
+    ],
+    "v8/396460426": [
+      "data/2025H1/data/verification/projects/v8/cases/396460426/case.json",
+      "data/2025H1/data/human_evidence/v8/396460426/original_approval_collection.json"
+    ],
+    "v8/397720949": [
+      "data/2025H1/data/verification/projects/v8/cases/397720949/case.json"
+    ],
+    "v8/398431403": [
+      "data/2025H1/data/verification/projects/v8/cases/398431403/case.json"
+    ],
+    "v8/400052777": [
+      "data/2025H1/data/verification/projects/v8/cases/400052777/case.json"
+    ],
+    "v8/401053598": [
+      "data/2025H1/data/verification/projects/v8/cases/401053598/case.json"
+    ],
+    "v8/406828712": [
+      "data/2025H1/data/verification/projects/v8/cases/406828712/case.json"
+    ],
+    "v8/408042977": [
+      "data/2025H1/data/verification/projects/v8/cases/408042977/case.json"
+    ],
+    "v8/408242499": [
+      "data/2025H1/data/verification/projects/v8/cases/408242499/case.json"
+    ],
+    "v8/410842391": [
+      "data/2025H1/data/verification/projects/v8/cases/410842391/case.json"
+    ],
+    "v8/412400167": [
+      "data/2025H1/data/verification/projects/v8/cases/412400167/case.json"
+    ],
+    "v8/413419840": [
+      "data/2025H1/data/verification/projects/v8/cases/413419840/case.json",
+      "data/2025H1/data/human_evidence/v8/413419840/original_approval_collection.json"
+    ],
+    "v8/414840455": [
+      "data/2025H1/data/verification/projects/v8/cases/414840455/case.json",
+      "data/2025H1/data/human_evidence/v8/414840455/original_approval_collection.json"
+    ],
+    "v8/414857029": [
+      "data/2025H1/data/verification/projects/v8/cases/414857029/case.json"
+    ],
+    "v8/416166113": [
+      "data/2025H1/data/verification/projects/v8/cases/416166113/case.json"
+    ],
+    "v8/416179216": [
+      "data/2025H1/data/verification/projects/v8/cases/416179216/case.json",
+      "data/2025H1/data/human_evidence/v8/416179216/original_approval_collection.json"
+    ],
+    "v8/416302802": [
+      "data/2025H1/data/verification/projects/v8/cases/416302802/case.json"
+    ],
+    "v8/416833098": [
+      "data/2025H1/data/verification/projects/v8/cases/416833098/case.json"
+    ],
+    "v8/417385084": [
+      "data/2025H1/data/verification/projects/v8/cases/417385084/case.json"
+    ],
+    "v8/418804470": [
+      "data/2025H1/data/verification/projects/v8/cases/418804470/case.json"
+    ],
+    "v8/419323068": [
+      "data/2025H1/data/verification/projects/v8/cases/419323068/case.json",
+      "data/2025H1/data/human_evidence/v8/419323068/original_approval_collection.json"
+    ],
+    "v8/419501740": [
+      "data/2025H1/data/verification/projects/v8/cases/419501740/case.json"
+    ],
+    "v8/420198866": [
+      "data/2025H1/data/verification/projects/v8/cases/420198866/case.json"
+    ],
+    "v8/420401642": [
+      "data/2025H1/data/verification/projects/v8/cases/420401642/case.json",
+      "data/2025H1/data/human_evidence/v8/420401642/original_approval_collection.json"
+    ],
+    "v8/420746766": [
+      "data/2025H1/data/verification/projects/v8/cases/420746766/case.json"
+    ],
+    "v8/421227542": [
+      "data/2025H1/data/verification/projects/v8/cases/421227542/case.json",
+      "data/2025H1/data/human_evidence/v8/421227542/original_approval_collection.json"
+    ],
+    "v8/421228429": [
+      "data/2025H1/data/verification/projects/v8/cases/421228429/case.json"
+    ],
+    "v8/423955533": [
+      "data/2025H1/data/verification/projects/v8/cases/423955533/case.json",
+      "data/2025H1/data/human_evidence/v8/423955533/original_approval_collection.json"
+    ],
+    "v8/424242619": [
+      "data/2025H1/data/verification/projects/v8/cases/424242619/case.json",
+      "data/2025H1/data/human_evidence/v8/424242619/owner_attestation.json"
+    ],
+    "v8/424245314": [
+      "data/2025H1/data/verification/projects/v8/cases/424245314/case.json",
+      "data/2025H1/data/human_evidence/v8/424245314/original_approval_collection.json"
+    ],
+    "v8/424610540": [
+      "data/2025H1/data/verification/projects/v8/cases/424610540/case.json"
+    ],
+    "v8/424617297": [
+      "data/2025H1/data/verification/projects/v8/cases/424617297/case.json"
+    ],
+    "v8/427663123": [
+      "data/2025H1/data/verification/projects/v8/cases/427663123/case.json"
+    ],
+    "v8/439758498": [
+      "data/2025H2/data/verification/projects/v8/cases/439758498/case.json",
+      "data/2025H2/data/human_evidence/v8/439758498/generation_status.json",
+      "data/2025H2/data/human_evidence/v8/439758498/owner_attestation.json",
+      "data/2025H2/data/human_evidence/v8/439758498/replay_result.json",
+      "data/2025H2/data/human_evidence/v8/439758498/source.json",
+      "data/2025H2/data/human_evidence/v8/439758498/verification_status.json"
+    ],
+    "v8/439986081": [
+      "data/2025H2/data/verification/projects/v8/cases/439986081/case.json",
+      "data/2025H2/data/human_evidence/v8/439986081/generation_status.json",
+      "data/2025H2/data/human_evidence/v8/439986081/owner_attestation.json",
+      "data/2025H2/data/human_evidence/v8/439986081/replay_result.json",
+      "data/2025H2/data/human_evidence/v8/439986081/source.json",
+      "data/2025H2/data/human_evidence/v8/439986081/verification_status.json"
+    ],
+    "v8/482345688": [
+      "data/2026H1/data/verification/projects/v8/cases/482345688/case.json",
+      "data/2026H1/data/source_evidence/v8/482345688/source.json"
+    ],
+    "v8/486383560": [
+      "data/2026H1/data/verification/projects/v8/cases/486383560/case.json"
+    ],
+    "v8/500880819": [
+      "data/2026H1/data/verification/projects/v8/cases/500880819/case.json"
+    ],
+    "v8/503489820": [
+      "data/2026H1/data/verification/projects/v8/cases/503489820/case.json"
+    ],
+    "v8/503634281": [
+      "data/2026H1/data/verification/projects/v8/cases/503634281/case.json"
+    ],
+    "v8/511549239": [
+      "data/2026H1/data/verification/projects/v8/cases/511549239/case.json",
+      "data/2026H1/data/source_evidence/v8/511549239/source.json"
+    ],
+    "wasmtime/CVE-2025-53901": [
+      "data/2025H2/data/verification/projects/wasmtime/cases/CVE-2025-53901/case.json"
+    ],
+    "wasmtime/CVE-2025-64345": [
+      "data/2025H2/data/verification/projects/wasmtime/cases/CVE-2025-64345/case.json"
+    ],
+    "wasmtime/CVE-2026-24116": [
+      "data/2026H1/data/verification/projects/wasmtime/cases/CVE-2026-24116/case.json"
+    ],
+    "wasmtime/CVE-2026-34944": [
+      "data/2026H1/data/verification/projects/wasmtime/cases/CVE-2026-34944/case.json"
+    ],
+    "wasmtime/CVE-2026-34946": [
+      "data/2026H1/data/verification/projects/wasmtime/cases/CVE-2026-34946/case.json"
+    ],
+    "wasmtime/CVE-2026-34971": [
+      "data/2026H1/data/verification/projects/wasmtime/cases/CVE-2026-34971/case.json"
+    ],
+    "wasmtime/CVE-2026-34983": [
+      "data/2026H1/data/verification/projects/wasmtime/cases/CVE-2026-34983/case.json"
+    ],
+    "wasmtime/CVE-2026-34988": [
+      "data/2026H1/data/verification/projects/wasmtime/cases/CVE-2026-34988/case.json"
+    ],
+    "wasmtime/GH-10127": [
+      "data/2025H1/data/verification/projects/wasmtime/cases/GH-10127/case.json",
+      "data/2025H1/data/source_evidence/wasmtime/GH-10127/source.json"
+    ],
+    "wasmtime/GH-10387": [
+      "data/2025H1/data/verification/projects/wasmtime/cases/GH-10387/case.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10387/generation_status.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10387/owner_attestation.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10387/replay_result.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10387/source.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10387/verification_status.json"
+    ],
+    "wasmtime/GH-10453": [
+      "data/2025H1/data/verification/projects/wasmtime/cases/GH-10453/case.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10453/generation_status.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10453/owner_attestation.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10453/replay_result.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10453/source.json",
+      "data/2025H1/data/human_evidence/wasmtime/GH-10453/verification_status.json"
+    ],
+    "wasmtime/GH-11469": [
+      "data/2025H2/data/verification/projects/wasmtime/cases/GH-11469/case.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11469/generation_status.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11469/owner_attestation.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11469/replay_result.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11469/source.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11469/verification_status.json"
+    ],
+    "wasmtime/GH-11704": [
+      "data/2025H2/data/verification/projects/wasmtime/cases/GH-11704/case.json",
+      "data/2025H2/data/source_evidence/wasmtime/GH-11704/source.json"
+    ],
+    "wasmtime/GH-11749": [
+      "data/2025H2/data/verification/projects/wasmtime/cases/GH-11749/case.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11749/generation_status.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11749/owner_attestation.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11749/replay_result.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11749/source.json",
+      "data/2025H2/data/human_evidence/wasmtime/GH-11749/verification_status.json"
+    ]
+  },
+  "historical_embedded_paths": "Kept byte-for-byte in evidence; use this index for bundled evidence.",
+  "path_base": "repository",
+  "schema_version": 1
+}

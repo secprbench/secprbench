@@ -1,0 +1,19 @@
+{
+  "status": "inconclusive",
+  "outcome": {
+    "task_id": "pr_review_GH-10387",
+    "status": "inconclusive",
+    "via": "agent",
+    "intro_verified": "yes",
+    "benign_verified": "yes",
+    "bug_class": "logic-error",
+    "report": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/247196d9ead2dab29444/attempts/01/replay/pr_review_GH-10387.report.md",
+    "agent_verdict": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/247196d9ead2dab29444/attempts/01/replay/pr_review_GH-10387.agent_verdict.json"
+  },
+  "agent_used": true,
+  "case_record": "/research-data/secprbench/season100-balanced-20261001/verification/verification/projects/wasmtime/cases/GH-10387/case.json",
+  "recipe_sha256": "463d78b654c438b8c66c",
+  "cache_root": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cache/wasmtime/463d78b654c438b8c66c/worktrees",
+  "cache_lane": 0,
+  "final_poc_sha256": "7ff016b5b27262a941e9e6ed4257536e6653c4a33db0a2d2d07ae8d075c2d00d"
+}

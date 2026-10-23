@@ -1,0 +1,124 @@
+name: freetype
+repo_url: https://github.com/freetype/freetype.git
+project:
+  name: freetype
+  display_name: FreeType
+  repo: freetype/freetype
+  language: C
+context:
+  description: 'FreeType is a portable font rendering engine and parser for TrueType,
+
+    OpenType, CFF/CFF2, Type 1, CID, BDF/PCF, WOFF/WOFF2, SVG glyphs, and
+
+    related font formats. The library is written in C and is commonly used
+
+    in browsers, document viewers, operating systems, UI toolkits, and image
+
+    pipelines. Most security-relevant code lives in format parsers and glyph
+
+    loaders under src/sfnt, src/truetype, src/cff, src/type1, src/cid,
+
+    src/psaux, src/autofit, src/raster, src/smooth, src/svg, and src/base.
+
+    '
+  input_sources: 'Fully attacker-controlled font files and embedded font streams:
+    TTF/OTF
+
+    tables (glyf, loca, COLR/CPAL, CFF/CFF2, GSUB/GPOS, variation tables),
+
+    WOFF/WOFF2 transformed streams, Type 1/CID charstrings, BDF/PCF bitmap
+
+    fonts, SVG glyph documents, glyph indices and load flags selected by the
+
+    caller, variation coordinates, size/transform parameters, and fuzzed or
+
+    malformed table lengths, offsets, counts, contours, instructions, and
+
+    bytecode.
+
+    '
+  assertion_macros: 'FT_ASSERT and plain assert() are debug-only and must not be treated
+    as
+
+    release-build security guards. FT_TRACE and FT_ERROR only log. FT_THROW
+
+    creates an error code, but callers must actually return or propagate it
+
+    before it is a guard. FT_READ_* and FT_STREAM_* macros update the local
+
+    error variable and are only protective when the surrounding code checks
+
+    and exits on failure. Integer overflow, pointer wraparound, and out-of-
+
+    bounds reads/writes are real bugs even if they would trip a debug assert.
+
+    '
+  common_bug_types:
+  - OutOfBoundsRead (malformed table offsets, glyph contours, COLR layers, WOFF2 substreams,
+    bytecode streams)
+  - BufferOverflow (glyph reconstruction, rasterization buffers, charstring decode
+    stacks, bitmap and outline buffers)
+  - IntegerOverflow (count and size multiplication, 16/32-bit truncation, fixed-point
+    scaling, variation deltas)
+  - LogicError (table validation bypass, wrong bounds relation, bad contour selection,
+    stale derived metrics)
+  - NullPointerDereference (missing allocation or optional-table checks on error paths)
+  - UseAfterFree (face, size, stream, module, glyph slot, and parser object lifetimes)
+  - UninitializedMemory (partially initialized glyph metrics, parser structs, and
+    table records)
+  - InfiniteLoop (malformed bytecode, charstrings, or contour traversal that fails
+    to advance)
+  file_patterns:
+  - src/**/*.c
+  - src/**/*.h
+  - include/freetype/**/*.h
+  - builds/**/*.c
+  - builds/**/*.h
+  - devel/**/*.h
+  - modules.cfg
+  - CMakeLists.txt
+  - meson.build
+verify:
+  name: freetype
+  image: anypoc-common:latest
+  repo_url: https://github.com/freetype/freetype.git
+  build_script: 'set -e
+
+    cd /work
+
+    rm -rf build
+
+    cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_C_FLAGS="-g -O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=all -fno-omit-frame-pointer" -DBUILD_SHARED_LIBS=OFF -DFT_DISABLE_HARFBUZZ=ON
+    -DFT_DISABLE_BROTLI=ON -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_PNG=ON -DFT_DISABLE_ZLIB=OFF
+    > build_configure.log 2>&1
+
+    cmake --build build -j"${CGSA_BUILD_JOBS:-8}" > build_compile.log 2>&1
+
+    '
+  harness_source: freetype_harness.c
+  harness_build: 'set -e
+
+    cd /work
+
+    INC=include
+
+    test -d build/include && INC2=build/include || INC2=include
+
+    clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
+    -I "$INC" -I "$INC2" harness.c build/libfreetype.a -lm -lz -o harness_bin > harness_build.log
+    2>&1
+
+    '
+  run_cmd: ./harness_bin "$INPUT"
+  build_artifacts:
+  - build/libfreetype.a
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 900
+  run_timeout: 300
+  build_network: none
+  build_cache: false
+  build_git_mounts: false
+  build_support_files: []

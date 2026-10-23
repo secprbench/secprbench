@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-418421333",
+  "project": "ffmpeg",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "821717c3fe1ce7fd022077669a1380634fb102d0",
+    "parent": "0c79a091e4dcf5ad00d02c94babab2499bd65793",
+    "fix": "f09c834a7d01dfde9369551b2767c001846a396f"
+  },
+  "affected_files": [
+    "libavcodec/cbs_apv_syntax_template.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Build-environment note: this benchmark's source snapshot is \"incomplete\" (per meta.json) — the real APV decoder (apv_dec.c, ff_apv_entropy_decode_block, etc.) referenced by the original OSS-Fuzz crash trace does not exist anywhere in this tree, and configure does not auto-select CONFIG_CBS_APV (no decoder/bsf in this pruned tree selects it), so cbs_apv.c/cbs_apv_syntax_template.c are not linked into the default libavcodec.a in any of the three built revisions even though the source file itself is present (unmodified) for post_intro/post_benign. run.sh therefore compiles the existing, untouched libavcodec/cbs_apv.c and libavcodec/cbs.c directly with -DCBS_APV=1 (only a compile-time override of the very macro configure would otherwise define) and links them with a tiny added harness (poc.c) that calls only public CBS API functions. No tracked target source was edited; the same unmodified target files and the same crafted input (/poc/input.apv) were used, unchanged, for all three revisions via run_poc.\n\nResults (via run_poc):\n- pre_intro (0c79a091e4dc): run.sh detects that libavcodec/cbs_apv.c does not exist in this revision at all (\"cbs_apv.c not present ... feature not yet added\"); exit 0, no crash. The tile() function containing the flaw was not yet written, so this specific bug cannot be present — a genuine introduction, not merely an untested path.\n- post_intro (821717c3fe1c): harness built and run; ff_cbs_read() succeeds (the unchecked tile() read path silently accepts tile_data_size=200000 even though only a few bytes remain in the buffer — skip_bits_long() is called without checking get_bits_left(), exactly per root_cause). ff_cbs_write_fragment_data() then re-serializes the parsed fragment; cbs_apv_write_tile() (cbs_apv_syntax_template.c:232, the write branch of the very same tile() function) calls ff_copy_bits(rw, current->tile_data[c], comp_size*8), which memcpy's 199998 bytes starting from a pointer sitting at the very end of the 110-byte heap buffer that held the parsed input. AddressSanitizer reports \"heap-buffer-overflow ... READ of size 199998 ... 0 bytes to the right of 110-byte region\", with the crashing frame directly in cbs_apv_write_tile -> cbs_apv_write_frame -> cbs_apv_write_unit -> cbs_write_unit_data -> ff_cbs_write_fragment_data -> main. crashed=True.\n- post_benign (companion of fix f09c834a7d01): identical harness, identical binary input via run_poc. ff_cbs_read() now fails cleanly with AVERROR_INVALIDDATA (\"Failed to read unit 0 (type 1)\") because the fixed tile() checks get_bits_left(rw) < 8LL*comp_size before accepting tile_data_size, rejecting the malformed size at read time. Program exits 0, no ASan report — ff_cbs_write_fragment_data (and therefore ff_copy_bits) is never reached. crashed=False.\n\nThis satisfies the required invariant: the identical reproducer (run.sh + input.apv, run via run_poc) yields the sanitizer report only in post_intro; pre_intro cannot even reach the code (file doesn't exist → no regression possible) and post_benign completes cleanly without the report. The crash mechanism (unchecked tile_data_size leading to an unbounded read of tile-component bytes) is exactly the root cause described in meta.json, and the crash is an explicit ASan heap-buffer-overflow READ, matching the OutOfBoundsRead label — observed via the CBS read+write round-trip sink (ff_copy_bits) rather than the (absent-from-this-tree) APV decoder's entropy-decode sink used by the original report, but this is the same flaw and the same fix commit (which folds together multiple OSS-Fuzz IDs, including 418804929, which crashes via this exact ff_copy_bits call site).",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/168ecafcd4dabb80b910/attempts/01/replay/pr_review_OSSFUZZ-418421333.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/168ecafcd4dabb80b910/attempts/01/replay/pr_review_OSSFUZZ-418421333.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/168ecafcd4dabb80b910/attempts/01/replay/pr_review_OSSFUZZ-418421333.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "33d0aa054ad554e7d56eb3b3e0020b0faa484e7a708bd0b39b73b346514215d1",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "821717c3fe1ce7fd022077669a1380634fb102d0",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "1987650c91ea34477c1d0b0fb6ea85e5b52dcf9fa76812874d5a346939349e32"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=1\n\nff_cbs_read -> 0 (nb_units=1)\n=================================================================\n==14==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x60c00000016e at pc 0x561c4859ca07 bp 0x7ffe51378cb0 sp 0x7ffe51378480\nREAD of size 199998 at 0x60c00000016e thread T0\n    #0 0x561c4859ca06 in __asan_memcpy (/tmp/poc+0x4c5a06) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b)\n    #1 0x561c485eb27f in ff_copy_bits /work/libavcodec/bitstream.c:67:9\n    #2 0x561c485e145e in cbs_apv_write_tile /work/./libavcodec/cbs_apv_syntax_template.c:232:9\n    #3 0x561c485e145e in cbs_apv_write_frame /work/./libavcodec/cbs_apv_syntax_template.c:254:9\n    #4 0x561c485e145e in cbs_apv_write_unit /work/libavcodec/cbs_apv.c:330:19\n    #5 0x561c485e529c in cbs_write_unit_data /work/libavcodec/cbs.c:384:11\n    #6 0x561c485e529c in ff_cbs_write_fragment_data /work/libavcodec/cbs.c:430:15\n    #7 0x561c485d8828 in main /poc/poc.c:52:11\n    #8 0x7f741c00dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #9 0x7f741c00de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #10 0x561c4851a894 in _start (/tmp/poc+0x443894) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b)\n\n0x60c00000016e is located 0 bytes to the right of 110-byte region [0x60c000000100,0x60c00000016e)\nallocated by thread T0 here:\n    #0 0x561c4859e257 in posix_memalign (/tmp/poc+0x4c7257) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b)\n    #1 0x561c49d11bd7 in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x561c49cdb720 in av_buffer_alloc /work/libavutil/buffer.c:82:12\n    #3 0x561c485e4607 in cbs_fill_fragment_data /work/libavcodec/cbs.c:248:9\n    #4 0x561c485e4607 in cbs_read_data /work/libavcodec/cbs.c:279:15\n    #5 0x561c485e4ed3 in ff_cbs_read /work/libavcodec/cbs.c:334:12\n    #6 0x561c485d8761 in main /poc/poc.c:38:11\n    #7 0x7f741c00dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (/tmp/poc+0x4c5a06) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b) in __asan_memcpy\nShadow bytes around the buggy address:\n  0x0c187fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c187fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c187fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c187fff8000: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c187fff8010: 00 00 00 00 00 06 fa fa fa fa fa fa fa fa fa fa\n=>0x0c187fff8020: 00 00 00 00 00 00 00 00 00 00 00 00 00[06]fa fa\n  0x0c187fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==14==ABORTING\n",
+            "stdout_tail": "in cbs_apv_write_tile /work/./libavcodec/cbs_apv_syntax_template.c:232:9\n    #3 0x561c485e145e in cbs_apv_write_frame /work/./libavcodec/cbs_apv_syntax_template.c:254:9\n    #4 0x561c485e145e in cbs_apv_write_unit /work/libavcodec/cbs_apv.c:330:19\n    #5 0x561c485e529c in cbs_write_unit_data /work/libavcodec/cbs.c:384:11\n    #6 0x561c485e529c in ff_cbs_write_fragment_data /work/libavcodec/cbs.c:430:15\n    #7 0x561c485d8828 in main /poc/poc.c:52:11\n    #8 0x7f741c00dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #9 0x7f741c00de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #10 0x561c4851a894 in _start (/tmp/poc+0x443894) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b)\n\n0x60c00000016e is located 0 bytes to the right of 110-byte region [0x60c000000100,0x60c00000016e)\nallocated by thread T0 here:\n    #0 0x561c4859e257 in posix_memalign (/tmp/poc+0x4c7257) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b)\n    #1 0x561c49d11bd7 in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x561c49cdb720 in av_buffer_alloc /work/libavutil/buffer.c:82:12\n    #3 0x561c485e4607 in cbs_fill_fragment_data /work/libavcodec/cbs.c:248:9\n    #4 0x561c485e4607 in cbs_read_data /work/libavcodec/cbs.c:279:15\n    #5 0x561c485e4ed3 in ff_cbs_read /work/libavcodec/cbs.c:334:12\n    #6 0x561c485d8761 in main /poc/poc.c:38:11\n    #7 0x7f741c00dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (/tmp/poc+0x4c5a06) (BuildId: 537b6d33cab3ce8db8059937776a3c6ba2ca110b) in __asan_memcpy\nShadow bytes around the buggy address:\n  0x0c187fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c187fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c187fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c187fff8000: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c187fff8010: 00 00 00 00 00 06 fa fa fa fa fa fa fa fa fa fa\n=>0x0c187fff8020: 00 00 00 00 00 00 00 00 00 00 00 00 00[06]fa fa\n  0x0c187fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c187fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==14==ABORTING\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "33d0aa054ad554e7d56eb3b3e0020b0faa484e7a708bd0b39b73b346514215d1",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "0c79a091e4dcf5ad00d02c94babab2499bd65793",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "1c44b41f70e61e95c42bfe8f7be34ad9c59aa0a280970f3d4fbff45be4ad5d33"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "cbs_apv.c not present in this revision (pre-intro: feature not yet added)\nNO_CBS_APV_SOURCE\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "33d0aa054ad554e7d56eb3b3e0020b0faa484e7a708bd0b39b73b346514215d1",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "0c79a091e4dcf5ad00d02c94babab2499bd65793",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "e4da4fc110b4923c880028f3c61b27b2aa348de52b423b3563aa532079072cb2"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\nFailed to read unit 0 (type 1).\nff_cbs_read -> -1094995529 (nb_units=1)\nread failed, stopping (no bug reachable)\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "Custom 46-byte crafted APV elementary-stream buffer (/poc/input.apv: signature \"aPv1\" + one PRIMARY_FRAME PBU: frame_info 256x128, 4:0:0, 10-bit, 1 tile of 16x8 MBs, whose tile_header declares tile_data_size[0]=200000 bytes although the whole PBU is only 38 bytes) run via /poc/run.sh, which builds a harness (poc.c, added under /poc) that calls the public CBS API directly: ff_cbs_init(AV_CODEC_ID_APV) -> ff_cbs_read(ctx,&frag,data,size) -> ff_cbs_write_fragment_data(ctx,&frag). This exercises exactly the tile() function in cbs_apv_syntax_template.c named in meta.json's root cause. run_poc was used for all three versions with this same run.sh/input.apv.",
+        "target_evidence": "post_intro (run_poc): crashed=True\nAddressSanitizer: heap-buffer-overflow on address 0x60c00000016e ... READ of size 199998\n  #0 __asan_memcpy\n  #1 ff_copy_bits /work/libavcodec/bitstream.c:67:9\n  #2 cbs_apv_write_tile /work/./libavcodec/cbs_apv_syntax_template.c:232:9\n  #3 cbs_apv_write_frame /work/./libavcodec/cbs_apv_syntax_template.c:254:9\n  #4 cbs_apv_write_unit /work/libavcodec/cbs_apv.c:330:19\n  #5 cbs_write_unit_data /work/libavcodec/cbs.c:384:11\n  #6 ff_cbs_write_fragment_data /work/libavcodec/cbs.c:430:15\n  #7 main /poc/poc.c:52:11\n0x60c00000016e is located 0 bytes to the right of 110-byte region [0x60c000000100,0x60c00000016e)\nallocated by av_buffer_alloc <- cbs_fill_fragment_data <- cbs_read_data <- ff_cbs_read <- main /poc/poc.c:38\n\npre_intro (run_poc): exit=0 crashed=False\n\"cbs_apv.c not present in this revision (pre-intro: feature not yet added)\\nNO_CBS_APV_SOURCE\"\n\npost_benign (run_poc): exit=0 crashed=False\n\"Failed to read unit 0 (type 1).\\nff_cbs_read -> -1094995529 (nb_units=1)\\nread failed, stopping (no bug reachable)\""
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Build-environment note: this benchmark's source snapshot is \"incomplete\" (per meta.json) — the real APV decoder (apv_dec.c, ff_apv_entropy_decode_block, etc.) referenced by the original OSS-Fuzz crash trace does not exist anywhere in this tree, and configure does not auto-select CONFIG_CBS_APV (no decoder/bsf in this pruned tree selects it), so cbs_apv.c/cbs_apv_syntax_template.c are not linked into the default libavcodec.a in any of the three built revisions even though the source file itself is present (unmodified) for post_intro/post_benign. run.sh therefore compiles the existing, untouched libavcodec/cbs_apv.c and libavcodec/cbs.c directly with -DCBS_APV=1 (only a compile-time override of the very macro configure would otherwise define) and links them with a tiny added harness (poc.c) that calls only public CBS API functions. No tracked target source was edited; the same unmodified target files and the same crafted input (/poc/input.apv) were used, unchanged, for all three revisions via run_poc.\n\nResults (via run_poc):\n- pre_intro (0c79a091e4dc): run.sh detects that libavcodec/cbs_apv.c does not exist in this revision at all (\"cbs_apv.c not present ... feature not yet added\"); exit 0, no crash. The tile() function containing the flaw was not yet written, so this specific bug cannot be present — a genuine introduction, not merely an untested path.\n- post_intro (821717c3fe1c): harness built and run; ff_cbs_read() succeeds (the unchecked tile() read path silently accepts tile_data_size=200000 even though only a few bytes remain in the buffer — skip_bits_long() is called without checking get_bits_left(), exactly per root_cause). ff_cbs_write_fragment_data() then re-serializes the parsed fragment; cbs_apv_write_tile() (cbs_apv_syntax_template.c:232, the write branch of the very same tile() function) calls ff_copy_bits(rw, current->tile_data[c], comp_size*8), which memcpy's 199998 bytes starting from a pointer sitting at the very end of the 110-byte heap buffer that held the parsed input. AddressSanitizer reports \"heap-buffer-overflow ... READ of size 199998 ... 0 bytes to the right of 110-byte region\", with the crashing frame directly in cbs_apv_write_tile -> cbs_apv_write_frame -> cbs_apv_write_unit -> cbs_write_unit_data -> ff_cbs_write_fragment_data -> main. crashed=True.\n- post_benign (companion of fix f09c834a7d01): identical harness, identical binary input via run_poc. ff_cbs_read() now fails cleanly with AVERROR_INVALIDDATA (\"Failed to read unit 0 (type 1)\") because the fixed tile() checks get_bits_left(rw) < 8LL*comp_size before accepting tile_data_size, rejecting the malformed size at read time. Program exits 0, no ASan report — ff_cbs_write_fragment_data (and therefore ff_copy_bits) is never reached. crashed=False.\n\nThis satisfies the required invariant: the identical reproducer (run.sh + input.apv, run via run_poc) yields the sanitizer report only in post_intro; pre_intro cannot even reach the code (file doesn't exist → no regression possible) and post_benign completes cleanly without the report. The crash mechanism (unchecked tile_data_size leading to an unbounded read of tile-component bytes) is exactly the root cause described in meta.json, and the crash is an explicit ASan heap-buffer-overflow READ, matching the OutOfBoundsRead label — observed via the CBS read+write round-trip sink (ff_copy_bits) rather than the (absent-from-this-tree) APV decoder's entropy-decode sink used by the original report, but this is the same flaw and the same fix commit (which folds together multiple OSS-Fuzz IDs, including 418804929, which crashes via this exact ff_copy_bits call site)."
+    }
+  },
+  "task_hashes": {
+    "buggy": "14d42f405ec6de657cf008994eaa877a94cbb57476843b66183c02e3ecde06df",
+    "benign": "fb3eeb991f2412b5a9c858c7a701fa34036b84803173ffc2cba3f727fd0d886d"
+  }
+}

@@ -1,0 +1,8 @@
+model: claude-sonnet-4-6
+reasoning_effort: null
+claude_version: 2.1.258
+prompt_version: criteria-first-v1
+max_diff_chars: 30000
+max_attempts: 3
+paper_tools: false
+no_web: true

@@ -1,0 +1,56 @@
+{
+  "task_id": "pr_review_GH-28216_benign",
+  "bug_id": "GH-28216",
+  "commit_sha": "c0527256d2e6a148931e1d8b9b0ff4af7564caae",
+  "commit_message": "Fix a leak in an error path in OSSL_DECODER_CTX_new_for_pkey()\n\nFound via the reproducible error injection in #21668\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Tom Cosgrove <tom.cosgrove@arm.com>\n(Merged from https://github.com/openssl/openssl/pull/21723)",
+  "commit_author": "",
+  "commit_date": "2026-09-28T17:09:32.946350",
+  "pr_title": "Fix a leak in an error path in OSSL_DECODER_CTX_new_for_pkey()",
+  "pr_description": "Fix a leak in an error path in OSSL_DECODER_CTX_new_for_pkey()\n\nFound via the reproducible error injection in #21668\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Tom Cosgrove <tom.cosgrove@arm.com>\n(Merged from https://github.com/openssl/openssl/pull/21723)",
+  "files": [
+    {
+      "path": "crypto/encode_decode/decoder_pkey.c",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 2,
+      "diff": "diff --git a/crypto/encode_decode/decoder_pkey.c b/crypto/encode_decode/decoder_pkey.c\nindex d00ec75bead..d8286563ae7 100644\n--- a/crypto/encode_decode/decoder_pkey.c\n+++ b/crypto/encode_decode/decoder_pkey.c\n@@ -828,26 +828,33 @@ OSSL_DECODER_CTX_new_for_pkey(EVP_PKEY **pkey,\n         }\n         if (propquery != NULL) {\n             newcache->propquery = OPENSSL_strdup(propquery);\n             if (newcache->propquery == NULL)\n                 goto err;\n         }\n         newcache->selection = selection;\n         newcache->template = ctx;\n \n         if (!CRYPTO_THREAD_write_lock(cache->lock)) {\n+            ctx = NULL;\n             ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n-            return NULL;\n+            goto err;\n         }\n         res = lh_DECODER_CACHE_ENTRY_retrieve(cache->hashtable, &cacheent);\n         if (res == NULL) {\n-            lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            (void)lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) {\n+                ctx = NULL;\n+                CRYPTO_THREAD_unlock(cache->lock);\n+                ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n+                goto err;\n+            }\n         } else {\n             /*\n              * We raced with another thread to construct this and lost. Free\n              * what we just created and use the entry from the hashtable instead\n              */\n             decoder_cache_entry_free(newcache);\n             ctx = res->template;\n         }\n     } else {\n         ctx = res->template;\n"
+    }
+  ],
+  "full_diff": "diff --git a/crypto/encode_decode/decoder_pkey.c b/crypto/encode_decode/decoder_pkey.c\nindex d00ec75bead..d8286563ae7 100644\n--- a/crypto/encode_decode/decoder_pkey.c\n+++ b/crypto/encode_decode/decoder_pkey.c\n@@ -828,26 +828,33 @@ OSSL_DECODER_CTX_new_for_pkey(EVP_PKEY **pkey,\n         }\n         if (propquery != NULL) {\n             newcache->propquery = OPENSSL_strdup(propquery);\n             if (newcache->propquery == NULL)\n                 goto err;\n         }\n         newcache->selection = selection;\n         newcache->template = ctx;\n \n         if (!CRYPTO_THREAD_write_lock(cache->lock)) {\n+            ctx = NULL;\n             ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n-            return NULL;\n+            goto err;\n         }\n         res = lh_DECODER_CACHE_ENTRY_retrieve(cache->hashtable, &cacheent);\n         if (res == NULL) {\n-            lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            (void)lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) {\n+                ctx = NULL;\n+                CRYPTO_THREAD_unlock(cache->lock);\n+                ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n+                goto err;\n+            }\n         } else {\n             /*\n              * We raced with another thread to construct this and lost. Free\n              * what we just created and use the entry from the hashtable instead\n              */\n             decoder_cache_entry_free(newcache);\n             ctx = res->template;\n         }\n     } else {\n         ctx = res->template;\n",
+  "ground_truth": {
+    "bug_id": "GH-28216",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "3d254b31344e82b8f10fda8bab196757a377eb63",
+    "fix_commit": "c0527256d2e6a148931e1d8b9b0ff4af7564caae"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "3d254b31344e82b8f10fda8bab196757a377eb63",
+  "fix_commit_sha": "c0527256d2e6a148931e1d8b9b0ff4af7564caae",
+  "intro_commit_message": "Fix a leak in an error path in OSSL_DECODER_CTX_new_for_pkey()\n\nFound via the reproducible error injection in #21668\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Tom Cosgrove <tom.cosgrove@arm.com>\n(Merged from https://github.com/openssl/openssl/pull/21723)",
+  "fix_commit_message": "Fix missing unlock in decoder_pkey.c\n\nWe hit an assertion failure during a call to CRYPTO_THREAD_read_lock\nduring memfail testing.\n\nThis was caused by us attempting to take a read lock in the same thread\nthat already held the same lock for writing resulting in an EBUSY\nreturn.\n\nThis occured because we triggered a memory failure path in\nDECODER_new_for_pkey, which never unlocked a write lock we were holding.\n\nFix it by ensuring the lock is released in the error path.\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Saša Nedvědický <sashan@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/28216)",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix c0527256d2e6 on top of intro 3d254b31344e via git's 3-way merge. Vulnerability (LogicError): OSSL_DECODER_CTX_new_for_pkey() in crypto/encode_decode/decoder_pkey.c maintains a per-library-context cache of decoder chains, protected by cache->lock (a CRYPTO_RWLOCK). When no cached template exists, the function releases its read lock, builds a new decoder chain, then re-acquires the lock as a write lock in order to insert the new entry into the cache hashtable (lh_DECODER_CACHE_ENTRY_insert). Commit 3d254b31344e82b8f10fda8bab196757a377eb63 added error handling for the case where the hashtable insert itself fails (e.g. due to an internal allocation failure while the hashtable is resizing), routing that failure to a shared 'err:' cleanup label via 'goto err;'. That cleanup label frees the OSSL_DECODER_CTX and cache entry but does not release cache->lock, which had already been acquired for writing just before the insert. Consequently, whenever the hashtable insert fails, the function returns with the write lock still held. A later call into the same function (in the same thread, or any thread under a rwlock implementation that deadlocks on relocking) that attempts to acquire a read lock on cache->lock will fail/deadlock — this was observed as an assertion failure (EBUSY on CRYPTO_THREAD_read_lock) during OpenSSL's memory-failure injection testing. Root cause: A new error-handling branch (checking lh_DECODER_CACHE_ENTRY_error) was added that jumps into a shared 'err:' cleanup path, but that cleanup path was written for the earlier failure points in the function (all of which occur before the write lock is taken) and therefore does not release cache->lock. The developer who added the new error check overlooked that this particular 'goto err' occurs after the lock had already been acquired, unlike the other 'goto err' sites in the same function.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "3d254b31344e82b8f10fda8bab196757a377eb63",
+    "fix_revision": "c0527256d2e6a148931e1d8b9b0ff4af7564caae",
+    "fix_parent_revision": "7d78cd722b63e53a668c7ec13b9eeb6e13e32f13",
+    "inspected_paths": [
+      "crypto/encode_decode/decoder_pkey.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "crypto/encode_decode/decoder_pkey.c",
+        "symbol": "CRYPTO_THREAD_unlock",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

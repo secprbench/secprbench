@@ -1,0 +1,99 @@
+name: ffmpeg
+repo_url: https://github.com/FFmpeg/FFmpeg.git
+project:
+  name: ffmpeg
+  display_name: FFmpeg
+  repo: FFmpeg/FFmpeg
+  language: C
+context:
+  description: 'FFmpeg is a multimedia framework providing libraries (libavcodec,
+
+    libavformat, libavfilter, libavutil, libswscale, libswresample) and CLI
+
+    tools (ffmpeg, ffplay, ffprobe) for decoding, encoding, transcoding,
+
+    muxing, demuxing, streaming, and filtering virtually any audio/video
+
+    format. The codebase is primarily C with hand-written SIMD assembly on
+
+    hot paths; per-format demuxers and decoders parse fully untrusted
+
+    bitstreams from disk and network.
+
+    '
+  input_sources: 'untrusted media containers and codec bitstreams (file or network),
+
+    RTP/RTSP/HTTP/HLS/RTMP streams, subtitle files, image files, codec
+
+    extradata blobs, AVIO custom callbacks, ffmpeg CLI arguments, and
+
+    filtergraph descriptions
+
+    '
+  assertion_macros: 'av_assert0() fires in all builds and IS a hard guard.
+
+    av_assert1() / av_assert2() are compiled out at higher optimization
+
+    levels (release) and CANNOT be relied on as security checks.
+
+    Plain assert() is also typically disabled in release. Treat anything
+
+    weaker than av_assert0 as a debug aid, not a guard.
+
+    '
+  common_bug_types:
+  - BufferOverflow (heap and stack, especially in demuxers/decoders parsing untrusted
+    bitstreams)
+  - OutOfBoundsRead (bitstream parsing, missing length checks, off-by-one in loops
+    over packets/frames)
+  - OutOfBoundsWrite (insufficient buffer allocation for decoded output, miscomputed
+    strides)
+  - IntegerOverflow (size_t/int truncation in size math, av_image_get_buffer_size,
+    frame dimensions)
+  - UseAfterFree (codec/format context lifecycle, av_frame_unref/av_packet_unref ordering,
+    side-data)
+  - DoubleFree (error-path cleanup, av_frame_free / av_freep called on already-freed
+    pointers)
+  - NullPointerDereference (missing checks after av_malloc / avcodec_find_decoder
+    / av_dict_get)
+  - DivisionByZero (sample rate, frame rate, time_base derived from attacker-controlled
+    headers)
+  - UninitializedMemory (av_malloc instead of av_mallocz, partial AVFrame/AVPacket
+    init)
+  - InfiniteLoop (malformed bitstream where the parser fails to advance)
+  file_patterns:
+  - libavcodec/**/*.c
+  - libavformat/**/*.c
+  - libavfilter/**/*.c
+  - libavutil/**/*.c
+  - libswscale/**/*.c
+  - libswresample/**/*.c
+verify:
+  name: ffmpeg
+  image: anypoc-ffmpeg:latest
+  repo_url: https://github.com/FFmpeg/FFmpeg.git
+  build_script: 'set -e
+
+    cd /work
+
+    ./configure --cc=clang --cxx=clang++ --extra-cflags="-g -O1 -fsanitize=address
+    -fno-omit-frame-pointer" --extra-ldflags="-fsanitize=address" --enable-gpl --disable-stripping
+    --disable-optimizations --disable-asm --disable-doc > build_configure.log 2>&1
+
+    make -j"${CGSA_BUILD_JOBS:-$(nproc)}" ffmpeg > build_compile.log 2>&1
+
+    '
+  harness_source: null
+  harness_build: ''
+  run_cmd: ./ffmpeg -nostdin -hide_banner -loglevel error -i "$INPUT" -f null -
+  build_artifacts:
+  - ffmpeg
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 3600
+  run_timeout: 120
+  build_network: none
+  build_cache: false
+  build_git_mounts: false
+  build_support_files: []

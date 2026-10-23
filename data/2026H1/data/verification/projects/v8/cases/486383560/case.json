@@ -1,0 +1,91 @@
+{
+  "bug_id": "486383560",
+  "project": "v8",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "b2123b6a6014b2a961192815be50f8b071845250",
+    "parent": "ff2b5a672985c0d18d2871732dd4407fd107032d",
+    "fix": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1"
+  },
+  "affected_files": [
+    "src/d8/d8.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/4201dbdccf0f062ba18f/attempts/01/replay/pr_review_486383560.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/4201dbdccf0f062ba18f/attempts/01/replay/pr_review_486383560.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "ff2b5a672985c0d18d2871732dd4407fd107032d",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d14d86b4ef0b5c3d15ad301449eea0b63ce0efae276ddbacc8fa4d859753a3ca"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "b2123b6a6014b2a961192815be50f8b071845250",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer_report": "VERIFY_EXIT=134\n\n=================================================================\n==8==ERROR: AddressSanitizer: heap-use-after-free on address 0x62500002320a at pc 0x55c47ff72d50 bp 0x7ffe76139520 sp 0x7ffe76139518\nREAD of size 1 at 0x62500002320a thread T0\n    #0 0x55c47ff72d4f in index src/handles/global-handles.cc:340:34\n    #1 0x55c47ff72d4f in From src/handles/global-handles.cc:114:38\n    #2 0x55c47ff72d4f in v8::internal::GlobalHandles::NodeSpace<v8::internal::GlobalHandles::Node>::Release(v8::internal::GlobalHandles::Node*) src/handles/global-handles.cc:270:22\n    #3 0x55c47f97f7b4 in Reset include/v8-persistent-handle.h:475:3\n    #4 0x55c47f97f7b4 in ~Global include/v8-persistent-handle.h:404:31\n    #5 0x55c47f97f7b4 in ~pair buildtools/third_party/libc++/trunk/include/__utility/pair.h:46:29\n    #6 0x55c47f97f7b4 in ~pair buildtools/third_party/libc++/trunk/include/__utility/pair.h:46:29\n    #7 0x55c47f97f7b4 in __destroy_at<std::Cr::pair<v8::Isolate *const, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context> > >, 0> buildtools/third_party/libc++/trunk/include/__memory/construct_at.h:64:13\n    #8 0x55c47f97f7b4 in destroy_at<std::Cr::pair<v8::Isolate *const, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context> > >, 0> buildtools/third_party/libc++/trunk/include/__memory/construct_at.h:89:5\n    #9 0x55c47f97f7b4 in destroy<std::Cr::pair<v8::Isolate *const, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context> > >, void, void> buildtools/third_party/libc++/trunk/include/__memory/allocator_traits.h:316:9\n    #10 0x55c47f97f7b4 in std::Cr::__tree<std::Cr::__value_type<v8::Isolate*, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context>>>, std::Cr::__map_value_compare<v8::Isolate*, std::Cr::__value_type<v8::Isolate*, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context>>>, std::Cr::less<v8::Isolate*>, true>, std::Cr::allocator<std::Cr::__value_type<v8::Isolate*, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context>>>>>::destroy(std::Cr::__tree_node<std::Cr::__value_type<v8::Isolate*, std::Cr::pair<v8::Global<v8::Function>, v8::Global<v8::Context>>>, void*>*) buildtools/third_party/libc++/trunk/include/__tree:1801:9\n    #11 0x7fce90a03a75 in __run_exit_handlers stdlib/exit.c:108:8\n    #12 0x7fce90a03bbd in exit stdlib/exit.c:138:3\n    #13 0x7fce909e61d0 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:74:3\n    #14 0x7fce909e628a in __libc_start_main csu/../csu/libc-start.c:360:3\n    #15 0x55c47f832029 in _start (/work/out.gn/x64.release/d8+0xdd5029) (BuildId: 3672c59ec4e0692c)\n\n0x62500002320a is located 266 bytes inside of 8240-byte region [0x625000023100,0x625000025130)\nfreed by thread T0 here:\n    #0 0x55c47f8fa7ed in operator delete(void*) /b/s/w/ir/cache/builder/src/third_party/llvm/compiler-rt/lib/asan/asan_new_delete.cpp:152:3\n    #1 0x55c47ff71ad7 in ~NodeSpace src/handles/global-handles.cc:231:5\n    #2 0x55c47ff71ad7 in operator() buildtools/third_party/libc++/trunk/include/__memory/unique_ptr.h:49:5\n    #3 0x55c47ff71ad7 in reset buildtools/third_party/libc++/trunk/include/__memory/unique_ptr.h:281:7\n    #4 0x55c47ff71ad7 in ~unique_ptr buildtools/third_party/libc++/trunk/include/__memory/unique_ptr.h:247:75\n    #5 0x55c47ff71ad7 in v8::internal::GlobalHandles::~GlobalHandles() src/handles/global-handles.cc:609:31\n    #6 0x55c47ff1006c in v8::internal::Isolate::~Isolate() src/execution/isolate.cc:3797:3\n    #7 0x55c47ff09cd1 in v8::internal::Is",
+        "build_log_tail": "",
+        "run_log_tail": "SUMMARY: AddressSanitizer: heap-use-after-free src/handles/global-handles.cc:340:34 in index\nShadow bytes around the buggy address:\n  0x625000022f80: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x625000023000: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x625000023080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x625000023100: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x625000023180: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n=>0x625000023200: fd[fd]fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x625000023280: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x625000023300: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x625000023380: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x625000023400: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x625000023480: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\nReceived signal 6\n\n==== C stack trace ===============================\n\n [0x55c47f875807]\n [0x55c482bcccd1]\n [0x7fce90a01330]\n [0x7fce90a5ab2c]\n [0x7fce90a0127e]\n [0x7fce909e48ff]\n [0x55c47f8e5e57]\n [0x55c47f8e4711]\n [0x55c47f8cd9da]\n [0x55c47f8d087d]\n [0x55c47f8d1358]\n [0x55c47ff72d50]\n [0x55c47f97f7b5]\n [0x7fce90a03a76]\n [0x7fce90a03bbe]\n [0x7fce909e61d1]\n [0x7fce909e628b]\n [0x55c47f83202a]\n[end of stack trace]\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "61e0b1c061c1a582216a9f93d2972234c20e91fbcccf22cac663f5963f93214d"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "ff2b5a672985c0d18d2871732dd4407fd107032d",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6ea23320546b350287f6b215544c0fd4ca882d8288939e2e73113216a87dc6c1"
+        }
+      }
+    }
+  },
+  "task_hashes": {
+    "buggy": "c298446295c910afaff1567ed09e7280643eb266f35402f19a2ea5a1c5e1d4aa",
+    "benign": "6f5fc69976821ef1e26fcf40969fbac4c693102dd683970da6b6147594668c58"
+  }
+}

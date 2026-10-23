@@ -1,0 +1,133 @@
+{
+  "affected_files": [
+    "src/module.c",
+    "src/networking.c",
+    "src/server.c",
+    "src/server.h"
+  ],
+  "aliases": [
+    "PR-14134"
+  ],
+  "bug_discussion": "Upstream PR #14134 describes invalid argv/key access on IO threads for commands with invalid arity and possible Redis crash, naming merged PR #14017 as the regression. Its exact merge commit is the selected mainline fix. A local GCC+ASan same-input preflight with io-threads=2 returned a normal arity error on the introducing commit's parent and the fixing commit, while the introducing revision entered Redis serverPanic at db.c:2931. This demonstrates a command-triggered denial of service, not an ASan-proven out-of-bounds access. Current Redis Clang14 configuration fails to compile the unmodified 2025 source; security screening, normal task construction, and Docker verification remain pending.",
+  "bug_id": "GH-14134",
+  "candidate_status": "local_gcc_panic_preflight_passed_pending_clang_build_decision",
+  "changed_lines": 19,
+  "commit_ids": [
+    "a95b94b3dd8948671926f356ae9238ead7f079cf"
+  ],
+  "component": "",
+  "creation_time": "2025-06-18T08:47:32Z",
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "fix_commit_sha": "a95b94b3dd8948671926f356ae9238ead7f079cf",
+  "fix_date": "2025-06-18T22:29:13+08:00",
+  "keywords": [],
+  "mainline_verified": true,
+  "product": "redis",
+  "provenance": {
+    "apply_check": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/apply_check.json",
+      "sha256": "562de293f8c05f63bdf4e7db04b98d3e0d9dceaf5a7aa89fbd64c12990b7c605"
+    },
+    "collector": "targeted_h1_redis_arity_gcc_preflight_v1",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/fix.commit",
+      "sha256": "a5f0d1f4cd97916d0425553dacd896fc97f7a0563b226178b61da1ed402a5ba2"
+    },
+    "companion_prerequisites": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/companion_prerequisites.json",
+      "sha256": "bdfda0b17ed47ed2634cfc2fa53ec2f7ae4b8b6010855eb0d5724adcaa98688a"
+    },
+    "dedup_audit": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/dedup_audit.json",
+      "sha256": "3114df59468b744c10c0301fd0d7ffe88cfc4be21b9fede4d894d7d862e08eb5"
+    },
+    "fix_sha": "a95b94b3dd8948671926f356ae9238ead7f079cf",
+    "introducing_pr": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/pr14017_api.json",
+      "sha256": "27d3da57b7ccc67c633cbc24280cebe15ab7c2fb7b16f43e4e246472e3ee6c4e"
+    },
+    "introduction_candidate": {
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/intro.blame",
+        "sha256": "871ff4bfebd5e373b471adc774c19ffd29fa5bd4737a727d14b506146901b28e"
+      },
+      "changed_files": [
+        "src/Makefile",
+        "src/config.c",
+        "src/config.h",
+        "src/db.c",
+        "src/dict.c",
+        "src/dict.h",
+        "src/fmtargs.h",
+        "src/iothread.c",
+        "src/kvstore.c",
+        "src/kvstore.h",
+        "src/memory_prefetch.c",
+        "src/memory_prefetch.h",
+        "src/networking.c",
+        "src/server.c",
+        "src/server.h",
+        "tests/unit/networking.tcl",
+        "utils/generate-fmtargs.py"
+      ],
+      "changed_lines": 720,
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/intro.commit",
+        "sha256": "7c0e7d0fa9d235f9dbbaf464090fecb07cb6b89562e54f4037b5122fe72b2ec7"
+      },
+      "date": "2025-06-05T08:57:43+08:00",
+      "parent_revision": "b7c6755b1b44da36866c0376da0a000873177270",
+      "patch": {
+        "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/intro.patch",
+        "sha256": "3fe8c38a2f598787710811547d790cdfb760cb8f690d8745bb4d0323a09dc2aa"
+      },
+      "sha": "70a079db5eaa201da00b72fdfd4cf349e8b8ede7"
+    },
+    "mainline_ref": "origin/unstable",
+    "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/fix.patch",
+      "sha256": "6e774c636387296475aaa22ab66409eea79c7591e04fc31d40eb1290bd5aba5b"
+    },
+    "public_commit_url": "https://github.com/redis/redis/commit/a95b94b3dd8948671926f356ae9238ead7f079cf",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/pr14134_api.json",
+      "sha256": "5af68f3f8827c966daef7e3f3167f39f636a114f9890f1e8e2da0864a1c9d018"
+    },
+    "source_url": "https://github.com/redis/redis/pull/14134",
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261002-h1-redis-arity-v1/redis/GH-14134/preflight/evidence.json",
+      "sha256": "5ae07835bfd31d56af16f771ffe6aeb784d5544598669054544c7fe7b8d95638"
+    }
+  },
+  "report_references": [
+    {
+      "evidence": "We need to check the command arity in IO threads, if it is not correct, we should reset it, as we may do memory prefetching according to the `iolookedcmd`.  Accessing `argv` using the key positions returned by `getKeysFromCommand` is unsafe and must be avoided for invalid commands. Otherwise, this may lead to invalid memory access and potentially cause the redis to crash.\r\n\r\nThis bug starts to have an impact after #14017",
+      "id": "GH-14134",
+      "kind": "upstream_fix_discussion",
+      "url": "https://github.com/redis/redis/pull/14134"
+    },
+    {
+      "evidence": "Improve multithreaded performance with memory prefetching",
+      "id": "INTRO-PR-14017",
+      "kind": "introducing_change",
+      "url": "https://github.com/redis/redis/pull/14017"
+    }
+  ],
+  "resolution_time": null,
+  "season": "2025H1",
+  "security_screen": {
+    "build_configuration_gate": "current_clang14_unmodified_source_fails",
+    "earliest_fix_review_required": true,
+    "fix_role_review_required": true,
+    "preliminary_defect_classes": [
+      "denial-of-service",
+      "invalid-command-arity"
+    ],
+    "same_input_three_version_preflight": true,
+    "status": "pending",
+    "untrusted_input_boundary": "client-supplied RESP command on a Redis server with io-threads=2"
+  },
+  "severity": "unknown",
+  "title": "Redis malformed command arity reaches IO-thread key prefetch panic"
+}

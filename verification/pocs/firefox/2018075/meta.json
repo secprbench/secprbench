@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_2018075",
+  "bug_id": "2018075",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "398a31295dffbb51630b93f70e196e94f2728daa",
+  "intro_parent": "145adb078d7bfd8e570d086b0e9190eaf8f2f42d",
+  "fix_commit": "e055cf04d23f6a08845e2532a27bbaaa47881676",
+  "affected_files": [
+    "js/src/vm/JSScript.cpp",
+    "js/src/vm/JSScript.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_inline_226949d71845.js: source:bug_discussion"
+  ],
+  "input_name": "inline_226949d71845.js",
+  "root_cause": "BaseScript::swapData/releaseData assumed that GCStructPtr::set() barriers were sufficient for updating the data_ pointer, which was true when PrivateScriptData was a plain heap allocation. Once Bug 2002790 made data_ a BufferAllocator-managed (nursery-capable) allocation, the pointer itself became a GC edge requiring its own trace/write barrier (via TraceBufferEdge), which was not added at the same time, leaving a gap between allocation-strategy change and barrier coverage.",
+  "findings": [
+    "BaseScript::swapData() updates the BaseScript::data_ pointer (a BufferAllocator-managed allocation holding PrivateScriptData) using only `data_.set(zone(), other)`. That GCStructPtr::set() call only triggers a write barrier for the *contents* pointed to by data_ (i.e. the GC things referenced from inside PrivateScriptData), but it performs no write/read barrier for the buffer allocation pointer it"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "d95be093e6845f946f902c43bc4e2b821a8a4abe731bfcd936ffad862f29c836",
+  "generated_artifact_sha256": {
+    "reference": "fc50bc5c00d2e5dd7b93d23247f5880a4e367ba041a8cba8bc8ed4871b467c37",
+    "introducing": "b1fea67aff7c03d331f5b90748c6a44399993fc1e5d20eadf5812f5c1e5f3095",
+    "companion": "6bc2614083cd2c51e90061801f0c7ab504d527ceee2f0d618935eb9442644ed0"
+  }
+}

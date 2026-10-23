@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-490576036",
+  "bug_id": "OSSFUZZ-490576036",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "3dba9eb80663abf77b083878a2f6e0f77abf81a7",
+  "intro_parent": "4e32fb4c2abaee9f71cf1d67d306dd5486fbad23",
+  "fix_commit": "248b481c337d917e0fece9555ae59b5375c725c6",
+  "affected_files": [
+    "libavcodec/bsf/extract_extradata.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The code introduced in the LCEVC extradata support used a 32-bit signed int to hold a payload size read via a multi-byte/variable length decoder (get_mb, uint64_t) without validating that the value fits within range before using it in pointer/length arithmetic, allowing signed integer overflow and a negative computed block_size to bypass the sanity check that only guarded against overly large (not negative) sizes.",
+  "findings": [
+    "In write_lcevc_nalu(), payload_size is declared as a plain 'int' but can be populated from get_mb(), which returns a uint64_t multi-byte-encoded value that can be arbitrarily large (up to 70 bits of accumulated data). When assigned to the int payload_size, the value truncates/overflows and can become negative or otherwise attacker-controlled in ways that break the subsequent arithmetic. block_size"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "712dc920d6d0de307266c95a3f2c46034ba4e641a2199536f03d57ba95aa2bf3",
+  "generated_artifact_sha256": {
+    "reference": "7c9ee4f17f52b67b01e8616c67116932ad627e489d3a83309c2caf88acad5ab8",
+    "introducing": "914bf07f2d1fd9b19208b089cf8cd470d687a4d7bcfa14bc11c4102317759827",
+    "companion": "5db1cff42bb84d8c88d9f0ce4b761c2d497b96dae413a08633f4e09ade8db096"
+  }
+}

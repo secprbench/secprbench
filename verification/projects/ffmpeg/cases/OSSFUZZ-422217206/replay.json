@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-422217206",
+    "bug_id": "OSSFUZZ-422217206",
+    "bug_type": "UninitializedMemory",
+    "intro_commit": "d4556c98f02e4f2d3deb86efeb060ebe4659be96",
+    "intro_parent": "2de0d095b84f5dea1201ba06933f2a3f42d9a5dc",
+    "fix_commit": "a45755e302baf56461bd7d8cf0c3a88c0ee5e83f",
+    "affected_files": [
+      "libavcodec/dxvenc.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reasons": [
+      "The agent claim lacks a matching admissible three-version oracle.",
+      "Source inspection across the three revisions confirms the mechanism. pre_intro's dxv_init() only accepts width/height that are multiples of TEXTURE_BLOCK_W/H(4) and has no padding/safe_data code path at all, so it cannot exhibit this bug. The intro commit (d4556c98f02e) added support for widths not aligned to DXV_ALIGN(16) by allocating a padded 'safe_data' buffer via av_image_alloc(), copying the real WxH pixels with av_image_copy2() (which copies exactly width*4 bytes per row, not frame->linesize[0] bytes), then trying to zero the pad columns with memset(safe_data+y*safe_linesize+frame->linesize[0], 0, safe_linesize-frame->linesize[0]). When the source frame's own row stride (frame->linesize[0]) exceeds the true pixel-row width (width*4) -- which happens whenever the source frame buffer's alignment padding doesn't coincide with DXV's own alignment -- the byte range [width*4, frame->linesize[0]) of the freshly malloc'd safe_data buffer is written by neither the copy nor this memset, and is later read by the texture compressor. This is precisely the crash state reported upstream (compress_color / dxt1_block / exec_func) and precisely what the fix commit's message describes ('Clear width to linesize not linesize to linesize'): it changes the memset start offset from frame->linesize[0] to 4*avctx->width, covering the whole pad region regardless of the source frame's own stride padding.\n\nBuilt and ran the identical PoC/harness via run_poc against all three revisions, each freshly built from scratch inside its container with clang -fsanitize=memory -fsanitize-memory-track-origins=2 (minimal component set: avcodec/avformat/avutil/swresample/avfilter, dxv encoder + rawvideo decoder only) -- required because this is a pure use-of-uninitialized-value on otherwise in-bounds heap memory, a class only MemorySanitizer (not ASan) can observe, matching the original OSS-Fuzz job (libfuzzer_msan_ffmpeg). MSAN_OPTIONS=abort_on_error=1 is set so a detected report raises SIGABRT (a real crash) rather than a plain exit(1).\n - pre_intro: run_poc exit=0, crashed=False, ends with 'linesize=96 width*4=80 / got packet size=28 / done'. Bug absent, as expected (no padding path exists pre-intro).\n - post_intro: run_poc exit=134, crashed=True. MemorySanitizer 'use-of-uninitialized-value' fires with stack constant_color -> compress_color -> dxt1_block -> exec_func -> ff_texturedsp_exec_compress_threads -> dxv_encode (dxvenc.c:220) -> ... -> avcodec_send_frame -> main, with the 'Uninitialized value was created by a heap allocation' trace pointing to av_malloc -> av_image_alloc -> dxv_encode (dxvenc.c:184) -- exactly the safe_data buffer from the intro commit's new padding code. This exactly matches the OSS-Fuzz reported crash state (compress_color / dxt1_block / exec_func).\n - post_benign: run_poc exit=0, crashed=False, identical clean tail 'linesize=96 width*4=80 / got packet size=28 / done' (same output size as pre_intro) -- the fix's corrected memset boundary eliminates the uninitialized read.\n\nThe same width/height/pix_fmt/frame-alignment invocation (poc.c, unchanged) was used for all three revisions; only the underlying source revision differed, satisfying the invariant-reproducer requirement."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: incomplete)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/27f80a6225e83fd521e8/attempts/05/pocs/ffmpeg/OSSFUZZ-422217206",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b1f0a5485af48f7edaadb90e0d146a997f314e5678b771b82590c2b702b50075",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "d4556c98f02e4f2d3deb86efeb060ebe4659be96",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9134b3505d370e245ec82f8d76b1478424ad08c5f896f01cf3bbed948917514b"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "",
+        "stdout_tail": "ibavfilter/vf_null.o\nCC\tlibavfilter/vf_rotate.o\nCC\tlibavfilter/vf_transpose.o\nCC\tlibavfilter/vf_vflip.o\nCC\tlibavfilter/video.o\nAR\tlibavcodec/libavcodec.a\nAR\tlibswresample/libswresample.a\nAR\tlibavfilter/libavfilter.a\nAR\tlibavformat/libavformat.a\nAR\tlibavutil/libavutil.a\nCOMPILE_DONE\n=== RUN ===\nVERIFY_EXIT=134\n\nlinesize=96 width*4=80\n==3755==WARNING: MemorySanitizer: use-of-uninitialized-value\n    #0 0x55b76fec2ed6 in constant_color /tmp/msan-src/libavcodec/texturedspenc.c:447:17\n    #1 0x55b76fec2ed6 in compress_color /tmp/msan-src/libavcodec/texturedspenc.c:457:20\n    #2 0x55b76febfa88 in dxt1_block /tmp/msan-src/libavcodec/texturedspenc.c:603:5\n    #3 0x55b76fec0433 in exec_func /tmp/msan-src/libavcodec/texturedsp_template.c:53:13\n    #4 0x55b76fe77ee6 in avcodec_default_execute2 /tmp/msan-src/libavcodec/avcodec.c:91:17\n    #5 0x55b76fec012f in ff_texturedsp_exec_compress_threads /tmp/msan-src/libavcodec/texturedsp_template.c:63:12\n    #6 0x55b76fe99fd0 in dxv_encode /tmp/msan-src/libavcodec/dxvenc.c:220:9\n    #7 0x55b76fe9e512 in ff_encode_encode_cb /tmp/msan-src/libavcodec/encode.c:239:11\n    #8 0x55b76fea02a4 in encode_simple_internal /tmp/msan-src/libavcodec/encode.c:325:15\n    #9 0x55b76fea02a4 in encode_simple_receive_packet /tmp/msan-src/libavcodec/encode.c:339:15\n    #10 0x55b76fea02a4 in encode_receive_packet_internal /tmp/msan-src/libavcodec/encode.c:373:15\n    #11 0x55b76fe9f620 in avcodec_send_frame /tmp/msan-src/libavcodec/encode.c:516:15\n    #12 0x55b76fe768ff in main /poc/poc.c:29:15\n    #13 0x7f7dd98d5d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #14 0x7f7dd98d5e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #15 0x55b76fdf0424 in _start (/tmp/poc_msan+0x3a424) (BuildId: 888394b52d67fc88e5598ac804581d10644fbb04)\n\n  Uninitialized value was created by a heap allocation\n    #0 0x55b76fe1e805 in posix_memalign (/tmp/poc_msan+0x68805) (BuildId: 888394b52d67fc88e5598ac804581d10644fbb04)\n    #1 0x55b76ff0b7c9 in av_malloc /tmp/msan-src/libavutil/mem.c:107:9\n    #2 0x55b76fefe17c in av_image_alloc /tmp/msan-src/libavutil/imgutils.c:248:11\n    #3 0x55b76fe99ce7 in dxv_encode /tmp/msan-src/libavcodec/dxvenc.c:184:19\n    #4 0x55b76fe9e512 in ff_encode_encode_cb /tmp/msan-src/libavcodec/encode.c:239:11\n    #5 0x55b76fea02a4 in encode_simple_internal /tmp/msan-src/libavcodec/encode.c:325:15\n    #6 0x55b76fea02a4 in encode_simple_receive_packet /tmp/msan-src/libavcodec/encode.c:339:15\n    #7 0x55b76fea02a4 in encode_receive_packet_internal /tmp/msan-src/libavcodec/encode.c:373:15\n    #8 0x55b76fe9f620 in avcodec_send_frame /tmp/msan-src/libavcodec/encode.c:516:15\n    #9 0x55b76fe768ff in main /poc/poc.c:29:15\n    #10 0x7f7dd98d5d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: MemorySanitizer: use-of-uninitialized-value /tmp/msan-src/libavcodec/texturedspenc.c:447:17 in constant_color\nExiting\n/poc/run.sh: line 44:  3755 Aborted                 /tmp/poc_msan\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b1f0a5485af48f7edaadb90e0d146a997f314e5678b771b82590c2b702b50075",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "2de0d095b84f5dea1201ba06933f2a3f42d9a5dc",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "04a1932c96f7084b8e643e258daa35e702d2c6af1b4e34f35a74d85722c198b8"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "CONFIGURE_RET=0\nMAKE_RET=0\nCC\tlibavfilter/drawutils.o\nCC\tlibavfilter/framequeue.o\nCC\tlibavfilter/graphdump.o\nCC\tlibavfilter/graphparser.o\nCC\tlibavfilter/pthread.o\nCC\tlibavfilter/trim.o\nCC\tlibavfilter/version.o\nCC\tlibavfilter/vf_crop.o\nCC\tlibavfilter/vf_format.o\nCC\tlibavfilter/vf_hflip.o\nCC\tlibavfilter/vf_null.o\nCC\tlibavfilter/vf_rotate.o\nCC\tlibavfilter/vf_transpose.o\nCC\tlibavfilter/vf_vflip.o\nCC\tlibavfilter/video.o\nAR\tlibavcodec/libavcodec.a\nAR\tlibswresample/libswresample.a\nAR\tlibavfilter/libavfilter.a\nAR\tlibavformat/libavformat.a\nAR\tlibavutil/libavutil.a\nCOMPILE_DONE\n=== RUN ===\nRUN_RET=0\nVERIFY_EXIT=0\n\nlinesize=96 width*4=80\ngot packet size=28\ndone\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b1f0a5485af48f7edaadb90e0d146a997f314e5678b771b82590c2b702b50075",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "2de0d095b84f5dea1201ba06933f2a3f42d9a5dc",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b14fbb3febcfcffd313dba0c8c5fc31cc5f7352082bb7bdd8cc0eea726004db2"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "CONFIGURE_RET=0\nMAKE_RET=0\nCC\tlibavfilter/framepool.o\nCC\tlibavfilter/framequeue.o\nCC\tlibavfilter/graphdump.o\nCC\tlibavfilter/graphparser.o\nCC\tlibavfilter/pthread.o\nCC\tlibavfilter/trim.o\nCC\tlibavfilter/version.o\nCC\tlibavfilter/vf_crop.o\nCC\tlibavfilter/vf_format.o\nCC\tlibavfilter/vf_hflip.o\nCC\tlibavfilter/vf_null.o\nCC\tlibavfilter/vf_rotate.o\nCC\tlibavfilter/vf_transpose.o\nCC\tlibavfilter/vf_vflip.o\nCC\tlibavfilter/video.o\nAR\tlibavcodec/libavcodec.a\nAR\tlibswresample/libswresample.a\nAR\tlibavfilter/libavfilter.a\nAR\tlibavformat/libavformat.a\nAR\tlibavutil/libavutil.a\nCOMPILE_DONE\n=== RUN ===\nRUN_RET=0\nVERIFY_EXIT=0\n\nlinesize=96 width*4=80\ngot packet size=28\ndone\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/run.sh + /poc/poc.c, run via run_poc identically on pre_intro/post_intro/post_benign. run.sh rebuilds the exact checked-out source tree of the given version under /tmp with clang -fsanitize=memory (MemorySanitizer, abort_on_error=1; the default /work build is ASan-only and cannot see this bug class), then compiles/runs poc.c which opens the AV_CODEC_ID_DXV encoder with width=20,height=16,pix_fmt=RGBA, allocates the source AVFrame with av_frame_get_buffer(frame,32) (forcing frame->linesize[0]=96 > width*4=80 so the source frame carries its own stride padding), zero-fills that frame, and calls avcodec_send_frame/avcodec_receive_packet to drive dxv_encode().",
+    "target_evidence": "post_intro (via run_poc) exit=134 crashed=True, MSan report tail:\n  Uninitialized value was created by a heap allocation\n    #0 posix_memalign\n    #1 av_malloc libavutil/mem.c:107:9\n    #2 av_image_alloc libavutil/imgutils.c:248:11\n    #3 dxv_encode libavcodec/dxvenc.c:184:19\n    #4 ff_encode_encode_cb libavcodec/encode.c:239:11\n    ...\n    #8 avcodec_send_frame libavcodec/encode.c:516:15\n    #9 main /poc/poc.c:29:15\nSUMMARY: MemorySanitizer: use-of-uninitialized-value libavcodec/texturedspenc.c:447:17 in constant_color\n(full top stack: constant_color / compress_color / dxt1_block / exec_func, matching the reported OSS-Fuzz crash state)\nProcess aborted (SIGABRT) due to MSAN_OPTIONS=abort_on_error=1.\n\npre_intro (via run_poc) exit=0 crashed=False, tail: \"linesize=96 width*4=80\" / \"got packet size=28\" / \"done\", no sanitizer report.\npost_benign (via run_poc) exit=0 crashed=False, tail: \"linesize=96 width*4=80\" / \"got packet size=28\" / \"done\", no sanitizer report."
+  },
+  "agent_oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

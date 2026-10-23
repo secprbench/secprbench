@@ -1,0 +1,19 @@
+{
+  "status": "inconclusive",
+  "outcome": {
+    "task_id": "pr_review_OSSFUZZ-421954767",
+    "status": "inconclusive",
+    "via": "agent",
+    "intro_verified": "yes",
+    "benign_verified": "yes",
+    "bug_class": "memory-safety",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/3e0e5056d0a3083c76f3/attempts/01/replay/pr_review_OSSFUZZ-421954767.report.md",
+    "agent_verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/3e0e5056d0a3083c76f3/attempts/01/replay/pr_review_OSSFUZZ-421954767.agent_verdict.json"
+  },
+  "agent_used": true,
+  "case_record": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/verification/projects/ffmpeg/cases/OSSFUZZ-421954767/case.json",
+  "recipe_sha256": "74a634b3244d284fe17e",
+  "cache_root": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cache/ffmpeg/74a634b3244d284fe17e-lane3/worktrees",
+  "cache_lane": 3,
+  "final_poc_sha256": "63ae74ba8c2cb5761dbd5eb616a2e9c25cc5b5e232a33c0ce1b7e3cf0741d8d0"
+}

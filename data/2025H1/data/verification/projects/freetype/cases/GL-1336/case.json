@@ -1,0 +1,22 @@
+{
+  "bug_id": "GL-1336",
+  "project": "freetype",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "c3a5513508d71c0635da9431e88e3d8adb5d91f5",
+    "parent": "b0febf5d911279c781bf78e0d5b1b65e98937b03",
+    "fix": "828916527ce4f69af722bce46ce54d289001a0bd"
+  },
+  "affected_files": [
+    "src/truetype/ttinterp.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

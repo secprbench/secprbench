@@ -1,0 +1,136 @@
+{
+  "task_id": "pr_review_1947640",
+  "bug_id": "1947640",
+  "commit_sha": "6e19f14c7b1b3bc5dfdb10b473683dda2ba051b0",
+  "commit_message": "Bug 1937634 - Make txMozillaXSLTProcessor::mStylesheetDocument strong. r=peterv\n\nDifferential Revision: https://phabricator.services.mozilla.com/D232262",
+  "commit_author": "Andrew McCreight",
+  "commit_date": "2025-02-11T20:39:41Z",
+  "pr_title": "Bug 1937634 - Make txMozillaXSLTProcessor::mStylesheetDocument strong. r=peterv",
+  "pr_description": "Differential Revision: https://phabricator.services.mozilla.com/D232262",
+  "files": [
+    {
+      "path": "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/dom/xslt/xslt/txMozillaXSLTProcessor.cpp b/dom/xslt/xslt/txMozillaXSLTProcessor.cpp\nindex 50e755a4abf4..33364de86147 100644\n--- a/dom/xslt/xslt/txMozillaXSLTProcessor.cpp\n+++ b/dom/xslt/xslt/txMozillaXSLTProcessor.cpp\n@@ -254,20 +254,21 @@ inline void ImplCycleCollectionTraverse(\n     ImplCycleCollectionTraverse(\n         aCallback, *static_cast<txVariable*>(iter.value()), aName, aFlags);\n   }\n }\n \n /**\n  * txMozillaXSLTProcessor\n  */\n \n NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(txMozillaXSLTProcessor, mOwner,\n+                                      mStylesheetDocument,\n                                       mEmbeddedStylesheetRoot, mSource,\n                                       mVariables)\n \n NS_IMPL_CYCLE_COLLECTING_ADDREF(txMozillaXSLTProcessor)\n NS_IMPL_CYCLE_COLLECTING_RELEASE(txMozillaXSLTProcessor)\n \n NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)\n   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY\n   NS_INTERFACE_MAP_ENTRY(nsIDocumentTransformer)\n   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)\n"
+    },
+    {
+      "path": "dom/xslt/xslt/txMozillaXSLTProcessor.h",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/dom/xslt/xslt/txMozillaXSLTProcessor.h b/dom/xslt/xslt/txMozillaXSLTProcessor.h\nindex c8ef94aae79e..bb470d34154d 100644\n--- a/dom/xslt/xslt/txMozillaXSLTProcessor.h\n+++ b/dom/xslt/xslt/txMozillaXSLTProcessor.h\n@@ -142,21 +142,21 @@ class txMozillaXSLTProcessor final : public nsIDocumentTransformer,\n    */\n   ~txMozillaXSLTProcessor();\n \n   nsresult DoTransform();\n   void notifyError();\n   nsresult ensureStylesheet();\n \n   nsCOMPtr<nsISupports> mOwner;\n \n   RefPtr<txStylesheet> mStylesheet;\n-  mozilla::dom::Document* mStylesheetDocument;  // weak\n+  RefPtr<mozilla::dom::Document> mStylesheetDocument;\n   nsCOMPtr<nsIContent> mEmbeddedStylesheetRoot;\n \n   nsCOMPtr<nsINode> mSource;\n   nsresult mTransformResult;\n   nsresult mCompileResult;\n   nsString mErrorText, mSourceText;\n   nsCOMPtr<nsITransformObserver> mObserver;\n   txOwningExpandedNameMap<txIGlobalParameter> mVariables;\n   txNamespaceMap mParamNamespaceMap;\n   RefPtr<txResultRecycler> mRecycler;\n"
+    }
+  ],
+  "full_diff": "diff --git a/dom/xslt/xslt/txMozillaXSLTProcessor.cpp b/dom/xslt/xslt/txMozillaXSLTProcessor.cpp\nindex 50e755a4abf4..33364de86147 100644\n--- a/dom/xslt/xslt/txMozillaXSLTProcessor.cpp\n+++ b/dom/xslt/xslt/txMozillaXSLTProcessor.cpp\n@@ -254,20 +254,21 @@ inline void ImplCycleCollectionTraverse(\n     ImplCycleCollectionTraverse(\n         aCallback, *static_cast<txVariable*>(iter.value()), aName, aFlags);\n   }\n }\n \n /**\n  * txMozillaXSLTProcessor\n  */\n \n NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(txMozillaXSLTProcessor, mOwner,\n+                                      mStylesheetDocument,\n                                       mEmbeddedStylesheetRoot, mSource,\n                                       mVariables)\n \n NS_IMPL_CYCLE_COLLECTING_ADDREF(txMozillaXSLTProcessor)\n NS_IMPL_CYCLE_COLLECTING_RELEASE(txMozillaXSLTProcessor)\n \n NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)\n   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY\n   NS_INTERFACE_MAP_ENTRY(nsIDocumentTransformer)\n   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)\ndiff --git a/dom/xslt/xslt/txMozillaXSLTProcessor.h b/dom/xslt/xslt/txMozillaXSLTProcessor.h\nindex c8ef94aae79e..bb470d34154d 100644\n--- a/dom/xslt/xslt/txMozillaXSLTProcessor.h\n+++ b/dom/xslt/xslt/txMozillaXSLTProcessor.h\n@@ -142,21 +142,21 @@ class txMozillaXSLTProcessor final : public nsIDocumentTransformer,\n    */\n   ~txMozillaXSLTProcessor();\n \n   nsresult DoTransform();\n   void notifyError();\n   nsresult ensureStylesheet();\n \n   nsCOMPtr<nsISupports> mOwner;\n \n   RefPtr<txStylesheet> mStylesheet;\n-  mozilla::dom::Document* mStylesheetDocument;  // weak\n+  RefPtr<mozilla::dom::Document> mStylesheetDocument;\n   nsCOMPtr<nsIContent> mEmbeddedStylesheetRoot;\n \n   nsCOMPtr<nsINode> mSource;\n   nsresult mTransformResult;\n   nsresult mCompileResult;\n   nsString mErrorText, mSourceText;\n   nsCOMPtr<nsITransformObserver> mObserver;\n   txOwningExpandedNameMap<txIGlobalParameter> mVariables;\n   txNamespaceMap mParamNamespaceMap;\n   RefPtr<txResultRecycler> mRecycler;\n",
+  "ground_truth": {
+    "bug_id": "1947640",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "84a9dbea3299eab32a9d140a88be7f0fba2ab080",
+      "short_sha": "84a9dbe",
+      "message": "Backed out changeset 80f57552c478 (bug 1937634) as requested by developer",
+      "author": "Norisz Fay",
+      "date": "2025-02-13T15:07:41Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-uaf-001",
+        "title": "Missing RemoveMutationObserver in Cycle Collection Unlink",
+        "message": "The change to make mStylesheetDocument a strong reference (RefPtr) added it to the NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE macro, which handles both traverse and unlink operations automatically. However, when the cycle collector unlinks mStylesheetDocument (sets it to null), it does not call RemoveMutationObserver(this) first. The txMozillaXSLTProcessor registers itself as a mutation observer on mStylesheetDocument via AddMutationObserver(this) in ImportStylesheet(). When the document is unlinked during cycle collection, the document still holds a dangling pointer to the txMozillaXSLTProcessor as a mutation observer. When the document is later destroyed and tries to notify observers, it accesses freed memory, causing a use-after-free crash in nsINode::LastRelease().",
+        "location": {
+          "file": "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+          "start_line": 263,
+          "end_line": 266,
+          "start_column": null,
+          "end_column": null,
+          "function": "NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE",
+          "snippet": "NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(txMozillaXSLTProcessor, mOwner,\n                                      mStylesheetDocument,\n                                      mEmbeddedStylesheetRoot, mSource,\n                                      mVariables)",
+          "snippet_hash": null
+        },
+        "related_locations": [
+          {
+            "file": "dom/xslt/xslt/txMozillaXSLTProcessor.h",
+            "start_line": 152,
+            "end_line": 152,
+            "start_column": null,
+            "end_column": null,
+            "function": "txMozillaXSLTProcessor class definition",
+            "snippet": "  RefPtr<mozilla::dom::Document> mStylesheetDocument;",
+            "snippet_hash": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "UseAfterFree",
+        "confidence": 0.95,
+        "suggestion": "When using NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE with mStylesheetDocument, a separate UNLINK handler must be implemented that calls mStylesheetDocument->RemoveMutationObserver(this) before the reference is cleared. The correct approach is to use NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS with separate UNLINK_BEGIN/END and TRAVERSE_BEGIN/END macros, where UNLINK calls Reset() or explicitly removes the mutation observer before unlinking the document reference.",
+        "suggestion_code": "NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_CLASS(txMozillaXSLTProcessor)\n\nNS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(txMozillaXSLTProcessor)\n  NS_IMPL_CYCLE_COLLECTION_UNLINK(mOwner, mSource)\n  MOZ_RELEASE_ASSERT(tmp->mState == State::None);\n  tmp->Reset(IgnoreErrors());  // This calls RemoveMutationObserver\n  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER\nNS_IMPL_CYCLE_COLLECTION_UNLINK_END\n\nNS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(txMozillaXSLTProcessor)\n  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(\n      mOwner, mStylesheetDocument, mEmbeddedStylesheetRoot, mSource, mVariables)\nNS_IMPL_CYCLE_COLLECTION_TRAVERSE_END",
+        "tags": [
+          "security",
+          "memory-safety",
+          "cycle-collection",
+          "mutation-observer"
+        ],
+        "cwe_ids": [
+          "CWE-416"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "UseAfterFree",
+    "affected_files": [
+      "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+      "dom/xslt/xslt/txMozillaXSLTProcessor.h"
+    ],
+    "root_cause": "The NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE macro automatically handles both traversal and unlinking of member references. However, when unlinking mStylesheetDocument, custom cleanup code (RemoveMutationObserver) must be called first. The change to make mStylesheetDocument strong used the convenient macro without implementing a custom UNLINK handler that properly deregisters the mutation observer before the document reference is cleared.",
+    "must_cover": [
+      {
+        "file": "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+        "function": "NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE",
+        "start_line": 263,
+        "end_line": 266,
+        "role": "primary",
+        "reason": "Contains the vulnerable cycle collection macro that automatically unlinks mStylesheetDocument without calling RemoveMutationObserver first. This creates a dangling pointer in the document's observer list, leading to use-after-free when the document is destroyed and tries to notify observers.",
+        "snippet": "   258 | \n   259 | /**\n   260 |  * txMozillaXSLTProcessor\n   261 |  */\n   262 | \n   263 | NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(txMozillaXSLTProcessor, mOwner,\n   264 |                                       mStylesheetDocument,\n   265 |                                       mEmbeddedStylesheetRoot, mSource,\n   266 |                                       mVariables)\n   267 | \n   268 | NS_IMPL_CYCLE_COLLECTING_ADDREF(txMozillaXSLTProcessor)\n   269 | NS_IMPL_CYCLE_COLLECTING_RELEASE(txMozillaXSLTProcessor)\n   270 | \n   271 | NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(txMozillaXSLTProcessor)",
+        "snippet_start_line": 258,
+        "snippet_end_line": 271
+      },
+      {
+        "file": "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+        "function": "txMozillaXSLTProcessor::ImportStylesheet",
+        "start_line": 497,
+        "end_line": 534,
+        "role": "data_flow",
+        "reason": "Registers the txMozillaXSLTProcessor as a mutation observer on mStylesheetDocument via AddMutationObserver(this). This establishes the observer relationship that must be properly cleaned up before unlinking, but the cycle collection macro does not do this cleanup.",
+        "snippet": "   492 |   }\n   493 | \n   494 |   return rv;\n   495 | }\n   496 | \n   497 | void txMozillaXSLTProcessor::ImportStylesheet(nsINode& aStyle,\n   498 |                                               mozilla::ErrorResult& aRv) {\n   499 |   // We don't support importing multiple stylesheets yet.\n   500 |   if (NS_WARN_IF(mStylesheetDocument || mStylesheet)) {\n   501 |     aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);\n   502 |     return;\n   503 |   }\n   504 | \n   505 |   MOZ_ASSERT(!mEmbeddedStylesheetRoot);\n   506 | \n   507 |   mCompileResult = NS_OK;\n   508 | \n   509 |   if (!nsContentUtils::SubjectPrincipalOrSystemIfNativeCaller()->Subsumes(\n   510 |           aStyle.NodePrincipal())) {\n   511 |     aRv.Throw(NS_ERROR_DOM_SECURITY_ERR);\n   512 |     return;\n   513 |   }\n   514 | \n   515 |   if (NS_WARN_IF(!aStyle.IsElement() && !aStyle.IsDocument())) {\n   516 |     aRv.Throw(NS_ERROR_INVALID_ARG);\n   517 |     return;\n   518 |   }\n   519 | \n   520 |   nsresult rv =\n   521 |       TX_CompileStylesheet(&aStyle, this, getter_AddRefs(mStylesheet));\n   522 |   // XXX set up exception context, bug 204658\n   523 |   if (NS_WARN_IF(NS_FAILED(rv))) {\n   524 |     aRv.Throw(rv);\n   525 |     return;\n   526 |   }\n   527 | \n   528 |   mStylesheetDocument = aStyle.OwnerDoc();\n   529 |   if (aStyle.IsElement()) {\n   530 |     mEmbeddedStylesheetRoot = aStyle.AsElement();\n   531 |   }\n   532 | \n   533 |   mStylesheetDocument->AddMutationObserver(this);\n   534 | }\n   535 | \n   536 | already_AddRefed<Document> txMozillaXSLTProcessor::TransformToDocument(\n   537 |     nsINode& aSource, ErrorResult& aRv) {\n   538 |   if (NS_WARN_IF(NS_FAILED(mCompileResult))) {\n   539 |     aRv.Throw(mCompileResult);",
+        "snippet_start_line": 492,
+        "snippet_end_line": 539
+      },
+      {
+        "file": "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+        "function": "txMozillaXSLTProcessor::~txMozillaXSLTProcessor",
+        "start_line": 292,
+        "end_line": 296,
+        "role": "data_flow",
+        "reason": "Demonstrates the correct cleanup pattern: checks if mStylesheetDocument exists and calls RemoveMutationObserver(this) before the document reference is cleared. This is the cleanup that the cycle collection UNLINK handler should have performed but doesn't.",
+        "snippet": "   287 |       mStylesheetDocument(nullptr),\n   288 |       mTransformResult(NS_OK),\n   289 |       mCompileResult(NS_OK),\n   290 |       mFlags(0) {}\n   291 | \n   292 | txMozillaXSLTProcessor::~txMozillaXSLTProcessor() {\n   293 |   if (mStylesheetDocument) {\n   294 |     mStylesheetDocument->RemoveMutationObserver(this);\n   295 |   }\n   296 | }\n   297 | \n   298 | NS_IMETHODIMP\n   299 | txMozillaXSLTProcessor::SetTransformObserver(nsITransformObserver* aObserver) {\n   300 |   mObserver = aObserver;\n   301 |   return NS_OK;",
+        "snippet_start_line": 287,
+        "snippet_end_line": 301
+      },
+      {
+        "file": "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+        "function": "txMozillaXSLTProcessor::NodeWillBeDestroyed",
+        "start_line": 1070,
+        "end_line": 1079,
+        "role": "data_flow",
+        "reason": "Called when the stylesheet document is being destroyed. Shows the mutation observer callback path that will access freed memory if the txMozillaXSLTProcessor has been cycle-collected without proper observer deregistration.",
+        "snippet": "  1065 |   }\n  1066 | \n  1067 |   return TX_CompileStylesheet(style, this, getter_AddRefs(mStylesheet));\n  1068 | }\n  1069 | \n  1070 | void txMozillaXSLTProcessor::NodeWillBeDestroyed(nsINode* aNode) {\n  1071 |   nsCOMPtr<nsIMutationObserver> kungFuDeathGrip(this);\n  1072 |   if (NS_FAILED(mCompileResult)) {\n  1073 |     return;\n  1074 |   }\n  1075 | \n  1076 |   mCompileResult = ensureStylesheet();\n  1077 |   mStylesheetDocument = nullptr;\n  1078 |   mEmbeddedStylesheetRoot = nullptr;\n  1079 | }\n  1080 | \n  1081 | void txMozillaXSLTProcessor::CharacterDataChanged(\n  1082 |     nsIContent* aContent, const CharacterDataChangeInfo&) {\n  1083 |   mStylesheet = nullptr;\n  1084 | }",
+        "snippet_start_line": 1065,
+        "snippet_end_line": 1084
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "6e19f14c7b1b3bc5dfdb10b473683dda2ba051b0"
+}

@@ -1,0 +1,34 @@
+{
+  "task_id": "pr_review_503634281",
+  "bug_id": "503634281",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "8a41470735aafa0e339db822e9c6c94859a6f072",
+  "intro_parent": "f4f0f97275752dc3519b70ec14873dd61862a353",
+  "fix_commit": "604e1bec5911da188a4bf1d481ce6c280508fe8f",
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "v8",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_regress-503634281.js: git:604e1bec5911da188a4bf1d481ce6c280508fe8f:test/mjsunit/regress/regress-503634281.js",
+    "- evidence/test_01_3bcb50f2158948a1_regress-503634281.js: test/mjsunit/regress/regress-503634281.js"
+  ],
+  "input_name": "regress-503634281.js",
+  "root_cause": "Conflating two semantically distinct outcomes ('holder not found' vs 'graph building aborted') into a single sentinel return value, so the caller cannot detect that the compiler has entered a dead/aborted state and must stop emitting nodes.",
+  "findings": [
+    "TryInferApiHolderValue() returns a plain compiler::HolderLookupResult. When inference.InsertMapChecks(zone()) detects that graph building has aborted (e.g. because a required map check could not be safely inserted and the current basic block was terminated/nulled), the function collapses this distinct 'abort' condition into the same 'not_found' sentinel value that it also returns for the ordinary,"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "a67c7c93285ac297a87bf4ede718a6c88aa1a28bf0c9e6e90ca9ea8487108fd6",
+  "generated_artifact_sha256": {
+    "reference": "f3735885164db18a144a78d450eabd4fda7f5d19352507ea7748611795613714",
+    "introducing": "8cd96e39da09ce95bb20ada33db7ee33b8ef1a653ee75c9fc1deee85aba8f858",
+    "companion": "fd28e1e1f9051b17204813911467d8e1569c46b1f58318d553766f827a3f2397"
+  }
+}

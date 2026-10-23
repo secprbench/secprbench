@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secprbench"
+version = "0.2.0"
+description = "Reproducible security pull-request benchmark with isolated review harnesses"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.7,<3", "PyYAML>=6", "requests>=2.31", "jsonschema>=4.21"]
+
+[project.optional-dependencies]
+agent = ["mcp>=1.0,<2", "coding-agent-wrapper @ git+https://github.com/zzjas/caw.git@62c93ae3b3c4123ec77cdb39ec9874ce01a239f5"]
+test = ["pytest>=8", "ruff>=0.9"]
+
+[project.scripts]
+secprbench = "secprbench.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["secprbench*"]
+
+[tool.setuptools.package-data]
+secprbench = ["**/*.md", "**/*.txt", "**/*.json", "**/*.yaml", "**/Dockerfile*", "**/*.sh", "**/*.c"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: requires local source archives", "docker: requires Docker daemon", "live: spends model API budget"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

@@ -1,0 +1,113 @@
+{
+  "task_id": "pr_review_OSSFUZZ-499455833",
+  "bug_id": "OSSFUZZ-499455833",
+  "commit_sha": "96cddb8d1d32d6738b06552083db9d6cee5b5cb4",
+  "commit_message": "[truetype] Fix Savannah bug #35601.\n\n* src/truetype/ttinterp.c (Ins_SHZ): Use number of points instead of\nlast point for loop.\nAlso remove redundant boundary check.",
+  "commit_author": "Werner Lemberg",
+  "commit_date": "2012-02-29T17:58:57+01:00",
+  "pr_title": "[truetype] Fix Savannah bug #35601.",
+  "pr_description": "* src/truetype/ttinterp.c (Ins_SHZ): Use number of points instead of\nlast point for loop.\nAlso remove redundant boundary check.\n",
+  "files": [
+    {
+      "path": "ChangeLog",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 1,
+      "diff": "diff --git a/ChangeLog b/ChangeLog\nindex ae817b9cc..4f0809563 100644\n--- a/ChangeLog\n+++ b/ChangeLog\n@@ -1,10 +1,18 @@\n+2012-02-29  Werner Lemberg  <wl@gnu.org>\n+\n+\t[truetype] Fix Savannah bug #35601.\n+\n+\t* src/truetype/ttinterp.c (Ins_SHZ): Use number of points instead of\n+\tlast point for loop.\n+\tAlso remove redundant boundary check.\n+\n 2012-02-29  Werner Lemberg  <wl@gnu.org>\n \n \t[truetype] Remove redundant check.\n \n-\t* src/truetype/ttgload.c (TT_Load_Simple_Glyph): Remove reduntant\n+\t* src/truetype/ttgload.c (TT_Load_Simple_Glyph): Remove redundant\n \tsecond check for ordered contour start points.\n \n 2012-02-29  Werner Lemberg  <wl@gnu.org>\n \n \t[truetype] Make SHC instruction behave similar to MS rasterizer.\n"
+    },
+    {
+      "path": "src/truetype/ttinterp.c",
+      "status": "modified",
+      "additions": 6,
+      "deletions": 15,
+      "diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex b742d78af..d0733b060 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -5831,11 +5831,11 @@\n     TT_GlyphZoneRec  zp;\n     FT_UShort        refp;\n     FT_F26Dot6       dx,\n                      dy;\n \n-    FT_UShort        last_point, i;\n+    FT_UShort        limit, i;\n \n \n     if ( BOUNDS( args[0], 2 ) )\n     {\n       if ( CUR.pedantic_hinting )\n@@ -5848,28 +5848,19 @@\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */\n     /*      Twilight zone has no real contours, so use `n_points'. */\n     /*      Normal zone's `n_points' includes phantoms, so must    */\n     /*      use end of last contour.                               */\n-    if ( CUR.GS.gep2 == 0 && CUR.zp2.n_points > 0 )\n-      last_point = (FT_UShort)( CUR.zp2.n_points - 1 );\n+    if ( CUR.GS.gep2 == 0 )\n+      limit = (FT_UShort)CUR.zp2.n_points;\n     else if ( CUR.GS.gep2 == 1 && CUR.zp2.n_contours > 0 )\n-    {\n-      last_point = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] );\n-\n-      if ( BOUNDS( last_point, CUR.zp2.n_points ) )\n-      {\n-        if ( CUR.pedantic_hinting )\n-          CUR.error = TT_Err_Invalid_Reference;\n-        return;\n-      }\n-    }\n+      limit = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] + 1 );\n     else\n-      last_point = 0;\n+      limit = 0;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n-    for ( i = 0; i <= last_point; i++ )\n+    for ( i = 0; i < limit; i++ )\n     {\n       if ( zp.cur != CUR.zp2.cur || refp != i )\n         MOVE_Zp2_Point( i, dx, dy, FALSE );\n     }\n   }\n"
+    }
+  ],
+  "full_diff": "diff --git a/ChangeLog b/ChangeLog\nindex ae817b9cc..4f0809563 100644\n--- a/ChangeLog\n+++ b/ChangeLog\n@@ -1,10 +1,18 @@\n+2012-02-29  Werner Lemberg  <wl@gnu.org>\n+\n+\t[truetype] Fix Savannah bug #35601.\n+\n+\t* src/truetype/ttinterp.c (Ins_SHZ): Use number of points instead of\n+\tlast point for loop.\n+\tAlso remove redundant boundary check.\n+\n 2012-02-29  Werner Lemberg  <wl@gnu.org>\n \n \t[truetype] Remove redundant check.\n \n-\t* src/truetype/ttgload.c (TT_Load_Simple_Glyph): Remove reduntant\n+\t* src/truetype/ttgload.c (TT_Load_Simple_Glyph): Remove redundant\n \tsecond check for ordered contour start points.\n \n 2012-02-29  Werner Lemberg  <wl@gnu.org>\n \n \t[truetype] Make SHC instruction behave similar to MS rasterizer.\ndiff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex b742d78af..d0733b060 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -5831,11 +5831,11 @@\n     TT_GlyphZoneRec  zp;\n     FT_UShort        refp;\n     FT_F26Dot6       dx,\n                      dy;\n \n-    FT_UShort        last_point, i;\n+    FT_UShort        limit, i;\n \n \n     if ( BOUNDS( args[0], 2 ) )\n     {\n       if ( CUR.pedantic_hinting )\n@@ -5848,28 +5848,19 @@\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */\n     /*      Twilight zone has no real contours, so use `n_points'. */\n     /*      Normal zone's `n_points' includes phantoms, so must    */\n     /*      use end of last contour.                               */\n-    if ( CUR.GS.gep2 == 0 && CUR.zp2.n_points > 0 )\n-      last_point = (FT_UShort)( CUR.zp2.n_points - 1 );\n+    if ( CUR.GS.gep2 == 0 )\n+      limit = (FT_UShort)CUR.zp2.n_points;\n     else if ( CUR.GS.gep2 == 1 && CUR.zp2.n_contours > 0 )\n-    {\n-      last_point = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] );\n-\n-      if ( BOUNDS( last_point, CUR.zp2.n_points ) )\n-      {\n-        if ( CUR.pedantic_hinting )\n-          CUR.error = TT_Err_Invalid_Reference;\n-        return;\n-      }\n-    }\n+      limit = (FT_UShort)( CUR.zp2.contours[CUR.zp2.n_contours - 1] + 1 );\n     else\n-      last_point = 0;\n+      limit = 0;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n-    for ( i = 0; i <= last_point; i++ )\n+    for ( i = 0; i < limit; i++ )\n     {\n       if ( zp.cur != CUR.zp2.cur || refp != i )\n         MOVE_Zp2_Point( i, dx, dy, FALSE );\n     }\n   }\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-499455833",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+      "short_sha": "1803559",
+      "message": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.",
+      "author": "Alexei Podtelezhnikov",
+      "date": "2026-04-22T20:49:51-04:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-bufferoverflow-001",
+        "title": "Out-of-bounds loop in Ins_SHZ due to unchecked contour-derived limit",
+        "message": "In Ins_SHZ, when the zone pointer gep2 is 1 (normal glyph zone), the loop limit is derived from `exc->zp2.contours[exc->zp2.n_contours - 1] + 1`. A maliciously crafted font can set the last contour end-index to a value exceeding the actual number of non-phantom points (n_points - 4), making `limit` larger than the valid range of `exc->zp2.cur` and `exc->zp2.tags` arrays. The subsequent loop `for (i = 0; i < limit; i++)` then calls `Move_Zp2_Point` with out-of-range indices, producing a heap buffer overflow. The original code that introduced this path (commit 96cddb8d) deliberately removed the previous bounds check (`BOUNDS(last_point, CUR.zp2.n_points)`) while also removing the +1 offset guard, leaving no validation that the contour-derived limit respects the actual array size.",
+        "location": {
+          "file": "src/truetype/ttinterp.c",
+          "start_line": 5138,
+          "end_line": 5145,
+          "start_column": null,
+          "end_column": null,
+          "function": "Ins_SHZ",
+          "snippet": "    else if ( exc->GS.gep2 == 1 && exc->zp2.n_contours > 0 )\n      limit = exc->zp2.contours[exc->zp2.n_contours - 1] + 1;\n    else\n      limit = 0;\n\n    /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n    for ( i = 0; i < limit; i++ )",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/truetype/ttinterp.c",
+            "start_line": 5147,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Move_Zp2_Point",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "medium",
+        "bug_type": "BufferOverflow",
+        "confidence": 0.95,
+        "suggestion": "Compute the loop limit using `n_points - 4U` for the normal zone (gep2 != 0), which correctly excludes the 4 phantom points appended by TrueType and is always bounded by the actual array size. Do not rely on values from the font's contours array to determine the iteration upper bound.",
+        "suggestion_code": "    if ( exc->GS.gep2 == 0 )\n      limit = exc->zp2.n_points;\n    else if ( exc->zp2.n_points > 4U )\n      limit = exc->zp2.n_points - 4U;\n    else\n      return;",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "memory-safety",
+          "font-parsing",
+          "truetype"
+        ],
+        "cwe_ids": [
+          "CWE-119",
+          "CWE-787"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "BufferOverflow",
+    "affected_files": [
+      "src/truetype/ttinterp.c"
+    ],
+    "root_cause": "When commit 96cddb8d replaced `last_point` (with a `BOUNDS` check) with an unchecked `limit` derived from `contours[n_contours - 1] + 1`, it removed the only guard that validated the font-supplied contour index against the actual point count. The contours array is font-controlled data and can contain arbitrary values; without a bounds check, the derived `limit` can freely exceed `n_points`, making the subsequent point-shifting loop iterate out of bounds.",
+    "must_cover": [
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_SHZ",
+        "start_line": 5138,
+        "end_line": 5145,
+        "role": "primary",
+        "reason": "Primary location of finding: Out-of-bounds loop in Ins_SHZ due to unchecked contour-derived limit"
+      },
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Move_Zp2_Point",
+        "start_line": 5147,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Out-of-bounds loop in Ins_SHZ due to unchecked contour-derived limit"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "96cddb8d1d32d6738b06552083db9d6cee5b5cb4",
+  "fix_commit_sha": null
+}

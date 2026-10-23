@@ -1,0 +1,36 @@
+{
+  "task_id": "pr_review_511549239",
+  "bug_id": "511549239",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "551ade4880940459b8e3d3b9638ccea44ba75051",
+  "intro_parent": "cc1cc9bb3031182d3641e17196c5db1a2733a70b",
+  "fix_commit": "63226679f9f5272a3a3c1112fb38a758e1a307a6",
+  "affected_files": [
+    "src/maglev/maglev-reducer-inl.h",
+    "src/maglev/maglev-reducer.h",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-compiler.cc",
+    "src/maglev/maglev-graph-optimizer.cc",
+    "src/maglev/maglev-code-generator.cc",
+    "src/flags/flag-definitions.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "v8",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The direct-recursion self-inlining check was changed from reading the builder's own always-valid MaglevCompilationUnit pointer to instead reading MaglevGraphLabeller-derived provenance data, which is only guaranteed to be populated when GDB JIT interface support or graph tracing is active. This coupled a functional correctness check to an optional, debug-only subsystem, producing a null-pointer dereference when that subsystem was disabled (the common release-build case).",
+  "findings": [
+    "When MaglevGraphBuilder::CanInlineCall was moved/refactored into the shared MaglevReducer<BaseT>::CanInlineCall template, the direct-recursion self-inlining guard was rewritten from comparing against the builder's own `compilation_unit_->shared_function_info()` to instead reading `current_provenance().unit->shared_function_info()`. `current_provenance()` returns the MaglevGraphLabeller::Provenance"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "077ef0b02f7b8d52af1255befebc7122e63a4ecaae3f5fe70ce19fcaa18f0bd9",
+  "generated_artifact_sha256": {
+    "reference": "c404d410c1eaf62ee88c9dcada89115bee63a9068901cc7c53dd45dc8661fa1c",
+    "introducing": "aced63dbf25bee6b8198b74b8a80b533a27c314fee5e786fadaff287f1ed46c4",
+    "companion": "3383b51fe4845c4206c9f9ce1abddc4b1dc4ff661c0845d049d5f1649347675c"
+  }
+}

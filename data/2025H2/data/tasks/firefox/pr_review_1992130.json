@@ -1,0 +1,102 @@
+{
+  "task_id": "pr_review_1992130",
+  "bug_id": "1992130",
+  "commit_sha": "d310bda3293de3cb63641281ee126029fe322469",
+  "commit_message": "Bug 1956768 - wasm: Do a CanGC string allocation for js-string/fromCharCodeArray. r=yury\n\nDifferential Revision: https://phabricator.services.mozilla.com/D244088",
+  "commit_author": "Ryan Hunt",
+  "commit_date": "2025-04-07T15:59:37Z",
+  "pr_title": "Bug 1956768 - wasm: Do a CanGC string allocation for js-string/fromCharCodeArray. r=yury",
+  "pr_description": "Differential Revision: https://phabricator.services.mozilla.com/D244088",
+  "files": [
+    {
+      "path": "js/src/jit-test/tests/wasm/regress/bug1956768.js",
+      "status": "added",
+      "additions": 22,
+      "deletions": 0,
+      "diff": "diff --git a/js/src/jit-test/tests/wasm/regress/bug1956768.js b/js/src/jit-test/tests/wasm/regress/bug1956768.js\nnew file mode 100644\nindex 000000000000..caeceb54256f\n--- /dev/null\n+++ b/js/src/jit-test/tests/wasm/regress/bug1956768.js\n@@ -0,0 +1,22 @@\n+let testModule = `(module\n+(type $arrayMutI16 (array (mut i16)))\n+\n+(func $fromCharCodeArray\n+    (import \"wasm:js-string\" \"fromCharCodeArray\")\n+    (param (ref null $arrayMutI16) i32 i32)\n+    (result (ref extern)))\n+\n+(func (export \"test\") (result externref)\n+  (array.new_fixed $arrayMutI16 4 (i32.const 0) (i32.const 1) (i32.const 2) (i32.const 3))\n+  i32.const 0\n+  i32.const 4\n+  call $fromCharCodeArray\n+)\n+)`;\n+let module = new WebAssembly.Module(wasmTextToBinary(testModule), {builtins: ['js-string']});\n+let instance = new WebAssembly.Instance(module, {});\n+\n+oomTest(() => {\n+    let result = instance.exports.test();\n+    assertEq(result, \"\\x00\\x01\\x02\\x03\");\n+});\n"
+    },
+    {
+      "path": "js/src/wasm/WasmGcObject.h",
+      "status": "modified",
+      "additions": 40,
+      "deletions": 4,
+      "diff": "diff --git a/js/src/wasm/WasmGcObject.h b/js/src/wasm/WasmGcObject.h\nindex 917c4e372c36..c02b581671b1 100644\n--- a/js/src/wasm/WasmGcObject.h\n+++ b/js/src/wasm/WasmGcObject.h\n@@ -204,12 +204,12 @@ class WasmArrayObject : public WasmGcObject,\n   // space for alignment with GC sizes. Note this logic assumes that\n   // MaxArrayPayloadBytes is within uint32_t range.\n   //\n   // This logic is mirrored in WasmArrayObject::maxInlineElementsForElemSize and\n   // MacroAssembler::wasmNewArrayObject.\n-  static mozilla::CheckedUint32 calcStorageBytesChecked(uint32_t elemSize,\n-                                                        uint32_t numElements) {\n+  static constexpr mozilla::CheckedUint32 calcStorageBytesChecked(\n+      uint32_t elemSize, uint32_t numElements) {\n     static_assert(sizeof(WasmArrayObject) % gc::CellAlignBytes == 0);\n     mozilla::CheckedUint32 storageBytes = elemSize;\n     storageBytes *= numElements;\n     storageBytes += sizeof(WasmArrayObject::DataHeader);\n     // Round total allocation up to gc::CellAlignBytes\n@@ -227,11 +227,12 @@ class WasmArrayObject : public WasmGcObject,\n     MOZ_ASSERT(storageBytes.isValid());\n     return storageBytes.value();\n   }\n   // Compute the maximum number of elements that can be stored inline for the\n   // given element size.\n-  static inline uint32_t maxInlineElementsForElemSize(uint32_t elemSize);\n+  static inline constexpr uint32_t maxInlineElementsForElemSize(\n+      uint32_t elemSize);\n \n   using DataHeader = uintptr_t;\n   static const DataHeader DataIsIL = 0;\n   static const DataHeader DataIsOOL = 1;\n \n@@ -446,11 +447,11 @@ const size_t WasmArrayObject_MaxInlineBytes =\n \n static_assert((WasmStructObject_MaxInlineBytes % 16) == 0);\n static_assert((WasmArrayObject_MaxInlineBytes % 16) == 0);\n \n /* static */\n-inline uint32_t WasmArrayObject::maxInlineElementsForElemSize(\n+inline constexpr uint32_t WasmArrayObject::maxInlineElementsForElemSize(\n     uint32_t elemSize) {\n   // This implementation inverts the logic of WasmArrayObject::calcStorageBytes\n   // to compute numElements.\n   MOZ_RELEASE_ASSERT(elemSize > 0);\n   uint32_t result = WasmArrayObject_MaxInlineBytes;\n@@ -512,10 +513,45 @@ inline uint8_t* WasmStructObject::fieldOffsetToAddress(\n // Ensure that faulting loads/stores for WasmStructObject and WasmArrayObject\n // are in the NULL pointer guard page.\n static_assert(WasmStructObject_MaxInlineBytes <= wasm::NullPtrGuardSize);\n static_assert(sizeof(WasmArrayObject) <= wasm::NullPtrGuardSize);\n \n+// Template to acquire a stable pointer to the elements of a WasmArrayObject\n+// that will not move even if there is a GC. This will create a copy of the\n+// array onto the stack when the array has inline data, and can be expensive.\n+template <typename T>\n+class MOZ_RAII StableWasmArrayObjectElements {\n+  static constexpr size_t MaxInlineElements =\n+      WasmArrayObject::maxInlineElementsForElemSize(sizeof(T));\n+  Rooted<WasmArrayObject*> array_;\n+  T* elements_;\n+  mozilla::Maybe<mozilla::Vector<T, MaxInlineElements, SystemAllocPolicy>>\n+      ownElements_;\n+\n+ public:\n+  StableWasmArrayObjectElements(JSContext* cx, Handle<WasmArrayObject*> array)\n+      : array_(cx, array), elements_(nullptr) {\n+    if (array->isDataInline()) {\n+      ownElements_.emplace();\n+      if (!ownElements_->resize(array->numElements_)) {\n+        // Should not happen as we have inline storage for the maximum needed\n+        // elements.\n+        MOZ_CRASH();\n+      }\n+      std::copy(array->inlineStorage(),\n+                array->inlineStorage() + array->numElements_ * sizeof(T),\n+                ownElements_->begin());\n+      elements_ = ownElements_->begin();\n+    } else {\n+      elements_ = reinterpret_cast<T*>(array->data_);\n+    }\n+  }\n+\n+  T* elements() { return elements_; }\n+  size_t length() const { return array_->numElements_; }\n+};\n+\n }  // namespace js\n \n //=========================================================================\n // misc\n \n"
+    },
+    {
+      "path": "js/src/wasm/WasmInstance.cpp",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 1,
+      "diff": "diff --git a/js/src/wasm/WasmInstance.cpp b/js/src/wasm/WasmInstance.cpp\nindex d907e2ebc0a6..dd9e3519baf6 100644\n--- a/js/src/wasm/WasmInstance.cpp\n+++ b/js/src/wasm/WasmInstance.cpp\n@@ -1994,11 +1994,20 @@ void* Instance::stringFromCharCodeArray(Instance* instance, void* arrayArg,\n   // GC is disabled on this call since it can cause the array to move,\n   // invalidating the data pointer we pass as a parameter\n   JSLinearString* string = NewStringCopyN<NoGC, char16_t>(\n       cx, (char16_t*)array->data_ + arrayStart, arrayCount);\n   if (!string) {\n-    return nullptr;\n+    // If the first attempt failed, we need to try again with a potential GC.\n+    // Acquire a stable version of the array that we can use. This may copy\n+    // inline data to the stack, so we avoid doing it unless we must.\n+    StableWasmArrayObjectElements<uint16_t> stableElements(cx, array);\n+    string = NewStringCopyN<CanGC, char16_t>(\n+        cx, (char16_t*)stableElements.elements() + arrayStart, arrayCount);\n+    if (!string) {\n+      MOZ_ASSERT(cx->isThrowingOutOfMemory());\n+      return nullptr;\n+    }\n   }\n   return AnyRef::fromJSString(string).forCompiledCode();\n }\n \n /* static */\n"
+    }
+  ],
+  "full_diff": "diff --git a/js/src/jit-test/tests/wasm/regress/bug1956768.js b/js/src/jit-test/tests/wasm/regress/bug1956768.js\nnew file mode 100644\nindex 000000000000..caeceb54256f\n--- /dev/null\n+++ b/js/src/jit-test/tests/wasm/regress/bug1956768.js\n@@ -0,0 +1,22 @@\n+let testModule = `(module\n+(type $arrayMutI16 (array (mut i16)))\n+\n+(func $fromCharCodeArray\n+    (import \"wasm:js-string\" \"fromCharCodeArray\")\n+    (param (ref null $arrayMutI16) i32 i32)\n+    (result (ref extern)))\n+\n+(func (export \"test\") (result externref)\n+  (array.new_fixed $arrayMutI16 4 (i32.const 0) (i32.const 1) (i32.const 2) (i32.const 3))\n+  i32.const 0\n+  i32.const 4\n+  call $fromCharCodeArray\n+)\n+)`;\n+let module = new WebAssembly.Module(wasmTextToBinary(testModule), {builtins: ['js-string']});\n+let instance = new WebAssembly.Instance(module, {});\n+\n+oomTest(() => {\n+    let result = instance.exports.test();\n+    assertEq(result, \"\\x00\\x01\\x02\\x03\");\n+});\ndiff --git a/js/src/wasm/WasmGcObject.h b/js/src/wasm/WasmGcObject.h\nindex 917c4e372c36..c02b581671b1 100644\n--- a/js/src/wasm/WasmGcObject.h\n+++ b/js/src/wasm/WasmGcObject.h\n@@ -204,12 +204,12 @@ class WasmArrayObject : public WasmGcObject,\n   // space for alignment with GC sizes. Note this logic assumes that\n   // MaxArrayPayloadBytes is within uint32_t range.\n   //\n   // This logic is mirrored in WasmArrayObject::maxInlineElementsForElemSize and\n   // MacroAssembler::wasmNewArrayObject.\n-  static mozilla::CheckedUint32 calcStorageBytesChecked(uint32_t elemSize,\n-                                                        uint32_t numElements) {\n+  static constexpr mozilla::CheckedUint32 calcStorageBytesChecked(\n+      uint32_t elemSize, uint32_t numElements) {\n     static_assert(sizeof(WasmArrayObject) % gc::CellAlignBytes == 0);\n     mozilla::CheckedUint32 storageBytes = elemSize;\n     storageBytes *= numElements;\n     storageBytes += sizeof(WasmArrayObject::DataHeader);\n     // Round total allocation up to gc::CellAlignBytes\n@@ -227,11 +227,12 @@ class WasmArrayObject : public WasmGcObject,\n     MOZ_ASSERT(storageBytes.isValid());\n     return storageBytes.value();\n   }\n   // Compute the maximum number of elements that can be stored inline for the\n   // given element size.\n-  static inline uint32_t maxInlineElementsForElemSize(uint32_t elemSize);\n+  static inline constexpr uint32_t maxInlineElementsForElemSize(\n+      uint32_t elemSize);\n \n   using DataHeader = uintptr_t;\n   static const DataHeader DataIsIL = 0;\n   static const DataHeader DataIsOOL = 1;\n \n@@ -446,11 +447,11 @@ const size_t WasmArrayObject_MaxInlineBytes =\n \n static_assert((WasmStructObject_MaxInlineBytes % 16) == 0);\n static_assert((WasmArrayObject_MaxInlineBytes % 16) == 0);\n \n /* static */\n-inline uint32_t WasmArrayObject::maxInlineElementsForElemSize(\n+inline constexpr uint32_t WasmArrayObject::maxInlineElementsForElemSize(\n     uint32_t elemSize) {\n   // This implementation inverts the logic of WasmArrayObject::calcStorageBytes\n   // to compute numElements.\n   MOZ_RELEASE_ASSERT(elemSize > 0);\n   uint32_t result = WasmArrayObject_MaxInlineBytes;\n@@ -512,10 +513,45 @@ inline uint8_t* WasmStructObject::fieldOffsetToAddress(\n // Ensure that faulting loads/stores for WasmStructObject and WasmArrayObject\n // are in the NULL pointer guard page.\n static_assert(WasmStructObject_MaxInlineBytes <= wasm::NullPtrGuardSize);\n static_assert(sizeof(WasmArrayObject) <= wasm::NullPtrGuardSize);\n \n+// Template to acquire a stable pointer to the elements of a WasmArrayObject\n+// that will not move even if there is a GC. This will create a copy of the\n+// array onto the stack when the array has inline data, and can be expensive.\n+template <typename T>\n+class MOZ_RAII StableWasmArrayObjectElements {\n+  static constexpr size_t MaxInlineElements =\n+      WasmArrayObject::maxInlineElementsForElemSize(sizeof(T));\n+  Rooted<WasmArrayObject*> array_;\n+  T* elements_;\n+  mozilla::Maybe<mozilla::Vector<T, MaxInlineElements, SystemAllocPolicy>>\n+      ownElements_;\n+\n+ public:\n+  StableWasmArrayObjectElements(JSContext* cx, Handle<WasmArrayObject*> array)\n+      : array_(cx, array), elements_(nullptr) {\n+    if (array->isDataInline()) {\n+      ownElements_.emplace();\n+      if (!ownElements_->resize(array->numElements_)) {\n+        // Should not happen as we have inline storage for the maximum needed\n+        // elements.\n+        MOZ_CRASH();\n+      }\n+      std::copy(array->inlineStorage(),\n+                array->inlineStorage() + array->numElements_ * sizeof(T),\n+                ownElements_->begin());\n+      elements_ = ownElements_->begin();\n+    } else {\n+      elements_ = reinterpret_cast<T*>(array->data_);\n+    }\n+  }\n+\n+  T* elements() { return elements_; }\n+  size_t length() const { return array_->numElements_; }\n+};\n+\n }  // namespace js\n \n //=========================================================================\n // misc\n \ndiff --git a/js/src/wasm/WasmInstance.cpp b/js/src/wasm/WasmInstance.cpp\nindex d907e2ebc0a6..dd9e3519baf6 100644\n--- a/js/src/wasm/WasmInstance.cpp\n+++ b/js/src/wasm/WasmInstance.cpp\n@@ -1994,11 +1994,20 @@ void* Instance::stringFromCharCodeArray(Instance* instance, void* arrayArg,\n   // GC is disabled on this call since it can cause the array to move,\n   // invalidating the data pointer we pass as a parameter\n   JSLinearString* string = NewStringCopyN<NoGC, char16_t>(\n       cx, (char16_t*)array->data_ + arrayStart, arrayCount);\n   if (!string) {\n-    return nullptr;\n+    // If the first attempt failed, we need to try again with a potential GC.\n+    // Acquire a stable version of the array that we can use. This may copy\n+    // inline data to the stack, so we avoid doing it unless we must.\n+    StableWasmArrayObjectElements<uint16_t> stableElements(cx, array);\n+    string = NewStringCopyN<CanGC, char16_t>(\n+        cx, (char16_t*)stableElements.elements() + arrayStart, arrayCount);\n+    if (!string) {\n+      MOZ_ASSERT(cx->isThrowingOutOfMemory());\n+      return nullptr;\n+    }\n   }\n   return AnyRef::fromJSString(string).forCompiledCode();\n }\n \n /* static */\n",
+  "ground_truth": {
+    "bug_id": "1992130",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "75ef3f79aae344c1d0398787cab666a6a73176c7",
+      "short_sha": "75ef3f7",
+      "message": "Bug 1992130 - Fix arguments types for std::copy. r=rhunt",
+      "author": "Yury Delendik",
+      "date": "2025-10-15T20:02:23Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-bufferoverflow-1992130",
+        "title": "Heap buffer overflow from mismatched std::copy iterator types in StableWasmArrayObjectElements",
+        "message": "In StableWasmArrayObjectElements::StableWasmArrayObjectElements(), when a WasmArrayObject stores its data inline, the code copies the inline array data into a heap Vector sized to hold exactly numElements_ elements of type T. The call `std::copy(array->inlineStorage(), array->inlineStorage() + array->numElements_ * sizeof(T), ownElements_->begin())` passes a byte-typed (uint8_t*) source range whose length is expressed in bytes (numElements_ * sizeof(T)) but a T-typed destination iterator. std::copy advances the source and destination iterators in lockstep and performs exactly (last - first) iterations — here that is numElements_ * sizeof(T) iterations, each writing one element to the destination. Because the destination iterator is T* (not uint8_t*), each iteration advances the destination pointer by sizeof(T) bytes, so the loop writes sizeof(T) times more T-sized slots than the vector actually holds (which was resized to only numElements_ elements). This causes an out-of-bounds write past the end of the destination Vector's storage whenever sizeof(T) > 1, i.e. for every element type wider than a single byte. Additionally, the source pointer `array->inlineStorage()` points to the start of the inline storage region (which includes the DataHeader), not to `offsetOfInlineArrayData()` where the actual array element data begins, so even the bytes read are from the wrong offset. The overall effect is a heap-based buffer overflow write (and incorrect data source) reachable from WebAssembly GC array operations that use StableWasmArrayObjectElements, matching the reported 'incorrect boundary conditions' WebAssembly memory-safety vulnerability.",
+        "location": {
+          "file": "js/src/wasm/WasmGcObject.h",
+          "start_line": 540,
+          "end_line": 542,
+          "start_column": null,
+          "end_column": null,
+          "function": "StableWasmArrayObjectElements::StableWasmArrayObjectElements",
+          "snippet": "      std::copy(array->inlineStorage(),\n                array->inlineStorage() + array->numElements_ * sizeof(T),\n                ownElements_->begin());\n      elements_ = ownElements_->begin();",
+          "snippet_hash": "d09e43baa3c9f67421db0c46549159440d427e06942cc08ecf053d4758f122b1",
+          "description": null,
+          "snippet_start_line": 540,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "BufferOverflow",
+        "confidence": 0.9,
+        "suggestion": "Use a source iterator with element type T that points at the correct array-data offset (offsetOfInlineArrayData(), not offsetOfInlineStorage()) and express the copy length in elements, not bytes, so that std::copy's source and destination iterators have matching, consistently-typed strides. Add a helper such as `T* inlineArrayElements()` that returns `offsetToPointer<T>(offsetOfInlineArrayData())`, then call `std::copy(src, src + array->numElements_, ownElements_->begin())`.",
+        "suggestion_code": "const T* src = array->inlineArrayElements<T>();\nstd::copy(src, src + array->numElements_, ownElements_->begin());",
+        "tags": [
+          "security",
+          "memory-safety",
+          "wasm",
+          "heap-overflow"
+        ],
+        "cwe_ids": [
+          "CWE-787",
+          "CWE-843"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "BufferOverflow",
+    "affected_files": [
+      "js/src/wasm/WasmGcObject.h"
+    ],
+    "root_cause": "Type confusion between a byte-granularity source iterator (uint8_t*) with a byte-count length and an element-granularity destination iterator (T*) passed to std::copy, causing the loop trip count (computed as last-first in the source's element type) to be interpreted as T-sized elements against the destination, over-writing the destination buffer by sizeof(T)x.",
+    "must_cover": [
+      {
+        "file": "js/src/wasm/WasmGcObject.h",
+        "function": "StableWasmArrayObjectElements::StableWasmArrayObjectElements",
+        "start_line": 540,
+        "end_line": 542,
+        "role": "primary",
+        "reason": "Primary location of finding: Heap buffer overflow from mismatched std::copy iterator types in StableWasmArrayObjectElements"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "d310bda3293de3cb63641281ee126029fe322469",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

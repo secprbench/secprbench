@@ -1,0 +1,142 @@
+{
+  "bug_id": "REPORT-c911e0001115bbda",
+  "project": "ffmpeg",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "cc85ca1cb347570a95d8615b7d4c7b542042b7f0",
+    "parent": "2fc309e699ebb65834509194df806e4e3e1621a8",
+    "fix": "c911e0001115bbda904ad103b12c27b9a3c0c265"
+  },
+  "affected_files": [
+    "libavcodec/exr.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay.; meta.json's root cause is exactly reproduced end-to-end. dwa_uncompress() computes `dc_w = td->xsize >> 3` / `dc_h = td->ysize >> 3` (floor) in the intro commit (cc85ca1c), and `dc_w = (td->xsize+7)>>3` / `dc_h = (td->ysize+7)>>3` (ceil) in the fix commit (c911e0001115). The per-block DC index `idx = (x>>3) + (y>>3)*dc_w + dc_w*dc_h*j` is used only to READ `dc[idx]`; for a non-8-aligned dimension the outer x/y loop still visits `ceil(size/8)` blocks, so with the buggy floor-based dc_w/dc_h the last block's read aliases onto a different (smaller) index than the one a correctly-sized/encoded buffer intends for it -- i.e. it reads outside the intended per-block sub-region of the shared dc_data array. I verified mathematically (idx_buggy(x,y,j) <= idx_fixed(x,y,j) pointwise for every position, since dc_w_buggy<=dc_w_fixed and dc_h_buggy<=dc_h_fixed always) and confirmed empirically that this specific mismatch is always contained within the DWA thread buffer's generous allocation (av_fast_padded_malloc adds ~2x + rounding + 64-byte headroom), so for any dc_count consistent with the image geometry this manifests as a silent wrong-slot READ rather than an ASan-detectable heap overflow; a deliberately tiny/inconsistent dc_count (e.g. dc_count=0) does crash under ASan, but it crashes BOTH post_intro and post_benign identically (confirmed empirically), so it is not diagnostic of this specific fix and was not used as evidence. Instead I built a precise behavioral oracle isolating the exact aliased slot. Results, identical command/input across all three builds: pre_intro fails to decode at all (\\\"Compression 8 is not implemented ... patches welcome\\\") because DWA decoding did not exist before the intro commit, so the flaw cannot manifest there (intro_verified=yes: the bug is reachable only starting at the intro commit, which is the commit that introduces DWA decoding with the floor-division bug baked in from the start). post_intro decodes and prints PIXEL_G=PIXEL_B=PIXEL_R=0.9999998807907104, exactly matching to_linear(half(8.0)/8)=to_linear(1.0)=1.0 -- i.e. it read the WRONG DC slot (20) that the floor formula aliases the last block onto. post_benign decodes (with the fix's own added avpriv_request_sample \\\"odd dimensions DWA\\\" notice) and prints PIXEL_G=PIXEL_B=PIXEL_R=4876797.5, matching to_linear(half(64.0)/8)=to_linear(8.0)=exp(2.2)^7≈4,876,797 -- i.e. it read the CORRECT DC slot (23) that the ceiling formula assigns to that block. The observed post_intro value is wrong by six orders of magnitude and traces precisely to the labeled off-by-rounding root cause; pre_intro and post_benign both complete without exhibiting it (pre_intro because the feature is absent; post_benign because it reads the correct slot).",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/d4965eff5d34c5bfc2c8/attempts/03/replay/pr_review_REPORT-c911e0001115bbda.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/d4965eff5d34c5bfc2c8/attempts/03/replay/pr_review_REPORT-c911e0001115bbda.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/d4965eff5d34c5bfc2c8/attempts/03/replay/pr_review_REPORT-c911e0001115bbda.agent_verdict.json",
+      "executions": {
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "1243771cff3195f50b8c64d3462efff3e9dbc037b99c87e6b13ae1468000e992",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "2fc309e699ebb65834509194df806e4e3e1621a8",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "60b04eef62405a3a4c98919cfdf005a684da877b49f05434251d9a3eab25e49a"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ffmpeg version 4.3.git Copyright (c) 2000-2021 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      56. 66.100 / 56. 66.100\n  libavcodec     58.128.100 / 58.128.100\n  libavformat    58. 69.100 / 58. 69.100\n  libavdevice    58. 12.100 / 58. 12.100\n  libavfilter     7.107.100 /  7.107.100\n  libswscale      5.  8.100 /  5.  8.100\n  libswresample   3.  8.100 /  3.  8.100\n  libpostproc    55.  8.100 / 55.  8.100\n[exr @ 0x619000000580] Compression 8 is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.\n[exr_pipe @ 0x61b000000080] decoding for stream 0 failed\n[exr_pipe @ 0x61b000000080] Could not find codec parameters for stream 0 (Video: exr, gbrpf32le): unspecified size\nConsider increasing the value for the 'analyzeduration' (0) and 'probesize' (5000000) options\nInput #0, exr_pipe, from '/poc/poc.exr':\n  Duration: N/A, bitrate: N/A\n  Stream #0:0: Video: exr, gbrpf32le, 25 fps, 25 tbr, 25 tbn, 25 tbc\nStream mapping:\n  Stream #0:0 -> #0:0 (exr (native) -> rawvideo (native))\nPress [q] to stop, [?] for help\n[exr @ 0x619000002380] Compression 8 is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.\nError while decoding stream #0:0: Not yet implemented in FFmpeg, patches welcome\n[buffer @ 0x60c0000004c0] Unable to parse option value \"0x0\" as image size\n    Last message repeated 1 times\n[buffer @ 0x60c0000004c0] Error setting option video_size to value 0x0.\n[graph 0 input from stream 0:0 @ 0x610000000140] Error applying options to the filter.\nError reinitializing filters!\nError while filtering: Invalid argument\nFinishing stream 0:0 without any data written to it.\n[buffer @ 0x60c000000580] Unable to parse option value \"0x0\" as image size\n    Last message repeated 1 times\n[buffer @ 0x60c000000580] Error setting option video_size to value 0x0.\n[graph 0 input from stream 0:0 @ 0x610000000340] Error applying options to the filter.\nError configuring filter graph\nConversion failed!\nPIXEL_READ_FAILED insufficient_output_bytes=0\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "1243771cff3195f50b8c64d3462efff3e9dbc037b99c87e6b13ae1468000e992",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "cc85ca1cb347570a95d8615b7d4c7b542042b7f0",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "e15d05d1d208328a8475ec5128a32176e268a08126538863142c97e01f2bd843"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ffmpeg version 4.3.git Copyright (c) 2000-2021 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      56. 66.100 / 56. 66.100\n  libavcodec     58.128.100 / 58.128.100\n  libavformat    58. 69.100 / 58. 69.100\n  libavdevice    58. 12.100 / 58. 12.100\n  libavfilter     7.107.100 /  7.107.100\n  libswscale      5.  8.100 /  5.  8.100\n  libswresample   3.  8.100 /  3.  8.100\n  libpostproc    55.  8.100 / 55.  8.100\nInput #0, exr_pipe, from '/poc/poc.exr':\n  Duration: N/A, bitrate: N/A\n  Stream #0:0: Video: exr, gbrpf32le, 42x30 [SAR 1:1 DAR 7:5], 25 fps, 25 tbr, 25 tbn, 25 tbc\nStream mapping:\n  Stream #0:0 -> #0:0 (exr (native) -> rawvideo (native))\nPress [q] to stop, [?] for help\nOutput #0, rawvideo, to '/tmp/verify_out.raw':\n  Metadata:\n    encoder         : Lavf58.69.100\n  Stream #0:0: Video: rawvideo, gbrpf32le(progressive), 42x30 [SAR 1:1 DAR 7:5], q=2-31, 3024 kb/s, 25 fps, 25 tbn\n    Metadata:\n      encoder         : Lavc58.128.100 rawvideo\nframe=    1 fps=0.0 q=-0.0 size=      15kB time=00:00:00.04 bitrate=3024.0kbits/s speed= 952x    \nframe=    1 fps=0.0 q=-0.0 Lsize=      15kB time=00:00:00.04 bitrate=3024.0kbits/s speed=4.49x    \nvideo:15kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.000000%\nPIXEL_G=0.9999998807907104 PIXEL_B=0.9999998807907104 PIXEL_R=0.9999998807907104\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "1243771cff3195f50b8c64d3462efff3e9dbc037b99c87e6b13ae1468000e992",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "2fc309e699ebb65834509194df806e4e3e1621a8",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "3e3edd1eea32de4ce9323f162c6b9f042669ac364048952f7310661d8efc0e38"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ffmpeg version 4.3.git Copyright (c) 2000-2021 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      56. 66.100 / 56. 66.100\n  libavcodec     58.128.100 / 58.128.100\n  libavformat    58. 69.100 / 58. 69.100\n  libavdevice    58. 12.100 / 58. 12.100\n  libavfilter     7.107.100 /  7.107.100\n  libswscale      5.  8.100 /  5.  8.100\n  libswresample   3.  8.100 /  3.  8.100\n  libpostproc    55.  8.100 / 55.  8.100\n[exr @ 0x619000000580] odd dimensions DWA is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.\n[exr @ 0x619000000580] If you want to help, upload a sample of this file to https://streams.videolan.org/upload/ and contact the ffmpeg-devel mailing list. (ffmpeg-devel@ffmpeg.org)\nInput #0, exr_pipe, from '/poc/poc.exr':\n  Duration: N/A, bitrate: N/A\n  Stream #0:0: Video: exr, gbrpf32le, 42x30 [SAR 1:1 DAR 7:5], 25 fps, 25 tbr, 25 tbn, 25 tbc\nStream mapping:\n  Stream #0:0 -> #0:0 (exr (native) -> rawvideo (native))\nPress [q] to stop, [?] for help\n[exr @ 0x619000002880] odd dimensions DWA is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.\n[exr @ 0x619000002880] If you want to help, upload a sample of this file to https://streams.videolan.org/upload/ and contact the ffmpeg-devel mailing list. (ffmpeg-devel@ffmpeg.org)\nOutput #0, rawvideo, to '/tmp/verify_out.raw':\n  Metadata:\n    encoder         : Lavf58.69.100\n  Stream #0:0: Video: rawvideo, gbrpf32le(progressive), 42x30 [SAR 1:1 DAR 7:5], q=2-31, 3024 kb/s, 25 fps, 25 tbn\n    Metadata:\n      encoder         : Lavc58.128.100 rawvideo\nframe=    1 fps=0.0 q=-0.0 size=      15kB time=00:00:00.04 bitrate=3024.0kbits/s speed= 541x    \nframe=    1 fps=0.0 q=-0.0 Lsize=      15kB time=00:00:00.04 bitrate=3024.0kbits/s speed=3.65x    \nvideo:15kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 0.000000%\nPIXEL_G=4876797.5 PIXEL_B=4876797.5 PIXEL_R=4876797.5\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "PIXEL_G=0.9999998807907104 PIXEL_B=0.9999998807907104 PIXEL_R=0.9999998807907104",
+        "pre_marker": "[exr @ 0x619000002380] Compression 8 is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.",
+        "benign_marker": "PIXEL_G=4876797.5 PIXEL_B=4876797.5 PIXEL_R=4876797.5",
+        "description": "run.sh decodes /poc/poc.exr with `ffmpeg -i poc.exr -f rawvideo -pix_fmt gbrpf32le` and prints the decoded float32 GBR-plane values at pixel (x=40,y=24) -- the last (partial) 8x8 DWA block of a 42x30 image whose dimensions are not multiples of 8. This pixel's value is entirely determined by which DC-coefficient array slot dwa_uncompress() reads for that block, which in turn depends solely on whether dc_w/dc_h use floor (buggy) or ceil (fixed) division of xsize/ysize by 8.",
+        "target_evidence": "post_intro run_poc OUTPUT TAIL ends with: 'PIXEL_G=0.9999998807907104 PIXEL_B=0.9999998807907104 PIXEL_R=0.9999998807907104'. post_benign run_poc OUTPUT TAIL includes the fix's own diagnostic '[exr @ ...] odd dimensions DWA is not implemented. Update your FFmpeg version...' (from the newly-added avpriv_request_sample call in the fix commit) followed by 'PIXEL_G=4876797.5 PIXEL_B=4876797.5 PIXEL_R=4876797.5'. pre_intro run_poc OUTPUT TAIL shows decode failure: 'Compression 8 is not implemented ... Error while decoding stream #0:0: Not yet implemented in FFmpeg, patches welcome', with no pixel output (insufficient_output_bytes=0)."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "behavioral",
+        "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+      },
+      "explanation": "meta.json's root cause is exactly reproduced end-to-end. dwa_uncompress() computes `dc_w = td->xsize >> 3` / `dc_h = td->ysize >> 3` (floor) in the intro commit (cc85ca1c), and `dc_w = (td->xsize+7)>>3` / `dc_h = (td->ysize+7)>>3` (ceil) in the fix commit (c911e0001115). The per-block DC index `idx = (x>>3) + (y>>3)*dc_w + dc_w*dc_h*j` is used only to READ `dc[idx]`; for a non-8-aligned dimension the outer x/y loop still visits `ceil(size/8)` blocks, so with the buggy floor-based dc_w/dc_h the last block's read aliases onto a different (smaller) index than the one a correctly-sized/encoded buffer intends for it -- i.e. it reads outside the intended per-block sub-region of the shared dc_data array. I verified mathematically (idx_buggy(x,y,j) <= idx_fixed(x,y,j) pointwise for every position, since dc_w_buggy<=dc_w_fixed and dc_h_buggy<=dc_h_fixed always) and confirmed empirically that this specific mismatch is always contained within the DWA thread buffer's generous allocation (av_fast_padded_malloc adds ~2x + rounding + 64-byte headroom), so for any dc_count consistent with the image geometry this manifests as a silent wrong-slot READ rather than an ASan-detectable heap overflow; a deliberately tiny/inconsistent dc_count (e.g. dc_count=0) does crash under ASan, but it crashes BOTH post_intro and post_benign identically (confirmed empirically), so it is not diagnostic of this specific fix and was not used as evidence. Instead I built a precise behavioral oracle isolating the exact aliased slot. Results, identical command/input across all three builds: pre_intro fails to decode at all (\\\"Compression 8 is not implemented ... patches welcome\\\") because DWA decoding did not exist before the intro commit, so the flaw cannot manifest there (intro_verified=yes: the bug is reachable only starting at the intro commit, which is the commit that introduces DWA decoding with the floor-division bug baked in from the start). post_intro decodes and prints PIXEL_G=PIXEL_B=PIXEL_R=0.9999998807907104, exactly matching to_linear(half(8.0)/8)=to_linear(1.0)=1.0 -- i.e. it read the WRONG DC slot (20) that the floor formula aliases the last block onto. post_benign decodes (with the fix's own added avpriv_request_sample \\\"odd dimensions DWA\\\" notice) and prints PIXEL_G=PIXEL_B=PIXEL_R=4876797.5, matching to_linear(half(64.0)/8)=to_linear(8.0)=exp(2.2)^7≈4,876,797 -- i.e. it read the CORRECT DC slot (23) that the ceiling formula assigns to that block. The observed post_intro value is wrong by six orders of magnitude and traces precisely to the labeled off-by-rounding root cause; pre_intro and post_benign both complete without exhibiting it (pre_intro because the feature is absent; post_benign because it reads the correct slot)."
+    }
+  },
+  "task_hashes": {
+    "buggy": "709fb234340913c1584492043900e4d496f21186d3c9c9bc91335d2f67310b42",
+    "benign": "e7a7023c776fd4dc26088cb12b35a019afdea2b4c10de7cda6c1c2cfe27291a9"
+  }
+}

@@ -1,0 +1,264 @@
+{
+  "affected_files": [
+    "lib/http.c"
+  ],
+  "aliases": [
+    "PR-18457"
+  ],
+  "bug_discussion": "The public fixing PR identifies the October 2024 cookie-list refactor as returning live cookie pointers and supplies a timed C++ reproducer. The original reporter PoC clears cookies through CURLOPT_COOKIELIST. An isolated same-input four-revision ASAN replay adapts the same race to an HTTP peer's Set-Cookie replacement and observes UAF only in the introduced and fix-parent revisions.",
+  "bug_id": "GH-18457",
+  "candidate_status": "targeted_public_report_pending_independent_security_and_construction_review",
+  "changed_lines": 56,
+  "commit_ids": [
+    "c278c508e2acfad5f2603febfdba80a30427cd3f"
+  ],
+  "component": "libcurl HTTP cookie handling",
+  "creation_time": "2025-09-03T00:43:14Z",
+  "date_basis": "git_committer_date_on_captured_origin_master",
+  "fix_commit_sha": "c278c508e2acfad5f2603febfdba80a30427cd3f",
+  "fix_date": "2025-09-03T12:54:31+02:00",
+  "keywords": [
+    "HTTP",
+    "Set-Cookie",
+    "shared cookie jar",
+    "data race",
+    "use after free"
+  ],
+  "mainline_verified": true,
+  "product": "curl",
+  "provenance": {
+    "collector": "targeted_curl_remote_cookie_race_20261002_v1",
+    "commit_object": {
+      "bytes": 1185,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix-c278c508e2acfad5f2603febfdba80a30427cd3f.commit",
+      "sha256": "9c76edfabd9fcf003fec6d34808ec3663aaf52f0d4551404043c1d801ee59b82"
+    },
+    "dedup_snapshot": {
+      "hits": 0,
+      "identity_rows_read": 22627,
+      "input_count": 188,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/audits/curl-gh18457-dedup-aliases.json",
+      "sha256": "ba738998b6f6c17b3da44e97cf44b1c18b8251f4aa00c43036af58d10ba67179",
+      "source_records_read": 1788
+    },
+    "fix_parent_source": {
+      "bytes": 152293,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix_parent/lib/http.c",
+      "sha256": "9ae5c054a109cb92a5f96dc4ba37919b6bc8cc4e64640d3c09c4becc71bf8977"
+    },
+    "introduction_candidate": {
+      "basis": "Upstream reporter names this refactor; parent copied cookies with dup_cookie, introduction returns live jar pointers, and exact same-input ASAN reproducer turns UAF on at this commit",
+      "blame": {
+        "bytes": 3269,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/introduction-blame.txt",
+        "sha256": "03594bd11ec422d990ad24f55794c80229c0d1443f8b58bbf3ff6176484b87a5"
+      },
+      "changed_lines": 1453,
+      "commit_object": {
+        "bytes": 1073,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/intro-be39ed19a5124a900626ab377e2afe5f41839830.commit",
+        "sha256": "b4d87a16d43f83941b406a502a896275dfc635ad2a544e7d27e01a5b29a2a282"
+      },
+      "committer_date": "2024-10-11T09:01:03+02:00",
+      "files": 3,
+      "parent": "91d451b48809f20415ba8627786f5d4f5aaf8bfe",
+      "patch": {
+        "bytes": 62779,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/intro-be39ed19a5124a900626ab377e2afe5f41839830.patch",
+        "sha256": "6631122be92410f5b4189f3ff0406114db2a11065ff1f81b34153775265d808b"
+      },
+      "sha": "be39ed19a5124a900626ab377e2afe5f41839830"
+    },
+    "lineage_audit": {
+      "bytes": 2297,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/lineage.md",
+      "sha256": "d3df57785cd17c14a20fe1ad421347485e06dab66dcf8b090f33f77bcd08f4a2"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "dfa444f1e59c52b56fb0d16152e610e4c29c7115",
+    "original_reporter_poc": {
+      "bytes": 2336,
+      "extraction": "single fenced c++ block in exact upstream PR body",
+      "language": "C++",
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/reports/reporter-cookie-race.cpp",
+      "sha256": "0594d59b2c2f24bd82ef362d47e2ca32628bcd9ac2ff34375d1f5a974a4f887d"
+    },
+    "patch": {
+      "bytes": 3684,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix-c278c508e2acfad5f2603febfdba80a30427cd3f.patch",
+      "sha256": "c68c768445e933c6540343dbf13c782bde5ba703cbe659f23569c6c498977b21"
+    },
+    "raw_git": {
+      "commit_objects": {
+        "fix": {
+          "bytes": 1185,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix-c278c508e2acfad5f2603febfdba80a30427cd3f.commit",
+          "sha256": "9c76edfabd9fcf003fec6d34808ec3663aaf52f0d4551404043c1d801ee59b82"
+        },
+        "fix_parent": {
+          "bytes": 824,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix_parent-5e6bc73570557db2ceb092d1bc7284aca9271f15.commit",
+          "sha256": "547e0859a1c8339bae8ed134d40139f5502f8491f292963f721f871b362c2323"
+        },
+        "intro": {
+          "bytes": 1073,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/intro-be39ed19a5124a900626ab377e2afe5f41839830.commit",
+          "sha256": "b4d87a16d43f83941b406a502a896275dfc635ad2a544e7d27e01a5b29a2a282"
+        },
+        "intro_parent": {
+          "bytes": 1009,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/intro_parent-91d451b48809f20415ba8627786f5d4f5aaf8bfe.commit",
+          "sha256": "744d0d2e1091767bedc347d78a10c60a9717aef088e457f2819ebab349ba70ce"
+        }
+      },
+      "fix_numstat": {
+        "bytes": 17,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix-numstat.txt",
+        "sha256": "07aefa3e46f5043f3e58935e1a259bf91623830a4c99aa24b3038206f03817cb"
+      },
+      "fix_parent_blame": {
+        "bytes": 3669,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix-parent-blame.txt",
+        "sha256": "3ed02d76297fc71ba1e025cc644b74f10f3ae6e9b8d79836d10f2f844ae7e86e"
+      },
+      "intro_numstat": {
+        "bytes": 56,
+        "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/introduction-numstat.txt",
+        "sha256": "7457bbe42eaff637618b3be1cc3cda3fb52f8ca8cbcc39faf7848c729701462a"
+      },
+      "patches": {
+        "fix": {
+          "bytes": 3684,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix-c278c508e2acfad5f2603febfdba80a30427cd3f.patch",
+          "sha256": "c68c768445e933c6540343dbf13c782bde5ba703cbe659f23569c6c498977b21"
+        },
+        "fix_parent": {
+          "bytes": 873,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/fix_parent-5e6bc73570557db2ceb092d1bc7284aca9271f15.patch",
+          "sha256": "df456310d28ed5374b76d287469942c4c0c28ebb5b8a5786edc6fb4054ee6a95"
+        },
+        "intro": {
+          "bytes": 62779,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/intro-be39ed19a5124a900626ab377e2afe5f41839830.patch",
+          "sha256": "6631122be92410f5b4189f3ff0406114db2a11065ff1f81b34153775265d808b"
+        },
+        "intro_parent": {
+          "bytes": 2660,
+          "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/intro_parent-91d451b48809f20415ba8627786f5d4f5aaf8bfe.patch",
+          "sha256": "2b71daed8f2eebb225647206005f6a08f90b4125d434b9ec23466264dbe23470"
+        }
+      },
+      "snapshots": {
+        "fix": {
+          "lib/cookie.c": {
+            "bytes": 49138,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix/lib/cookie.c",
+            "sha256": "d0817fbaf06f5dd17145dfe56028f074e85cdf1f394f91b5420625a1e2f1f0a1"
+          },
+          "lib/cookie.h": {
+            "bytes": 5763,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix/lib/cookie.h",
+            "sha256": "99e60253edd0da9b342ba10b353f82acd7bd2acb9599d22552e43654d9e82e41"
+          },
+          "lib/http.c": {
+            "bytes": 152322,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix/lib/http.c",
+            "sha256": "cbd021bd680bd6aa41485e4e7224b291ad0c275a91c4c54d2a2c6f8a7e6d7764"
+          }
+        },
+        "fix_parent": {
+          "lib/cookie.c": {
+            "bytes": 49138,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix_parent/lib/cookie.c",
+            "sha256": "d0817fbaf06f5dd17145dfe56028f074e85cdf1f394f91b5420625a1e2f1f0a1"
+          },
+          "lib/cookie.h": {
+            "bytes": 5763,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix_parent/lib/cookie.h",
+            "sha256": "99e60253edd0da9b342ba10b353f82acd7bd2acb9599d22552e43654d9e82e41"
+          },
+          "lib/http.c": {
+            "bytes": 152293,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/fix_parent/lib/http.c",
+            "sha256": "9ae5c054a109cb92a5f96dc4ba37919b6bc8cc4e64640d3c09c4becc71bf8977"
+          }
+        },
+        "intro": {
+          "lib/cookie.c": {
+            "bytes": 49171,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/intro/lib/cookie.c",
+            "sha256": "87fd1e616c94447718f3f49ecb61b158832961c6936cdbcfc2782563cd62cbca"
+          },
+          "lib/cookie.h": {
+            "bytes": 5723,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/intro/lib/cookie.h",
+            "sha256": "4a56c45be37dcc832d8c0c586a4a684ec9afd1f8a4090b356f3c927617c33688"
+          },
+          "lib/http.c": {
+            "bytes": 140162,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/intro/lib/http.c",
+            "sha256": "fb6eb4b2bd333b3e2937534c284d9b0741d1157605d94d09644abd04a4efb0df"
+          }
+        },
+        "intro_parent": {
+          "lib/cookie.c": {
+            "bytes": 50609,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/intro_parent/lib/cookie.c",
+            "sha256": "b4c8567bee7d8745050217f2a762c7ccecaff249971cd26e0159780bdac25fbc"
+          },
+          "lib/cookie.h": {
+            "bytes": 5673,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/intro_parent/lib/cookie.h",
+            "sha256": "b0efdd14a39e614d5b7384186e0d526b9673291ab7bad5dbc54b3982db5c6081"
+          },
+          "lib/http.c": {
+            "bytes": 140120,
+            "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/git/snapshots/intro_parent/lib/http.c",
+            "sha256": "a02b8f18e8921a72496b2a0dcedc2c306d212e4fe61f97d27cada49a1a77b40c"
+          }
+        }
+      }
+    },
+    "raw_report": {
+      "bytes": 19098,
+      "content_type": "application/json",
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-v1/raw/reports/github-pr-18457.json",
+      "sha256": "9dc6dacf7103ca3b9f1e029f4b86955f00f7100be85adff68129f6da4e8003c6",
+      "url": "https://api.github.com/repos/curl/curl/pulls/18457"
+    },
+    "replay_results": {
+      "bytes": 2977,
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-remote-race-v2/results.json",
+      "sha256": "94cccd1bdb3badce0c53fa97be2a7cae4036501b51b8f6483d1dac18a37c18b1"
+    },
+    "report_details": "fetched_public_github_rest_api_original_poc_and_four_revision_remote_oracle",
+    "source_url": "https://github.com/curl/curl/pull/18457",
+    "test_evidence": {
+      "bytes": 6649,
+      "oracle": "same_input_four_revision_remote_Set_Cookie_ASAN",
+      "path": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18457-remote-race-v2/manifest.json",
+      "sha256": "6fb60f37598934f6e0129caac90e11ab30a77e55e69a9982fac8278ae9b3ab32"
+    }
+  },
+  "report_references": [
+    {
+      "id": "GH-18457",
+      "kind": "public_upstream_fixing_pr",
+      "url": "https://github.com/curl/curl/pull/18457"
+    }
+  ],
+  "resolution_time": "2025-09-03T12:54:31+02:00",
+  "season": "2025H2",
+  "security_screen": {
+    "earliest_fix_review_required": true,
+    "oracle": "Same localhost server and cookie inputs on unmodified intro parent, intro, exact fix parent and fix under ASAN: no UAF / UAF / UAF / no UAF",
+    "preliminary_impact": "HTTP_peer_triggered_heap_use_after_free_in_shared_cookie_jar",
+    "qualification": "The original upstream PoC used local cookie deletion; the adapted source-realistic reproducer demonstrates a remote response replacement. Independent review, benign companion construction and Docker verification are still pending.",
+    "status": "pending",
+    "untrusted_input_boundary": "HTTP peer controls Set-Cookie response on a concurrent libcurl request sharing the cookie jar with another request",
+    "untrusted_input_boundary_proven": true
+  },
+  "severity": "network_triggered_heap_use_after_free_pending_independent_review",
+  "target_type": "libcurl_http_shared_cookie_jar_multithreaded",
+  "title": "Move cookie linked list access into lock scope"
+}

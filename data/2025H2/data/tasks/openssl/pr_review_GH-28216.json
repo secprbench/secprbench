@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_GH-28216",
+  "bug_id": "GH-28216",
+  "commit_sha": "3d254b31344e82b8f10fda8bab196757a377eb63",
+  "commit_message": "Fix a leak in an error path in OSSL_DECODER_CTX_new_for_pkey()\n\nFound via the reproducible error injection in #21668\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Tom Cosgrove <tom.cosgrove@arm.com>\n(Merged from https://github.com/openssl/openssl/pull/21723)",
+  "commit_author": "Matt Caswell",
+  "commit_date": "2023-08-11T11:22:02+01:00",
+  "pr_title": "Fix a leak in an error path in OSSL_DECODER_CTX_new_for_pkey()",
+  "pr_description": "Found via the reproducible error injection in #21668\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Tom Cosgrove <tom.cosgrove@arm.com>\n(Merged from https://github.com/openssl/openssl/pull/21723)\n",
+  "files": [
+    {
+      "path": "crypto/encode_decode/decoder_pkey.c",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 2,
+      "diff": "diff --git a/crypto/encode_decode/decoder_pkey.c b/crypto/encode_decode/decoder_pkey.c\nindex d00ec75bead..acb061c26ab 100644\n--- a/crypto/encode_decode/decoder_pkey.c\n+++ b/crypto/encode_decode/decoder_pkey.c\n@@ -833,16 +833,22 @@ OSSL_DECODER_CTX_new_for_pkey(EVP_PKEY **pkey,\n         }\n         newcache->selection = selection;\n         newcache->template = ctx;\n \n         if (!CRYPTO_THREAD_write_lock(cache->lock)) {\n+            ctx = NULL;\n             ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n-            return NULL;\n+            goto err;\n         }\n         res = lh_DECODER_CACHE_ENTRY_retrieve(cache->hashtable, &cacheent);\n         if (res == NULL) {\n-            lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            (void)lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) {\n+                ctx = NULL;\n+                ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n+                goto err;\n+            }\n         } else {\n             /*\n              * We raced with another thread to construct this and lost. Free\n              * what we just created and use the entry from the hashtable instead\n              */\n"
+    }
+  ],
+  "full_diff": "diff --git a/crypto/encode_decode/decoder_pkey.c b/crypto/encode_decode/decoder_pkey.c\nindex d00ec75bead..acb061c26ab 100644\n--- a/crypto/encode_decode/decoder_pkey.c\n+++ b/crypto/encode_decode/decoder_pkey.c\n@@ -833,16 +833,22 @@ OSSL_DECODER_CTX_new_for_pkey(EVP_PKEY **pkey,\n         }\n         newcache->selection = selection;\n         newcache->template = ctx;\n \n         if (!CRYPTO_THREAD_write_lock(cache->lock)) {\n+            ctx = NULL;\n             ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n-            return NULL;\n+            goto err;\n         }\n         res = lh_DECODER_CACHE_ENTRY_retrieve(cache->hashtable, &cacheent);\n         if (res == NULL) {\n-            lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            (void)lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n+            if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) {\n+                ctx = NULL;\n+                ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n+                goto err;\n+            }\n         } else {\n             /*\n              * We raced with another thread to construct this and lost. Free\n              * what we just created and use the entry from the hashtable instead\n              */\n",
+  "ground_truth": {
+    "bug_id": "GH-28216",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "c0527256d2e6a148931e1d8b9b0ff4af7564caae",
+      "short_sha": "c052725",
+      "message": "Fix missing unlock in decoder_pkey.c",
+      "author": "Neil Horman",
+      "date": "2025-08-10T17:55:15-04:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logic-001",
+        "title": "Missing CRYPTO_THREAD_unlock on hashtable-insert error path in OSSL_DECODER_CTX_new_for_pkey()",
+        "message": "In OSSL_DECODER_CTX_new_for_pkey(), when constructing a new decoder cache entry, the code takes a write lock on cache->lock via CRYPTO_THREAD_write_lock() and then attempts to insert the new entry into the hashtable with lh_DECODER_CACHE_ENTRY_insert(). This commit added an explicit check of lh_DECODER_CACHE_ENTRY_error() after the insert to detect an allocation failure inside the hash table (e.g. out-of-memory while growing the table). On error it sets ctx = NULL, raises an error, and jumps to the 'err:' label via 'goto err;'. However, the 'err:' label only calls decoder_cache_entry_free(newcache) and OSSL_DECODER_CTX_free(ctx) before returning — it never calls CRYPTO_THREAD_unlock(cache->lock) to release the write lock that was just acquired a few lines above. As a result, on this specific out-of-memory/error path the function returns while still holding the write lock on cache->lock. Any subsequent call into OSSL_DECODER_CTX_new_for_pkey() (even from the same thread, e.g. under memory-failure/fuzz testing) that tries to take a read lock on the same cache->lock will either deadlock or, in debug/assert builds using pthread error-checking mutexes, hit an assertion failure (EBUSY) because the thread already holds the lock for writing. This is essentially a resource-leak/lock-leak bug that leads to a permanently corrupted lock state for the OSSL_LIB_CTX-scoped decoder cache.",
+        "location": {
+          "file": "crypto/encode_decode/decoder_pkey.c",
+          "start_line": 842,
+          "end_line": 870,
+          "start_column": null,
+          "end_column": null,
+          "function": "OSSL_DECODER_CTX_new_for_pkey",
+          "snippet": "        res = lh_DECODER_CACHE_ENTRY_retrieve(cache->hashtable, &cacheent);\n        if (res == NULL) {\n            (void)lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n            if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) {\n                ctx = NULL;\n                ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n                goto err;\n            }\n        } else {\n            /*\n             * We raced with another thread to construct this and lost. Free\n             * what we just created and use the entry from the hashtable instead\n             */\n            decoder_cache_entry_free(newcache);\n            ctx = res->template;\n        }\n    } else {\n        ctx = res->template;\n    }\n\n    ctx = ossl_decoder_ctx_for_pkey_dup(ctx, pkey, input_type, input_structure);\n    CRYPTO_THREAD_unlock(cache->lock);\n\n    return ctx;\n err:\n    decoder_cache_entry_free(newcache);\n    OSSL_DECODER_CTX_free(ctx);\n    return NULL;\n}",
+          "snippet_hash": "02b9b2dddd7a6fc736a9c7feeb7c80a0d7b7a85ff59637036f601cec802b4150",
+          "description": null,
+          "snippet_start_line": 842,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.9,
+        "suggestion": "Release the write lock on cache->lock before jumping to the error label, or make the 'err:' label unlock the lock only when it is known to be held (e.g. track a boolean, or restructure so the lock is always released along every path once acquired). The simplest fix, as later applied upstream, is to call CRYPTO_THREAD_unlock(cache->lock) immediately before the 'goto err;' in the lh_DECODER_CACHE_ENTRY_error() branch.",
+        "suggestion_code": "            (void)lh_DECODER_CACHE_ENTRY_insert(cache->hashtable, newcache);\n            if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) {\n                ctx = NULL;\n                CRYPTO_THREAD_unlock(cache->lock);\n                ERR_raise(ERR_LIB_OSSL_DECODER, ERR_R_CRYPTO_LIB);\n                goto err;\n            }",
+        "tags": [
+          "security",
+          "concurrency",
+          "deadlock",
+          "resource-leak"
+        ],
+        "cwe_ids": [
+          "CWE-667",
+          "CWE-404"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "crypto/encode_decode/decoder_pkey.c"
+    ],
+    "root_cause": "A new error-handling branch (checking lh_DECODER_CACHE_ENTRY_error) was added that jumps into a shared 'err:' cleanup path, but that cleanup path was written for the earlier failure points in the function (all of which occur before the write lock is taken) and therefore does not release cache->lock. The developer who added the new error check overlooked that this particular 'goto err' occurs after the lock had already been acquired, unlike the other 'goto err' sites in the same function.",
+    "must_cover": [
+      {
+        "file": "crypto/encode_decode/decoder_pkey.c",
+        "function": "OSSL_DECODER_CTX_new_for_pkey",
+        "start_line": 842,
+        "end_line": 870,
+        "role": "primary",
+        "reason": "Primary location of finding: Missing CRYPTO_THREAD_unlock on hashtable-insert error path in OSSL_DECODER_CTX_new_for_pkey()"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "3d254b31344e82b8f10fda8bab196757a377eb63",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

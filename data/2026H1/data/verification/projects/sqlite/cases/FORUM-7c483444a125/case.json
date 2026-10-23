@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-7c483444a125",
+  "project": "sqlite",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "62546d4b1ff9211ccff922f622ee73871b1ed2b0",
+    "parent": "9e395efec686281ca453ba2be80507bdef47e36e",
+    "fix": "7c483444a1259e15ffdc4191e54370721dd054e2"
+  },
+  "affected_files": [
+    "ext/misc/decimal.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the same command on all three sanitizer builds, post_intro exited 1 with UBSan reporting member access through a null Decimal pointer at decimal_round (ext/misc/decimal.c:301), called by decimalFunc at line 709. pre_intro did not crash; it rejected the two-argument call because that overload did not yet exist. post_benign accepted the query, exited 0, and produced no sanitizer report. This verifies that the intro commit introduced the null-pointer dereference and the benign companion remov",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

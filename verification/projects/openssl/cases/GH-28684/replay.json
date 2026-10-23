@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-28684",
+    "bug_id": "GH-28684",
+    "bug_type": "LogicError",
+    "intro_commit": "03ce37e11729bbe9964bd613c0eed6156b920208",
+    "intro_parent": "7cbca5a6d6e792c75c414e1f3fb22e2afae67988",
+    "fix_commit": "22417bc14d6bde173425ba4f87c68be0cf394fa4",
+    "affected_files": [
+      "crypto/chacha/chacha_riscv.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "Exact bug and unaffected output lines matched the shared three-version Docker replay.",
+      "The affected file (crypto/chacha/chacha_riscv.c) is only compiled/exercised on a riscv64 target; this Docker image builds/runs strictly linux-x86_64 (configdata.pm target=linux-x86_64-clang; the produced chacha object is chacha-x86_64.o) with no riscv64 cross-compiler or qemu-riscv64 available, and the reporter states the actual crash requires real riscv64-V hardware (QEMU does not reproduce it). So the literal hardware crash cannot be triggered here. Since this is a LogicError (a missing-condition dispatch defect, not a sanitizer-catchable memory fault), I instead built a precise, self-checking behavioral PoC: it compiles the exact, unmodified chacha_riscv.c source from each revision against a stub translation unit supplying the capability array, riscv_vlen(), and instrumented stand-ins for the low-level implementation functions, then invokes the real ChaCha20_ctr32() entry point with identical misaligned out/inp pointers on every version, via run_poc using the same /poc/run.sh command on pre_intro, post_intro, and post_benign. The observed dispatch decision diverges exactly as the report describes: post_intro routes misaligned buffers into the vector implementation (missing alignment gate = the introduced bug), post_benign routes the same misaligned buffers into the safe scalar C fallback (alignment gate restored = the fix), and pre_intro does not exhibit the same flaw because it lacks the vulnerable split entirely. This satisfies the same-command-across-versions invariant and yields an unambiguous verdict without requiring riscv64 hardware."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/openssl/c1c713783c74848e6cf4/attempts/01/pocs/openssl/GH-28684",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "3f43ea64389e3bb8aac3f8411ca3093f652e1f54cfaf4a901d19699ba9aa4e67",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "7cbca5a6d6e792c75c414e1f3fb22e2afae67988",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "dc24c0bb1d24baf0daed630cf5e4b30d3ce67fce2cc47439ef465948ce468209"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "DISPATCH=ZBB_ZVKB_NOVEC\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "3f43ea64389e3bb8aac3f8411ca3093f652e1f54cfaf4a901d19699ba9aa4e67",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "03ce37e11729bbe9964bd613c0eed6156b920208",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "ccd0b1211d884c4ab405e3fb1a7fbd5f50532c3eb67258b42921f458d5098e9e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "DISPATCH=VECTOR_V_ZBB_ZVKB\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "3f43ea64389e3bb8aac3f8411ca3093f652e1f54cfaf4a901d19699ba9aa4e67",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "7cbca5a6d6e792c75c414e1f3fb22e2afae67988",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f161d1116ed0ba065625b38593990ae1655f3bbca09d1351d63834469c8320f3"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "DISPATCH=C_SCALAR\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "DISPATCH=VECTOR_V_ZBB_ZVKB",
+    "pre_marker": "DISPATCH=ZBB_ZVKB_NOVEC",
+    "benign_marker": "DISPATCH=C_SCALAR",
+    "description": "The printed DISPATCH=<name> line names exactly which low-level ChaCha20 implementation the real dispatch logic in chacha_riscv.c routed misaligned buffers to. Routing to a vector implementation (VECTOR_V_ZBB_ZVKB) demonstrates the missing-alignment-check bug (that routine requires/prefers aligned access on real riscv64-V hardware per the reporter); routing to C_SCALAR demonstrates the fix's alignment gate working.",
+    "target_evidence": "run_poc confirmed on all three built versions with the identical /poc/run.sh: pre_intro -> DISPATCH=ZBB_ZVKB_NOVEC, post_intro -> DISPATCH=VECTOR_V_ZBB_ZVKB, post_benign -> DISPATCH=C_SCALAR. post_intro's chacha_riscv.c (commit 03ce37e11729) guards ChaCha20_ctr32_v_zbb_zvkb/ChaCha20_ctr32_v_zbb only with `len > CHACHA_BLK_SIZE && RISCV_HAS_ZBB() && riscv_vlen() >= 128` (no pointer-alignment test), so misaligned out/inp still get routed to the vector routine. post_benign's chacha_riscv.c (fix 22417bc14d6b content) adds `&& (size_t)out % sizeof(size_t) == 0 && (size_t)inp % sizeof(size_t) == 0` to that same guard, so the identical misaligned pointers are now routed to the safe C fallback. pre_intro's chacha_riscv.c (parent 7cbca5a6d6e7) does not yet contain the v_zbb/v_zbb_zvkb split at all; it unconditionally routes to a differently-named routine (ChaCha20_ctr32_zbb_zvkb, no 'v_' prefix) that is not the vector implementation this report concerns, so the specific missing-alignment-check flaw does not exist pre-intro."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "behavioral",
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+  }
+}

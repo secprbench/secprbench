@@ -1,0 +1,56 @@
+{
+  "task_id": "pr_review_REPORT-65fc0db581c4ee2a_benign",
+  "bug_id": "REPORT-65fc0db581c4ee2a",
+  "commit_sha": "65fc0db581c4ee2a891b7b72f6056357ceb3b0bd",
+  "commit_message": "avformat/hlsenc: Respect `append_list` flag in subtitle\n\nEnsure that when the `-hls_flags append_list` option is set,\nthat *.vtt files in stream_vtt.m3u8 are correctly updated.\nThis fixes https://trac.ffmpeg.org/ticket/11208\n\nReviewed-by: Steven Liu <lq@chinaffmpeg.org>",
+  "commit_author": "",
+  "commit_date": "2026-09-28T19:16:04.678864",
+  "pr_title": "avformat/hlsenc: Respect `append_list` flag in subtitle",
+  "pr_description": "avformat/hlsenc: Respect `append_list` flag in subtitle\n\nEnsure that when the `-hls_flags append_list` option is set,\nthat *.vtt files in stream_vtt.m3u8 are correctly updated.\nThis fixes https://trac.ffmpeg.org/ticket/11208\n\nReviewed-by: Steven Liu <lq@chinaffmpeg.org>",
+  "files": [
+    {
+      "path": "libavformat/hlsenc.c",
+      "status": "modified",
+      "additions": 30,
+      "deletions": 0,
+      "diff": "diff --git a/libavformat/hlsenc.c b/libavformat/hlsenc.c\nindex 571d6b2752..5bcce15cbe 100644\n--- a/libavformat/hlsenc.c\n+++ b/libavformat/hlsenc.c\n@@ -1195,20 +1195,36 @@ static int hls_append_segment(struct AVFormatContext *s, HLSContext *hls,\n         vs->nb_entries++;\n \n     if (hls->max_seg_size > 0) {\n         return 0;\n     }\n     vs->sequence++;\n \n     return 0;\n }\n \n+static int extract_segment_number(const char *filename) {\n+    const char *dot = strrchr(filename, '.');\n+    const char *num_start = dot - 1;\n+\n+    while (num_start > filename && *num_start >= '0' && *num_start <= '9') {\n+        num_start--;\n+    }\n+\n+    num_start++;\n+\n+    if (num_start == dot)\n+        return -1;\n+\n+    return atoi(num_start);\n+}\n+\n static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs)\n {\n     HLSContext *hls = s->priv_data;\n     AVIOContext *in;\n     int ret = 0, is_segment = 0;\n     int64_t new_start_pos;\n     char line[MAX_URL_SIZE];\n     const char *ptr;\n     const char *end;\n     double discont_program_date_time = 0;\n@@ -1288,20 +1304,34 @@ static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs\n         } else if (av_strstart(line, \"#\", NULL)) {\n             continue;\n         } else if (line[0]) {\n             if (is_segment) {\n                 char *new_file = av_strdup(line);\n                 if (!new_file) {\n                     ret = AVERROR(ENOMEM);\n                     goto fail;\n                 }\n                 ff_format_set_url(vs->avf, new_file);\n+\n+                if (vs->has_subtitle) {\n+                    int vtt_index = extract_segment_number(line);\n+                    const char *vtt_basename = av_basename(vs->vtt_basename);\n+                    char *vtt_file = NULL;\n+                    int ret = replace_int_data_in_filename(&vtt_file, vtt_basename, 'd', vtt_index);\n+                    if (ret < 0 || !vtt_file) {\n+                        ret = AVERROR(ENOMEM);\n+                        goto fail;\n+                    }\n+\n+                    ff_format_set_url(vs->vtt_avf, vtt_file);\n+                }\n+\n                 is_segment = 0;\n                 new_start_pos = avio_tell(vs->avf->pb);\n                 vs->size = new_start_pos - vs->start_pos;\n                 ret = hls_append_segment(s, hls, vs, vs->duration, vs->start_pos, vs->size);\n                 if (discont_program_date_time) {\n                     vs->last_segment->discont_program_date_time = discont_program_date_time;\n                     discont_program_date_time += vs->duration;\n                 }\n                 if (ret < 0)\n                     goto fail;\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavformat/hlsenc.c b/libavformat/hlsenc.c\nindex 571d6b2752..5bcce15cbe 100644\n--- a/libavformat/hlsenc.c\n+++ b/libavformat/hlsenc.c\n@@ -1195,20 +1195,36 @@ static int hls_append_segment(struct AVFormatContext *s, HLSContext *hls,\n         vs->nb_entries++;\n \n     if (hls->max_seg_size > 0) {\n         return 0;\n     }\n     vs->sequence++;\n \n     return 0;\n }\n \n+static int extract_segment_number(const char *filename) {\n+    const char *dot = strrchr(filename, '.');\n+    const char *num_start = dot - 1;\n+\n+    while (num_start > filename && *num_start >= '0' && *num_start <= '9') {\n+        num_start--;\n+    }\n+\n+    num_start++;\n+\n+    if (num_start == dot)\n+        return -1;\n+\n+    return atoi(num_start);\n+}\n+\n static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs)\n {\n     HLSContext *hls = s->priv_data;\n     AVIOContext *in;\n     int ret = 0, is_segment = 0;\n     int64_t new_start_pos;\n     char line[MAX_URL_SIZE];\n     const char *ptr;\n     const char *end;\n     double discont_program_date_time = 0;\n@@ -1288,20 +1304,34 @@ static int parse_playlist(AVFormatContext *s, const char *url, VariantStream *vs\n         } else if (av_strstart(line, \"#\", NULL)) {\n             continue;\n         } else if (line[0]) {\n             if (is_segment) {\n                 char *new_file = av_strdup(line);\n                 if (!new_file) {\n                     ret = AVERROR(ENOMEM);\n                     goto fail;\n                 }\n                 ff_format_set_url(vs->avf, new_file);\n+\n+                if (vs->has_subtitle) {\n+                    int vtt_index = extract_segment_number(line);\n+                    const char *vtt_basename = av_basename(vs->vtt_basename);\n+                    char *vtt_file = NULL;\n+                    int ret = replace_int_data_in_filename(&vtt_file, vtt_basename, 'd', vtt_index);\n+                    if (ret < 0 || !vtt_file) {\n+                        ret = AVERROR(ENOMEM);\n+                        goto fail;\n+                    }\n+\n+                    ff_format_set_url(vs->vtt_avf, vtt_file);\n+                }\n+\n                 is_segment = 0;\n                 new_start_pos = avio_tell(vs->avf->pb);\n                 vs->size = new_start_pos - vs->start_pos;\n                 ret = hls_append_segment(s, hls, vs, vs->duration, vs->start_pos, vs->size);\n                 if (discont_program_date_time) {\n                     vs->last_segment->discont_program_date_time = discont_program_date_time;\n                     discont_program_date_time += vs->duration;\n                 }\n                 if (ret < 0)\n                     goto fail;\n",
+  "ground_truth": {
+    "bug_id": "REPORT-65fc0db581c4ee2a",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "425c3234206c042273e001c8865391a53ce5855e",
+    "fix_commit": "65fc0db581c4ee2a891b7b72f6056357ceb3b0bd"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "425c3234206c042273e001c8865391a53ce5855e",
+  "fix_commit_sha": "65fc0db581c4ee2a891b7b72f6056357ceb3b0bd",
+  "intro_commit_message": "avformat/hlsenc: Respect `append_list` flag in subtitle\n\nEnsure that when the `-hls_flags append_list` option is set,\nthat *.vtt files in stream_vtt.m3u8 are correctly updated.\nThis fixes https://trac.ffmpeg.org/ticket/11208\n\nReviewed-by: Steven Liu <lq@chinaffmpeg.org>",
+  "fix_commit_message": "avformat/hlsenc: fix format string vulnerability in parse_playlist\n\nFound-by: Sarthak Munshi <sarthakmunshi@gmail.com>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 65fc0db581c4 on top of intro 425c3234206c via git's 3-way merge. Vulnerability (LogicError): libavformat/hlsenc.c's parse_playlist() function, when handling the `append_list` HLS flag for subtitle segments, calls `snprintf(vtt_file, len, vtt_basename, vtt_index)` where `vtt_basename` (derived from the configurable VTT/subtitle filename template) is used directly as the *format string* rather than as literal data. Because this filename-derived string is attacker/user influenced and can contain unexpected `%` conversion specifiers, this is an uncontrolled/user-controlled format string vulnerability that can cause crashes, out-of-bounds reads/information disclosure, or worse. Root cause: The code assumes that the VTT basename always contains a well-formed, single `%d`-style placeholder intended for the segment index and unconditionally forwards that string as the fmt argument of snprintf(), rather than treating the basename as opaque data and only substituting the index through a controlled, format-string-free mechanism.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "425c3234206c042273e001c8865391a53ce5855e",
+    "fix_revision": "65fc0db581c4ee2a891b7b72f6056357ceb3b0bd",
+    "fix_parent_revision": "8dc025c70645d3256f065c33f4bab02dc7213903",
+    "inspected_paths": [
+      "libavformat/hlsenc.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "libavformat/hlsenc.c",
+        "symbol": "replace_int_data_in_filename",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

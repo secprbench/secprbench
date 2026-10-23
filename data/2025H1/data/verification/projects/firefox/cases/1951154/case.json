@@ -1,0 +1,32 @@
+{
+  "bug_id": "1951154",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "406900eed9a073edecfc869a1c66e0534b21455d",
+    "parent": "131d5d75152db4f8ddcfd23a02cdd96e94f60f2d",
+    "fix": "d579b15329d36648d8fd522850291092ecae92ca"
+  },
+  "affected_files": [
+    "toolkit/components/alerts/AlertNotification.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. The packaged/default post-intro attempt timed out without exercising the API, so I used /poc/poc.js with the same command on every version: LD_LIBRARY_PATH=/work/obj-verify-browser/dist/bin ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 /work/obj-verify-browser/dist/bin/xpcshell -f /poc/poc.js. pre_intro exited 0 with no sanitizer report (getAction is absent before the introducing commit). post_intro printed FIRST_LOOKUP and SECOND_LOOKUP, then exited 134 with",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.82.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three sanitizer builds succeeded. The packaged/default post-intro attempt timed out without exercising the API, so I used /poc/poc.js with the same command on every version: LD_LIBRARY_PATH=/work/obj-verify-browser/dist/bin ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 /work/obj-verify-browser/dist/bin/xpcshell -f /poc/poc.js. pre_intro exited 0 with no sanitizer report (getAction is absent before the introducing commit). post_intro printed FIRST_LOOKUP and SECOND_LOOKUP, then exited 134 with AddressSanitizer heap-use-after-free; the top frame was mozilla::AlertNotification::GetAction at to",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1951154.json"
+  },
+  "final_disposition": "verified"
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-27272",
+  "bug_id": "GH-27272",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "fa495604516a610d988f02298c8d97a6ac4777bb",
+  "intro_parent": "6a3579e190fd52f49b1e5eafb4d002684eb0ff42",
+  "fix_commit": "28de1f5004c1083d358e6934552124a201e0251e",
+  "affected_files": [
+    "ssl/statem/extensions.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "openssl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A new dereference of s->session was introduced above an existing NULL check for the same pointer, instead of placing the NULL check before any use of s->session. The refactor removed the old PSK-resumption-specific check (which happened to also reference s->session only after other guards) and replaced it with unconditional access, without re-validating that s->session could still be NULL at function entry in all call paths.",
+  "findings": [
+    "final_maxfragmentlen() unconditionally dereferences s->session (via s->session->ext.max_fragment_len_mode) at the top of the function, before the existing NULL check 'if (s->session && USE_MAX_FRAGMENT_LENGTH_EXT(s->session))' further down. s->session can legitimately be NULL at this point in the handshake state machine (this extension-processing callback runs for both client and server, and in so"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "dc3ae0a16969a4e708fed71149e35dbd5555bccd9a1176f385f1f095ac23219c",
+  "generated_artifact_sha256": {
+    "reference": "e867e2de0f498cae285fc3cc2d96275a17fa0155c13dd2806acdd123bf4fe26b",
+    "introducing": "3be7b1f280f24555b7f16ccf47e9338681b886b515251ac9595b1c578bd8a5dd",
+    "companion": "a545e98a4852dc463ba80d87dfabdf8f37a12310ab3371aec774f58d1fc4d47b"
+  }
+}

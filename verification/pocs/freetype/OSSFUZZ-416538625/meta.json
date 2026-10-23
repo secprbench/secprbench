@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_OSSFUZZ-416538625",
+  "bug_id": "OSSFUZZ-416538625",
+  "bug_type": "LogicError",
+  "intro_commit": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+  "intro_parent": "f93a897afedf4a634c74d3d2871519e675ee0d83",
+  "fix_commit": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+  "affected_files": [
+    "src/truetype/ttgload.c",
+    "src/cff/cffgload.c",
+    "src/sfnt/ttsvg.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "freetype",
+  "source": "locally_fix_derived",
+  "attachments": [],
+  "input_name": "svg-alloc.ttf",
+  "root_cause": "tt_face_load_svg_doc reads the gzip trailer's ISIZE as uncomp_size and passes it to FT_QALLOC without a cap. Before this introduction, the public glyph loader did not call the SVG document loader. The 2025 fix bounds ISIZE; an equivalent small guard applies to the 2022 tree.",
+  "findings": [
+    "The newly added glyph-load call reaches tt_face_load_svg_doc. That parser trusts the gzip trailer's uncompressed size and requests a buffer of that size before imposing a cap."
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "5660eea3fdc3be3056e8cfcba71da331069fc35f0524fd0c894c177f3fb89bcd",
+  "generated_artifact_sha256": {
+    "reference": "4c26bf420c22d6093b6dbd86ec81430eccc63401c8be17238aec032db4b99a45",
+    "introducing": "de8dffc820325d54b95762aa12a2d36dc2a8675000dc50168dcf39b69c828968",
+    "companion": "25d28c566f895c9075fd6ecfa4443c036a3e64792e8448190f997e7d8aaeb54c"
+  }
+}

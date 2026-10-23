@@ -1,0 +1,22 @@
+{
+  "bug_id": "041a6c36142f",
+  "project": "ffmpeg",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "b8bf2f4e1758a9f7f34160245b5f663d53159c2d",
+    "parent": "2aad37ffb5e898b92c018eeb4f62154a16c41e63",
+    "fix": null
+  },
+  "affected_files": [
+    "libavfilter/buffersink.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The intro commit (b8bf2f4e) broke common_init() in libavfilter/buffersink.c: after calling av_realloc_array() to grow buf->channel_layouts, the result was stored in local variable `tmp` but never written back to buf->channel_layouts. On the first iteration buf->channel_layouts is NULL, so the subsequent memset(&buf->channel_layouts[buf->nb_channel_layouts], ...) writes to address 0x0. Running ffmpeg with the deprecated ch_layouts option on an abuffersink filter triggers the path. pre_intro exits",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

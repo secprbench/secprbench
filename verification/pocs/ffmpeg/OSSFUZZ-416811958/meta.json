@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-416811958",
+  "bug_id": "OSSFUZZ-416811958",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "afbc3a1b23b3ba3e5a3f2820228a5fe51b517be7",
+  "intro_parent": "16b3d3e3ebb9ff7b00c0fd14b0167779ada87f86",
+  "fix_commit": "0ffe97d9b9e10e88db29d8d910c24ec00ef24edc",
+  "affected_files": [
+    "libavformat/mov.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Replacing a specific, correct precondition check (sample_count == 1 && chunk_count == 1) with a more generic, reusable sanity_checks() function that was designed for regular MOV tracks and does not enforce that sample_count is non-zero when sample_size is non-zero, thereby losing an invariant that later code in mov_parse_heif_items() implicitly relies upon.",
+  "findings": [
+    "In mov_parse_heif_items(), the previous strict check `if (sc->sample_count != 1 || sc->chunk_count != 1) return AVERROR_INVALIDDATA;` was replaced by a generic sanity_checks() call shared with mov_read_trak(). sanity_checks() only flags an error when `(!sc->sample_size && !sc->sample_count)` is true for a non-zero chunk_count; if a crafted HEIF 'stsz' atom specifies a non-zero fixed sample_size wh"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "ed3e63cd68c2d8431091aa64e05c91638a624d4ef690c3a7adc8787b0da10d0c",
+  "generated_artifact_sha256": {
+    "reference": "aa4c68bda979030944ce61ea49c2cae4df2b929477ebb0c7600b2f2874b76742",
+    "introducing": "253b7a1874b26b71d1c70d52c49f431e7ad33878ea64e6aa1c2739295517d972",
+    "companion": "4a2826651fc3b8cbe9d35c73265c61c9c88f40a14d5cf5acfa1d24afbceabbb5"
+  }
+}

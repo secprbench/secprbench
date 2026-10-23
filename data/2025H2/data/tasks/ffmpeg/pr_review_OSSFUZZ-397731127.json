@@ -1,0 +1,90 @@
+{
+  "task_id": "pr_review_OSSFUZZ-397731127",
+  "bug_id": "OSSFUZZ-397731127",
+  "commit_sha": "11a8e0a4e585c0a5acf09397e39bccf45e1ba7ae",
+  "commit_message": "aacdec_usac: dequantize scalefactors after noise synthesis\n\nThe issue here is that the spec implied that the offset is done\non the dequantized scalefactor, but in fact, it is done on the\nscalefactor offset. Delay dequantizing the scalefactors until\nafter noise synthesis is performed, and change to apply the\noffset onto the offset.",
+  "commit_author": "Lynne",
+  "commit_date": "2024-06-12T03:20:56+02:00",
+  "pr_title": "aacdec_usac: dequantize scalefactors after noise synthesis",
+  "pr_description": "The issue here is that the spec implied that the offset is done\non the dequantized scalefactor, but in fact, it is done on the\nscalefactor offset. Delay dequantizing the scalefactors until\nafter noise synthesis is performed, and change to apply the\noffset onto the offset.\n",
+  "files": [
+    {
+      "path": "libavcodec/aac/aacdec_usac.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 3,
+      "diff": "diff --git a/libavcodec/aac/aacdec_usac.c b/libavcodec/aac/aacdec_usac.c\nindex aa89b83182..100203ff71 100644\n--- a/libavcodec/aac/aacdec_usac.c\n+++ b/libavcodec/aac/aacdec_usac.c\n@@ -969,11 +969,11 @@ static void apply_noise_fill(AACDecContext *ac, SingleChannelElement *sce,\n                         band_quantized_to_zero = 0;\n                 }\n             }\n \n             if (band_quantized_to_zero)\n-                sce->sf[g*ics->max_sfb + sfb] += noise_offset;\n+                sce->sfo[g*ics->max_sfb + sfb] += noise_offset;\n         }\n         coef += g_len << 7;\n     }\n }\n \n@@ -985,10 +985,13 @@ static void spectrum_scale(AACDecContext *ac, SingleChannelElement *sce,\n \n     /* Synthesise noise */\n     if (ue->noise.level)\n         apply_noise_fill(ac, sce, ue);\n \n+    /* Noise filling may apply an offset to the scalefactor offset */\n+    ac->dsp.dequant_scalefactors(sce);\n+\n     /* Apply scalefactors */\n     coef = sce->coeffs;\n     for (int g = 0; g < ics->num_window_groups; g++) {\n         unsigned g_len = ics->group_len[g];\n \n@@ -1369,12 +1372,10 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,\n \n         ret = decode_usac_scale_factors(ac, sce, gb, global_gain);\n         if (ret < 0)\n             return ret;\n \n-        ac->dsp.dequant_scalefactors(sce);\n-\n         if (ue->tns_data_present) {\n             sce->tns.present = 1;\n             ret = ff_aac_decode_tns(ac, &sce->tns, gb, ics);\n             if (ret < 0)\n                 return ret;\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/aac/aacdec_usac.c b/libavcodec/aac/aacdec_usac.c\nindex aa89b83182..100203ff71 100644\n--- a/libavcodec/aac/aacdec_usac.c\n+++ b/libavcodec/aac/aacdec_usac.c\n@@ -969,11 +969,11 @@ static void apply_noise_fill(AACDecContext *ac, SingleChannelElement *sce,\n                         band_quantized_to_zero = 0;\n                 }\n             }\n \n             if (band_quantized_to_zero)\n-                sce->sf[g*ics->max_sfb + sfb] += noise_offset;\n+                sce->sfo[g*ics->max_sfb + sfb] += noise_offset;\n         }\n         coef += g_len << 7;\n     }\n }\n \n@@ -985,10 +985,13 @@ static void spectrum_scale(AACDecContext *ac, SingleChannelElement *sce,\n \n     /* Synthesise noise */\n     if (ue->noise.level)\n         apply_noise_fill(ac, sce, ue);\n \n+    /* Noise filling may apply an offset to the scalefactor offset */\n+    ac->dsp.dequant_scalefactors(sce);\n+\n     /* Apply scalefactors */\n     coef = sce->coeffs;\n     for (int g = 0; g < ics->num_window_groups; g++) {\n         unsigned g_len = ics->group_len[g];\n \n@@ -1369,12 +1372,10 @@ static int decode_usac_core_coder(AACDecContext *ac, AACUSACConfig *usac,\n \n         ret = decode_usac_scale_factors(ac, sce, gb, global_gain);\n         if (ret < 0)\n             return ret;\n \n-        ac->dsp.dequant_scalefactors(sce);\n-\n         if (ue->tns_data_present) {\n             sce->tns.present = 1;\n             ret = ff_aac_decode_tns(ac, &sce->tns, gb, ics);\n             if (ret < 0)\n                 return ret;\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-397731127",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "d643a5ba0836c4d7ec86cb67fae387984ef3d1a6",
+      "short_sha": "d643a5b",
+      "message": "avcodec/aac/aacdec_usac: Limit sfo from noise offset to be above -200",
+      "author": "Michael Niedermayer",
+      "date": "2025-05-08T23:33:28+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-read-001",
+        "title": "Unbounded noise_offset accumulation into sce->sfo causes out-of-bounds table read",
+        "message": "In apply_noise_fill(), when a scalefactor band is fully quantized to zero and noise filling is applied, the code adds noise_offset (derived from ue->noise.offset - 16, an 8-bit field that ranges roughly -16..15) directly onto sce->sfo[g*ics->max_sfb + sfb] with no lower-bound clamp: `sce->sfo[g*ics->max_sfb + sfb] += noise_offset;`. This commit changed the target of the offset from sce->sf (a floating point *dequantized* scalefactor, which was safe to arbitrarily offset) to sce->sfo (the raw integer scalefactor index/offset). sfo is later used directly as an index into fixed-size lookup tables in dequant_scalefactors() (aacdec_dsp_template.c), e.g. `ff_aac_pow2sf_tab[-sfo[idx] - 100 + POW_SF2_ZERO]` and `ff_aac_pow2sf_tab[sfo[idx] + POW_SF2_ZERO]`. Because apply_noise_fill() can be invoked multiple times or sce->sfo can already start at an extreme value from bitstream-controlled scalefactor deltas, and because there is no clamp on sfo after applying noise_offset, an attacker-controlled bitstream can drive sfo far enough negative that the resulting table index falls outside the bounds of ff_aac_pow2sf_tab, causing an out-of-bounds array read (verified by an OSS-Fuzz crash on the AAC_LATM decoder).",
+        "location": {
+          "file": "libavcodec/aac/aacdec_usac.c",
+          "start_line": 973,
+          "end_line": 974,
+          "start_column": null,
+          "end_column": null,
+          "function": "apply_noise_fill",
+          "snippet": "            if (band_quantized_to_zero)\n                sce->sfo[g*ics->max_sfb + sfb] += noise_offset;\n        }\n        coef += g_len << 7;\n    }\n}",
+          "snippet_hash": "d37bb01a5da6b2a89f1e5f3116486c697282873e0a7f328c195eecd836b22227",
+          "description": null,
+          "snippet_start_line": 973,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.85,
+        "suggestion": "Clamp the updated sfo value to a valid lower bound before storing it, e.g. use FFMAX to ensure sfo never drops below the minimum value accepted by the pow2sf_tab / dequantization logic (the fix commit uses -200 as the lower bound).",
+        "suggestion_code": "if (band_quantized_to_zero) {\n    sce->sfo[g*ics->max_sfb + sfb] = FFMAX(sce->sfo[g*ics->max_sfb + sfb] + noise_offset, -200);\n}",
+        "tags": [
+          "security",
+          "out-of-bounds-read",
+          "aac",
+          "usac",
+          "fuzzing"
+        ],
+        "cwe_ids": [
+          "CWE-125",
+          "CWE-1284"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "libavcodec/aac/aacdec_usac.c",
+      "libavcodec/aac/aacdec_dsp_template.c"
+    ],
+    "root_cause": "A refactor moved the noise-offset application from the dequantized float scalefactor (sce->sf, which was numerically safe to add an offset to) onto the raw integer scalefactor-offset value (sce->sfo) that is later used directly as an array index/lookup-table offset, without adding any bounds clamp on the new value. The bitstream-controlled noise.offset field combined with repeated/attacker-influenced sfo values allowed the stored offset to become large enough to index outside the pow2sf lookup table.",
+    "must_cover": [
+      {
+        "file": "libavcodec/aac/aacdec_usac.c",
+        "function": "apply_noise_fill",
+        "start_line": 973,
+        "end_line": 974,
+        "role": "primary",
+        "reason": "Primary location of finding: Unbounded noise_offset accumulation into sce->sfo causes out-of-bounds table read"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "11a8e0a4e585c0a5acf09397e39bccf45e1ba7ae",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

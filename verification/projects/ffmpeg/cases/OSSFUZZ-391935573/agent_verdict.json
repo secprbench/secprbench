@@ -1,0 +1,135 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "Crafted a 50-byte American Laser Games MM container (poc.mm): a MM_TYPE_HEADER chunk declaring a 64x64 video stream, followed by a MM_TYPE_PALETTE (0x31) chunk whose payload sets start=0xFFF0 and count=4, with 12 bytes of arbitrary color data. Run with `/work/ffmpeg -f mm -i $INPUT -f null -`.",
+  "explanation": "meta.json's root cause states that commit 63ea1660fa06 replaced mm_decode_pal's fixed 128-iteration loop with attacker-controlled 'start'/'count' values used to index s->palette[] (256-entry array) without clamping start+i to valid bounds. I built pre_intro (ac2442f0a7a9), post_intro (63ea1660fa06), and post_benign (the fix state) with sanitizers in Docker, then crafted a minimal MM-format PoC exercising exactly the MM_TYPE_PALETTE code path with start=0xFFF0, count=4, causing writes far outside the palette array. Running the identical command and input across all three builds: pre_intro exits cleanly (0) and decodes without error; post_intro crashes with AddressSanitizer SEGV (WRITE) at libavcodec/mmvideo.c:84:29 inside mm_decode_pal/mm_decode_frame, exactly the vulnerable line `s->palette[start+i] = ...`; post_benign (fixed code, which clamps/masks the index) again exits cleanly (0) with identical decode output and no crash. This establishes the bug was introduced by 63ea1660fa06 and is removed by the fix/benign companion, using the same reproducer throughout.",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Crafted a 50-byte American Laser Games MM container (poc.mm): a MM_TYPE_HEADER chunk declaring a 64x64 video stream, followed by a MM_TYPE_PALETTE (0x31) chunk whose payload sets start=0xFFF0 and count=4, with 12 bytes of arbitrary color data. Run with `/work/ffmpeg -f mm -i $INPUT -f null -`.",
+    "target_evidence": "AddressSanitizer: SEGV on unknown address 0x619000040a50 ... WRITE memory access. #0 mm_decode_pal /work/libavcodec/mmvideo.c:84:29 #1 mm_decode_frame /work/libavcodec/mmvideo.c:205:30 (post_intro only); pre_intro and post_benign both produced clean exit=0 runs decoding the same input without any sanitizer report."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_binary_file_hex(poc.mm)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "/work/ffmpeg -f mm -i $INPUT -f null -",
+      "input": "poc.mm",
+      "poc_sha256": "216dd3edbf955735d61711c5841e0d4523af4edc252c1d5eb549cf36c83971fe",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f63d10a69c3287f90042b953d7580c193369a904de698af2b1abb0b003d8fc39"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "0 tbr, 10 tbn\nStream mapping:\n  Stream #0:0 -> #0:0 (mmvideo (native) -> wrapped_avframe (native))\nPress [q] to stop, [?] for help\n[in#0/mm @ 0x612000000040] Error during demuxing: Input/output error\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x619000040a50 (pc 0x556ae1b48bfd bp 0x7fee3f7fc110 sp 0x7fee3f7fc070 T3)\n==8==The signal is caused by a WRITE memory access.\n    #0 0x556ae1b48bfd in mm_decode_pal /work/libavcodec/mmvideo.c:84:29\n    #1 0x556ae1b48bfd in mm_decode_frame /work/libavcodec/mmvideo.c:205:30\n    #2 0x556ae16df2e6 in decode_simple_internal /work/libavcodec/decode.c:443:16\n    #3 0x556ae16df2e6 in decode_simple_receive_frame /work/libavcodec/decode.c:613:15\n    #4 0x556ae16df2e6 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:649:15\n    #5 0x556ae16e0df8 in decode_receive_frame_internal /work/libavcodec/decode.c:666:15\n    #6 0x556ae16e0c88 in avcodec_send_packet /work/libavcodec/decode.c:753:15\n    #7 0x556ae08db57d in packet_decode /work/fftools/ffmpeg_dec.c:724:11\n    #8 0x556ae08db57d in decoder_thread /work/fftools/ffmpeg_dec.c:953:15\n    #9 0x556ae093c5ca in task_wrapper /work/fftools/ffmpeg_sched.c:2544:11\n    #10 0x7fee4233fac2 in start_thread nptl/./nptl/pthread_create.c:442:8\n    #11 0x7fee423d0a83 in __clone misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/mmvideo.c:84:29 in mm_decode_pal\nThread T3 (dec0:0:mmvideo) created by T0 here:\n    #0 0x556ae088596c in pthread_create (/work/ffmpeg+0x92396c) (BuildId: 6652fb78390f2195f66af6b3c8895ab1baa4510b)\n    #1 0x556ae09369ba in task_start /work/fftools/ffmpeg_sched.c:422:11\n    #2 0x556ae093629c in sch_start /work/fftools/ffmpeg_sched.c:1639:15\n    #3 0x556ae095781f in transcode /work/fftools/ffmpeg.c:864:11\n    #4 0x556ae095781f in main /work/fftools/ffmpeg.c:992:11\n    #5 0x7fee422d4d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/ffmpeg -f mm -i $INPUT -f null -'\n",
+        "stdout_tail": "rsion 7.1.git Copyright (c) 2000-2024 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 47.100 / 59. 47.100\n  libavcodec     61. 25.102 / 61. 25.102\n  libavformat    61.  9.100 / 61.  9.100\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.101 / 10.  6.101\n  libswscale      8.  9.101 /  8.  9.101\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\nInput #0, mm, from '/poc/poc.mm':\n  Duration: N/A, start: 0.000000, bitrate: N/A\n  Stream #0:0: Video: mmvideo, pal8, 64x64, 10 tbr, 10 tbn\nStream mapping:\n  Stream #0:0 -> #0:0 (mmvideo (native) -> wrapped_avframe (native))\nPress [q] to stop, [?] for help\n[in#0/mm @ 0x612000000040] Error during demuxing: Input/output error\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x619000040a50 (pc 0x556ae1b48bfd bp 0x7fee3f7fc110 sp 0x7fee3f7fc070 T3)\n==8==The signal is caused by a WRITE memory access.\n    #0 0x556ae1b48bfd in mm_decode_pal /work/libavcodec/mmvideo.c:84:29\n    #1 0x556ae1b48bfd in mm_decode_frame /work/libavcodec/mmvideo.c:205:30\n    #2 0x556ae16df2e6 in decode_simple_internal /work/libavcodec/decode.c:443:16\n    #3 0x556ae16df2e6 in decode_simple_receive_frame /work/libavcodec/decode.c:613:15\n    #4 0x556ae16df2e6 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:649:15\n    #5 0x556ae16e0df8 in decode_receive_frame_internal /work/libavcodec/decode.c:666:15\n    #6 0x556ae16e0c88 in avcodec_send_packet /work/libavcodec/decode.c:753:15\n    #7 0x556ae08db57d in packet_decode /work/fftools/ffmpeg_dec.c:724:11\n    #8 0x556ae08db57d in decoder_thread /work/fftools/ffmpeg_dec.c:953:15\n    #9 0x556ae093c5ca in task_wrapper /work/fftools/ffmpeg_sched.c:2544:11\n    #10 0x7fee4233fac2 in start_thread nptl/./nptl/pthread_create.c:442:8\n    #11 0x7fee423d0a83 in __clone misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/mmvideo.c:84:29 in mm_decode_pal\nThread T3 (dec0:0:mmvideo) created by T0 here:\n    #0 0x556ae088596c in pthread_create (/work/ffmpeg+0x92396c) (BuildId: 6652fb78390f2195f66af6b3c8895ab1baa4510b)\n    #1 0x556ae09369ba in task_start /work/fftools/ffmpeg_sched.c:422:11\n    #2 0x556ae093629c in sch_start /work/fftools/ffmpeg_sched.c:1639:15\n    #3 0x556ae095781f in transcode /work/fftools/ffmpeg.c:864:11\n    #4 0x556ae095781f in main /work/fftools/ffmpeg.c:992:11\n    #5 0x7fee422d4d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/ffmpeg -f mm -i $INPUT -f null -'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "/work/ffmpeg -f mm -i $INPUT -f null -",
+      "input": "poc.mm",
+      "poc_sha256": "216dd3edbf955735d61711c5841e0d4523af4edc252c1d5eb549cf36c83971fe",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "ac2442f0a7a97d41089fffe51cc831913799c89b",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "c0b02e64f514abb36222eed44129f02eb7bd0fe911ae673c72cbb59bca2a0882"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nffmpeg version 7.1.git Copyright (c) 2000-2024 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 47.100 / 59. 47.100\n  libavcodec     61. 25.102 / 61. 25.102\n  libavformat    61.  9.100 / 61.  9.100\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.101 / 10.  6.101\n  libswscale      8.  9.101 /  8.  9.101\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\nInput #0, mm, from '/poc/poc.mm':\n  Duration: N/A, start: 0.000000, bitrate: N/A\n  Stream #0:0: Video: mmvideo, pal8, 64x64, 10 tbr, 10 tbn\nStream mapping:\n  Stream #0:0 -> #0:0 (mmvideo (native) -> wrapped_avframe (native))\nPress [q] to stop, [?] for help\n[in#0/mm @ 0x612000000040] Error during demuxing: Input/output error\n[vf#0:0 @ 0x614000000040] No filtered frames for output stream, trying to initialize anyway.\nOutput #0, null, to 'pipe:':\n  Metadata:\n    encoder         : Lavf61.9.100\n  Stream #0:0: Video: wrapped_avframe, pal8(progressive), 64x64, q=2-31, 200 kb/s, 10 fps, 10 tbn\n    Metadata:\n      encoder         : Lavc61.25.102 wrapped_avframe\n[out#0/null @ 0x611000000180] video:0KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown\n[out#0/null @ 0x611000000180] Output file is empty, nothing was encoded(check -ss / -t / -frames parameters if used)\nframe=    0 fps=0.0 q=0.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A    \n"
+      }
+    },
+    "post_benign": {
+      "command": "/work/ffmpeg -f mm -i $INPUT -f null -",
+      "input": "poc.mm",
+      "poc_sha256": "216dd3edbf955735d61711c5841e0d4523af4edc252c1d5eb549cf36c83971fe",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "ac2442f0a7a97d41089fffe51cc831913799c89b",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "04af56fc8727ff9113b12ed571235e485ba3162c8ec95243d721137758c93f4e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nffmpeg version 7.1.git Copyright (c) 2000-2024 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 47.100 / 59. 47.100\n  libavcodec     61. 25.102 / 61. 25.102\n  libavformat    61.  9.100 / 61.  9.100\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.101 / 10.  6.101\n  libswscale      8.  9.101 /  8.  9.101\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\nInput #0, mm, from '/poc/poc.mm':\n  Duration: N/A, start: 0.000000, bitrate: N/A\n  Stream #0:0: Video: mmvideo, pal8, 64x64, 10 tbr, 10 tbn\nStream mapping:\n  Stream #0:0 -> #0:0 (mmvideo (native) -> wrapped_avframe (native))\nPress [q] to stop, [?] for help\n[in#0/mm @ 0x612000000040] Error during demuxing: Input/output error\n[vf#0:0 @ 0x614000000040] No filtered frames for output stream, trying to initialize anyway.\nOutput #0, null, to 'pipe:':\n  Metadata:\n    encoder         : Lavf61.9.100\n  Stream #0:0: Video: wrapped_avframe, pal8(progressive), 64x64, q=2-31, 200 kb/s, 10 fps, 10 tbn\n    Metadata:\n      encoder         : Lavc61.25.102 wrapped_avframe\n[out#0/null @ 0x611000000180] video:0KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown\n[out#0/null @ 0x611000000180] Output file is empty, nothing was encoded(check -ss / -t / -frames parameters if used)\nframe=    0 fps=0.0 q=0.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A    \n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

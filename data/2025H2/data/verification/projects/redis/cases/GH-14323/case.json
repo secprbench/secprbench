@@ -1,0 +1,142 @@
+{
+  "bug_id": "GH-14323",
+  "project": "redis",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "5d0d64b062c160093dc287ed5d18ec7c807873cf",
+    "parent": "090f6252c4e1a17528124b6c6b69f352fb68176f",
+    "fix": "d649637ebd1b7b7792a4224a42e1ef8824743378"
+  },
+  "affected_files": [
+    "src/defrag.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Root cause matches meta.json exactly: in post_intro's activeDefragHExpiresOB (src/defrag.c), `sds keystr = kvobjGetKey(kvobj)` captures a pointer into the original kvobj's embedded memory, then `kvobj = activeDefragAlloc(kvobj)` reallocates-and-frees the old kvobj (real activeDefragAlloc: zmalloc_no_tcache + memcpy + zfree_no_tcache(ptr)) whenever the allocator hint says the allocation should move, and the code afterwards does `kvstoreDictFindLink(db->keys, slot, keystr, NULL)` using the now-dangling `keystr` - a heap-use-after-free, confirmed directly by ASAN pointing at that exact line/call chain. This benchmark's ASAN build forces MALLOC=libc (src/Makefile: `ifeq ($(SANITIZER),address) MALLOC=libc`), so the real HAVE_DEFRAG path (gated by `#if defined(USE_JEMALLOC) && defined(JEMALLOC_FRAG_HINT)` in zmalloc.h) is compiled out of the shipped redis-server entirely (confirmed via nm: no activeDefragHExpiresOB symbol; activeDefragAlloc was a 4-instruction always-return-NULL stub), and \"CONFIG SET activedefrag yes\" is rejected by config.c's isValidActiveDefrag(). Neither the TCL test suite (no tclsh available in this container, no root to install it) nor any config/command-driven PoC could reach the bug here, so I built a minimal auxiliary harness under /poc, run via run_poc/run.sh identically on every configured version per the rules, that recompiles only a private, untracked copy of the unmodified src/defrag.c with -DHAVE_DEFRAG so the real target function bodies execute (not a reimplementation), supplies trivial stand-ins for the two jemalloc-only hooks it calls (functionally equivalent malloc/free; je_get_defrag_hint forced to 1 so the move decision is deterministic rather than depending on real jemalloc fragmentation stats, which are orthogonal to this ordering bug), and relinks with all the target's other already-built, unmodified object files plus a tiny -Wl,--wrap=aeMain shim that runs once the stock main()'s normal server/db initialization completes - directly driving the exact same ebScanDefrag/activeDefragHExpiresOB call that defragStageHExpires() uses in production. Verified via run_poc on all three configured versions: post_intro reliably crashes with a genuine ASAN heap-use-after-free pinpointing activeDefragHExpiresOB reading memory freed moments earlier by activeDefragAlloc on the very hash kvobj the harness created; the identical harness/input against post_benign (intro commit + companion fix) completes cleanly (object still moved, hits=1, but no UAF, since the fix defers the free via activeDefragAllocWithoutFree()+explicit activeDefragFree() until after keystr's only use); and pre_intro, probed and confirmed to structurally lack the entire per-item ebuckets-defrag mechanism (ebScanDefrag/ebDefragFunctions/activeDefragHExpiresOB all absent), runs its (otherwise identical) setup and exits cleanly with no crash - confirming the bug was introduced together with this feature in the intro commit. One documented, bug-unrelated adaptation: post_benign's mechanically-composed companion patch carries over one unrelated hunk from the same upstream multi-issue fix commit (a `nack->cgroup_ref_node` reference for a separate stream-consumer-group defrag issue) whose struct member isn't present in this isolated snapshot's headers; that branch is normally dead code under this ASAN build (only reachable via -DHAVE_DEFRAG, which this harness is the first thing to ever actually compile), so run.sh neutralizes just that one line in a private /tmp copy used solely to build the auxiliary harness (a no-op on pre_intro/post_intro, which don't have it) - the tracked src/defrag.c is never modified, and this neutralization is unrelated to the HFE/UAF logic under test.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/season100-balanced-20261001/verification/cases/redis/a03f6efb4462f8f9687e/attempts/01/replay/pr_review_GH-14323.result.json",
+    "report": "/research-data/secprbench/season100-balanced-20261001/verification/cases/redis/a03f6efb4462f8f9687e/attempts/01/replay/pr_review_GH-14323.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/season100-balanced-20261001/verification/cases/redis/a03f6efb4462f8f9687e/attempts/01/replay/pr_review_GH-14323.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "f7c677011ba9e005170abdd35920c1402d7136fc0885f0f296654abdebc0feb7",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "5d0d64b062c160093dc287ed5d18ec7c807873cf",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "57f056aa06d65e99ee9d80115ed21b41dcf79f8f266e56335f3fa04b91b29c2a"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": true,
+            "sanitizer": "initialized, running GH-14323 PoC\nHARNESS: hexpires empty=0\nHARNESS: starting ebScanDefrag loop (should trigger UAF under ASAN)\n=================================================================\n==27==ERROR: AddressSanitizer: heap-use-after-free on address 0x50300001e411 at pc 0x55c4b150c030 bp 0x7ffeeb5e2cf0 sp 0x7ffeeb5e2ce0\nREAD of size 1 at 0x50300001e411 thread T0\n    #0 0x55c4b150c02f in sdsType sds.h:69\n    #1 0x55c4b150c02f in sdslen sds.h:74\n    #2 0x55c4b150c8fd in dictSdsHash /work/src/server.c:408\n    #3 0x55c4b14eb902 in dictHashKey /work/src/dict.c\n    #4 0x55c4b14ea0c6 in dictFindLinkInternal /work/src/dict.c:773\n    #5 0x55c4b14e9e45 in dictFindLink /work/src/dict.c:844\n    #6 0x55c4b150a495 in kvstoreDictFindLink /work/src/kvstore.c:877\n    #7 0x55c4b1845944 in activeDefragHExpiresOB /tmp/poc_build/defrag_copy.c:1278\n    #8 0x55c4b14fbbb9 in ebDefragList /work/src/ebuckets.c:1828\n    #9 0x55c4b14fca67 in ebScanDefrag /work/src/ebuckets.c:1989\n    #10 0x55c4b184f4dd in __wrap_aeMain /poc/harness.c:99\n    #11 0x55c4b153e65d in main /work/src/server.c:7619\n    #12 0x7f823a685d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #13 0x7f823a685e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #14 0x55c4b14cf374 in _start (/tmp/poc_build/redis-harness+0x34c374)\n\n0x50300001e411 is located 17 bytes inside of 21-byte region [0x50300001e400,0x50300001e415)\nfreed by thread T0 here:\n    #0 0x7f823b281537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55c4b184eb51 in zfree_no_tcache /poc/stub.c:26\n    #2 0x55c4b18450b1 in activeDefragAlloc /tmp/poc_build/defrag_copy.c:162\n    #3 0x55c4b18458f6 in activeDefragHExpiresOB /tmp/poc_build/defrag_copy.c:1276\n    #4 0x55c4b14fbbb9 in ebDefragList /work/src/ebuckets.c:1828\n    #5 0x55c4b14fca67 in ebScanDefrag /work/src/ebuckets.c:1989\n    #6 0x55c4b184f4dd in __wrap_aeMain /poc/harness.c:99\n    #7 0x55c4b153e65d in main /work/src/server.c:7619\n    #8 0x7f823a685d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\npreviously allocated by thread T0 here:\n    #0 0x7f823b281887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x55c4b1547553 in ztrymalloc_usable_internal /work/src/zmalloc.c:122\n    #2 0x55c4b1547984 in zmalloc_usable /work/src/zmalloc.c:166\n    #3 0x55c4b158ade4 in kvobjCreate /work/src/object.c:56\n    #4 0x55c4b158bd8c in kvobjSet /work/src/object.c:313\n    #5 0x55c4b159a03b in dbAddByLink /work/src/db.c:289\n    #6 0x55c4b163ded7 in hashTypeLookupWriteOrCreate /work/src/t_hash.c:1526\n    #7 0x55c4b163e055 in hsetCommand /work/src/t_hash.c:2128\n    #8 0x55c4b184efe1 in run_cmd /poc/harness.c:54\n    #9 0x55c4b184efe1 in cmdf /poc/harness.c:68\n    #10 0x55c4b184f2f7 in __wrap_aeMain /poc/harness.c:80\n    #11 0x55c4b153e65d in main /work/src/server.c:7619\n    #12 0x7f823a685d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-use-after-free sds.h:69 in sdsType\nShadow bytes around the buggy address:\n  0x0a067fffbc30: fa fa 00 00 00 fa fa fa 00 00 00 fa fa fa 00 00\n  0x0a067fffbc40: 00 fa fa fa 00 00 00 fa fa fa 00 00 00 00 fa fa\n  0x0a067fffbc50: 00 00 00 fa fa fa 00 00 00 fa fa fa fd fd fd fa\n  0x0a067fffbc60: fa fa fd fd fd fd fa fa fd fd fd fa fa fa fd fd\n  0x0a067fffbc70: fd fa fa fa fd fd fd fa fa fa fd fd fd fa fa fa\n=>0x0a067fffbc80: fd fd[fd]fa fa fa 00 00 00 00 fa fa fd fd fd fa\n  0x0a067",
+            "stdout_tail": "malloc_linux.cpp:127\n    #1 0x55c4b184eb51 in zfree_no_tcache /poc/stub.c:26\n    #2 0x55c4b18450b1 in activeDefragAlloc /tmp/poc_build/defrag_copy.c:162\n    #3 0x55c4b18458f6 in activeDefragHExpiresOB /tmp/poc_build/defrag_copy.c:1276\n    #4 0x55c4b14fbbb9 in ebDefragList /work/src/ebuckets.c:1828\n    #5 0x55c4b14fca67 in ebScanDefrag /work/src/ebuckets.c:1989\n    #6 0x55c4b184f4dd in __wrap_aeMain /poc/harness.c:99\n    #7 0x55c4b153e65d in main /work/src/server.c:7619\n    #8 0x7f823a685d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\npreviously allocated by thread T0 here:\n    #0 0x7f823b281887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x55c4b1547553 in ztrymalloc_usable_internal /work/src/zmalloc.c:122\n    #2 0x55c4b1547984 in zmalloc_usable /work/src/zmalloc.c:166\n    #3 0x55c4b158ade4 in kvobjCreate /work/src/object.c:56\n    #4 0x55c4b158bd8c in kvobjSet /work/src/object.c:313\n    #5 0x55c4b159a03b in dbAddByLink /work/src/db.c:289\n    #6 0x55c4b163ded7 in hashTypeLookupWriteOrCreate /work/src/t_hash.c:1526\n    #7 0x55c4b163e055 in hsetCommand /work/src/t_hash.c:2128\n    #8 0x55c4b184efe1 in run_cmd /poc/harness.c:54\n    #9 0x55c4b184efe1 in cmdf /poc/harness.c:68\n    #10 0x55c4b184f2f7 in __wrap_aeMain /poc/harness.c:80\n    #11 0x55c4b153e65d in main /work/src/server.c:7619\n    #12 0x7f823a685d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-use-after-free sds.h:69 in sdsType\nShadow bytes around the buggy address:\n  0x0a067fffbc30: fa fa 00 00 00 fa fa fa 00 00 00 fa fa fa 00 00\n  0x0a067fffbc40: 00 fa fa fa 00 00 00 fa fa fa 00 00 00 00 fa fa\n  0x0a067fffbc50: 00 00 00 fa fa fa 00 00 00 fa fa fa fd fd fd fa\n  0x0a067fffbc60: fa fa fd fd fd fd fa fa fd fd fd fa fa fa fd fd\n  0x0a067fffbc70: fd fa fa fa fd fd fd fa fa fa fd fd fd fa fa fa\n=>0x0a067fffbc80: fd fd[fd]fa fa fa 00 00 00 00 fa fa fd fd fd fa\n  0x0a067fffbc90: fa fa 00 00 00 03 fa fa 00 00 06 fa fa fa 00 00\n  0x0a067fffbca0: 00 03 fa fa 00 00 00 02 fa fa 00 00 05 fa fa fa\n  0x0a067fffbcb0: 00 00 06 fa fa fa 00 00 00 fa fa fa 00 00 00 fa\n  0x0a067fffbcc0: fa fa 00 00 05 fa fa fa fa fa fa fa fa fa fa fa\n  0x0a067fffbcd0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==27==ABORTING\nHARNESS_RUN_EXIT=1\nVERIFY_EXIT=1\n\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "f7c677011ba9e005170abdd35920c1402d7136fc0885f0f296654abdebc0feb7",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "090f6252c4e1a17528124b6c6b69f352fb68176f",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "fecff362aed86cefb728317f946aad98809bb8138f69835dc374188900f921a6"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "=== HAS_EBSCANDEFRAG=0 ===\n=== HARNESS BUILD OK (HAS_EBSCANDEFRAG=0), running PoC ===\n27:C 02 Oct 2026 00:19:54.967 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n27:C 02 Oct 2026 00:19:54.968 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n27:C 02 Oct 2026 00:19:54.968 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=27, just started\n27:C 02 Oct 2026 00:19:54.968 * Configuration loaded\n27:M 02 Oct 2026 00:19:54.970 * monotonic clock: POSIX clock_gettime\n27:M 02 Oct 2026 00:19:54.973 * Running mode=standalone, port=7799.\n27:M 02 Oct 2026 00:19:54.974 * Server initialized\n27:M 02 Oct 2026 00:19:54.974 * Ready to accept connections tcp\nHARNESS: server fully initialized, running GH-14323 PoC\nHARNESS: hexpires empty=0\nHARNESS: this revision has no per-item ebuckets-defrag API (ebScanDefrag/activeDefragHExpiresOB absent) -- the HFE active-defrag feature (and its bug) does not exist yet here; skipping the defrag step and exiting cleanly.\nHARNESS: PoC completed without a sanitizer trap\nHARNESS_RUN_EXIT=0\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "f7c677011ba9e005170abdd35920c1402d7136fc0885f0f296654abdebc0feb7",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "090f6252c4e1a17528124b6c6b69f352fb68176f",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "05099c85e1f5deab455c260c55b4978a9d8acf6683dd115712d8e14037330faa"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "=== HAS_EBSCANDEFRAG=1 ===\n=== HARNESS BUILD OK (HAS_EBSCANDEFRAG=1), running PoC ===\n27:C 02 Oct 2026 00:20:01.455 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n27:C 02 Oct 2026 00:20:01.455 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n27:C 02 Oct 2026 00:20:01.455 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=27, just started\n27:C 02 Oct 2026 00:20:01.455 * Configuration loaded\n27:M 02 Oct 2026 00:20:01.457 * monotonic clock: POSIX clock_gettime\n27:M 02 Oct 2026 00:20:01.459 * Running mode=standalone, port=7799.\n27:M 02 Oct 2026 00:20:01.461 * Server initialized\n27:M 02 Oct 2026 00:20:01.461 * Ready to accept connections tcp\nHARNESS: server fully initialized, running GH-14323 PoC\nHARNESS: hexpires empty=0\nHARNESS: starting ebScanDefrag loop (should trigger UAF under ASAN)\nHARNESS: ebScanDefrag loop finished (rounds=0) hits=1 misses=0\nHARNESS: PoC completed without a sanitizer trap\nHARNESS_RUN_EXIT=0\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "sanitizer",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "Custom C harness (/poc/run.sh, /poc/harness.c, /poc/stub.c), run identically via run_poc on all three versions. It links against the target's real, unmodified object files, recompiling only a private, untracked copy of src/defrag.c with -DHAVE_DEFRAG (this ASAN container forces MALLOC=libc, so the real jemalloc-gated HAVE_DEFRAG path is normally compiled out of the shipped binary entirely). It intercepts aeMain via -Wl,--wrap=aeMain so the stock server.c main() performs full normal startup, then: HSET h1 f1 v; HEXPIRE h1 9999999 FIELDS 1 f1 (registers the hash kvobj in db->hexpires). Where the per-item ebuckets-defrag API exists (probed at build time as HAS_EBSCANDEFRAG), it then directly drives the real ebScanDefrag()/activeDefragHExpiresOB() path with activeDefragAlloc() wired to a stub je_get_defrag_hint() that always returns 1, forcing the \"move this allocation\" decision deterministically (standing in for real jemalloc fragmentation heuristics, which are orthogonal to this ordering bug). Where the API is absent (pre_intro), it runs only the setup commands and exits cleanly.",
+        "target_evidence": "post_intro (run_poc, crashed=True, exit=1): \"AddressSanitizer: heap-use-after-free ... READ of size 1 ... #0 sdsType sds.h:69 ... dictSdsHash server.c:408 ... dictFindLink ... kvstoreDictFindLink kvstore.c:877 ... activeDefragHExpiresOB defrag_copy.c:1278\" with \"freed by thread T0 here: ... zfree_no_tcache stub.c:26 <- activeDefragAlloc defrag_copy.c:162 <- activeDefragHExpiresOB defrag_copy.c:1276 <- ebDefragList/ebScanDefrag\" and \"previously allocated by thread T0 here: ... kvobjCreate object.c:56 <- kvobjSet <- dbAddByLink <- hashTypeLookupWriteOrCreate <- hsetCommand\" (the very h1 kvobj the harness created). post_benign (run_poc, crashed=False, exit=0): \"=== HAS_EBSCANDEFRAG=1 ===\" ... \"HARNESS: ebScanDefrag loop finished (rounds=0) hits=1 misses=0\" ... \"HARNESS: PoC completed without a sanitizer trap\" - activeDefragAlloc still moved the object (hits=1, same forced-hint stub) but no UAF. pre_intro (run_poc, crashed=False, exit=0): \"HARNESS: this revision has no per-item ebuckets-defrag API (ebScanDefrag/activeDefragHExpiresOB absent) -- the HFE active-defrag feature (and its bug) does not exist yet here; skipping the defrag step and exiting cleanly.\" \"HARNESS: PoC completed without a sanitizer trap\" - confirmed structurally: pre_intro's src/ebuckets.h has no ebScanDefrag/ebDefragFunctions, and activeDefragHExpiresOB does not exist anywhere in its src/defrag.c or src/t_hash.c."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Root cause matches meta.json exactly: in post_intro's activeDefragHExpiresOB (src/defrag.c), `sds keystr = kvobjGetKey(kvobj)` captures a pointer into the original kvobj's embedded memory, then `kvobj = activeDefragAlloc(kvobj)` reallocates-and-frees the old kvobj (real activeDefragAlloc: zmalloc_no_tcache + memcpy + zfree_no_tcache(ptr)) whenever the allocator hint says the allocation should move, and the code afterwards does `kvstoreDictFindLink(db->keys, slot, keystr, NULL)` using the now-dangling `keystr` - a heap-use-after-free, confirmed directly by ASAN pointing at that exact line/call chain. This benchmark's ASAN build forces MALLOC=libc (src/Makefile: `ifeq ($(SANITIZER),address) MALLOC=libc`), so the real HAVE_DEFRAG path (gated by `#if defined(USE_JEMALLOC) && defined(JEMALLOC_FRAG_HINT)` in zmalloc.h) is compiled out of the shipped redis-server entirely (confirmed via nm: no activeDefragHExpiresOB symbol; activeDefragAlloc was a 4-instruction always-return-NULL stub), and \"CONFIG SET activedefrag yes\" is rejected by config.c's isValidActiveDefrag(). Neither the TCL test suite (no tclsh available in this container, no root to install it) nor any config/command-driven PoC could reach the bug here, so I built a minimal auxiliary harness under /poc, run via run_poc/run.sh identically on every configured version per the rules, that recompiles only a private, untracked copy of the unmodified src/defrag.c with -DHAVE_DEFRAG so the real target function bodies execute (not a reimplementation), supplies trivial stand-ins for the two jemalloc-only hooks it calls (functionally equivalent malloc/free; je_get_defrag_hint forced to 1 so the move decision is deterministic rather than depending on real jemalloc fragmentation stats, which are orthogonal to this ordering bug), and relinks with all the target's other already-built, unmodified object files plus a tiny -Wl,--wrap=aeMain shim that runs once the stock main()'s normal server/db initialization completes - directly driving the exact same ebScanDefrag/activeDefragHExpiresOB call that defragStageHExpires() uses in production. Verified via run_poc on all three configured versions: post_intro reliably crashes with a genuine ASAN heap-use-after-free pinpointing activeDefragHExpiresOB reading memory freed moments earlier by activeDefragAlloc on the very hash kvobj the harness created; the identical harness/input against post_benign (intro commit + companion fix) completes cleanly (object still moved, hits=1, but no UAF, since the fix defers the free via activeDefragAllocWithoutFree()+explicit activeDefragFree() until after keystr's only use); and pre_intro, probed and confirmed to structurally lack the entire per-item ebuckets-defrag mechanism (ebScanDefrag/ebDefragFunctions/activeDefragHExpiresOB all absent), runs its (otherwise identical) setup and exits cleanly with no crash - confirming the bug was introduced together with this feature in the intro commit. One documented, bug-unrelated adaptation: post_benign's mechanically-composed companion patch carries over one unrelated hunk from the same upstream multi-issue fix commit (a `nack->cgroup_ref_node` reference for a separate stream-consumer-group defrag issue) whose struct member isn't present in this isolated snapshot's headers; that branch is normally dead code under this ASAN build (only reachable via -DHAVE_DEFRAG, which this harness is the first thing to ever actually compile), so run.sh neutralizes just that one line in a private /tmp copy used solely to build the auxiliary harness (a no-op on pre_intro/post_intro, which don't have it) - the tracked src/defrag.c is never modified, and this neutralization is unrelated to the HFE/UAF logic under test."
+    }
+  },
+  "task_hashes": {
+    "buggy": "538d62b66767d67b3b5d73008858feabb17f917311160e0c237203c8e576ba26",
+    "benign": "9b85b854328e70771d73043158eca059473cc694088d65fdf7c8fc4a244ca393"
+  }
+}

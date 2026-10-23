@@ -1,0 +1,203 @@
+{
+  "bug_id": "2000469",
+  "project": "firefox",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "90711c04449c324bb18eb22522010fe85a051143",
+    "parent": "ac5b254eb6e34c82c248ba525106c5c9d671f147",
+    "fix": "2fa42593dec7de35a707f80e47898e459e4297bb"
+  },
+  "affected_files": [
+    "js/src/jit/MIR.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; The root cause is MGuardShape::foldsTo() in js/src/jit/MIR.cpp folding away a second GuardShape that is congruent-in-shape to a prior GuardShape on the same object operand, without checking the instruction's dependency() (alias-set ordering) to rule out an intervening effectful instruction that could have mutated the object's shape between the two guards. The intro commit 90711c04449c added exactly this unchecked foldsTo as part of eliminating duplicate shape guards for SetSize. The fix commit 2fa42593dec7 adds the dependency check before folding.\n\nVerification: using the reporter's own JS reproducer (from the Bugzilla report, same PoC used across all three builds) run with the shell flags mentioned in the report (--fuzzing-safe --no-threads --fast-warmup, needed to force fast Ion warm-up so the SetSize/shape-guard folding path is JIT-compiled and exercised):\n- pre_intro (ac5b254eb6e3): clean run, exit=0, no crash.\n- post_intro (90711c04449c): crashes - AddressSanitizer reports SEGV inside MOZ_CrashSequence / js::NativeObject::numDynamicSlots() (JSObject-inl.h:36) called from js::NativeObject::growSlotsPure, exactly matching the bug report's \"Assertion failure: slots == calculateDynamicSlots(), at vm/JSObject-inl.h:36\" and its reported backtrace (growSlotsPure <- numDynamicSlots).\n- post_benign (fix commit 2fa42593dec7 applied): clean run again, exit=0, no crash, same command/input.\n\nThis is a clean, deterministic repro differentiating all three builds with the identical command and input, confirming the bug was introduced by 90711c04449c and removed by the companion/fix patch.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/3641a27cadaafe3fa61b/attempts/01/replay/pr_review_2000469.result.json",
+    "report": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/3641a27cadaafe3fa61b/attempts/01/replay/pr_review_2000469.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "ac5b254eb6e34c82c248ba525106c5c9d671f147",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b216747ba6aa5834237230210ef677d166df77c1ecd32df61b45c612b8c78d20"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "90711c04449c324bb18eb22522010fe85a051143",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "c99effdc4b85524950c09e5d3b672fce1d29d324b2160e157729348660c5a9ab"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "ac5b254eb6e34c82c248ba525106c5c9d671f147",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b12931b69cb71b396dde8f6745576b09d6d1a51a2b9c26433f618628a5ff0683"
+        }
+      }
+    },
+    "agent": {
+      "verdict": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/3641a27cadaafe3fa61b/attempts/01/replay/pr_review_2000469.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --fast-warmup /poc/poc.js",
+          "input": "inline_b6c4cd052787.js",
+          "poc_sha256": "35e5fc1fb65ab5509aad29303d6cb57d75e154c02781cb1e11f14dc28c11c744",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "90711c04449c324bb18eb22522010fe85a051143",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "c99effdc4b85524950c09e5d3b672fce1d29d324b2160e157729348660c5a9ab"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "re: slots == calculateDynamicSlots(), at /work/js/src/vm/JSObject-inl.h:36\n#01: ???[/work/obj-verify-js/dist/bin/js +0x341d95a]\n#02: ???[/work/obj-verify-js/dist/bin/js +0x35623a7]\n#03: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x5615e84da986 bp 0x7ffd8ea00950 sp 0x7ffd8ea00930 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x5615e84da986 in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3\n    #1 0x5615e84da986 in js::NativeObject::numDynamicSlots() const /work/js/src/vm/JSObject-inl.h:36:3\n    #2 0x5615e861f3a6 in js::NativeObject::growSlotsPure(JSContext*, js::NativeObject*, unsigned int) /work/js/src/vm/NativeObject.cpp:437:32\n    #3 0x39faa4ee3617  (<unknown module>)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x000036f563f029f0  rcx = 0x0000000000000024  rdx = 0x0000000000000000  \nrdi = 0x00005615ebd738c0  rsi = 0x00007ffd8ea008e8  rbp = 0x00007ffd8ea00950  rsp = 0x00007ffd8ea00930  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007b845aed9220  r13 = 0x000036f563f029e8  r14 = 0x0000000000000006  r15 = 0x000006deac7e053e  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --fast-warmup /poc/poc.js'\n",
+            "stdout_tail": "VERIFY_EXIT=134\n\n[8] Assertion failure: slots == calculateDynamicSlots(), at /work/js/src/vm/JSObject-inl.h:36\n#01: ???[/work/obj-verify-js/dist/bin/js +0x341d95a]\n#02: ???[/work/obj-verify-js/dist/bin/js +0x35623a7]\n#03: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x5615e84da986 bp 0x7ffd8ea00950 sp 0x7ffd8ea00930 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x5615e84da986 in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3\n    #1 0x5615e84da986 in js::NativeObject::numDynamicSlots() const /work/js/src/vm/JSObject-inl.h:36:3\n    #2 0x5615e861f3a6 in js::NativeObject::growSlotsPure(JSContext*, js::NativeObject*, unsigned int) /work/js/src/vm/NativeObject.cpp:437:32\n    #3 0x39faa4ee3617  (<unknown module>)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x000036f563f029f0  rcx = 0x0000000000000024  rdx = 0x0000000000000000  \nrdi = 0x00005615ebd738c0  rsi = 0x00007ffd8ea008e8  rbp = 0x00007ffd8ea00950  rsp = 0x00007ffd8ea00930  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007b845aed9220  r13 = 0x000036f563f029e8  r14 = 0x0000000000000006  r15 = 0x000006deac7e053e  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --fast-warmup /poc/poc.js'\n"
+          }
+        },
+        "pre_intro": {
+          "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --fast-warmup /poc/poc.js",
+          "input": "inline_b6c4cd052787.js",
+          "poc_sha256": "35e5fc1fb65ab5509aad29303d6cb57d75e154c02781cb1e11f14dc28c11c744",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "ac5b254eb6e34c82c248ba525106c5c9d671f147",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "b216747ba6aa5834237230210ef677d166df77c1ecd32df61b45c612b8c78d20"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --fast-warmup /poc/poc.js",
+          "input": "inline_b6c4cd052787.js",
+          "poc_sha256": "35e5fc1fb65ab5509aad29303d6cb57d75e154c02781cb1e11f14dc28c11c744",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "ac5b254eb6e34c82c248ba525106c5c9d671f147",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "b12931b69cb71b396dde8f6745576b09d6d1a51a2b9c26433f618628a5ff0683"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "re: slots == calculateDynamicSlots(), at /work/js/src/vm/JSObject-inl.h:36 ... js::NativeObject::numDynamicSlots() const ... js::NativeObject::growSlotsPure",
+        "pre_marker": "pre_intro: exit=0 crashed=False",
+        "benign_marker": "post_benign: exit=0 crashed=False",
+        "description": "Target crash oracle: JS shell process exit/signal and sanitizer report. A clean run (exit=0, no crash) is the \"unaffected\" observation; a crash reproducing the exact reported assertion path (numDynamicSlots / growSlotsPure, JSObject-inl.h:36) is the \"bug observation\".",
+        "target_evidence": "AddressSanitizer SEGV report in post_intro only: \"MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in js::NativeObject::numDynamicSlots() const /work/js/src/vm/JSObject-inl.h:36:3\" called from \"js::NativeObject::growSlotsPure(JSContext*, js::NativeObject*, unsigned int) /work/js/src/vm/NativeObject.cpp:437:32\" — matches the Bugzilla reporter's own debug-build assertion/backtrace. pre_intro and post_benign produce exit=0 with no such report under the identical command/input."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "The root cause is MGuardShape::foldsTo() in js/src/jit/MIR.cpp folding away a second GuardShape that is congruent-in-shape to a prior GuardShape on the same object operand, without checking the instruction's dependency() (alias-set ordering) to rule out an intervening effectful instruction that could have mutated the object's shape between the two guards. The intro commit 90711c04449c added exactly this unchecked foldsTo as part of eliminating duplicate shape guards for SetSize. The fix commit 2fa42593dec7 adds the dependency check before folding.\n\nVerification: using the reporter's own JS reproducer (from the Bugzilla report, same PoC used across all three builds) run with the shell flags mentioned in the report (--fuzzing-safe --no-threads --fast-warmup, needed to force fast Ion warm-up so the SetSize/shape-guard folding path is JIT-compiled and exercised):\n- pre_intro (ac5b254eb6e3): clean run, exit=0, no crash.\n- post_intro (90711c04449c): crashes - AddressSanitizer reports SEGV inside MOZ_CrashSequence / js::NativeObject::numDynamicSlots() (JSObject-inl.h:36) called from js::NativeObject::growSlotsPure, exactly matching the bug report's \"Assertion failure: slots == calculateDynamicSlots(), at vm/JSObject-inl.h:36\" and its reported backtrace (growSlotsPure <- numDynamicSlots).\n- post_benign (fix commit 2fa42593dec7 applied): clean run again, exit=0, no crash, same command/input.\n\nThis is a clean, deterministic repro differentiating all three builds with the identical command and input, confirming the bug was introduced by 90711c04449c and removed by the companion/fix patch."
+    }
+  },
+  "task_hashes": {
+    "buggy": "c630923b420917f76252207d18f0b7a00d7e9113d1524d17591210c4efdd5d35",
+    "benign": "36026b4cdb9169311369cf43a9d007219eab43993799f693de47b84433405e25"
+  }
+}

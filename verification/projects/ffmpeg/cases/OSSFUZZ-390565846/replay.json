@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-390565846",
+    "bug_id": "OSSFUZZ-390565846",
+    "bug_type": "NullPointerDereference",
+    "intro_commit": "8eb1d76e146a0e557d596a4039efebac746b4d83",
+    "intro_parent": "d5873be583ada9e1fb887e2fe8dcfd4b12e0efcd",
+    "fix_commit": "a50d36b5fd3914795f470abefcd37699b23bc8d4",
+    "affected_files": [
+      "libavcodec/vvc/refs.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Root cause matches meta.json exactly: set_pict_type() in libavcodec/vvc/refs.c, introduced by commit 8eb1d76e146a, iterates over all CBS units of the current access unit and, for every unit with type <= VVC_RSV_IRAP_11, unconditionally dereferences unit->content_ref as an H266RawSliceHeader* (`const H266RawSliceHeader *rsh = unit->content_ref; has_inter |= !IS_I(rsh);`) without checking it for NULL. A CBS unit with a reserved VCL NAL type (e.g. VVC_RSV_VCL_4) is exactly such a unit whose content_ref is never populated (decompose fails with the tolerated ENOSYS), so this is a real, reachable NULL-pointer dereference, not a mislabeled bug. run_poc results: (1) pre_intro (parent d5873be583ad) \u2014 refs.c has no set_pict_type function at all (grep found zero matches); the harness decode fails cleanly with a normal libavcodec error code (AVERROR_INVALIDDATA from the unrelated reserved-type NAL not being handled by decode_nal_unit) and the process exits normally (exit=0, crashed=False), no sanitizer report. (2) post_intro (8eb1d76e146a) \u2014 run_poc reports crashed=True with an AddressSanitizer 'SEGV on unknown address 0x000000000541 ... READ memory access' and a clean crash stack: set_pict_type (refs.c:189:31) <- ff_vvc_set_new_ref (refs.c:223) <- frame_start (dec.c:712) <- slice_start <- decode_slice <- decode_nal_unit <- decode_nal_units <- vvc_decode_frame <- avcodec_send_packet <- main. Line 189 is exactly `has_inter |= !IS_I(rsh);`, the dereference identified in meta.json's root_cause. (3) post_benign \u2014 libavcodec/vvc/refs.c was inspected directly and confirmed to contain the fix: `if (unit->content_ref && unit->type <= VVC_RSV_IRAP_11) { ... }`; run_poc on the identical PoC against post_benign completes cleanly (exit=0, crashed=False), same benign path as pre_intro, no sanitizer report. This cleanly establishes: bug absent pre_intro (code path didn't exist), present and crashing at post_intro under the exact same reproducer, and fixed at post_benign under the exact same reproducer."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: incomplete)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/8b2da4c140f71c6a196a/attempts/01/pocs/ffmpeg/OSSFUZZ-390565846",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ae6647403b540a6dd0977da5f36187dfd495a99e3b3aa64984a580f644a77d10",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "8eb1d76e146a0e557d596a4039efebac746b4d83",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "200eb9303b7a0ee6a7f1e6c32ca24cf22bd28d894b64f3bc8d19b98368508733"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=1\n\nBuilt 50-byte VVC packet\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000541 (pc 0x560382a7ed80 bp 0x7ffd189644d0 sp 0x7ffd18964460 T0)\n==8==The signal is caused by a READ memory access.\n==8==Hint: address points to the zero page.\n    #0 0x560382a7ed80 in set_pict_type /work/libavcodec/vvc/refs.c:189:31\n    #1 0x560382a7ed80 in ff_vvc_set_new_ref /work/libavcodec/vvc/refs.c:223:5\n    #2 0x5603829f9565 in frame_start /work/libavcodec/vvc/dec.c:712:16\n    #3 0x5603829f9565 in slice_start /work/libavcodec/vvc/dec.c:749:15\n    #4 0x5603829f9565 in decode_slice /work/libavcodec/vvc/dec.c:859:11\n    #5 0x5603829f9565 in decode_nal_unit /work/libavcodec/vvc/dec.c:911:15\n    #6 0x5603829f9565 in decode_nal_units /work/libavcodec/vvc/dec.c:948:19\n    #7 0x5603829f9565 in vvc_decode_frame /work/libavcodec/vvc/dec.c:1061:11\n    #8 0x560381dc86b6 in decode_simple_internal /work/libavcodec/decode.c:443:16\n    #9 0x560381dc86b6 in decode_simple_receive_frame /work/libavcodec/decode.c:613:15\n    #10 0x560381dc86b6 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:649:15\n    #11 0x560381dca1c8 in decode_receive_frame_internal /work/libavcodec/decode.c:666:15\n    #12 0x560381dca058 in avcodec_send_packet /work/libavcodec/decode.c:753:15\n    #13 0x560381b7bb8a in main /poc/poc.c:215:11\n    #14 0x7f01054bdd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #15 0x7f01054bde3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #16 0x560381abc684 in _start (/tmp/poc+0x43e684) (BuildId: 2e00f7c9c00e51ebe63d9f26062a6656604d1050)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/vvc/refs.c:189:31 in set_pict_type\n==8==ABORTING\n",
+        "stdout_tail": "VERIFY_EXIT=1\n\nBuilt 50-byte VVC packet\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000541 (pc 0x560382a7ed80 bp 0x7ffd189644d0 sp 0x7ffd18964460 T0)\n==8==The signal is caused by a READ memory access.\n==8==Hint: address points to the zero page.\n    #0 0x560382a7ed80 in set_pict_type /work/libavcodec/vvc/refs.c:189:31\n    #1 0x560382a7ed80 in ff_vvc_set_new_ref /work/libavcodec/vvc/refs.c:223:5\n    #2 0x5603829f9565 in frame_start /work/libavcodec/vvc/dec.c:712:16\n    #3 0x5603829f9565 in slice_start /work/libavcodec/vvc/dec.c:749:15\n    #4 0x5603829f9565 in decode_slice /work/libavcodec/vvc/dec.c:859:11\n    #5 0x5603829f9565 in decode_nal_unit /work/libavcodec/vvc/dec.c:911:15\n    #6 0x5603829f9565 in decode_nal_units /work/libavcodec/vvc/dec.c:948:19\n    #7 0x5603829f9565 in vvc_decode_frame /work/libavcodec/vvc/dec.c:1061:11\n    #8 0x560381dc86b6 in decode_simple_internal /work/libavcodec/decode.c:443:16\n    #9 0x560381dc86b6 in decode_simple_receive_frame /work/libavcodec/decode.c:613:15\n    #10 0x560381dc86b6 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:649:15\n    #11 0x560381dca1c8 in decode_receive_frame_internal /work/libavcodec/decode.c:666:15\n    #12 0x560381dca058 in avcodec_send_packet /work/libavcodec/decode.c:753:15\n    #13 0x560381b7bb8a in main /poc/poc.c:215:11\n    #14 0x7f01054bdd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #15 0x7f01054bde3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #16 0x560381abc684 in _start (/tmp/poc+0x43e684) (BuildId: 2e00f7c9c00e51ebe63d9f26062a6656604d1050)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/vvc/refs.c:189:31 in set_pict_type\n==8==ABORTING\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ae6647403b540a6dd0977da5f36187dfd495a99e3b3aa64984a580f644a77d10",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "d5873be583ada9e1fb887e2fe8dcfd4b12e0efcd",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e07a1e7b8188c8e1533b2a56c82df2bc2e7f72849d1dc4ebe0ae700d4852faf0"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nBuilt 50-byte VVC packet\n[vvc @ 0x618000000480] frame     0, P(  0,   0) failed with -1094995529\nsend_packet -> 0\nreceive_frame -> -11\nDONE (no crash)\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ae6647403b540a6dd0977da5f36187dfd495a99e3b3aa64984a580f644a77d10",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "d5873be583ada9e1fb887e2fe8dcfd4b12e0efcd",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "c9c62786ce274491c6c92bee567078f11671c6b2e6a3111e4c15dfda10750873"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nBuilt 50-byte VVC packet\n[vvc @ 0x618000000480] frame     0, P(  0,   0) failed with -1094995529\nsend_packet -> 0\nreceive_frame -> -11\nDONE (no crash)\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/poc.c (run via /poc/run.sh, which builds it with clang -fsanitize=address against each version's libavcodec.a/libavutil.a/libswresample.a and executes it) uses FFmpeg's own CBS writer API to build a minimal, syntactically-valid 50-byte VVC Annex-B AVPacket in memory (SPS + PPS, both minimal/monochrome/no-partitioning; one TRAIL_NUT slice with an embedded picture header that sets ph_inter_slice_allowed_flag=1; and one extra raw NAL unit of reserved type VVC_RSV_VCL_4 whose 2-byte header is hand-crafted). This packet is fed via avcodec_send_packet()/avcodec_receive_frame() directly to the real libavcodec VVC decoder (AV_CODEC_ID_VVC), the same API pattern used by the OSS-Fuzz ffmpeg_AV_CODEC_ID_VVC_fuzzer target. The RSV_VCL_4 unit's type falls in the VCL/slice NAL range (<= VVC_RSV_IRAP_11) but has no CBS unit-type descriptor, so ff_cbs_alloc_unit_content()/cbs_h266_read_nal_unit() return AVERROR(ENOSYS); cbs_read_fragment_content() tolerates ENOSYS and leaves that unit's content_ref == NULL while keeping it in the fragment's unit list, so the whole packet still decomposes \"successfully\". The same exact packet bytes/PoC were run unmodified via run_poc against pre_intro, post_intro, and post_benign.",
+    "target_evidence": "AddressSanitizer:DEADLYSIGNAL\n==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000541\n==The signal is caused by a READ memory access.\n==Hint: address points to the zero page.\n    #0 set_pict_type /work/libavcodec/vvc/refs.c:189:31\n    #1 ff_vvc_set_new_ref /work/libavcodec/vvc/refs.c:223:5\n    #2 frame_start /work/libavcodec/vvc/dec.c:712:16\n    #3 slice_start /work/libavcodec/vvc/dec.c:749:15\n    #4 decode_slice /work/libavcodec/vvc/dec.c:859:11\n    #5 decode_nal_unit /work/libavcodec/vvc/dec.c:911:15\n    #6 decode_nal_units /work/libavcodec/vvc/dec.c:948:19\n    #7 vvc_decode_frame /work/libavcodec/vvc/dec.c:1061:11\n    #8..#12 libavcodec/decode.c (avcodec_send_packet path)\n    #13 main /poc/poc.c:215\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/vvc/refs.c:189:31 in set_pict_type\nThis report appeared only under run_poc against post_intro (crashed=True); the identical PoC produced crashed=False (clean AVERROR_INVALIDDATA decode failure) against pre_intro and post_benign."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

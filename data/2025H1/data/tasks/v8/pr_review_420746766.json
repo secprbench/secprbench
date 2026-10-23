@@ -1,0 +1,97 @@
+{
+  "task_id": "pr_review_420746766",
+  "bug_id": "420746766",
+  "commit_sha": "e0e0bf451e26ce9c1711b757ead9bd944258d12b",
+  "commit_message": "[maglev] Throw if target is a class constructor\n\n... when reducing a call based on the feedback cell.\n\nFixed: 420198866\nChange-Id: I80469bc1e486be1225b8c0ba962b70343c1e0d47\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6590054\nReviewed-by: Leszek Swirski <leszeks@chromium.org>\nAuto-Submit: Victor Gomes <victorgomes@chromium.org>\nCommit-Queue: Leszek Swirski <leszeks@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100517}",
+  "commit_author": "Victor Gomes",
+  "commit_date": "2025-05-27T11:44:46+02:00",
+  "pr_title": "[maglev] Throw if target is a class constructor",
+  "pr_description": "... when reducing a call based on the feedback cell.\n\nFixed: 420198866\nChange-Id: I80469bc1e486be1225b8c0ba962b70343c1e0d47\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6590054\nReviewed-by: Leszek Swirski <leszeks@chromium.org>\nAuto-Submit: Victor Gomes <victorgomes@chromium.org>\nCommit-Queue: Leszek Swirski <leszeks@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100517}\n",
+  "files": [
+    {
+      "path": "src/maglev/maglev-graph-builder.cc",
+      "status": "modified",
+      "additions": 6,
+      "deletions": 1,
+      "diff": "diff --git a/src/maglev/maglev-graph-builder.cc b/src/maglev/maglev-graph-builder.cc\nindex ae75dd38500..3c2d69daf58 100644\n--- a/src/maglev/maglev-graph-builder.cc\n+++ b/src/maglev/maglev-graph-builder.cc\n@@ -11635,11 +11635,16 @@ ReduceResult MaglevGraphBuilder::BuildCallWithFeedback(\n                args.mode() == CallArguments::kDefault) {\n       compiler::FeedbackCellRef feedback_cell =\n           call_feedback.target()->AsFeedbackCell();\n       compiler::OptionalSharedFunctionInfoRef shared =\n           feedback_cell.shared_function_info(broker());\n-      if (shared.has_value()) {\n+      if (shared.has_value() && !shared->HasBreakInfo(broker())) {\n+        if (IsClassConstructor(shared->kind())) {\n+          // If we have a class constructor, we should raise an exception.\n+          return BuildCallRuntime(Runtime::kThrowConstructorNonCallableError,\n+                                  {target_node});\n+        }\n         RETURN_IF_ABORT(BuildCheckJSFunction(target_node));\n         ValueNode* target_feedback_cell =\n             BuildLoadTaggedField(target_node, JSFunction::kFeedbackCellOffset);\n         RETURN_IF_ABORT(\n             BuildCheckValueByReference(target_feedback_cell, feedback_cell,\n"
+    },
+    {
+      "path": "test/mjsunit/regress-420198866.js",
+      "status": "added",
+      "additions": 18,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/regress-420198866.js b/test/mjsunit/regress-420198866.js\nnew file mode 100644\nindex 00000000000..73ea92c7555\n--- /dev/null\n+++ b/test/mjsunit/regress-420198866.js\n@@ -0,0 +1,18 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax --no-lazy-feedback-alloaction --no-lazy\n+\n+function foo() {\n+  try {\n+    const v = class {}();\n+  } catch (e) {\n+    print('boom');\n+  }\n+}\n+%PrepareFunctionForOptimization(foo);\n+foo();\n+foo();\n+%OptimizeMaglevOnNextCall(foo);\n+foo();\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/maglev/maglev-graph-builder.cc b/src/maglev/maglev-graph-builder.cc\nindex ae75dd38500..3c2d69daf58 100644\n--- a/src/maglev/maglev-graph-builder.cc\n+++ b/src/maglev/maglev-graph-builder.cc\n@@ -11635,11 +11635,16 @@ ReduceResult MaglevGraphBuilder::BuildCallWithFeedback(\n                args.mode() == CallArguments::kDefault) {\n       compiler::FeedbackCellRef feedback_cell =\n           call_feedback.target()->AsFeedbackCell();\n       compiler::OptionalSharedFunctionInfoRef shared =\n           feedback_cell.shared_function_info(broker());\n-      if (shared.has_value()) {\n+      if (shared.has_value() && !shared->HasBreakInfo(broker())) {\n+        if (IsClassConstructor(shared->kind())) {\n+          // If we have a class constructor, we should raise an exception.\n+          return BuildCallRuntime(Runtime::kThrowConstructorNonCallableError,\n+                                  {target_node});\n+        }\n         RETURN_IF_ABORT(BuildCheckJSFunction(target_node));\n         ValueNode* target_feedback_cell =\n             BuildLoadTaggedField(target_node, JSFunction::kFeedbackCellOffset);\n         RETURN_IF_ABORT(\n             BuildCheckValueByReference(target_feedback_cell, feedback_cell,\ndiff --git a/test/mjsunit/regress-420198866.js b/test/mjsunit/regress-420198866.js\nnew file mode 100644\nindex 00000000000..73ea92c7555\n--- /dev/null\n+++ b/test/mjsunit/regress-420198866.js\n@@ -0,0 +1,18 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax --no-lazy-feedback-alloaction --no-lazy\n+\n+function foo() {\n+  try {\n+    const v = class {}();\n+  } catch (e) {\n+    print('boom');\n+  }\n+}\n+%PrepareFunctionForOptimization(foo);\n+foo();\n+foo();\n+%OptimizeMaglevOnNextCall(foo);\n+foo();\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "e0e0bf451e26ce9c1711b757ead9bd944258d12b",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "420746766",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "ThrowConstructorNonCallableError called before validating target_node is a JSFunction",
+        "message": "In `BuildCallWithFeedback`, when the feedback cell indicates a class constructor, `BuildCallRuntime(Runtime::kThrowConstructorNonCallableError, {target_node})` is invoked before `BuildCheckJSFunction(target_node)` or the feedback-cell reference check. This means `target_node` may not be a JSFunction at all when passed to `ThrowConstructorNonCallableError`. The runtime call internally casts its argument to `JSFunction`, triggering a DCHECK failure when the actual runtime value does not match that type (e.g., the slot was primed with a class constructor C1 but is subsequently called with a different non-JSFunction value).",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-843",
+          "CWE-20"
+        ],
+        "location": {
+          "file": "src/maglev/maglev-graph-builder.cc",
+          "function": "MaglevGraphBuilder::BuildCallWithFeedback",
+          "start_line": 11641,
+          "end_line": 11646,
+          "snippet": "        if (IsClassConstructor(shared->kind())) {\n          // If we have a class constructor, we should raise an exception.\n          return BuildCallRuntime(Runtime::kThrowConstructorNonCallableError,\n                                  {target_node});\n        }\n        RETURN_IF_ABORT(BuildCheckJSFunction(target_node));"
+        },
+        "related_locations": [
+          {
+            "file": "src/maglev/maglev-graph-builder.cc",
+            "start_line": 11646,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "MaglevGraphBuilder::BuildCallWithFeedback",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Move the `IsClassConstructor` check to AFTER `BuildCheckJSFunction` and `BuildCheckValueByReference` so that `target_node` is guaranteed to be the expected JSFunction (with matching SFI and feedback cell) before it is passed to `ThrowConstructorNonCallableError`.",
+        "rule_id": "sec-logic-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/maglev/maglev-graph-builder.cc",
+      "test/mjsunit/regress-420198866.js"
+    ],
+    "root_cause": "The class-constructor early-return path was inserted BEFORE the `BuildCheckJSFunction` and `BuildCheckValueByReference` guards. Those guards normally deoptimize if `target_node` is not the expected JSFunction, but they are bypassed when the feedback indicates a class constructor. As a result, an arbitrary value can reach `ThrowConstructorNonCallableError`, which unconditionally treats it as a JSFunction.",
+    "must_cover": [
+      {
+        "file": "src/maglev/maglev-graph-builder.cc",
+        "function": "MaglevGraphBuilder::BuildCallWithFeedback",
+        "reason": "Primary location of finding: ThrowConstructorNonCallableError called before validating target_node is a JSFunction"
+      },
+      {
+        "file": "src/maglev/maglev-graph-builder.cc",
+        "function": "MaglevGraphBuilder::BuildCallWithFeedback",
+        "reason": "Related location for: ThrowConstructorNonCallableError called before validating target_node is a JSFunction"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__420746766__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "d7ef238a2890435b9cb9967278a9d5b69965d547",
+    "diff_stats": {
+      "files_changed": 2,
+      "lines_changed": 25
+    }
+  }
+}

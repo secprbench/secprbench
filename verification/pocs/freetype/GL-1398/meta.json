@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GL-1398",
+  "bug_id": "GL-1398",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "b04db3872cfac5ee4fd4f895933cebce3576fbf0",
+  "intro_parent": "8ef26a803c340356b7e64ebd7188ce0b7002df59",
+  "fix_commit": "a1079b181e569027a6f083c765f9ffdc44e78ba9",
+  "affected_files": [
+    "src/sfnt/ttgpos.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "freetype",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Unchecked 32-bit integer multiplication of two attacker-controlled 16-bit quantities (class1Count, class2Count) plus a further multiply by 2 during table-size validation, allowing integer overflow/wraparound that defeats the bounds check meant to guard later out-of-bounds accesses.",
+  "findings": [
+    "In tt_face_validate_pair_pos2() the code computes the required size of the PairPos Format 2 kerning value array as `class1Count * class2Count * 2` and compares the resulting pointer against `table_limit` to validate that the subtable is large enough. `class1Count` and `class2Count` are both attacker-controlled 16-bit values read directly from the font file and widened to `FT_UInt` (32-bit unsigned"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "6c6b613c99b5cc84620796d5421fb62c7a832c589ae959b4a56d9e2bb51bb7ef",
+  "generated_artifact_sha256": {
+    "reference": "689a37af5bc051fa6a50d51199501495529aa32f28a82ef5abfcbc60496b07e4",
+    "introducing": "ee67936d069be020f2c6fc59d38d595bea47122d8264ef2724192704ca7cbc43",
+    "companion": "21336607dec863df0abb77698b31d71f9913f8f0b42ea86f9ccabf28de9f1aa2"
+  }
+}

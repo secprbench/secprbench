@@ -1,0 +1,30 @@
+{
+  "bug_id": "394120667",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "dbb5628854a610846015308c1629dc36e4413b7c",
+    "parent": "ab95df61ce7adf48e1e794a3b90386b3baa46d44",
+    "fix": "32ec40c0cc2a4926f897f9b1c1ce163f2ea51424"
+  },
+  "affected_files": [
+    "src/wasm/canonical-types.cc",
+    "src/wasm/canonical-types.h",
+    "src/wasm/module-decoder.cc",
+    "src/wasm/module-decoder.h",
+    "src/wasm/names-provider.cc",
+    "src/wasm/names-provider.h",
+    "src/wasm/wasm-engine.cc",
+    "src/wasm/wasm-engine.h",
+    "src/wasm/wasm-module.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured ASan release builds completed. With the identical harness/command, pre_intro rejected canonical array index 0 in LookupFunctionSignature via `Check failed: it != canonical_function_sigs_.end()` (exit 133) and did not print acceptance. post_intro reached the same lookup, returned a non-null array payload as a function signature, printed `MISMATCH_ACCEPTED`, and exited 0, demonstrating that the newly introduced release-only DCHECK allowed the wrong canonical kind. post_benign ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

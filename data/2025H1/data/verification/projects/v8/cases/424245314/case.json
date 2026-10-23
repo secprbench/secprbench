@@ -1,0 +1,44 @@
+{
+  "bug_id": "424245314",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "ef9dafb5ab5b78fef65ce358dd92c2b60d69cee5",
+    "parent": "5eb63c47bf7055e8bc3d05014ba1719c4e96e659",
+    "fix": "a7220b894a984937436a1409b95cf1756f5e374b"
+  },
+  "affected_files": [
+    "src/compiler/access-info.cc",
+    "src/compiler/access-info.h",
+    "src/compiler/heap-refs.cc",
+    "src/compiler/heap-refs.h",
+    "src/compiler/js-heap-broker.cc",
+    "src/compiler/js-heap-broker.h",
+    "src/compiler/js-native-context-specialization.cc",
+    "src/compiler/js-native-context-specialization.h",
+    "src/compiler/processed-feedback.h",
+    "src/ic/ic.cc",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/objects/feedback-vector.cc",
+    "test/mjsunit/wasm/custom-descriptors-proxies.js"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "All three configured ASan builds succeeded. Using the identical command `/work/out.gn/verify/d8 --allow-natives-syntax --noconcurrent-osr --turbolev --nolazy-feedback-allocation /poc/poc.js`, pre_intro, post_intro, and post_benign each printed `completed`, exited 0, and reported crashed=False. The PoC is the exact minimal trigger added by the fix regression test: it executes `8 in %WasmArray()` twice and then forces optimization. Source inspection confirms the reported bad post-intro path reache",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "not_reproduced",
+    "method": "debug_invariant_or_crash",
+    "intro_verified": "not_reproduced_clean",
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Intro built (is_debug) and ran the saved PoC with recorded flags but did not reproduce: not_reproduced_clean. Label is an unvalidated static hypothesis at this revision.",
+    "target_match": null,
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/424245314"
+  },
+  "final_disposition": "not_reproduced"
+}

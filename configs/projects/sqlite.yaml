@@ -1,0 +1,114 @@
+name: sqlite
+repo_url: https://github.com/sqlite/sqlite.git
+project:
+  name: sqlite
+  display_name: SQLite
+  repo: sqlite/sqlite
+  language: C
+context:
+  description: 'SQLite is a self-contained, serverless, transactional SQL database
+    engine
+
+    embedded as a C library. The amalgamation source lives under src/ and
+
+    compiles into libsqlite3. Major subsystems include the SQL parser
+
+    (parse.y / lemon), the bytecode VM (vdbe*), the query planner
+
+    (where*.c, select.c), the pager and B-tree (pager.c, btree.c), the OS
+
+    interface (os_unix.c, os_win.c), memory allocators (malloc.c, mem*.c),
+
+    lookaside caches, virtual tables and FTS/RTree/JSON extensions
+
+    (fts3*.c, fts5*.c, rtree.c, json1.c), and the CLI shell (shell.c.in).
+
+    SQLite ships in millions of applications, so bugs are typically
+
+    high-impact and disclosed via the Fossil forum, CVE, or vendor
+
+    advisories.
+
+    '
+  input_sources: 'SQL text passed to sqlite3_prepare / sqlite3_exec (including maliciously
+
+    crafted queries against attacker-controlled databases), database files
+
+    opened with sqlite3_open (arbitrary on-disk B-tree/pager pages), the
+
+    C API surface (sqlite3_bind_*, sqlite3_column_*, sqlite3_config,
+
+    sqlite3_db_config, sqlite3_deserialize), extension loading via
+
+    sqlite3_load_extension, JSON/FTS/RTree module arguments, shell
+
+    meta-commands (.dump, .import, .load), and virtual-table xBestIndex /
+
+    xFilter arguments driven by SQL.
+
+    '
+  assertion_macros: 'assert() is compiled out in release builds (NDEBUG). testcase()
+    is a
+
+    coverage hint, not a check. sqlite3_log() reports errors but does not
+
+    abort. Reaching an unreachable() macro or triggering undefined behavior
+
+    (integer overflow, out-of-bounds read/write) in a release build is a
+
+    real bug even if the debug build asserts. Fuzzer-only guards inside
+
+    SQLITE_ENABLE_STAT4 or SQLITE_DEBUG blocks do NOT protect production.
+
+    '
+  common_bug_types:
+  - BufferOverflow (RESTORE-like deserialization, printf-family formatters, FTS tokenizers,
+    lookaside slot arithmetic)
+  - IntegerOverflow (size/count multiplication before allocation, page-number arithmetic,
+    JSON parse depth)
+  - UseAfterFree (VDBE cursor invalidation across schema reloads, xDestroy callbacks,
+    virtual-table lifetimes)
+  - OutOfBoundsRead (corrupt-database pager pages, listpack-like blob parsing, FTS3/5
+    aux data, JSON pointers)
+  - NullPointerDereference (missing NULL checks after xColumn / xNext / sqlite3_value_*
+    on error paths)
+  - LogicError (query-planner correctness, ROWID/INTEGER PRIMARY KEY affinity, RECURSIVE
+    CTE, WITHOUT ROWID, UPSERT)
+  - StackOverflow (deeply nested SELECT / expression parse, recursive triggers, JSON
+    path traversal)
+  - MemoryLeak (statement cleanup on error paths, temporary registers, ephemeral tables)
+  file_patterns:
+  - src/*.c
+  - src/*.h
+  - src/*.in
+  - ext/**/*.c
+  - ext/**/*.h
+  - tool/*.c
+verify:
+  name: sqlite
+  image: cgsa-sqlite:latest
+  repo_url: https://github.com/sqlite/sqlite.git
+  build_script: 'set -e
+
+    cd /work
+
+    CFLAGS="-g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+    ./configure > build_configure.log 2>&1
+
+    make -j"${CGSA_BUILD_JOBS:-8}" BCC="gcc -O2" sqlite3 > build_compile.log 2>&1
+
+    '
+  harness_source: null
+  harness_build: ''
+  run_cmd: './sqlite3 :memory: < "$INPUT"'
+  build_artifacts:
+  - sqlite3
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 1200
+  run_timeout: 120
+  build_network: none
+  build_cache: false
+  build_git_mounts: false
+  build_support_files: []

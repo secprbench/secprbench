@@ -1,0 +1,27 @@
+{
+  "bug_id": "e262411f329d",
+  "project": "ffmpeg",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "e424abc3a0933653c59c3800b9b7ac3fadf41303",
+    "parent": "405b3eb535a8dd8375e0cf54a8ba43cde0bafd16",
+    "fix": "e262411f329d63bcd36fbf4ac666629530ffec90"
+  },
+  "affected_files": [
+    "Changelog",
+    "doc/filters.texi",
+    "libavfilter/Makefile",
+    "libavfilter/allfilters.c",
+    "libavfilter/asrc_aevalsrc.c",
+    "libavfilter/version.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The existing/default PoC was unusable (and its fallback command used unsupported `-hide_banner`). The 2013 intro leaves `last_expr` uninitialized for an empty expression; Clang's deterministic zero initialization was used when rebuilding only that affected translation unit so this latent value reproducibly matches the later reported NULL manifestation, without source changes. Using the exact same build-and-run command for all versions: pre_intro exited 1 without a sanitizer crash (`No such filte",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

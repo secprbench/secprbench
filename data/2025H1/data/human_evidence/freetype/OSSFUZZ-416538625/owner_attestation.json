@@ -1,0 +1,18 @@
+{
+  "reviewer": "benchmark owner",
+  "attested_at": "2026-10-05T21:30:41Z",
+  "method": "explicit_user_attestation",
+  "reason": "The benchmark owner explicitly requested that these exact cases be marked human_reviewed and included in the final benchmark.",
+  "authorization": "please help me refine the result directory and the benchmark. help me mark these inconclusive cases to human_reviewed; help me move these out of inconclusive to human reviewed and put them to final benchmark",
+  "identity": "freetype/OSSFUZZ-416538625",
+  "season": "2025H1",
+  "stage": "human_reviewed",
+  "task_hashes": {
+    "buggy": "de8dffc820325d54b95762aa12a2d36dc2a8675000dc50168dcf39b69c828968",
+    "benign": "25d28c566f895c9075fd6ecfa4443c036a3e64792e8448190f997e7d8aaeb54c"
+  },
+  "caveat": "Recorded 128 MiB allocation request uses allocator interception; retain requested-versus-committed-memory and resource-threat-model distinction.",
+  "catalog_effective_verification": "inconclusive",
+  "original_case_disposition": "inconclusive",
+  "automated_replay_performed": false
+}

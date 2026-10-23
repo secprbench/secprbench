@@ -1,0 +1,90 @@
+{
+  "task_id": "pr_review_REPORTED-702e4a1d32e4",
+  "bug_id": "REPORTED-702e4a1d32e4",
+  "commit_sha": "582de1a4b6f6269bdb358605f9b23406988cd5b5",
+  "commit_message": "[gxvar] Reduce number of mallocs.\n\n8% speed up in drawing GoogleSansFlex variable in HB benchmark-font.\n\n* src/truetype/ttgxvar.c (TT_Vary_Apply_Glyph_Deltas): Use an allocation\n  pool instead of individual allocations.",
+  "commit_author": "Behdad Esfahbod (بهداد اسفهبد)",
+  "commit_date": "2025-05-20T23:09:16-06:00",
+  "pr_title": "[gxvar] Reduce number of mallocs.",
+  "pr_description": "8% speed up in drawing GoogleSansFlex variable in HB benchmark-font.\n\n* src/truetype/ttgxvar.c (TT_Vary_Apply_Glyph_Deltas): Use an allocation\n  pool instead of individual allocations.\n",
+  "files": [
+    {
+      "path": "src/truetype/ttgxvar.c",
+      "status": "modified",
+      "additions": 38,
+      "deletions": 10,
+      "diff": "diff --git a/src/truetype/ttgxvar.c b/src/truetype/ttgxvar.c\nindex 2939d9526..d0626c7b0 100644\n--- a/src/truetype/ttgxvar.c\n+++ b/src/truetype/ttgxvar.c\n@@ -4055,10 +4055,19 @@\n     FT_ULong  dataSize;\n \n     FT_ULong  here;\n     FT_UInt   i, j;\n \n+    FT_UInt   peak_coords_size;\n+    FT_UInt   point_deltas_x_size;\n+    FT_UInt   points_org_size;\n+    FT_UInt   points_out_size;\n+    FT_UInt   has_delta_size;\n+    FT_UInt   pool_size;\n+    FT_Byte*  pool;\n+    FT_Byte*  p;\n+\n     FT_Fixed*  peak_coords = NULL;\n     FT_Fixed*  tuple_coords;\n     FT_Fixed*  im_start_coords;\n     FT_Fixed*  im_end_coords;\n \n@@ -4138,17 +4147,40 @@\n     FT_TRACE5(( \"gvar: there %s %d tuple%s:\\n\",\n                 ( tupleCount & GX_TC_TUPLE_COUNT_MASK ) == 1 ? \"is\" : \"are\",\n                 tupleCount & GX_TC_TUPLE_COUNT_MASK,\n                 ( tupleCount & GX_TC_TUPLE_COUNT_MASK ) == 1 ? \"\" : \"s\" ));\n \n-    if ( FT_QNEW_ARRAY( peak_coords, 3 * blend->num_axis ) ||\n-         FT_NEW_ARRAY( point_deltas_x, 2 * n_points )      ||\n-         FT_QNEW_ARRAY( points_org, n_points )             ||\n-         FT_QNEW_ARRAY( points_out, n_points )             ||\n-         FT_QNEW_ARRAY( has_delta, n_points )              )\n+    peak_coords_size    = ALIGN_SIZE( 3 * blend->num_axis );\n+    point_deltas_x_size = ALIGN_SIZE( 2 * n_points * sizeof ( FT_Fixed ) );\n+    points_org_size     = ALIGN_SIZE( n_points * sizeof ( points_org[0] ) );\n+    points_out_size     = ALIGN_SIZE( n_points * sizeof ( points_out[0] ) );\n+    has_delta_size      = ALIGN_SIZE( n_points * sizeof ( has_delta[0] ) );\n+\n+    pool_size = peak_coords_size    +\n+                point_deltas_x_size +\n+                points_org_size     +\n+                points_out_size     +\n+                has_delta_size;\n+\n+    if ( FT_ALLOC( pool, pool_size ) )\n       goto Exit;\n \n+    p               = pool;\n+    peak_coords     = (FT_Fixed*)p;\n+    p              += peak_coords_size;\n+    point_deltas_x  = (FT_Fixed*)p;\n+    p              += point_deltas_x_size;\n+    points_org      = (FT_Vector*)p;\n+    p              += points_org_size;\n+    points_out      = (FT_Vector*)p;\n+    p              += points_out_size;\n+    has_delta       = (FT_Bool*)p;\n+\n+    FT_MEM_SET( point_deltas_x,\n+                0,\n+                2 * n_points * sizeof ( point_deltas_x[0] ) );\n+\n     im_start_coords = peak_coords + blend->num_axis;\n     im_end_coords   = im_start_coords + blend->num_axis;\n     point_deltas_y  = point_deltas_x + n_points;\n \n     for ( j = 0; j < n_points; j++ )\n@@ -4419,15 +4451,11 @@\n     }\n \n   Exit:\n     if ( sharedpoints != ALL_POINTS )\n       FT_FREE( sharedpoints );\n-    FT_FREE( points_org );\n-    FT_FREE( points_out );\n-    FT_FREE( has_delta );\n-    FT_FREE( peak_coords );\n-    FT_FREE( point_deltas_x );\n+    FT_FREE( pool );\n \n   FExit:\n     FT_FRAME_EXIT();\n \n     return error;\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/truetype/ttgxvar.c b/src/truetype/ttgxvar.c\nindex 2939d9526..d0626c7b0 100644\n--- a/src/truetype/ttgxvar.c\n+++ b/src/truetype/ttgxvar.c\n@@ -4055,10 +4055,19 @@\n     FT_ULong  dataSize;\n \n     FT_ULong  here;\n     FT_UInt   i, j;\n \n+    FT_UInt   peak_coords_size;\n+    FT_UInt   point_deltas_x_size;\n+    FT_UInt   points_org_size;\n+    FT_UInt   points_out_size;\n+    FT_UInt   has_delta_size;\n+    FT_UInt   pool_size;\n+    FT_Byte*  pool;\n+    FT_Byte*  p;\n+\n     FT_Fixed*  peak_coords = NULL;\n     FT_Fixed*  tuple_coords;\n     FT_Fixed*  im_start_coords;\n     FT_Fixed*  im_end_coords;\n \n@@ -4138,17 +4147,40 @@\n     FT_TRACE5(( \"gvar: there %s %d tuple%s:\\n\",\n                 ( tupleCount & GX_TC_TUPLE_COUNT_MASK ) == 1 ? \"is\" : \"are\",\n                 tupleCount & GX_TC_TUPLE_COUNT_MASK,\n                 ( tupleCount & GX_TC_TUPLE_COUNT_MASK ) == 1 ? \"\" : \"s\" ));\n \n-    if ( FT_QNEW_ARRAY( peak_coords, 3 * blend->num_axis ) ||\n-         FT_NEW_ARRAY( point_deltas_x, 2 * n_points )      ||\n-         FT_QNEW_ARRAY( points_org, n_points )             ||\n-         FT_QNEW_ARRAY( points_out, n_points )             ||\n-         FT_QNEW_ARRAY( has_delta, n_points )              )\n+    peak_coords_size    = ALIGN_SIZE( 3 * blend->num_axis );\n+    point_deltas_x_size = ALIGN_SIZE( 2 * n_points * sizeof ( FT_Fixed ) );\n+    points_org_size     = ALIGN_SIZE( n_points * sizeof ( points_org[0] ) );\n+    points_out_size     = ALIGN_SIZE( n_points * sizeof ( points_out[0] ) );\n+    has_delta_size      = ALIGN_SIZE( n_points * sizeof ( has_delta[0] ) );\n+\n+    pool_size = peak_coords_size    +\n+                point_deltas_x_size +\n+                points_org_size     +\n+                points_out_size     +\n+                has_delta_size;\n+\n+    if ( FT_ALLOC( pool, pool_size ) )\n       goto Exit;\n \n+    p               = pool;\n+    peak_coords     = (FT_Fixed*)p;\n+    p              += peak_coords_size;\n+    point_deltas_x  = (FT_Fixed*)p;\n+    p              += point_deltas_x_size;\n+    points_org      = (FT_Vector*)p;\n+    p              += points_org_size;\n+    points_out      = (FT_Vector*)p;\n+    p              += points_out_size;\n+    has_delta       = (FT_Bool*)p;\n+\n+    FT_MEM_SET( point_deltas_x,\n+                0,\n+                2 * n_points * sizeof ( point_deltas_x[0] ) );\n+\n     im_start_coords = peak_coords + blend->num_axis;\n     im_end_coords   = im_start_coords + blend->num_axis;\n     point_deltas_y  = point_deltas_x + n_points;\n \n     for ( j = 0; j < n_points; j++ )\n@@ -4419,15 +4451,11 @@\n     }\n \n   Exit:\n     if ( sharedpoints != ALL_POINTS )\n       FT_FREE( sharedpoints );\n-    FT_FREE( points_org );\n-    FT_FREE( points_out );\n-    FT_FREE( has_delta );\n-    FT_FREE( peak_coords );\n-    FT_FREE( point_deltas_x );\n+    FT_FREE( pool );\n \n   FExit:\n     FT_FRAME_EXIT();\n \n     return error;\n",
+  "ground_truth": {
+    "bug_id": "REPORTED-702e4a1d32e4",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "702e4a1d32e4b911e85cc7df84b3ba395c28dab3",
+      "short_sha": "702e4a1d3",
+      "message": "* src/truetype/ttgxvar.c (TT_Vary_Apply_Glyph_Deltas): Fix allocation.",
+      "author": "Behdad Esfahbod",
+      "date": "2025-05-21T14:55:25-06:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-bufferoverflow-001",
+        "title": "gvar pool undersized for peak_coords due to missing sizeof(FT_Fixed) multiplier",
+        "message": "In TT_Vary_Apply_Glyph_Deltas(), the refactor to a single shared allocation pool computes peak_coords_size as ALIGN_SIZE(3 * blend->num_axis) — the number of FT_Fixed elements needed — but omits the `* sizeof (FT_Fixed)` factor that every other sub-buffer in the same pool_size computation includes (point_deltas_x_size, points_org_size, points_out_size, has_delta_size all multiply by the element size). Since peak_coords is declared as FT_Fixed* and is later indexed/written as `peak_coords[...]`, `im_start_coords = peak_coords + blend->num_axis`, etc. over 3*num_axis FT_Fixed values (12 bytes typically with sizeof(FT_Fixed)==4), the pool reserves only 3*num_axis BYTES instead of 3*num_axis*sizeof(FT_Fixed) bytes — a ~4x (sizeof(FT_Fixed)) undersizing of this sub-region. Because peak_coords sits at the start of the single pool buffer and all subsequent sub-buffers (point_deltas_x, points_org, points_out, has_delta) are laid out contiguously immediately after it via pointer arithmetic (`p += peak_coords_size`), writes to peak_coords/im_start_coords/im_end_coords beyond the tiny reserved region overflow into adjacent pool memory and, for fonts with enough axes/points, past the end of the heap allocation entirely, causing a heap buffer overflow (OOB write) when applying glyph variation deltas from a crafted variable font's `gvar` table.",
+        "location": {
+          "file": "src/truetype/ttgxvar.c",
+          "start_line": 4152,
+          "end_line": 4162,
+          "start_column": null,
+          "end_column": null,
+          "function": "TT_Vary_Apply_Glyph_Deltas",
+          "snippet": "    peak_coords_size    = ALIGN_SIZE( 3 * blend->num_axis );\n    point_deltas_x_size = ALIGN_SIZE( 2 * n_points * sizeof ( FT_Fixed ) );\n    points_org_size     = ALIGN_SIZE( n_points * sizeof ( points_org[0] ) );\n    points_out_size     = ALIGN_SIZE( n_points * sizeof ( points_out[0] ) );\n    has_delta_size      = ALIGN_SIZE( n_points * sizeof ( has_delta[0] ) );\n\n    pool_size = peak_coords_size    +\n                point_deltas_x_size +\n                points_org_size     +\n                points_out_size     +\n                has_delta_size;",
+          "snippet_hash": "ef6b4e1b44adeb954670c181859d311031b47e9f90c0065026578faddbe2328f",
+          "description": null,
+          "snippet_start_line": 4152,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "BufferOverflow",
+        "confidence": 0.95,
+        "suggestion": "Multiply peak_coords_size by sizeof(*peak_coords) (i.e. sizeof(FT_Fixed)) just like the other pool sub-buffer sizes, so the allocation reflects the true byte size needed for 3*num_axis FT_Fixed values.",
+        "suggestion_code": "peak_coords_size    = ALIGN_SIZE( 3 * blend->num_axis * sizeof ( *peak_coords ) );",
+        "tags": [
+          "security",
+          "memory-safety",
+          "heap-overflow",
+          "freetype",
+          "gvar"
+        ],
+        "cwe_ids": [
+          "CWE-131",
+          "CWE-787",
+          "CWE-190"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "BufferOverflow",
+    "affected_files": [
+      "src/truetype/ttgxvar.c"
+    ],
+    "root_cause": "Inconsistent/incomplete arithmetic when converting an array-element-count-based allocation macro (FT_QNEW_ARRAY, which handles sizeof internally) into a manual pool-size computation; the sizeof multiplier for one of five sub-buffers (peak_coords, an FT_Fixed array) was dropped while it was correctly applied to the other four, so the pool undersizes the first field by a factor of sizeof(FT_Fixed).",
+    "must_cover": [
+      {
+        "file": "src/truetype/ttgxvar.c",
+        "function": "TT_Vary_Apply_Glyph_Deltas",
+        "start_line": 4152,
+        "end_line": 4162,
+        "role": "primary",
+        "reason": "Primary location of finding: gvar pool undersized for peak_coords due to missing sizeof(FT_Fixed) multiplier"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "582de1a4b6f6269bdb358605f9b23406988cd5b5",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

@@ -1,0 +1,26 @@
+{
+  "bug_id": "90551b7d80e3",
+  "project": "ffmpeg",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "5acbdd2264d3b90dc11369f9e031e762f260882e",
+    "parent": "4d209dada78aabedc765f393794c1a3e137b1b4f",
+    "fix": "90551b7d80e39c2fcde67fc65e3623bbef12590c"
+  },
+  "affected_files": [
+    "libavcodec/avcodec.c",
+    "libavcodec/avcodec_internal.h",
+    "libavcodec/decode.c",
+    "libavcodec/internal.h",
+    "libavcodec/pthread_frame.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the same corrected reporter-derived command on all three sanitizer builds, pre_intro exited 0 without a crash, post_intro exited 134 with AddressSanitizer reporting a SEGV caused by a READ at address 0x10 in unpack_dct_coeffs (libavcodec/vp3.c:1319), and post_benign exited 0 without a crash. The supplied default run omitted `-threads 3 -stream_loop 1`, so it did not exercise the required threaded second decode cycle. This exactly matches the labelled memory-safety pattern and verifies both",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

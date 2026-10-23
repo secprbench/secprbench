@@ -1,0 +1,85 @@
+{
+  "task_id": "pr_review_2000469_benign",
+  "bug_id": "2000469",
+  "commit_sha": "2fa42593dec7de35a707f80e47898e459e4297bb",
+  "commit_message": "Bug 1991402 - Part 7: Avoid duplicate shape guards for SetSize. r=jandem\n\nSwitch `InlinableNativeIRGenerator::tryAttachSetSize()` to use\n`emitOptimisticClassGuard` in order to emit a shape guard instead of a class\nguard.\n\nMIR instructions after this change:\n```\n6 GuardShape <object>\n7 GuardShape GuardShape6\n8 SetObjectSize GuardShape7\n```\n\nThen add `MGuardShape::foldsTo` to optimise away the duplicate shape guards.\n\nDrive-by change:\n- Simplify `M{GuardShape,CallBindVar}::congruentTo` implementations.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D266599",
+  "commit_author": "",
+  "commit_date": "2026-10-02T11:06:59.702441",
+  "pr_title": "Bug 1991402 - Part 7: Avoid duplicate shape guards for SetSize. r=jandem",
+  "pr_description": "Bug 1991402 - Part 7: Avoid duplicate shape guards for SetSize. r=jandem\n\nSwitch `InlinableNativeIRGenerator::tryAttachSetSize()` to use\n`emitOptimisticClassGuard` in order to emit a shape guard instead of a class\nguard.\n\nMIR instructions after this change:\n```\n6 GuardShape <object>\n7 GuardShape GuardShape6\n8 SetObjectSize GuardShape7\n```\n\nThen add `MGuardShape::foldsTo` to optimise away the duplicate shape guards.\n\nDrive-by change:\n- Simplify `M{GuardShape,CallBindVar}::congruentTo` implementations.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D266599",
+  "files": [
+    {
+      "path": "js/src/jit/CacheIR.cpp",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/js/src/jit/CacheIR.cpp b/js/src/jit/CacheIR.cpp\nindex 600595b5447d..01e2559aa06e 100644\n--- a/js/src/jit/CacheIR.cpp\n+++ b/js/src/jit/CacheIR.cpp\n@@ -10894,21 +10894,21 @@ AttachDecision InlinableNativeIRGenerator::tryAttachSetSize() {\n \n   // Initialize the input operand.\n   Int32OperandId argcId = initializeInputOperand();\n \n   // Guard callee is the 'size' native function.\n   ObjOperandId calleeId = emitNativeCalleeGuard(argcId);\n \n   // Guard |this| is a SetObject.\n   ValOperandId thisValId = loadThis(calleeId);\n   ObjOperandId objId = writer.guardToObject(thisValId);\n-  writer.guardClass(objId, GuardClassKind::Set);\n+  emitOptimisticClassGuard(objId, &thisval_.toObject(), GuardClassKind::Set);\n \n   writer.setSizeResult(objId);\n   writer.returnFromIC();\n \n   trackAttached(\"SetSize\");\n   return AttachDecision::Attach;\n }\n \n AttachDecision InlinableNativeIRGenerator::tryAttachMapHas() {\n   // Ensure |this| is a MapObject.\n"
+    },
+    {
+      "path": "js/src/jit/MIR.cpp",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 11,
+      "diff": "diff --git a/js/src/jit/MIR.cpp b/js/src/jit/MIR.cpp\nindex 6b736a6a4542..3ec2fe55b830 100644\n--- a/js/src/jit/MIR.cpp\n+++ b/js/src/jit/MIR.cpp\n@@ -7156,35 +7156,32 @@ MDefinition* MGuardSpecificSymbol::foldsTo(TempAllocator& alloc) {\n   return this;\n }\n \n MDefinition* MGuardSpecificInt32::foldsTo(TempAllocator& alloc) {\n   if (num()->isConstant() && num()->toConstant()->isInt32(expected())) {\n     return num();\n   }\n   return this;\n }\n \n-bool MCallBindVar::congruentTo(const MDefinition* ins) const {\n-  if (!ins->isCallBindVar()) {\n-    return false;\n+MDefinition* MGuardShape::foldsTo(TempAllocator& alloc) {\n+  if (object()->isGuardShape() &&\n+      shape() == object()->toGuardShape()->shape() && dependency() &&\n+      object()->dependency() == dependency()) {\n+    return object();\n   }\n-  return congruentIfOperandsEqual(ins);\n+  return this;\n }\n \n bool MGuardShape::congruentTo(const MDefinition* ins) const {\n-  if (!ins->isGuardShape()) {\n-    return false;\n-  }\n-  if (shape() != ins->toGuardShape()->shape()) {\n-    return false;\n-  }\n-  return congruentIfOperandsEqual(ins);\n+  return congruentIfOperandsEqual(ins) &&\n+         shape() == ins->toGuardShape()->shape();\n }\n \n AliasSet MGuardShape::getAliasSet() const {\n   return AliasSet::Load(AliasSet::ObjectFields);\n }\n \n bool MHasShape::congruentTo(const MDefinition* ins) const {\n   if (!ins->isHasShape()) {\n     return false;\n   }\n"
+    },
+    {
+      "path": "js/src/jit/MIROps.yaml",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "diff": "diff --git a/js/src/jit/MIROps.yaml b/js/src/jit/MIROps.yaml\nindex 3c731029b7f7..134183f973fb 100644\n--- a/js/src/jit/MIROps.yaml\n+++ b/js/src/jit/MIROps.yaml\n@@ -2167,35 +2167,36 @@\n     environmentChain: Object\n   result_type: Object\n   generate_lir: true\n   lir_temps: 1\n \n - name: CallBindVar\n   operands:\n     environmentChain: Object\n   result_type: Object\n   movable: true\n-  congruent_to: custom\n+  congruent_to: if_operands_equal\n   alias_set: none\n   generate_lir: true\n \n - name: GuardShape\n   operands:\n     object: Object\n   arguments:\n     shape: Shape*\n   result_type: Object\n   guard: true\n   movable: true\n   congruent_to: custom\n   alias_set: custom\n   might_alias: custom\n+  folds_to: custom\n   generate_lir: true\n   lir_temps: 1\n \n - name: HasShape\n   operands:\n     object: Object\n   arguments:\n     shape: Shape*\n   result_type: Boolean\n   movable: true\n"
+    }
+  ],
+  "full_diff": "diff --git a/js/src/jit/CacheIR.cpp b/js/src/jit/CacheIR.cpp\nindex 600595b5447d..01e2559aa06e 100644\n--- a/js/src/jit/CacheIR.cpp\n+++ b/js/src/jit/CacheIR.cpp\n@@ -10894,21 +10894,21 @@ AttachDecision InlinableNativeIRGenerator::tryAttachSetSize() {\n \n   // Initialize the input operand.\n   Int32OperandId argcId = initializeInputOperand();\n \n   // Guard callee is the 'size' native function.\n   ObjOperandId calleeId = emitNativeCalleeGuard(argcId);\n \n   // Guard |this| is a SetObject.\n   ValOperandId thisValId = loadThis(calleeId);\n   ObjOperandId objId = writer.guardToObject(thisValId);\n-  writer.guardClass(objId, GuardClassKind::Set);\n+  emitOptimisticClassGuard(objId, &thisval_.toObject(), GuardClassKind::Set);\n \n   writer.setSizeResult(objId);\n   writer.returnFromIC();\n \n   trackAttached(\"SetSize\");\n   return AttachDecision::Attach;\n }\n \n AttachDecision InlinableNativeIRGenerator::tryAttachMapHas() {\n   // Ensure |this| is a MapObject.\ndiff --git a/js/src/jit/MIR.cpp b/js/src/jit/MIR.cpp\nindex 6b736a6a4542..3ec2fe55b830 100644\n--- a/js/src/jit/MIR.cpp\n+++ b/js/src/jit/MIR.cpp\n@@ -7156,35 +7156,32 @@ MDefinition* MGuardSpecificSymbol::foldsTo(TempAllocator& alloc) {\n   return this;\n }\n \n MDefinition* MGuardSpecificInt32::foldsTo(TempAllocator& alloc) {\n   if (num()->isConstant() && num()->toConstant()->isInt32(expected())) {\n     return num();\n   }\n   return this;\n }\n \n-bool MCallBindVar::congruentTo(const MDefinition* ins) const {\n-  if (!ins->isCallBindVar()) {\n-    return false;\n+MDefinition* MGuardShape::foldsTo(TempAllocator& alloc) {\n+  if (object()->isGuardShape() &&\n+      shape() == object()->toGuardShape()->shape() && dependency() &&\n+      object()->dependency() == dependency()) {\n+    return object();\n   }\n-  return congruentIfOperandsEqual(ins);\n+  return this;\n }\n \n bool MGuardShape::congruentTo(const MDefinition* ins) const {\n-  if (!ins->isGuardShape()) {\n-    return false;\n-  }\n-  if (shape() != ins->toGuardShape()->shape()) {\n-    return false;\n-  }\n-  return congruentIfOperandsEqual(ins);\n+  return congruentIfOperandsEqual(ins) &&\n+         shape() == ins->toGuardShape()->shape();\n }\n \n AliasSet MGuardShape::getAliasSet() const {\n   return AliasSet::Load(AliasSet::ObjectFields);\n }\n \n bool MHasShape::congruentTo(const MDefinition* ins) const {\n   if (!ins->isHasShape()) {\n     return false;\n   }\ndiff --git a/js/src/jit/MIROps.yaml b/js/src/jit/MIROps.yaml\nindex 3c731029b7f7..134183f973fb 100644\n--- a/js/src/jit/MIROps.yaml\n+++ b/js/src/jit/MIROps.yaml\n@@ -2167,35 +2167,36 @@\n     environmentChain: Object\n   result_type: Object\n   generate_lir: true\n   lir_temps: 1\n \n - name: CallBindVar\n   operands:\n     environmentChain: Object\n   result_type: Object\n   movable: true\n-  congruent_to: custom\n+  congruent_to: if_operands_equal\n   alias_set: none\n   generate_lir: true\n \n - name: GuardShape\n   operands:\n     object: Object\n   arguments:\n     shape: Shape*\n   result_type: Object\n   guard: true\n   movable: true\n   congruent_to: custom\n   alias_set: custom\n   might_alias: custom\n+  folds_to: custom\n   generate_lir: true\n   lir_temps: 1\n \n - name: HasShape\n   operands:\n     object: Object\n   arguments:\n     shape: Shape*\n   result_type: Boolean\n   movable: true\n",
+  "ground_truth": {
+    "bug_id": "2000469",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "90711c04449c324bb18eb22522010fe85a051143",
+    "fix_commit": "2fa42593dec7de35a707f80e47898e459e4297bb"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "90711c04449c324bb18eb22522010fe85a051143",
+  "fix_commit_sha": "2fa42593dec7de35a707f80e47898e459e4297bb",
+  "intro_commit_message": "Bug 1991402 - Part 7: Avoid duplicate shape guards for SetSize. r=jandem\n\nSwitch `InlinableNativeIRGenerator::tryAttachSetSize()` to use\n`emitOptimisticClassGuard` in order to emit a shape guard instead of a class\nguard.\n\nMIR instructions after this change:\n```\n6 GuardShape <object>\n7 GuardShape GuardShape6\n8 SetObjectSize GuardShape7\n```\n\nThen add `MGuardShape::foldsTo` to optimise away the duplicate shape guards.\n\nDrive-by change:\n- Simplify `M{GuardShape,CallBindVar}::congruentTo` implementations.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D266599",
+  "fix_commit_message": "Bug 2000469 - Check dependency in MGuardShape::foldsTo. r=iain\n\nDifferential Revision: https://phabricator.services.mozilla.com/D273543",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 2fa42593dec7 on top of intro 90711c04449c via git's 3-way merge. Vulnerability (LogicError): SpiderMonkey's IonMonkey JIT backend added an MIR peephole optimization, MGuardShape::foldsTo(), that removes a redundant MGuardShape instruction when its object operand is itself another MGuardShape checking the same shape. The optimization conflated syntactic operand/shape equality with semantic equivalence: it did not verify that the two guards share the same instruction dependency (i.e. that no shape-mutating effect could occur between them). A regressing change (Bug 1991402 Part 7, needed to avoid duplicate shape guards emitted for the new SetSize inline-cache IR) introduced this flawed foldsTo implementation. When user JS causes an object's shape to be mutated (e.g. by adding new properties or via a for-in loop inside a setter) between two otherwise-identical GuardShape instructions, the JIT incorrectly elides the second guard, allowing subsequent code to operate under a stale/incorrect shape assumption. This manifests as the debug assertion `slots == calculateDynamicSlots()` in NativeObject::numDynamicSlots, and represents a real object-layout type confusion in release builds exploitable for memory corruption. Root cause: MGuardShape::foldsTo() assumed that two MGuardShape instructions testing the same shape with the same object operand are always redundant to fold, without checking whether an intervening effectful instruction (recorded via the instruction's alias-set `dependency()`) could have mutated the object's shape between the two guards. Congruent shape and operand does not imply the absence of an intervening shape-mutating side effect in IonMonkey's non-SSA-effect representation; the dependency link exists precisely to encode that ordering, and foldsTo ignored it.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "90711c04449c324bb18eb22522010fe85a051143",
+    "fix_revision": "2fa42593dec7de35a707f80e47898e459e4297bb",
+    "fix_parent_revision": "67267688fa300c5ee156601b5384fa1996ca0fc9",
+    "inspected_paths": [
+      "js/src/jit/MIR.cpp"
+    ],
+    "call_candidates": [
+      {
+        "path": "js/src/jit/MIR.cpp",
+        "symbol": "dependency",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "js/src/jit/MIR.cpp",
+        "symbol": "object",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "js/src/jit/MIR.cpp",
+        "symbol": "shape",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "js/src/jit/MIR.cpp",
+        "symbol": "toGuardShape",
+        "status": "available_or_unproven"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

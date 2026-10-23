@@ -1,0 +1,7 @@
+set pagination off
+set confirm off
+set breakpoint pending on
+break ffmpeg_enc.c:197
+run -y -v error -i /poc/in.ass -c:s srt /tmp/out.srt
+call (void)av_freep(&ist->dec_ctx->subtitle_header)
+continue

@@ -1,0 +1,138 @@
+{
+  "task_id": "pr_review_439986081",
+  "bug_id": "439986081",
+  "commit_sha": "5af53ec82c0f3c031d0943b327e371ed00771279",
+  "commit_message": "[top-level-await] fix async evaluation with errored async parent\n\nUpdates a CHECK to support EVALUATING-ASYNC modules.\n\nUpdates GatherAvailableAncestors to check kErrored before\ncalling AsyncEvaluationOrdinalCompare to prevent hitting DCHECK.\n\nChange-Id: If561751092010a36706c8c15fa977953facd5c3e\nBug: 361615555\nBug: 361603701\nBug: 361611791\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/5807477\nReviewed-by: Shu-yu Guo <syg@chromium.org>\nCommit-Queue: snek <snek@chromium.org>\nCr-Commit-Position: refs/heads/main@{#95823}",
+  "commit_author": "snek",
+  "commit_date": "2024-08-26T15:32:49-07:00",
+  "pr_title": "[top-level-await] fix async evaluation with errored async parent",
+  "pr_description": "Updates a CHECK to support EVALUATING-ASYNC modules.\n\nUpdates GatherAvailableAncestors to check kErrored before\ncalling AsyncEvaluationOrdinalCompare to prevent hitting DCHECK.\n\nChange-Id: If561751092010a36706c8c15fa977953facd5c3e\nBug: 361615555\nBug: 361603701\nBug: 361611791\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/5807477\nReviewed-by: Shu-yu Guo <syg@chromium.org>\nCommit-Queue: snek <snek@chromium.org>\nCr-Commit-Position: refs/heads/main@{#95823}\n",
+  "files": [
+    {
+      "path": "src/d8/d8.cc",
+      "status": "modified",
+      "additions": 29,
+      "deletions": 27,
+      "diff": "diff --git a/src/d8/d8.cc b/src/d8/d8.cc\nindex 69dc31c9d50..e69d64e3e98 100644\n--- a/src/d8/d8.cc\n+++ b/src/d8/d8.cc\n@@ -1267,38 +1267,34 @@ struct DynamicImportData {\n   Global<FixedArray> import_attributes;\n   Global<Promise::Resolver> resolver;\n };\n \n namespace {\n-struct ModuleResolutionData {\n-  ModuleResolutionData(Isolate* isolate_, Local<Value> module_namespace_,\n-                       Local<Promise::Resolver> resolver_)\n-      : isolate(isolate_) {\n-    module_namespace.Reset(isolate, module_namespace_);\n-    resolver.Reset(isolate, resolver_);\n-  }\n \n-  Isolate* isolate;\n-  Global<Value> module_namespace;\n-  Global<Promise::Resolver> resolver;\n+enum ModuleResolutionDataIndex : uint32_t {\n+  kResolver = 0,\n+  kNamespace = 1,\n };\n \n }  // namespace\n \n void Shell::ModuleResolutionSuccessCallback(\n     const FunctionCallbackInfo<Value>& info) {\n   DCHECK(i::ValidateCallbackInfo(info));\n-  std::unique_ptr<ModuleResolutionData> module_resolution_data(\n-      static_cast<ModuleResolutionData*>(\n-          info.Data().As<v8::External>()->Value()));\n-  Isolate* isolate(module_resolution_data->isolate);\n+  Isolate* isolate(info.GetIsolate());\n   HandleScope handle_scope(isolate);\n+  Local<Array> module_resolution_data(info.Data().As<Array>());\n+  Local<Context> context(isolate->GetCurrentContext());\n \n   Local<Promise::Resolver> resolver(\n-      module_resolution_data->resolver.Get(isolate));\n+      module_resolution_data->Get(context, ModuleResolutionDataIndex::kResolver)\n+          .ToLocalChecked()\n+          .As<Promise::Resolver>());\n   Local<Value> module_namespace(\n-      module_resolution_data->module_namespace.Get(isolate));\n+      module_resolution_data\n+          ->Get(context, ModuleResolutionDataIndex::kNamespace)\n+          .ToLocalChecked());\n \n   PerIsolateData* data = PerIsolateData::Get(isolate);\n   Local<Context> realm = data->realms_[data->realm_current_].Get(isolate);\n   Context::Scope context_scope(realm);\n \n@@ -1306,18 +1302,19 @@ void Shell::ModuleResolutionSuccessCallback(\n }\n \n void Shell::ModuleResolutionFailureCallback(\n     const FunctionCallbackInfo<Value>& info) {\n   DCHECK(i::ValidateCallbackInfo(info));\n-  std::unique_ptr<ModuleResolutionData> module_resolution_data(\n-      static_cast<ModuleResolutionData*>(\n-          info.Data().As<v8::External>()->Value()));\n-  Isolate* isolate(module_resolution_data->isolate);\n+  Isolate* isolate(info.GetIsolate());\n   HandleScope handle_scope(isolate);\n+  Local<Array> module_resolution_data(info.Data().As<Array>());\n+  Local<Context> context(isolate->GetCurrentContext());\n \n   Local<Promise::Resolver> resolver(\n-      module_resolution_data->resolver.Get(isolate));\n+      module_resolution_data->Get(context, ModuleResolutionDataIndex::kResolver)\n+          .ToLocalChecked()\n+          .As<Promise::Resolver>());\n \n   PerIsolateData* data = PerIsolateData::Get(isolate);\n   Local<Context> realm = data->realms_[data->realm_current_].Get(isolate);\n   Context::Scope context_scope(realm);\n \n@@ -1491,19 +1488,24 @@ void Shell::DoHostImportModuleDynamically(void* import_data) {\n   Local<Value> result = global_result.Get(isolate);\n   Local<Value> module_namespace = root_module->GetModuleNamespace();\n   Local<Promise> result_promise = result.As<Promise>();\n \n   // Setup callbacks, and then chain them to the result promise.\n-  // ModuleResolutionData will be deleted by the callbacks.\n-  auto module_resolution_data =\n-      new ModuleResolutionData(isolate, module_namespace, resolver);\n-  Local<v8::External> edata = External::New(isolate, module_resolution_data);\n+  Local<Array> module_resolution_data = v8::Array::New(isolate);\n+  module_resolution_data\n+      ->Set(realm, ModuleResolutionDataIndex::kResolver, resolver)\n+      .ToChecked();\n+  module_resolution_data\n+      ->Set(realm, ModuleResolutionDataIndex::kNamespace, module_namespace)\n+      .ToChecked();\n   Local<Function> callback_success;\n-  CHECK(Function::New(realm, ModuleResolutionSuccessCallback, edata)\n+  CHECK(Function::New(realm, ModuleResolutionSuccessCallback,\n+                      module_resolution_data)\n             .ToLocal(&callback_success));\n   Local<Function> callback_failure;\n-  CHECK(Function::New(realm, ModuleResolutionFailureCallback, edata)\n+  CHECK(Function::New(realm, ModuleResolutionFailureCallback,\n+                      module_resolution_data)\n             .ToLocal(&callback_failure));\n   result_promise->Then(realm, callback_success, callback_failure)\n       .ToLocalChecked();\n }\n \n"
+    },
+    {
+      "path": "src/objects/module.cc",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/src/objects/module.cc b/src/objects/module.cc\nindex 3d97fc2370b..f39d1616aea 100644\n--- a/src/objects/module.cc\n+++ b/src/objects/module.cc\n@@ -216,11 +216,11 @@ bool Module::Instantiate(Isolate* isolate, Handle<Module> module,\n     ResetGraph(isolate, module);\n     DCHECK_EQ(module->status(), kUnlinked);\n     return false;\n   }\n   DCHECK(module->status() == kLinked || module->status() == kEvaluated ||\n-         module->status() == kErrored);\n+         module->status() == kEvaluatingAsync || module->status() == kErrored);\n   DCHECK(stack.empty());\n   return true;\n }\n \n bool Module::PrepareInstantiate(Isolate* isolate, Handle<Module> module,\n"
+    },
+    {
+      "path": "src/objects/source-text-module.cc",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 3,
+      "diff": "diff --git a/src/objects/source-text-module.cc b/src/objects/source-text-module.cc\nindex 723eaf7a428..c8d248284e6 100644\n--- a/src/objects/source-text-module.cc\n+++ b/src/objects/source-text-module.cc\n@@ -680,12 +680,12 @@ void SourceTextModule::GatherAvailableAncestors(\n     for (int i = module->AsyncParentModuleCount(); i-- > 0;) {\n       Handle<SourceTextModule> m = module->GetAsyncParentModule(isolate, i);\n \n       // a. If execList does not contain m and\n       //    m.[[CycleRoot]].[[EvaluationError]] is empty, then\n-      if (exec_list->find(m) == exec_list->end() &&\n-          m->GetCycleRoot(isolate)->status() != kErrored) {\n+      if (m->GetCycleRoot(isolate)->status() != kErrored &&\n+          exec_list->find(m) == exec_list->end()) {\n         // i. Assert: m.[[Status]] is EVALUATING-ASYNC.\n         // ii. Assert: m.[[EvaluationError]] is empty.\n         DCHECK_EQ(m->status(), kEvaluatingAsync);\n \n         // iii. Assert: m.[[AsyncEvaluation]] is true.\n@@ -767,11 +767,12 @@ bool SourceTextModule::MaybeHandleEvaluationException(\n }\n \n // ES#sec-moduleevaluation\n MaybeHandle<Object> SourceTextModule::Evaluate(\n     Isolate* isolate, Handle<SourceTextModule> module) {\n-  CHECK(module->status() == kLinked || module->status() == kEvaluated);\n+  CHECK(module->status() == kLinked || module->status() == kEvaluatingAsync ||\n+        module->status() == kEvaluated);\n \n   // 5. Let stack be a new empty List.\n   Zone zone(isolate->allocator(), ZONE_NAME);\n   ZoneForwardList<Handle<SourceTextModule>> stack(&zone);\n   unsigned dfs_index = 0;\n"
+    },
+    {
+      "path": "test/mjsunit/harmony/modules-async-error-parent-entry.mjs",
+      "status": "added",
+      "additions": 5,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/harmony/modules-async-error-parent-entry.mjs b/test/mjsunit/harmony/modules-async-error-parent-entry.mjs\nnew file mode 100644\nindex 00000000000..055cba4d216\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-async-error-parent-entry.mjs\n@@ -0,0 +1,5 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+assertThrowsAsync(import('./modules-skip-async-error-parent.mjs'));\n"
+    },
+    {
+      "path": "test/mjsunit/harmony/modules-skip-async-error-parent-dynamic.mjs",
+      "status": "added",
+      "additions": 0,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/harmony/modules-skip-async-error-parent-dynamic.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent-dynamic.mjs\nnew file mode 100644\nindex 00000000000..e69de29bb2d\n"
+    },
+    {
+      "path": "test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs",
+      "status": "added",
+      "additions": 6,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs\nnew file mode 100644\nindex 00000000000..a2e1a1169fd\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs\n@@ -0,0 +1,6 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+await import('./modules-skip-async-error-parent-dynamic.mjs');\n+import('./modules-skip-async-error-parent.mjs').catch(() => {});\n"
+    },
+    {
+      "path": "test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs",
+      "status": "added",
+      "additions": 6,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs\nnew file mode 100644\nindex 00000000000..ca7f2772693\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs\n@@ -0,0 +1,6 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+import('./modules-skip-async-error-parent-static1.mjs');\n+await import('./modules-skip-async-error-parent-dynamic.mjs');\n"
+    },
+    {
+      "path": "test/mjsunit/harmony/modules-skip-async-error-parent.mjs",
+      "status": "added",
+      "additions": 10,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/harmony/modules-skip-async-error-parent.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent.mjs\nnew file mode 100644\nindex 00000000000..7fdfe7f6c2f\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-skip-async-error-parent.mjs\n@@ -0,0 +1,10 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+import './modules-skip-async-error-parent-static1.mjs';\n+import './modules-skip-async-error-parent-static2.mjs';\n+\n+await {};\n+\n+throw new Error('aaa');\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/d8/d8.cc b/src/d8/d8.cc\nindex 69dc31c9d50..e69d64e3e98 100644\n--- a/src/d8/d8.cc\n+++ b/src/d8/d8.cc\n@@ -1267,38 +1267,34 @@ struct DynamicImportData {\n   Global<FixedArray> import_attributes;\n   Global<Promise::Resolver> resolver;\n };\n \n namespace {\n-struct ModuleResolutionData {\n-  ModuleResolutionData(Isolate* isolate_, Local<Value> module_namespace_,\n-                       Local<Promise::Resolver> resolver_)\n-      : isolate(isolate_) {\n-    module_namespace.Reset(isolate, module_namespace_);\n-    resolver.Reset(isolate, resolver_);\n-  }\n \n-  Isolate* isolate;\n-  Global<Value> module_namespace;\n-  Global<Promise::Resolver> resolver;\n+enum ModuleResolutionDataIndex : uint32_t {\n+  kResolver = 0,\n+  kNamespace = 1,\n };\n \n }  // namespace\n \n void Shell::ModuleResolutionSuccessCallback(\n     const FunctionCallbackInfo<Value>& info) {\n   DCHECK(i::ValidateCallbackInfo(info));\n-  std::unique_ptr<ModuleResolutionData> module_resolution_data(\n-      static_cast<ModuleResolutionData*>(\n-          info.Data().As<v8::External>()->Value()));\n-  Isolate* isolate(module_resolution_data->isolate);\n+  Isolate* isolate(info.GetIsolate());\n   HandleScope handle_scope(isolate);\n+  Local<Array> module_resolution_data(info.Data().As<Array>());\n+  Local<Context> context(isolate->GetCurrentContext());\n \n   Local<Promise::Resolver> resolver(\n-      module_resolution_data->resolver.Get(isolate));\n+      module_resolution_data->Get(context, ModuleResolutionDataIndex::kResolver)\n+          .ToLocalChecked()\n+          .As<Promise::Resolver>());\n   Local<Value> module_namespace(\n-      module_resolution_data->module_namespace.Get(isolate));\n+      module_resolution_data\n+          ->Get(context, ModuleResolutionDataIndex::kNamespace)\n+          .ToLocalChecked());\n \n   PerIsolateData* data = PerIsolateData::Get(isolate);\n   Local<Context> realm = data->realms_[data->realm_current_].Get(isolate);\n   Context::Scope context_scope(realm);\n \n@@ -1306,18 +1302,19 @@ void Shell::ModuleResolutionSuccessCallback(\n }\n \n void Shell::ModuleResolutionFailureCallback(\n     const FunctionCallbackInfo<Value>& info) {\n   DCHECK(i::ValidateCallbackInfo(info));\n-  std::unique_ptr<ModuleResolutionData> module_resolution_data(\n-      static_cast<ModuleResolutionData*>(\n-          info.Data().As<v8::External>()->Value()));\n-  Isolate* isolate(module_resolution_data->isolate);\n+  Isolate* isolate(info.GetIsolate());\n   HandleScope handle_scope(isolate);\n+  Local<Array> module_resolution_data(info.Data().As<Array>());\n+  Local<Context> context(isolate->GetCurrentContext());\n \n   Local<Promise::Resolver> resolver(\n-      module_resolution_data->resolver.Get(isolate));\n+      module_resolution_data->Get(context, ModuleResolutionDataIndex::kResolver)\n+          .ToLocalChecked()\n+          .As<Promise::Resolver>());\n \n   PerIsolateData* data = PerIsolateData::Get(isolate);\n   Local<Context> realm = data->realms_[data->realm_current_].Get(isolate);\n   Context::Scope context_scope(realm);\n \n@@ -1491,19 +1488,24 @@ void Shell::DoHostImportModuleDynamically(void* import_data) {\n   Local<Value> result = global_result.Get(isolate);\n   Local<Value> module_namespace = root_module->GetModuleNamespace();\n   Local<Promise> result_promise = result.As<Promise>();\n \n   // Setup callbacks, and then chain them to the result promise.\n-  // ModuleResolutionData will be deleted by the callbacks.\n-  auto module_resolution_data =\n-      new ModuleResolutionData(isolate, module_namespace, resolver);\n-  Local<v8::External> edata = External::New(isolate, module_resolution_data);\n+  Local<Array> module_resolution_data = v8::Array::New(isolate);\n+  module_resolution_data\n+      ->Set(realm, ModuleResolutionDataIndex::kResolver, resolver)\n+      .ToChecked();\n+  module_resolution_data\n+      ->Set(realm, ModuleResolutionDataIndex::kNamespace, module_namespace)\n+      .ToChecked();\n   Local<Function> callback_success;\n-  CHECK(Function::New(realm, ModuleResolutionSuccessCallback, edata)\n+  CHECK(Function::New(realm, ModuleResolutionSuccessCallback,\n+                      module_resolution_data)\n             .ToLocal(&callback_success));\n   Local<Function> callback_failure;\n-  CHECK(Function::New(realm, ModuleResolutionFailureCallback, edata)\n+  CHECK(Function::New(realm, ModuleResolutionFailureCallback,\n+                      module_resolution_data)\n             .ToLocal(&callback_failure));\n   result_promise->Then(realm, callback_success, callback_failure)\n       .ToLocalChecked();\n }\n \ndiff --git a/src/objects/module.cc b/src/objects/module.cc\nindex 3d97fc2370b..f39d1616aea 100644\n--- a/src/objects/module.cc\n+++ b/src/objects/module.cc\n@@ -216,11 +216,11 @@ bool Module::Instantiate(Isolate* isolate, Handle<Module> module,\n     ResetGraph(isolate, module);\n     DCHECK_EQ(module->status(), kUnlinked);\n     return false;\n   }\n   DCHECK(module->status() == kLinked || module->status() == kEvaluated ||\n-         module->status() == kErrored);\n+         module->status() == kEvaluatingAsync || module->status() == kErrored);\n   DCHECK(stack.empty());\n   return true;\n }\n \n bool Module::PrepareInstantiate(Isolate* isolate, Handle<Module> module,\ndiff --git a/src/objects/source-text-module.cc b/src/objects/source-text-module.cc\nindex 723eaf7a428..c8d248284e6 100644\n--- a/src/objects/source-text-module.cc\n+++ b/src/objects/source-text-module.cc\n@@ -680,12 +680,12 @@ void SourceTextModule::GatherAvailableAncestors(\n     for (int i = module->AsyncParentModuleCount(); i-- > 0;) {\n       Handle<SourceTextModule> m = module->GetAsyncParentModule(isolate, i);\n \n       // a. If execList does not contain m and\n       //    m.[[CycleRoot]].[[EvaluationError]] is empty, then\n-      if (exec_list->find(m) == exec_list->end() &&\n-          m->GetCycleRoot(isolate)->status() != kErrored) {\n+      if (m->GetCycleRoot(isolate)->status() != kErrored &&\n+          exec_list->find(m) == exec_list->end()) {\n         // i. Assert: m.[[Status]] is EVALUATING-ASYNC.\n         // ii. Assert: m.[[EvaluationError]] is empty.\n         DCHECK_EQ(m->status(), kEvaluatingAsync);\n \n         // iii. Assert: m.[[AsyncEvaluation]] is true.\n@@ -767,11 +767,12 @@ bool SourceTextModule::MaybeHandleEvaluationException(\n }\n \n // ES#sec-moduleevaluation\n MaybeHandle<Object> SourceTextModule::Evaluate(\n     Isolate* isolate, Handle<SourceTextModule> module) {\n-  CHECK(module->status() == kLinked || module->status() == kEvaluated);\n+  CHECK(module->status() == kLinked || module->status() == kEvaluatingAsync ||\n+        module->status() == kEvaluated);\n \n   // 5. Let stack be a new empty List.\n   Zone zone(isolate->allocator(), ZONE_NAME);\n   ZoneForwardList<Handle<SourceTextModule>> stack(&zone);\n   unsigned dfs_index = 0;\ndiff --git a/test/mjsunit/harmony/modules-async-error-parent-entry.mjs b/test/mjsunit/harmony/modules-async-error-parent-entry.mjs\nnew file mode 100644\nindex 00000000000..055cba4d216\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-async-error-parent-entry.mjs\n@@ -0,0 +1,5 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+assertThrowsAsync(import('./modules-skip-async-error-parent.mjs'));\ndiff --git a/test/mjsunit/harmony/modules-skip-async-error-parent-dynamic.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent-dynamic.mjs\nnew file mode 100644\nindex 00000000000..e69de29bb2d\ndiff --git a/test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs\nnew file mode 100644\nindex 00000000000..a2e1a1169fd\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-skip-async-error-parent-static1.mjs\n@@ -0,0 +1,6 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+await import('./modules-skip-async-error-parent-dynamic.mjs');\n+import('./modules-skip-async-error-parent.mjs').catch(() => {});\ndiff --git a/test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs\nnew file mode 100644\nindex 00000000000..ca7f2772693\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-skip-async-error-parent-static2.mjs\n@@ -0,0 +1,6 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+import('./modules-skip-async-error-parent-static1.mjs');\n+await import('./modules-skip-async-error-parent-dynamic.mjs');\ndiff --git a/test/mjsunit/harmony/modules-skip-async-error-parent.mjs b/test/mjsunit/harmony/modules-skip-async-error-parent.mjs\nnew file mode 100644\nindex 00000000000..7fdfe7f6c2f\n--- /dev/null\n+++ b/test/mjsunit/harmony/modules-skip-async-error-parent.mjs\n@@ -0,0 +1,10 @@\n+// Copyright 2024 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+import './modules-skip-async-error-parent-static1.mjs';\n+import './modules-skip-async-error-parent-static2.mjs';\n+\n+await {};\n+\n+throw new Error('aaa');\n",
+  "ground_truth": {
+    "bug_id": "439986081",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+      "short_sha": "aea6f2fc95c",
+      "message": "[module] Fix bug with uninitialized CycleRoot property",
+      "author": "Nikolaos Papaspyrou",
+      "date": "2025-08-28T19:32:31+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-typeconfusion-001",
+        "title": "GetCycleRoot() called on a module whose [[CycleRoot]] may still be the_hole (uninitialized)",
+        "message": "In SourceTextModule::GatherAvailableAncestors, the loop over async parent modules evaluates `m->GetCycleRoot(isolate)->status() != kErrored` as the FIRST operand of the `&&`, meaning it is evaluated unconditionally for every async parent `m`, before checking whether `m` is already present in `exec_list`. GetCycleRoot() reads the module's `cycle_root` Tagged field and casts/dereferences it as a SourceTextModule (via Cast<SourceTextModule>). However, `cycle_root` is only guaranteed to be initialized (set to something other than the_hole) once a module has gone through specific points of the evaluation state machine. There is a scenario — an async parent module that depends on an async child but which itself fails synchronously before its cycle_root is ever assigned — where `cycle_root` remains the_hole when this function later runs (triggered when the async child eventually completes and walks up to gather available ancestors). Calling GetCycleRoot(isolate) in that state casts the Hole object to a SourceTextModule handle and then dereferences `->status()` on it, which is a type confusion / hole leak: the hole value is treated as a valid HeapObject of type SourceTextModule, and arbitrary offset reads are performed against it. Before this commit, the exec_list membership check was evaluated first, which happened to short-circuit away many calls to GetCycleRoot() on modules whose cycle_root had not been set; reordering the && operands here made the GetCycleRoot() call happen unconditionally on every iteration, which is a prerequisite for hitting the unguarded hole case that the later fix addresses.",
+        "location": {
+          "file": "src/objects/source-text-module.cc",
+          "start_line": 685,
+          "end_line": 686,
+          "start_column": null,
+          "end_column": null,
+          "function": "SourceTextModule::GatherAvailableAncestors",
+          "snippet": "      // a. If execList does not contain m and\n      //    m.[[CycleRoot]].[[EvaluationError]] is empty, then\n      if (m->GetCycleRoot(isolate)->status() != kErrored &&\n          exec_list->find(m) == exec_list->end()) {\n        // i. Assert: m.[[Status]] is EVALUATING-ASYNC.\n        // ii. Assert: m.[[EvaluationError]] is empty.",
+          "snippet_hash": "21e20368fb72fb5f180c530412ce4917d52f2dfc4a5704953cd34ed93f7e5692",
+          "description": null,
+          "snippet_start_line": 683,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "TypeConfusion",
+        "confidence": 0.75,
+        "suggestion": "Before calling GetCycleRoot(isolate) on m, explicitly check that m->cycle_root() is not the_hole (i.e. that CycleRoot has actually been initialized for this module). Only call GetCycleRoot()->status() once that is confirmed; otherwise treat the module as not having an errored cycle root for the purposes of this check (matching the later upstream fix, which adds `!IsTheHole(m->cycle_root(), isolate) &&` as the first conjunct and a DCHECK that cycle_root is only the_hole when m->status() == kErrored).",
+        "suggestion_code": "if (!IsTheHole(m->cycle_root(), isolate) &&\n    m->GetCycleRoot(isolate)->status() != kErrored &&\n    exec_list->find(m) == exec_list->end()) {",
+        "tags": [
+          "security",
+          "type-confusion",
+          "v8",
+          "modules",
+          "top-level-await"
+        ],
+        "cwe_ids": [
+          "CWE-843",
+          "CWE-457"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "TypeConfusion",
+    "affected_files": [
+      "src/objects/source-text-module.cc"
+    ],
+    "root_cause": "The reordering of the && conditions in GatherAvailableAncestors made the unguarded GetCycleRoot(isolate) call unconditional for every async parent module iterated, rather than only being reached after other checks had implicitly filtered out modules. Combined with the pre-existing spec gap where an async parent that fails synchronously while depending on an async child never gets its [[CycleRoot]] slot initialized, this allows GetCycleRoot() to be invoked on a module whose cycle_root is still the_hole, producing a type confusion when the hole is treated as a SourceTextModule pointer.",
+    "must_cover": [
+      {
+        "file": "src/objects/source-text-module.cc",
+        "function": "SourceTextModule::GatherAvailableAncestors",
+        "start_line": 685,
+        "end_line": 686,
+        "role": "primary",
+        "reason": "Primary location of finding: GetCycleRoot() called on a module whose [[CycleRoot]] may still be the_hole (uninitialized)"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "5af53ec82c0f3c031d0943b327e371ed00771279",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

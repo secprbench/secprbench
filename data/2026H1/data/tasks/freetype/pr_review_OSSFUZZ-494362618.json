@@ -1,0 +1,124 @@
+{
+  "task_id": "pr_review_OSSFUZZ-494362618",
+  "bug_id": "OSSFUZZ-494362618",
+  "commit_sha": "bda1d87f694dd228efd7fc93481afd3a9b415a03",
+  "commit_message": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix allocation.\n\nReported in\n\n  https://mail.gnu.org/archive/html/freetype-devel/2026-02/msg00005.html",
+  "commit_author": "Werner Lemberg",
+  "commit_date": "2026-03-18T14:45:57+01:00",
+  "pr_title": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix allocation.",
+  "pr_description": "Reported in\n\n  https://mail.gnu.org/archive/html/freetype-devel/2026-02/msg00005.html\n",
+  "files": [
+    {
+      "path": "src/sdf/ftsdf.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/src/sdf/ftsdf.c b/src/sdf/ftsdf.c\nindex cdeaa5b53..12a28b824 100644\n--- a/src/sdf/ftsdf.c\n+++ b/src/sdf/ftsdf.c\n@@ -3279,11 +3279,11 @@\n     {\n       error = FT_THROW( Invalid_Argument );\n       goto Exit;\n     }\n \n-    if ( FT_NEW_ARRAY( dists, bitmap->rows * bitmap->width ) )\n+    if ( FT_ALLOC_MULT( dists, bitmap->rows, bitmap->width ) )\n       goto Exit;\n \n     contours = shape->contours;\n     width    = (FT_Int)bitmap->width;\n     rows     = (FT_Int)bitmap->rows;\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/sdf/ftsdf.c b/src/sdf/ftsdf.c\nindex cdeaa5b53..12a28b824 100644\n--- a/src/sdf/ftsdf.c\n+++ b/src/sdf/ftsdf.c\n@@ -3279,11 +3279,11 @@\n     {\n       error = FT_THROW( Invalid_Argument );\n       goto Exit;\n     }\n \n-    if ( FT_NEW_ARRAY( dists, bitmap->rows * bitmap->width ) )\n+    if ( FT_ALLOC_MULT( dists, bitmap->rows, bitmap->width ) )\n       goto Exit;\n \n     contours = shape->contours;\n     width    = (FT_Int)bitmap->width;\n     rows     = (FT_Int)bitmap->rows;\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-494362618",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "4130e62d23481aae7e61ded08ef3837859b62f69",
+      "short_sha": "4130e62",
+      "message": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix thinko.",
+      "author": "Werner Lemberg",
+      "date": "2026-03-20T07:44:55+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-bufferoverflow-1",
+        "title": "Heap buffer overflow due to wrong item_size in FT_ALLOC_MULT",
+        "message": "In commit bda1d87f694dd, the allocation for the `dists` array in `sdf_generate_bounding_box` was changed from `FT_NEW_ARRAY(dists, bitmap->rows * bitmap->width)` to `FT_ALLOC_MULT(dists, bitmap->rows, bitmap->width)`. The macro signature is `FT_ALLOC_MULT(ptr, count, item_size)`, which calls `ft_mem_realloc(memory, item_size, 0, count, ...)` \u2014 allocating `count * item_size` raw bytes. With the call `FT_ALLOC_MULT(dists, bitmap->rows, bitmap->width)`, the allocation is `bitmap->rows * bitmap->width` bytes total (treating each element as `bitmap->width` bytes wide). However, `dists` is typed as `SDF_Signed_Distance*`, a struct containing two `FT_16D16` (4 bytes each) and one `FT_Char` (padded to ~12 bytes). The correct size should be `sizeof(SDF_Signed_Distance) * bitmap->rows * bitmap->width`. The undersized allocation causes a heap buffer overflow whenever any element `dists[index]` is written (for indices 0..(rows*width-1)), since each write is ~12 bytes but only 1 byte per element slot was allocated. Additionally, `FT_ALLOC_MULT` does not zero-initialize memory, while the subsequent code checks `dists[index].sign == 0` as a sentinel \u2014 leading to uninitialized reads. The fix adds an explicit overflow guard on `bitmap->rows * bitmap->width` and reverts to `FT_NEW_ARRAY(dists, bitmap->rows * bitmap->width)` which correctly uses `sizeof(*dists)` as element size and zero-initializes the buffer.",
+        "location": {
+          "file": "src/sdf/ftsdf.c",
+          "start_line": 3284,
+          "end_line": 3285,
+          "start_column": null,
+          "end_column": null,
+          "function": "sdf_generate_bounding_box",
+          "snippet": "    if ( FT_ALLOC_MULT( dists, bitmap->rows, bitmap->width ) )\n      goto Exit;",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/sdf/ftsdf.c",
+            "start_line": 3260,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "sdf_generate_bounding_box",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/sdf/ftsdf.c",
+            "start_line": 3375,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "sdf_generate_bounding_box",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "medium",
+        "bug_type": "BufferOverflow",
+        "confidence": 0.97,
+        "suggestion": "Use FT_NEW_ARRAY(dists, bitmap->rows * bitmap->width) (which uses sizeof(*dists) as element size and zero-initializes) with an explicit integer-overflow guard before the multiplication. There is no FT_NEW_ARRAY_MULT macro in FreeType, so the guard must be added manually.",
+        "suggestion_code": "if ( bitmap->rows > FT_INT_MAX / bitmap->width )\n{\n  error = FT_THROW( Array_Too_Large );\n  goto Exit;\n}\nif ( FT_NEW_ARRAY( dists, bitmap->rows * bitmap->width ) )\n  goto Exit;",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "memory-safety",
+          "heap-overflow"
+        ],
+        "cwe_ids": [
+          "CWE-122",
+          "CWE-131"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "BufferOverflow",
+    "affected_files": [
+      "src/sdf/ftsdf.c"
+    ],
+    "root_cause": "The programmer used `FT_ALLOC_MULT(ptr, count, item_size)` with `bitmap->rows` as count and `bitmap->width` as item_size to avoid the unchecked integer overflow in the original `bitmap->rows * bitmap->width` multiplication. However, `FT_ALLOC_MULT`'s `item_size` parameter is a raw byte size \u2014 not an element count \u2014 so the total allocation became `bitmap->rows * bitmap->width` bytes instead of `sizeof(SDF_Signed_Distance) * bitmap->rows * bitmap->width` bytes. A macro `FT_NEW_ARRAY_MULT` (which would accept a count and auto-derive sizeof) does not exist in FreeType, so the correct fix is to add an explicit overflow check and fall back to `FT_NEW_ARRAY`.",
+    "must_cover": [
+      {
+        "file": "src/sdf/ftsdf.c",
+        "function": "sdf_generate_bounding_box",
+        "start_line": 3284,
+        "end_line": 3285,
+        "role": "primary",
+        "reason": "Primary location of finding: Heap buffer overflow due to wrong item_size in FT_ALLOC_MULT"
+      },
+      {
+        "file": "src/sdf/ftsdf.c",
+        "function": "sdf_generate_bounding_box",
+        "start_line": 3260,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Heap buffer overflow due to wrong item_size in FT_ALLOC_MULT"
+      },
+      {
+        "file": "src/sdf/ftsdf.c",
+        "function": "sdf_generate_bounding_box",
+        "start_line": 3375,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Heap buffer overflow due to wrong item_size in FT_ALLOC_MULT"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "bda1d87f694dd228efd7fc93481afd3a9b415a03",
+  "fix_commit_sha": null
+}

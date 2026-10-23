@@ -1,0 +1,31 @@
+{
+  "bug_id": "427663123",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "da0bcffa3d0c86cb992250f160c32302e54fb557",
+    "parent": "740304c89ea7eec6880eca9b70fbe5de9dce8821",
+    "fix": "22e9d9621de58ec6fe6581b56215059a48451b9f"
+  },
+  "affected_files": [
+    "src/ast/scopes.cc",
+    "src/ast/variables.cc",
+    "src/ast/variables.h",
+    "src/flags/flag-definitions.h",
+    "src/interpreter/bytecode-generator.cc",
+    "src/interpreter/bytecode-generator.h",
+    "test/debugger/regress/regress-6085.js",
+    "test/unittests/interpreter/bytecode-generator-unittest.cc",
+    "test/unittests/interpreter/bytecode_expectations/ElideRedundantHoleChecks.golden",
+    "test/unittests/interpreter/generate-bytecode-expectations.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three revisions built successfully. Using the identical command `/work/out.gn/verify/d8 --ignore-unknown-flags --ignition-elide-redundant-tdz-checks /poc/poc.js`, pre_intro caught the required ReferenceError and exited 0; post_intro incorrectly returned V8's internal `hole` sentinel and the harness exited 42; post_benign again caught ReferenceError and exited 0. This directly demonstrates that the intro commit's TDZ-check elision misclassifies a conditionally skipped optional-chain key check",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

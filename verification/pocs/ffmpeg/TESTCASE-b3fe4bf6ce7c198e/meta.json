@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_TESTCASE-b3fe4bf6ce7c198e",
+  "bug_id": "TESTCASE-b3fe4bf6ce7c198e",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+  "intro_parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+  "fix_commit": "ddcb9dd3b5d21d055774abd61ae609ecb728cb1c",
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When MPS212 (Mpsp212 / parametric stereo) bitstream parsing support was added, the newly introduced bsOttBandsPhase and bsResidualBands fields were parsed straight from the bitstream with get_bits() but never range-checked against the numBands value implied by bsFreqRes, i.e. a missing input validation / bounds check on attacker-controlled bitstream fields that are later used as array bounds/indices.",
+  "findings": [
+    "decode_usac_element_pair() reads the raw 5-bit bitstream fields bsOttBandsPhase (via get_bits(gb, 5)) into e->mps.otts_bands_phase, and, when residual coding is enabled, bsResidualBands into e->mps.residual_bands, without validating them against the maximum number of frequency bands (numBands) allowed for the current freq_res setting (per ISO/IEC 23003-1:2007 Table 39, numBands can be as small as "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "386466fc7a60c06e13acd79c9838d2150eb418b84ef9d5b077a8b90c2bc6b7ff",
+  "generated_artifact_sha256": {
+    "reference": "42f1d7943b7ab052aa09ce7cb49f5cc8e832ebb27aa1d0b80e1ad8c5d864c630",
+    "introducing": "65981848738f3b3d241a788cba4de9b8f6fcf8fdc289c2b2437318ce1cea6bcf",
+    "companion": "ed5a6b2955d2725393c87eb3b1e464a7425cff99de2cd2955634fa53a7a078f0"
+  }
+}

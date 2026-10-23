@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_OSSFUZZ-385224934",
+  "bug_id": "OSSFUZZ-385224934",
+  "commit_sha": "71716406e68a1f139717c5025e49f648e3666b0e",
+  "commit_message": "avformat/wavdec: w64: do not error out for broken files if data start is found\n\nAlso attempt to fix invalid block_align value.",
+  "commit_author": "Paul B Mahol",
+  "commit_date": "2023-10-07T10:53:10+02:00",
+  "pr_title": "avformat/wavdec: w64: do not error out for broken files if data start is found",
+  "pr_description": "Also attempt to fix invalid block_align value.\n",
+  "files": [
+    {
+      "path": "libavformat/wavdec.c",
+      "status": "modified",
+      "additions": 16,
+      "deletions": 2,
+      "diff": "diff --git a/libavformat/wavdec.c b/libavformat/wavdec.c\nindex 97e69ab2ee..2814466897 100644\n--- a/libavformat/wavdec.c\n+++ b/libavformat/wavdec.c\n@@ -883,20 +883,34 @@ static int w64_read_header(AVFormatContext *s)\n \n     while (!avio_feof(pb)) {\n         if (avio_read(pb, guid, 16) != 16)\n             break;\n         size = avio_rl64(pb);\n-        if (size <= 24 || INT64_MAX - size < avio_tell(pb))\n+        if (size <= 24 || INT64_MAX - size < avio_tell(pb)) {\n+            if (data_ofs)\n+                break;\n             return AVERROR_INVALIDDATA;\n+        }\n \n         if (!memcmp(guid, ff_w64_guid_fmt, 16)) {\n             /* subtract chunk header size - normal wav file doesn't count it */\n             ret = ff_get_wav_header(s, pb, st->codecpar, size - 24, 0);\n             if (ret < 0)\n                 return ret;\n             avio_skip(pb, FFALIGN(size, INT64_C(8)) - size);\n-\n+            if (st->codecpar->block_align) {\n+                int block_align = st->codecpar->block_align;\n+\n+                block_align = FFMAX(block_align,\n+                                    ((st->codecpar->bits_per_coded_sample + 7) / 8) *\n+                                    st->codecpar->ch_layout.nb_channels);\n+                if (block_align > st->codecpar->block_align) {\n+                    av_log(s, AV_LOG_WARNING, \"invalid block_align: %d, broken file.\\n\",\n+                           st->codecpar->block_align);\n+                    st->codecpar->block_align = block_align;\n+                }\n+            }\n             avpriv_set_pts_info(st, 64, 1, st->codecpar->sample_rate);\n         } else if (!memcmp(guid, ff_w64_guid_fact, 16)) {\n             int64_t samples;\n \n             samples = avio_rl64(pb);\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavformat/wavdec.c b/libavformat/wavdec.c\nindex 97e69ab2ee..2814466897 100644\n--- a/libavformat/wavdec.c\n+++ b/libavformat/wavdec.c\n@@ -883,20 +883,34 @@ static int w64_read_header(AVFormatContext *s)\n \n     while (!avio_feof(pb)) {\n         if (avio_read(pb, guid, 16) != 16)\n             break;\n         size = avio_rl64(pb);\n-        if (size <= 24 || INT64_MAX - size < avio_tell(pb))\n+        if (size <= 24 || INT64_MAX - size < avio_tell(pb)) {\n+            if (data_ofs)\n+                break;\n             return AVERROR_INVALIDDATA;\n+        }\n \n         if (!memcmp(guid, ff_w64_guid_fmt, 16)) {\n             /* subtract chunk header size - normal wav file doesn't count it */\n             ret = ff_get_wav_header(s, pb, st->codecpar, size - 24, 0);\n             if (ret < 0)\n                 return ret;\n             avio_skip(pb, FFALIGN(size, INT64_C(8)) - size);\n-\n+            if (st->codecpar->block_align) {\n+                int block_align = st->codecpar->block_align;\n+\n+                block_align = FFMAX(block_align,\n+                                    ((st->codecpar->bits_per_coded_sample + 7) / 8) *\n+                                    st->codecpar->ch_layout.nb_channels);\n+                if (block_align > st->codecpar->block_align) {\n+                    av_log(s, AV_LOG_WARNING, \"invalid block_align: %d, broken file.\\n\",\n+                           st->codecpar->block_align);\n+                    st->codecpar->block_align = block_align;\n+                }\n+            }\n             avpriv_set_pts_info(st, 64, 1, st->codecpar->sample_rate);\n         } else if (!memcmp(guid, ff_w64_guid_fact, 16)) {\n             int64_t samples;\n \n             samples = avio_rl64(pb);\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-385224934",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "1afbc40875069312dd729b5959fb04950c3938db",
+      "short_sha": "1afbc4087",
+      "message": "avformat/wavdec: Fix overflow of intermediate in block_align check",
+      "author": "Michael Niedermayer",
+      "date": "2025-02-07T01:24:37+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-integeroverflow-001",
+        "title": "Signed integer overflow in block_align sanity check for W64/WAV demuxer",
+        "message": "In w64_read_header(), when parsing the 'fmt ' chunk, the code attempts to sanity-check and possibly correct an invalid block_align value read from the file. The check computes `((bits_per_coded_sample + 7) / 8) * ch_layout.nb_channels` using plain `int` arithmetic and stores the result into a local `int block_align`. Because `bits_per_coded_sample` and `nb_channels` are attacker-controlled values parsed from the file (via ff_get_wav_header), this multiplication can overflow a 32-bit signed int (undefined behavior in C, and in practice produces a negative/incorrect value with -fsanitize=undefined flagging it, e.g. '-251517880 * 32 cannot be represented in type int'). The resulting corrupted/undefined value is then compared against and potentially assigned into st->codecpar->block_align, defeating the purpose of the sanity check and potentially leaving block_align inconsistent with the true per-sample data size, which downstream code relies on for buffer size / stride calculations.",
+        "location": {
+          "file": "libavformat/wavdec.c",
+          "start_line": 900,
+          "end_line": 911,
+          "start_column": null,
+          "end_column": null,
+          "function": "w64_read_header",
+          "snippet": "            if (st->codecpar->block_align) {\n                int block_align = st->codecpar->block_align;\n\n                block_align = FFMAX(block_align,\n                                    ((st->codecpar->bits_per_coded_sample + 7) / 8) *\n                                    st->codecpar->ch_layout.nb_channels);\n                if (block_align > st->codecpar->block_align) {\n                    av_log(s, AV_LOG_WARNING, \"invalid block_align: %d, broken file.\\n\",\n                           st->codecpar->block_align);\n                    st->codecpar->block_align = block_align;\n                }\n            }",
+          "snippet_hash": "9f40dd443663cd7aabf9819de015d4464e15265d37beff0fabe965898334484d",
+          "description": null,
+          "snippet_start_line": 900,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.92,
+        "suggestion": "Perform the intermediate multiplication used in the block_align sanity check using a wide (64-bit) integer type to avoid signed overflow, matching the eventual fix: declare block_align as int64_t and use a 64-bit literal (7LL) in the bits_per_coded_sample rounding computation before multiplying by ch_layout.nb_channels.",
+        "suggestion_code": "int64_t block_align = st->codecpar->block_align;\n\nblock_align = FFMAX(block_align,\n                    ((st->codecpar->bits_per_coded_sample + 7LL) / 8) *\n                    st->codecpar->ch_layout.nb_channels);",
+        "tags": [
+          "security",
+          "integer-overflow",
+          "demuxer",
+          "wav",
+          "w64"
+        ],
+        "cwe_ids": [
+          "CWE-190"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "libavformat/wavdec.c"
+    ],
+    "root_cause": "Use of 32-bit signed int arithmetic for a multiplication of two untrusted, file-derived values (bits_per_coded_sample rounded up, and number of channels) without checking that the product fits in an int, leading to signed integer overflow (undefined behavior).",
+    "must_cover": [
+      {
+        "file": "libavformat/wavdec.c",
+        "function": "w64_read_header",
+        "start_line": 900,
+        "end_line": 911,
+        "role": "primary",
+        "reason": "Primary location of finding: Signed integer overflow in block_align sanity check for W64/WAV demuxer"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "71716406e68a1f139717c5025e49f648e3666b0e",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

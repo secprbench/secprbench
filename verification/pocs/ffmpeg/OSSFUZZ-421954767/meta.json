@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-421954767",
+  "bug_id": "OSSFUZZ-421954767",
+  "bug_type": "UninitializedMemory",
+  "intro_commit": "80606442377a7bca9501e2612e9a44b5044316ca",
+  "intro_parent": "507c2a57746d503cd97e1dd520e563a1f1b85fee",
+  "fix_commit": "909229b880d5f2c2277ab10915954b18d5162322",
+  "affected_files": [
+    "libavcodec/shorten.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The clearing logic used the wrong reference values (requested max_framesize sizes) instead of the actual allocated buffer size tracked by av_fast_realloc (s->allocated_bitstream_size) to determine which bytes are newly allocated and need zeroing, causing a mismatch between the assumed and real newly-allocated memory region.",
+  "findings": [
+    "In shorten_decode_frame(), when the bitstream buffer is (re)allocated via av_fast_realloc(), the code only memsets the region between the OLD requested frame size (s->max_framesize) and the NEW requested frame size (max_framesize). However, av_fast_realloc() often over-allocates (e.g. it may round up / double the allocation), so the actual previously allocated buffer size (tracked in s->allocated_"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "8f0a36ed156944c884c5e577b9aa71ef67f2e3ef42c42715a713d48cd534d9c6",
+  "generated_artifact_sha256": {
+    "reference": "51c16075d733e65eb33e60863d68f99e1461255ae0ee20737455db4104cbdd42",
+    "introducing": "eeb13e4f27fe2ffbc78a27d9a689b33d92f02adce3b10d4b5c802cbf9fd0cdb9",
+    "companion": "1ebee38ab67b3a38f43bf77958dded7469b840ed2120e67e796f48cc8a9476f2"
+  }
+}

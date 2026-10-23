@@ -1,0 +1,334 @@
+{
+  "bug_id": "GH-18574",
+  "project": "curl",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+    "parent": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+    "fix": "ad147ec53de822a18b5dec63b72f43688ae53869"
+  },
+  "affected_files": [
+    "lib/tftp.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay.; Source diff confirms the exact root cause: in pre_intro, tftp_state_timeout() compares against state->max_time and returns literal 0 on expiry, and the caller's guard is `if(timeout_ms <= 0)` so the 0 still triggers the TFTP-specific abort. The intro commit switched to a Curl_timeleft()-based negative-timeout convention and tightened the caller guard to `if(timeout_ms < 0)`, but kept `return 0;` in the branch that fires when the overall timer has already expired (Curl_timeleft()<0) — so that branch's 0 no longer satisfies the caller's `< 0` check and the TFTP-specific abort is skipped. post_benign changes that line to `return timeout_ms;` (propagating the negative value), restoring the caller's `if(timeout_ms < 0)` abort path.\\n\\nThis is directly observable in the built binaries' behavior with the identical run.sh reproducer:\\n- pre_intro: curl exits after ~2.2s with \\\"* TFTP response timeout\\\" / \\\"curl: (28) TFTP response timeout\\\" — the TFTP-specific abort fires as designed.\\n- post_intro: the TFTP-specific abort path is skipped (its failf never appears); the FIN state is set but the caller's `< 0` check never sees a negative number for that branch, so the transfer limps along further. It only ends ~4.0s later via an unrelated generic mechanism, printing \\\"* TFTP finished\\\" / \\\"curl: (28) Timeout was reached\\\" — a different message via a different, delayed path, exactly matching the described silent-disablement-of-timeout-propagation bug.\\n- post_benign: behavior matches pre_intro again — \\\"* TFTP response timeout\\\" / \\\"curl: (28) TFTP response timeout\\\" at ~3.0s.\\n\\nThe observable divergence (distinct log message and control path, \"TFTP response timeout\" vs \"Timeout was reached\", plus timing difference) is present only in post_intro and is corrected in post_benign, confirming both introduction and the benign fix.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/7a6c2000fedadd6243ba/attempts/02/replay/pr_review_GH-18574.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/7a6c2000fedadd6243ba/attempts/02/replay/pr_review_GH-18574.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total 3, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* TFTP response timeout\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n* Closing connection 0\ncurl: (28) TFTP response timeout\n\nreal\t0m3.021s\nuser\t0m0.005s\nsys\t0m0.017s\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a5c998d05a1c700fe19d70e9ba3a65895a61da57e1d571151c5bcaa3121205fb"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total  3000, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0* TFTP finished\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n* Closing connection 0\ncurl: (28) Timeout was reached\n\nreal\t0m4.024s\nuser\t0m0.009s\nsys\t0m0.015s\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7f71399afa24fa5701e11d57ffe0c22414a2815e28e07e789ccbe00a89ca85bc"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total  3000, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* TFTP response timeout\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n* Closing connection 0\ncurl: (28) TFTP response timeout\n\nreal\t0m3.022s\nuser\t0m0.001s\nsys\t0m0.023s\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "adfa59bf5a813f609c1a7bb43b2a731fe754affe4db886a823779112c236117c"
+        }
+      }
+    },
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/7a6c2000fedadd6243ba/attempts/02/replay/pr_review_GH-18574.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "cc91cb98d527cde5871a2f0ece35c1c1bdb4a7f544dcb75e94bb96d0bf0e46e8",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "7f71399afa24fa5701e11d57ffe0c22414a2815e28e07e789ccbe00a89ca85bc"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total  3000, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0* TFTP finished\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n* Closing connection 0\ncurl: (28) Timeout was reached\n\nreal\t0m4.022s\nuser\t0m0.009s\nsys\t0m0.011s\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "cc91cb98d527cde5871a2f0ece35c1c1bdb4a7f544dcb75e94bb96d0bf0e46e8",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "a5c998d05a1c700fe19d70e9ba3a65895a61da57e1d571151c5bcaa3121205fb"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total 3, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0* TFTP response timeout\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n* Closing connection 0\ncurl: (28) TFTP response timeout\n\nreal\t0m2.222s\nuser\t0m0.005s\nsys\t0m0.015s\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "cc91cb98d527cde5871a2f0ece35c1c1bdb4a7f544dcb75e94bb96d0bf0e46e8",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "adfa59bf5a813f609c1a7bb43b2a731fe754affe4db886a823779112c236117c"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total  3000, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* TFTP response timeout\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0\n* Closing connection 0\ncurl: (28) TFTP response timeout\n\nreal\t0m3.018s\nuser\t0m0.001s\nsys\t0m0.017s\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "curl: (28) Timeout was reached",
+        "pre_marker": "curl: (28) TFTP response timeout",
+        "benign_marker": "curl: (28) TFTP response timeout",
+        "description": "run.sh starts a UDP listener on 127.0.0.1:6969 that accepts TFTP packets but never replies, then runs `curl -v --connect-timeout 3 tftp://127.0.0.1:6969/foo`. Since the peer never answers, curl's TFTP state machine must eventually detect that the overall time budget (Curl_timeleft) has expired and abort with CURLE_OPERATION_TIMEDOUT via the tftp-specific \"TFTP response timeout\" failf() in tftp_multi_statemach(). Ran identically (same run.sh, same listener, same curl invocation) against pre_intro, post_intro, and post_benign builds.",
+        "target_evidence": "post_intro tail: '* TFTP finished' ... 'curl: (28) Timeout was reached' (real 0m4.022s). pre_intro tail: '* TFTP response timeout' ... 'curl: (28) TFTP response timeout' (real 0m2.222s). post_benign tail: '* TFTP response timeout' ... 'curl: (28) TFTP response timeout' (real 0m3.018s). Source confirms: post_intro tftp_state_timeout() has `if(timeout_ms < 0){ state->error=TFTP_ERR_TIMEOUT; state->state=TFTP_STATE_FIN; return 0; }` while caller tftp_multi_statemach() checks `if(timeout_ms < 0)`; post_benign changes the return to `return timeout_ms;`."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "behavioral",
+        "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+      },
+      "explanation": "Source diff confirms the exact root cause: in pre_intro, tftp_state_timeout() compares against state->max_time and returns literal 0 on expiry, and the caller's guard is `if(timeout_ms <= 0)` so the 0 still triggers the TFTP-specific abort. The intro commit switched to a Curl_timeleft()-based negative-timeout convention and tightened the caller guard to `if(timeout_ms < 0)`, but kept `return 0;` in the branch that fires when the overall timer has already expired (Curl_timeleft()<0) — so that branch's 0 no longer satisfies the caller's `< 0` check and the TFTP-specific abort is skipped. post_benign changes that line to `return timeout_ms;` (propagating the negative value), restoring the caller's `if(timeout_ms < 0)` abort path.\\n\\nThis is directly observable in the built binaries' behavior with the identical run.sh reproducer:\\n- pre_intro: curl exits after ~2.2s with \\\"* TFTP response timeout\\\" / \\\"curl: (28) TFTP response timeout\\\" — the TFTP-specific abort fires as designed.\\n- post_intro: the TFTP-specific abort path is skipped (its failf never appears); the FIN state is set but the caller's `< 0` check never sees a negative number for that branch, so the transfer limps along further. It only ends ~4.0s later via an unrelated generic mechanism, printing \\\"* TFTP finished\\\" / \\\"curl: (28) Timeout was reached\\\" — a different message via a different, delayed path, exactly matching the described silent-disablement-of-timeout-propagation bug.\\n- post_benign: behavior matches pre_intro again — \\\"* TFTP response timeout\\\" / \\\"curl: (28) TFTP response timeout\\\" at ~3.0s.\\n\\nThe observable divergence (distinct log message and control path, \"TFTP response timeout\" vs \"Timeout was reached\", plus timing difference) is present only in post_intro and is corrected in post_benign, confirming both introduction and the benign fix."
+    }
+  },
+  "task_hashes": {
+    "buggy": "cd8d9543ed4ed308551bc197a6e1b1a801fb96fc81e41730d71b3a6f7b7636c4",
+    "benign": "5d9b6292a2caf9c090c897fb209707d82918f93861df4ae8f2790cd61deae5e3"
+  },
+  "previous_records": [
+    {
+      "bug_id": "GH-18574",
+      "project": "curl",
+      "bug_type": "LogicError",
+      "commits": {
+        "intro": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+        "parent": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+        "fix": "ad147ec53de822a18b5dec63b72f43688ae53869"
+      },
+      "affected_files": [
+        "lib/tftp.c"
+      ],
+      "baseline": {
+        "status": "inconclusive",
+        "intro_verified": true,
+        "benign_verified": true,
+        "reason": "Read lib/tftp.c in each build. In pre_intro/post_benign, tftp_state_timeout() returns the negative Curl_timeleft() value when the timer has expired, so its sole caller tftp_multi_statemach() sees timeout_ms<0 immediately and aborts via the TFTP-specific path (failf(\"TFTP response timeout\") -> CURLE_OPERATION_TIMEDOUT). In post_intro, the same branch sets state->error/state->state to FIN but returns the literal 0 (the bug described in meta.json root_cause), so the caller's '(timeout_ms < 0)' guard never fires and the immediate TFTP-specific abort is skipped, even though internal state is already FIN.\n\nSince a naive test using only CURLOPT_TIMEOUT is independently caught by a duplicate generic timeout check in multi.c (masking the bug), the working PoC instead uses --connect-timeout against a target that keeps TFTP in TFTP_STATE_START (so Curl_timeleft's duringconnect flag keeps hitting the buggy branch) with a UDP \"black hole\" listener (bound socket that reads and drops all packets, avoiding an immediate ICMP unreachable that a non-listening port would give).\n\nRan the identical /poc/run.sh via run_poc on all three built (sanitizer-instrumented) versions:\n- pre_intro: aborts at 3.02s, verbose shows \"TFTP response timeout\", curl exit 28 \"TFTP response timeout\".\n- post_intro (buggy): consistently takes 4.03s (~1s later, one extra poll/retry cycle), verbose shows \"TFTP finished\" instead, exit 28 message is the different, generic \"Timeout was reached\" — the TFTP-specific immediate-abort path is skipped/delayed exactly as the root cause describes.\n- post_benign: matches pre_intro exactly (3.02s, \"TFTP response timeout\").\n\nThis is a clean, reproducible, non-crash behavioral divergence (no memory-safety oracle applies — this is a pure logic/timeout-propagation bug) confirming intro_commit introduces the defect and the benign companion (reverting to the correct `return timeout_ms;`) restores original behavior.",
+        "source": "secprbench replay"
+      },
+      "final_disposition": "inconclusive",
+      "evidence": {
+        "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/7a6c2000fedadd6243ba/attempts/01/replay/pr_review_GH-18574.result.json",
+        "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/7a6c2000fedadd6243ba/attempts/01/replay/pr_review_GH-18574.report.md",
+        "runs": {},
+        "agent": {
+          "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/7a6c2000fedadd6243ba/attempts/01/replay/pr_review_GH-18574.agent_verdict.json",
+          "executions": {
+            "pre_intro": {
+              "command": "cd /work && bash /poc/run.sh",
+              "input": null,
+              "poc_sha256": "8dea02d3707f98503a5a80fd72d0b04d764e26a6e9bbebd51df5015dbddd126f",
+              "build": {
+                "version": "pre_intro",
+                "base_commit": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+                "patched": false,
+                "patch_method": "",
+                "patch_clean": null,
+                "build_ok": true,
+                "poc_ran": false,
+                "exit_code": null,
+                "crashed": false,
+                "sanitizer_report": "",
+                "build_log_tail": "",
+                "run_log_tail": "",
+                "note": "build cached",
+                "source_integrity": {
+                  "ok": true,
+                  "stage": "after_poc",
+                  "fingerprint": "c047be45c5bc63a6cf0d4efef14cfd7afe01435d3aba220c9ed71c2882f1b542"
+                }
+              },
+              "run": {
+                "exit_code": 0,
+                "crashed": false,
+                "sanitizer": "",
+                "stdout_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total 3, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* TFTP response timeout\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0\n* Closing connection 0\ncurl: (28) TFTP response timeout\n\nreal\t0m3.024s\nuser\t0m0.000s\nsys\t0m0.025s\n"
+              }
+            },
+            "post_intro": {
+              "command": "cd /work && bash /poc/run.sh",
+              "input": null,
+              "poc_sha256": "8dea02d3707f98503a5a80fd72d0b04d764e26a6e9bbebd51df5015dbddd126f",
+              "build": {
+                "version": "post_intro",
+                "base_commit": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+                "patched": false,
+                "patch_method": "",
+                "patch_clean": null,
+                "build_ok": true,
+                "poc_ran": false,
+                "exit_code": null,
+                "crashed": false,
+                "sanitizer_report": "",
+                "build_log_tail": "",
+                "run_log_tail": "",
+                "note": "build cached",
+                "source_integrity": {
+                  "ok": true,
+                  "stage": "after_poc",
+                  "fingerprint": "00e6c3f45a4e875f3baa1ddd1e9716c1ffed27d0be314543acec44662ea32746"
+                }
+              },
+              "run": {
+                "exit_code": 0,
+                "crashed": false,
+                "sanitizer": "",
+                "stdout_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total  3000, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0* TFTP finished\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:04 --:--:--     0\n* Closing connection 0\ncurl: (28) Timeout was reached\n\nreal\t0m4.026s\nuser\t0m0.008s\nsys\t0m0.017s\n"
+              }
+            },
+            "post_benign": {
+              "command": "cd /work && bash /poc/run.sh",
+              "input": null,
+              "poc_sha256": "8dea02d3707f98503a5a80fd72d0b04d764e26a6e9bbebd51df5015dbddd126f",
+              "build": {
+                "version": "post_benign",
+                "base_commit": "d7f737dd1359b20432bf5e65401ea4c22526fca5",
+                "patched": true,
+                "patch_method": "plain",
+                "patch_clean": true,
+                "build_ok": true,
+                "poc_ran": false,
+                "exit_code": null,
+                "crashed": false,
+                "sanitizer_report": "",
+                "build_log_tail": "",
+                "run_log_tail": "",
+                "note": "build cached",
+                "source_integrity": {
+                  "ok": true,
+                  "stage": "after_poc",
+                  "fingerprint": "6613fd07b5b21fe875b856d83c70a130ff1f415c14259c053e9d268c8688181e"
+                }
+              },
+              "run": {
+                "exit_code": 0,
+                "crashed": false,
+                "sanitizer": "",
+                "stdout_tail": "CURL_EXIT=28\nVERIFY_EXIT=0\n\n*   Trying 127.0.0.1:6969...\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 () port 6969 (#0)\n* set timeouts for state 0; Total  3000, retry 1 maxtry 3\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:01 --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:--  0:00:02 --:--:--     0* TFTP response timeout\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0\n\n  0     0    0     0    0     0      0      0 --:--:--  0:00:03 --:--:--     0\n* Closing connection 0\ncurl: (28) TFTP response timeout\n\nreal\t0m3.024s\nuser\t0m0.008s\nsys\t0m0.015s\n"
+              }
+            }
+          },
+          "explanation": "Read lib/tftp.c in each build. In pre_intro/post_benign, tftp_state_timeout() returns the negative Curl_timeleft() value when the timer has expired, so its sole caller tftp_multi_statemach() sees timeout_ms<0 immediately and aborts via the TFTP-specific path (failf(\"TFTP response timeout\") -> CURLE_OPERATION_TIMEDOUT). In post_intro, the same branch sets state->error/state->state to FIN but returns the literal 0 (the bug described in meta.json root_cause), so the caller's '(timeout_ms < 0)' guard never fires and the immediate TFTP-specific abort is skipped, even though internal state is already FIN.\n\nSince a naive test using only CURLOPT_TIMEOUT is independently caught by a duplicate generic timeout check in multi.c (masking the bug), the working PoC instead uses --connect-timeout against a target that keeps TFTP in TFTP_STATE_START (so Curl_timeleft's duringconnect flag keeps hitting the buggy branch) with a UDP \"black hole\" listener (bound socket that reads and drops all packets, avoiding an immediate ICMP unreachable that a non-listening port would give).\n\nRan the identical /poc/run.sh via run_poc on all three built (sanitizer-instrumented) versions:\n- pre_intro: aborts at 3.02s, verbose shows \"TFTP response timeout\", curl exit 28 \"TFTP response timeout\".\n- post_intro (buggy): consistently takes 4.03s (~1s later, one extra poll/retry cycle), verbose shows \"TFTP finished\" instead, exit 28 message is the different, generic \"Timeout was reached\" — the TFTP-specific immediate-abort path is skipped/delayed exactly as the root cause describes.\n- post_benign: matches pre_intro exactly (3.02s, \"TFTP response timeout\").\n\nThis is a clean, reproducible, non-crash behavioral divergence (no memory-safety oracle applies — this is a pure logic/timeout-propagation bug) confirming intro_commit introduces the defect and the benign companion (reverting to the correct `return timeout_ms;`) restores original behavior."
+        }
+      },
+      "task_hashes": {
+        "buggy": "cd8d9543ed4ed308551bc197a6e1b1a801fb96fc81e41730d71b3a6f7b7636c4",
+        "benign": "5d9b6292a2caf9c090c897fb209707d82918f93861df4ae8f2790cd61deae5e3"
+      }
+    }
+  ]
+}

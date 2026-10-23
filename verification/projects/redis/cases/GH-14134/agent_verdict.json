@@ -1,0 +1,123 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "logic-error",
+  "poc_summary": "The existing run.sh/malformed_get.resp PoC sends a malformed GET-like RESP request (wrong arity) via the socket oracle script (run_socket_oracle.py) to a built redis-server, then reports whether the server returned a normal arity error or crashed with serverPanic/SIGABRT.",
+  "explanation": "Ran the existing, unmodified PoC (run.sh -> run_socket_oracle.py sending /poc/malformed_get.resp) unchanged against all three built revisions. pre_intro (parent b7c6755b1b44): server processes the malformed command, returns a normal arity error, REDIS_ORACLE=normal_arity_error, exit 0 \u2014 no crash. post_intro (70a079db5eaa): identical request causes processInputBuffer's newly-added getSlotFromCommand call (which runs before commandCheckArity, per meta.json root cause) to walk the command's declared key positions against an argv that doesn't have enough arguments, triggering serverPanic in db.c (line 2931, \"Redis built-in command declared keys positions not matching the arity requirements\") and aborting the process with SIGABRT; REDIS_ORACLE=production_serverPanic_SIGABRT, exit 134. post_benign (fix-equivalent revision): same request again returns the normal arity error with no crash, exit 0, matching pre_intro. The same reproducer (same RESP bytes, same run.sh invocation) was used across all three builds, and the only revision that panics is post_intro, which is exactly the vulnerable window between intro and fix/benign. The crash signature (db.c:2931 Guru Meditation about key positions vs arity) matches the stated root cause precisely (key-slot lookup reached before arity check). This is a genuine target execution of redis-server over its RESP protocol, not a source grep or unexecuted code path, so the behavioral oracle is satisfied: intro_verified=yes, benign_verified=yes.",
+  "oracle": {
+    "kind": "behavioral",
+    "bug_marker": "REDIS_ORACLE=production_serverPanic_SIGABRT",
+    "pre_marker": "REDIS_ORACLE=normal_arity_error",
+    "benign_marker": "REDIS_ORACLE=normal_arity_error",
+    "description": "The existing run.sh/malformed_get.resp PoC sends a malformed GET-like RESP request (wrong arity) via the socket oracle script (run_socket_oracle.py) to a built redis-server, then reports whether the server returned a normal arity error or crashed with serverPanic/SIGABRT.",
+    "target_evidence": "post_intro log: \"Guru Meditation: Redis built-in command declared keys positions not matching the arity requirements. #db.c:2931\" followed by SIGABRT (exit 134, REDIS_CHILD_EXIT=-6). pre_intro and post_benign logs show no panic, normal shutdown after REDIS_ORACLE=normal_arity_error, exit 0."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "read_context(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "malformed_get.resp",
+      "poc_sha256": "86d3cf127908a9eada1f0cca99dcc68e37bc61c60a66ff2ca0c93c626b9acae1",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "b7c6755b1b44da36866c0376da0a000873177270",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b51da17e76be8863b60fe19c160c5fa63230d7c6579b542233f6f40ab6297011"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "{\n  \"output\": \"/tmp/secprbench-redis-14134.TIS6j7/run\",\n  \"outcomes\": {\n    \"current\": \"normal_arity_error\"\n  }\n}\n11:C 02 Oct 2026 22:52:19.830 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n11:signal-handler (1790981542) Received SIGTERM scheduling shutdown...\n11:M 02 Oct 2026 22:52:22.949 # Redis is now ready to exit, bye bye...\nREDIS_CHILD_EXIT=None\nREDIS_ORACLE=normal_arity_error\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "malformed_get.resp",
+      "poc_sha256": "86d3cf127908a9eada1f0cca99dcc68e37bc61c60a66ff2ca0c93c626b9acae1",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "70a079db5eaa201da00b72fdfd4cf349e8b8ede7",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f0bb74d5559280979c7d84b9a2ddad11a02f8e98bff54267fc502b8527f2cd59"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "",
+        "stdout_tail": "{\n  \"output\": \"/tmp/secprbench-redis-14134.p3Aj6s/run\",\n  \"outcomes\": {\n    \"current\": \"production_serverPanic_SIGABRT\"\n  }\n}\n11:C 02 Oct 2026 22:52:24.065 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n\n\n=== REDIS BUG REPORT START: Cut & paste starting from here ===\n11:M 02 Oct 2026 22:52:24.096 # ------------------------------------------------\n11:M 02 Oct 2026 22:52:24.096 # !!! Software Failure. Press left mouse button to continue\n11:M 02 Oct 2026 22:52:24.096 # Guru Meditation: Redis built-in command declared keys positions not matching the arity requirements. #db.c:2931\n\n=== REDIS BUG REPORT END. Make sure to include from START to END. ===\n\n       Please report the crash by opening an issue on github:\n\n           http://github.com/redis/redis/issues\n\n  If a Redis module was involved, please open in the module's repo instead.\n\n  Suspect RAM error? Use redis-server --test-memory to verify it.\n\n  Some other issues could be detected by redis-server --check-system\nREDIS_CHILD_EXIT=-6\nREDIS_ORACLE=production_serverPanic_SIGABRT\nVERIFY_EXIT=134\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "malformed_get.resp",
+      "poc_sha256": "86d3cf127908a9eada1f0cca99dcc68e37bc61c60a66ff2ca0c93c626b9acae1",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "b7c6755b1b44da36866c0376da0a000873177270",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b4cafe9221c8c07425525c314881414564476147e301b42f6ca1204540b7d466"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "{\n  \"output\": \"/tmp/secprbench-redis-14134.UIzmD2/run\",\n  \"outcomes\": {\n    \"current\": \"normal_arity_error\"\n  }\n}\n11:C 02 Oct 2026 22:52:25.573 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n11:signal-handler (1790981548) Received SIGTERM scheduling shutdown...\n11:M 02 Oct 2026 22:52:28.690 # Redis is now ready to exit, bye bye...\nREDIS_CHILD_EXIT=None\nREDIS_ORACLE=normal_arity_error\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

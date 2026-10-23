@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-14323",
+  "bug_id": "GH-14323",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "5d0d64b062c160093dc287ed5d18ec7c807873cf",
+  "intro_parent": "090f6252c4e1a17528124b6c6b69f352fb68176f",
+  "fix_commit": "d649637ebd1b7b7792a4224a42e1ef8824743378",
+  "affected_files": [
+    "src/defrag.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "redis",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "activeDefragAlloc() couples allocation-of-replacement with freeing-of-original into a single call. activeDefragHExpiresOB() retained a reference (keystr) into the original object's memory for use after that call, not realizing the original memory had already been released by the time it performed the dict lookup/update. The ordering of free vs. use was inverted: the free needed to happen only after all derived pointers from the old object were no longer needed.",
+  "findings": [
+    "In activeDefragHExpiresOB(), `keystr` is captured as `kvobjGetKey(kvobj)` at the top of the function, i.e. it is a pointer into the memory owned by the original (pre-defrag) `kvobj` allocation. Later, the code calls `kvobj = activeDefragAlloc(kvobj)`. activeDefragAlloc() (see src/defrag.c, activeDefragAlloc) allocates a new copy of the object AND immediately frees the old pointer via zfree_no_tcac"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "277335fc13936a12cf41c16daa178690eef80dc7868a7648e1200b936ff7ad63",
+  "generated_artifact_sha256": {
+    "reference": "0d606e81ed7c4cd6f2054dd3e3429cc99609f837d8d16e525cdc3d413d5c7923",
+    "introducing": "538d62b66767d67b3b5d73008858feabb17f917311160e0c237203c8e576ba26",
+    "companion": "9b85b854328e70771d73043158eca059473cc694088d65fdf7c8fc4a244ca393"
+  }
+}

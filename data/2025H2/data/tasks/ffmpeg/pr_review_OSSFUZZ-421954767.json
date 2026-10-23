@@ -1,0 +1,87 @@
+{
+  "task_id": "pr_review_OSSFUZZ-421954767",
+  "bug_id": "OSSFUZZ-421954767",
+  "commit_sha": "80606442377a7bca9501e2612e9a44b5044316ca",
+  "commit_message": "avcodec/shorten: Fix discard of ‘const’ qualifier\n\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "commit_author": "James Almer",
+  "commit_date": "2024-08-16T10:36:47-03:00",
+  "pr_title": "avcodec/shorten: Fix discard of ‘const’ qualifier",
+  "pr_description": "Signed-off-by: James Almer <jamrial@gmail.com>\n",
+  "files": [
+    {
+      "path": "libavcodec/shorten.c",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 4,
+      "diff": "diff --git a/libavcodec/shorten.c b/libavcodec/shorten.c\nindex 12a179156a..46d3b7a615 100644\n--- a/libavcodec/shorten.c\n+++ b/libavcodec/shorten.c\n@@ -561,11 +561,10 @@ static int shorten_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n         memcpy(&s->bitstream[s->bitstream_index + s->bitstream_size], buf,\n                buf_size);\n     buf               = &s->bitstream[s->bitstream_index];\n     buf_size         += s->bitstream_size;\n     s->bitstream_size = buf_size;\n-    memset(buf + buf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);\n \n     /* do not decode until buffer has at least max_framesize bytes or\n      * the end of the file has been reached */\n     if (buf_size < s->max_framesize && avpkt->data) {\n         *got_frame_ptr = 0;\n@@ -581,22 +580,24 @@ static int shorten_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n \n         if ((ret = read_header(s)) < 0)\n             return ret;\n \n         if (avpkt->size) {\n-            int max_framesize;\n+            int max_framesize = s->blocksize * s->channels * 8;\n             void *tmp_ptr;\n \n-            max_framesize = FFMAX(s->max_framesize, s->blocksize * s->channels * 8);\n             tmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,\n                                       max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);\n             if (!tmp_ptr) {\n                 av_log(avctx, AV_LOG_ERROR, \"error allocating bitstream buffer\\n\");\n                 return AVERROR(ENOMEM);\n             }\n             s->bitstream = tmp_ptr;\n-            s->max_framesize = max_framesize;\n+            if (max_framesize > s->max_framesize)\n+                memset(s->bitstream + s->max_framesize, 0, (max_framesize - s->max_framesize) +\n+                                                            AV_INPUT_BUFFER_PADDING_SIZE);\n+            s->max_framesize = FFMAX(s->max_framesize, max_framesize);\n             *got_frame_ptr = 0;\n             goto finish_frame;\n         }\n     }\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/shorten.c b/libavcodec/shorten.c\nindex 12a179156a..46d3b7a615 100644\n--- a/libavcodec/shorten.c\n+++ b/libavcodec/shorten.c\n@@ -561,11 +561,10 @@ static int shorten_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n         memcpy(&s->bitstream[s->bitstream_index + s->bitstream_size], buf,\n                buf_size);\n     buf               = &s->bitstream[s->bitstream_index];\n     buf_size         += s->bitstream_size;\n     s->bitstream_size = buf_size;\n-    memset(buf + buf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);\n \n     /* do not decode until buffer has at least max_framesize bytes or\n      * the end of the file has been reached */\n     if (buf_size < s->max_framesize && avpkt->data) {\n         *got_frame_ptr = 0;\n@@ -581,22 +580,24 @@ static int shorten_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n \n         if ((ret = read_header(s)) < 0)\n             return ret;\n \n         if (avpkt->size) {\n-            int max_framesize;\n+            int max_framesize = s->blocksize * s->channels * 8;\n             void *tmp_ptr;\n \n-            max_framesize = FFMAX(s->max_framesize, s->blocksize * s->channels * 8);\n             tmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,\n                                       max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);\n             if (!tmp_ptr) {\n                 av_log(avctx, AV_LOG_ERROR, \"error allocating bitstream buffer\\n\");\n                 return AVERROR(ENOMEM);\n             }\n             s->bitstream = tmp_ptr;\n-            s->max_framesize = max_framesize;\n+            if (max_framesize > s->max_framesize)\n+                memset(s->bitstream + s->max_framesize, 0, (max_framesize - s->max_framesize) +\n+                                                            AV_INPUT_BUFFER_PADDING_SIZE);\n+            s->max_framesize = FFMAX(s->max_framesize, max_framesize);\n             *got_frame_ptr = 0;\n             goto finish_frame;\n         }\n     }\n \n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-421954767",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "909229b880d5f2c2277ab10915954b18d5162322",
+      "short_sha": "909229b",
+      "message": "avcodec/shorten: Clear the additionally allocated space on realloc",
+      "author": "Michael Niedermayer",
+      "date": "2025-07-23T21:13:33+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-uninitmem-001",
+        "title": "Insufficient clearing of realloc'd bitstream buffer leaves uninitialized memory",
+        "message": "In shorten_decode_frame(), when the bitstream buffer is (re)allocated via av_fast_realloc(), the code only memsets the region between the OLD requested frame size (s->max_framesize) and the NEW requested frame size (max_framesize). However, av_fast_realloc() often over-allocates (e.g. it may round up / double the allocation), so the actual previously allocated buffer size (tracked in s->allocated_bitstream_size) can already be larger than the old s->max_framesize value used as the starting point for the memset. Additionally, the amount of memory considered for clearing is derived from the difference between requested sizes rather than the actual change in the allocated buffer size, so newly-allocated bytes beyond what av_fast_realloc actually returns as 'new' capacity are not correctly bounded/cleared, and any gap between the previous max_framesize and the true previously-allocated size is never zeroed on first use. This results in uninitialized heap memory being read later during bitstream parsing, which is flagged by the fuzzer/ASan as use of uninitialized memory. The correct approach (applied in the fix) is to snapshot the OLD s->allocated_bitstream_size before the realloc call and clear from that offset to the NEW s->allocated_bitstream_size (i.e., the actual delta in allocated size as tracked by av_fast_realloc), rather than using the max_framesize values which do not necessarily reflect the true buffer boundaries.",
+        "location": {
+          "file": "libavcodec/shorten.c",
+          "start_line": 585,
+          "end_line": 598,
+          "start_column": null,
+          "end_column": null,
+          "function": "shorten_decode_frame",
+          "snippet": "        if (avpkt->size) {\n            int max_framesize = s->blocksize * s->channels * 8;\n            void *tmp_ptr;\n\n            tmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,\n                                      max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);\n            if (!tmp_ptr) {\n                av_log(avctx, AV_LOG_ERROR, \"error allocating bitstream buffer\\n\");\n                return AVERROR(ENOMEM);\n            }\n            s->bitstream = tmp_ptr;\n            if (max_framesize > s->max_framesize)\n                memset(s->bitstream + s->max_framesize, 0, (max_framesize - s->max_framesize) +\n                                                            AV_INPUT_BUFFER_PADDING_SIZE);\n            s->max_framesize = FFMAX(s->max_framesize, max_framesize);",
+          "snippet_hash": "4379d7a9c3dc025f0ebae10bea0690535a1a000b6399706089f787c8a37d4e1f",
+          "description": null,
+          "snippet_start_line": 584,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "UninitializedMemory",
+        "confidence": 0.85,
+        "suggestion": "Snapshot the actual previously allocated buffer size (s->allocated_bitstream_size) BEFORE calling av_fast_realloc(), then after the realloc call, clear the memory from that old allocated size up to the new s->allocated_bitstream_size, instead of basing the memset region on the requested max_framesize values which do not correspond to the real buffer boundaries maintained by av_fast_realloc.",
+        "suggestion_code": "unsigned old_allocated_bitstream_size = s->allocated_bitstream_size;\ntmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,\n                          max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);\nif (!tmp_ptr) {\n    av_log(avctx, AV_LOG_ERROR, \"error allocating bitstream buffer\\n\");\n    return AVERROR(ENOMEM);\n}\ns->bitstream = tmp_ptr;\nif (s->allocated_bitstream_size > old_allocated_bitstream_size)\n    memset(s->bitstream + old_allocated_bitstream_size, 0,\n           s->allocated_bitstream_size - old_allocated_bitstream_size);\ns->max_framesize = FFMAX(s->max_framesize, max_framesize);",
+        "tags": [
+          "security",
+          "memory-safety",
+          "uninitialized-memory"
+        ],
+        "cwe_ids": [
+          "CWE-457",
+          "CWE-824"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "UninitializedMemory",
+    "affected_files": [
+      "libavcodec/shorten.c"
+    ],
+    "root_cause": "The clearing logic used the wrong reference values (requested max_framesize sizes) instead of the actual allocated buffer size tracked by av_fast_realloc (s->allocated_bitstream_size) to determine which bytes are newly allocated and need zeroing, causing a mismatch between the assumed and real newly-allocated memory region.",
+    "must_cover": [
+      {
+        "file": "libavcodec/shorten.c",
+        "function": "shorten_decode_frame",
+        "start_line": 585,
+        "end_line": 598,
+        "role": "primary",
+        "reason": "Primary location of finding: Insufficient clearing of realloc'd bitstream buffer leaves uninitialized memory"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "80606442377a7bca9501e2612e9a44b5044316ca",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

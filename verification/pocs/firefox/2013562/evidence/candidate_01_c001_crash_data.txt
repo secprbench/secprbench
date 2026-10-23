@@ -1,0 +1,46 @@
+==1739125==ERROR: UndefinedBehaviorSanitizer: SEGV on unknown address 0x000000000000 (pc 0x623b9eafbe4d bp 0x7ffda8a0a290 sp 0x7ffda8a0a1b0 T1739125)
+==1739125==The signal is caused by a WRITE memory access.
+==1739125==Hint: address points to the zero page.
+    #0 0x623b9eafbe4d in MOZ_CrashSequence(void*, long) /builds/worker/workspace/obj-spider/dist/include/mozilla/Assertions.h:237:3
+    #1 0x623b9eafbe4d in MOZ_Crash(char const*, int, char const*) /builds/worker/workspace/obj-spider/dist/include/mozilla/Assertions.h:375:3
+    #2 0x623b9eafbe4d in js::ContextChecks::fail(JS::Compartment*, JS::Compartment*, int) /js/src/vm/JSContext-inl.h:55:5
+    #3 0x623b9eafbe4d in js::ContextChecks::check(JS::Compartment*, int) /js/src/vm/JSContext-inl.h:71:7
+    #4 0x623b9eafbe4d in js::ContextChecks::check(JSObject*, int) /js/src/vm/JSContext-inl.h:84:7
+    #5 0x623b9eafbe4d in void JSContext::checkImpl<JS::Handle<JSObject*>, JS::Handle<JS::Value>>(JS::Handle<JSObject*> const&, JS::Handle<JS::Value> const&) /js/src/vm/JSContext-inl.h:216:33
+    #6 0x623b9eafbe4d in void JSContext::check<JS::Handle<JSObject*>, JS::Handle<JS::Value>>(JS::Handle<JSObject*> const&, JS::Handle<JS::Value> const&) /js/src/vm/JSContext-inl.h:223:5
+    #7 0x623b9eafbe4d in js::ResolvePromiseInternal(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>) /js/src/builtin/Promise.cpp:1518:7
+    #8 0x623b9eb01dd4 in CallDefaultPromiseResolveFunction(JSContext*, JS::Handle<js::PromiseObject*>, JS::Handle<JS::Value>) /js/src/builtin/Promise.cpp:7147:10
+    #9 0x623b9eb01dd4 in js::PromiseObject::resolve(JSContext*, JS::Handle<js::PromiseObject*>, JS::Handle<JS::Value>) /js/src/builtin/Promise.cpp:7159:12
+    #10 0x623b9ea7b7c6 in js::atomics_notify_impl(JSContext*, js::SharedArrayRawBuffer*, unsigned long, long, long*) /js/src/builtin/AtomicsObject.cpp:1524:10
+    #11 0x623b9ea93a36 in atomics_notify(JSContext*, unsigned int, JS::Value*) /js/src/builtin/AtomicsObject.cpp:1598:8
+    #12 0x623b9f603b32 in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /js/src/vm/Interpreter.cpp:490:13
+    #13 0x623b9f603b32 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /js/src/vm/Interpreter.cpp:586:12
+    #14 0x623b9f60ebad in InternalCall(JSContext*, js::AnyInvokeArgs const&, js::CallReason) /js/src/vm/Interpreter.cpp:653:10
+    #15 0x623b9f60ebad in js::CallFromStack(JSContext*, JS::CallArgs const&, js::CallReason) /js/src/vm/Interpreter.cpp:658:10
+    #16 0x623b9f60ebad in js::Interpret(JSContext*, js::RunState&) /js/src/vm/Interpreter.cpp:3272:16
+    #17 0x623b9f603736 in MaybeEnterInterpreterTrampoline(JSContext*, js::RunState&) /js/src/vm/Interpreter.cpp:384:10
+    #18 0x623b9f603736 in js::RunScript(JSContext*, js::RunState&) /js/src/vm/Interpreter.cpp:460:13
+    #19 0x623b9f604c82 in js::ExecuteKernel(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, js::AbstractFramePtr, JS::MutableHandle<JS::Value>) /js/src/vm/Interpreter.cpp:850:10
+    #20 0x623b9f604c82 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /js/src/vm/Interpreter.cpp:880:10
+    #21 0x623b9f762ea5 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /js/src/vm/CompilationAndEvaluation.cpp:565:10
+    #22 0x623b9e9c9f66 in EvaluateInner(JSContext*, JS::Handle<JSString*>, JS::MutableHandle<JSObject*>, JS::Handle<JSObject*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /js/src/shell/js.cpp:3170:32
+    #23 0x623b9e9cae18 in Evaluate(JSContext*, unsigned int, JS::Value*) /js/src/shell/js.cpp:2907:10
+    #24 0x623b9f603b32 in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /js/src/vm/Interpreter.cpp:490:13
+    #25 0x623b9f603b32 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /js/src/vm/Interpreter.cpp:586:12
+    #26 0x623b9f604298 in InternalCall(JSContext*, js::AnyInvokeArgs const&, js::CallReason) /js/src/vm/Interpreter.cpp:653:10
+    #27 0x623b9f604298 in js::Call(JSContext*, JS::Handle<JS::Value>, JS::Handle<JS::Value>, js::AnyInvokeArgs const&, JS::MutableHandle<JS::Value>, js::CallReason) /js/src/vm/Interpreter.cpp:685:8
+    #28 0x623b9f5f54cd in js::ForwardingProxyHandler::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) const /js/src/proxy/Wrapper.cpp:166:10
+    #29 0x623b9f5e6f0e in js::CrossCompartmentWrapper::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) const /js/src/proxy/CrossCompartmentWrapper.cpp:230:19
+    #30 0x623b9f5ecbd3 in js::Proxy::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) /js/src/proxy/Proxy.cpp:703:19
+    #31 0x623b9f603e6e in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /js/src/vm/Interpreter.cpp:566:14
+    #32 0x623b9efb4df5 in js::jit::DoCallFallback(JSContext*, js::jit::BaselineFrame*, js::jit::ICFallbackStub*, unsigned int, JS::Value*, JS::MutableHandle<JS::Value>) /js/src/jit/BaselineIC.cpp:1698:10
+    #33 0x2578acc988d3  ([anon:js-executable-memory]+0x28d3)
+
+==1739125==Register values:
+rax = 0x0000000000000038  rbx = 0x0000623ba11d94a0  rcx = 0x0000000000000000  rdx = 0x00007ed046804563  
+rdi = 0x00007ed046805700  rsi = 0x0000000000000000  rbp = 0x00007ffda8a0a290  rsp = 0x00007ffda8a0a1b0  
+ r8 = 0x0000000000000000   r9 = 0x0000000000000003  r10 = 0x0000000000000002  r11 = 0x0000000000000293  
+r12 = 0x0000623bc59bf7c0  r13 = 0x0000623ba02172e0  r14 = 0x0000000000000000  r15 = 0x00007ffda8a0a3b8  
+UndefinedBehaviorSanitizer can not provide additional info.
+SUMMARY: UndefinedBehaviorSanitizer: SEGV /builds/worker/workspace/obj-spider/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)
+==1739125==ABORTING

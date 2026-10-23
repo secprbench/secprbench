@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GL-1392",
+  "bug_id": "GL-1392",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "b04db3872cfac5ee4fd4f895933cebce3576fbf0",
+  "intro_parent": "8ef26a803c340356b7e64ebd7188ce0b7002df59",
+  "fix_commit": "b2c8a031a2f6fc1200868a8bee3175400cfb99fc",
+  "affected_files": [
+    "src/sfnt/ttgpos.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "freetype",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Incorrect boundary comparison operator (>=) used to bound-check glyph_index against startGlyphID + glyphCount, when the array being indexed has exactly glyphCount elements starting at startGlyphID, making the valid range exclusive of startGlyphID + glyphCount, i.e. a classic off-by-one/fencepost error in range validation introduced during a from-scratch rewrite of GPOS kerning support.",
+  "findings": [
+    "In tt_face_get_class(), when parsing a Format 1 ClassDef table for GPOS Pair Adjustment (class-based) kerning, the code validates that glyph_index falls within [startGlyphID, startGlyphID + glyphCount] using the condition `startGlyphID + glyphCount >= glyph_index`. This is an off-by-one error: the valid range for the ClassValueArray, which has exactly `glyphCount` entries indexed 0..glyphCount-1, "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "1982d9ff0221e73dfd0a4226b1c14e3a631bfb2f0003def50dbc22b1cc9853d0",
+  "generated_artifact_sha256": {
+    "reference": "393242d65b7c4593f459789fc205d7a16d42793940b01c07b3e28e24a0e0d878",
+    "introducing": "d7e5845a58cc08931db57d0ef0831131b21c5f8b1b64386a70f358743f2ed35e",
+    "companion": "fd12ef875f67b46046860a35846c4721992e0003f56232f42109c90898ed33c0"
+  }
+}

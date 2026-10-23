@@ -1,0 +1,87 @@
+{
+  "bug_id": "GH-10387",
+  "title": "Don’t panic when http `handle` function returns before invoking `set` (#10387)",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "crash_or_abort"
+  ],
+  "product": "wasmtime",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public identifiers in the upstream fixing commit:\n- GH-10387: https://github.com/bytecodealliance/wasmtime/issues/10387\n\nExact upstream commit message:\nDon’t panic when http `handle` function returns before invoking `set` (#10387)\n\n* handle return before `set` call\n\n* move wasm32 gate\n\n* unify error messages\u0000\n\nMainline fixing revision candidate: ad21d9581d6631da809ac0a2cbb2fc908bde1978\nDerive the introducing revision independently. No issue content was fetched and no bug replay was run.",
+  "commit_ids": [
+    "ad21d9581d6631da809ac0a2cbb2fc908bde1978"
+  ],
+  "fix_commit_sha": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+  "fix_date": "2025-03-12T22:03:29Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H1",
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "GH-10387",
+      "url": "https://github.com/bytecodealliance/wasmtime/issues/10387",
+      "kind": "github_squash_reference",
+      "evidence": "(#10387)"
+    }
+  ],
+  "defect_evidence": [
+    {
+      "kind": "crash_or_abort",
+      "text": "panic",
+      "start": 6,
+      "end": 11
+    }
+  ],
+  "fix_role_evidence": [
+    {
+      "kind": "negative_correction",
+      "text": "Don’t",
+      "start": 0,
+      "end": 5
+    }
+  ],
+  "affected_files": [
+    "crates/test-programs/src/bin/cli_serve_return_before_set.rs",
+    "crates/test-programs/src/bin/cli_serve_trap_before_set.rs",
+    "crates/wasi-http/src/lib.rs",
+    "src/commands/serve.rs",
+    "tests/all/cli_tests.rs"
+  ],
+  "changed_lines": 72,
+  "candidate_status": "documented_fix_pending_task_construction_and_verification",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "documented_fixes_2025h1_v1",
+    "selection": "commit_message_public_identity_and_concrete_defect",
+    "source_url": "https://github.com/bytecodealliance/wasmtime/commit/ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+    "issue_contents": "not_fetched",
+    "introducing_commit": "not_inferred",
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "e846371a94cfb5736199bfe4ee6ac3aa7109db8e",
+    "mainline_ancestry_verified": true,
+    "original_committer_date": "2025-03-12T22:03:29Z",
+    "commit_object": {
+      "git_sha": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/wasmtime/raw/commits/ad21d9581d6631da809ac0a2cbb2fc908bde1978.commit",
+      "sha256": "385691bee15447ac52afd46cfa00e8de9ff9a5a54398df44717d927fcc6f721d"
+    },
+    "patch": {
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/wasmtime/raw/commits/ad21d9581d6631da809ac0a2cbb2fc908bde1978.patch",
+      "sha256": "9966b8465224121d112444099ce92daa804d3e85a3ed9b955bce0a64ea5081b7"
+    },
+    "history": {
+      "repository": "/research/repos/bytecodealliance__wasmtime",
+      "upstream_url": "https://github.com/bytecodealliance/wasmtime",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_tip": "e846371a94cfb5736199bfe4ee6ac3aa7109db8e",
+      "window_start_utc_inclusive": "2025-01-01T00:00:00Z",
+      "window_end_utc_exclusive": "2025-07-01T00:00:00Z",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/wasmtime/raw/git_history.1f325ebe642e5afa2e88783ce0ee0d0eb533e7c60d4ee1f324335d9a8aeebd24.raw",
+      "sha256": "1f325ebe642e5afa2e88783ce0ee0d0eb533e7c60d4ee1f324335d9a8aeebd24"
+    }
+  }
+}

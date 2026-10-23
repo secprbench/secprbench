@@ -1,0 +1,84 @@
+{
+  "bug_id": "OSSFUZZ-421954767",
+  "title": "avcodec/shorten: Clear the additionally allocated space on realloc",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "ffmpeg",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "avcodec/shorten: Clear the additionally allocated space on realloc\n\nFixes: use of uninitialized memory\nFixes: 421954767/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_SHORTEN_fuzzer-515682786246656\n\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "commit_ids": [
+    "909229b880d5f2c2277ab10915954b18d5162322"
+  ],
+  "summary": "avcodec/shorten: Clear the additionally allocated space on realloc",
+  "description": "avcodec/shorten: Clear the additionally allocated space on realloc\n\nFixes: use of uninitialized memory\nFixes: 421954767/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_SHORTEN_fuzzer-515682786246656\n\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "fix_commit": "909229b880d5f2c2277ab10915954b18d5162322",
+  "fix_commit_sha": "909229b880d5f2c2277ab10915954b18d5162322",
+  "mainline_fix_commits": [
+    "909229b880d5f2c2277ab10915954b18d5162322"
+  ],
+  "fix_date": "2025-07-28T17:41:38+02:00",
+  "date_fixed": "2025-07-28T17:41:38+02:00",
+  "mainline_verified": true,
+  "mainline_ref": "refs/remotes/origin/master",
+  "date_basis": "attributed_mainline_fix_commit",
+  "fix_date_source": "local_git_committer_date",
+  "season": "2025H2",
+  "source_url": "https://github.com/FFmpeg/FFmpeg/commit/909229b880d5f2c2277ab10915954b18d5162322",
+  "affected_files": [
+    "libavcodec/shorten.c"
+  ],
+  "changed_lines": 7,
+  "cve_ids": [],
+  "cve_hints": [],
+  "report_references": [
+    {
+      "id": "OSSFUZZ-421954767",
+      "url": "https://issues.oss-fuzz.com/issues/421954767",
+      "evidence": "Fixes: 421954767/clusterfuzz"
+    },
+    {
+      "id": "TESTCASE-bf753c8026dcdbe1",
+      "url": null,
+      "evidence": "Fixes: 421954767/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_SHORTEN_fuzzer-515682786246656"
+    },
+    {
+      "id": null,
+      "url": null,
+      "evidence": "Found-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg",
+      "reporter": "continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg"
+    }
+  ],
+  "candidate_status": "pending_reference_and_pair_construction_no_replay",
+  "security_qualification": "upstream_attributed_security_context_candidate_not_replay_verified",
+  "construction_requirements": [
+    "confirm_root_cause_and_earliest_fix",
+    "construct_benign_and_buggy_pair"
+  ],
+  "provenance": {
+    "source_url": "https://github.com/FFmpeg/FFmpeg/commit/909229b880d5f2c2277ab10915954b18d5162322",
+    "collector": "attributed_git_report_v1",
+    "fix_evidence": {
+      "source_url": "https://github.com/FFmpeg/FFmpeg/commit/909229b880d5f2c2277ab10915954b18d5162322",
+      "retrieved_at": "2026-09-28T16:24:27.288310+00:00",
+      "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/ffmpeg/raw/909229b880d5f2c2277ab10915954b18d5162322.patch",
+      "sha256": "2ad2046aa4c95e7a673b1a715937aec0ec82a181901b5e6a8b43e836c6f7b94e",
+      "git_object": "909229b880d5f2c2277ab10915954b18d5162322",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_tip": "089a48eb36b2c0d185867522a1fc2613b5bbb96f",
+      "mainline_ancestry_verified": true,
+      "role": "upstream_fix_with_explicit_report_attribution"
+    },
+    "history": {
+      "repository": "/research/repos/FFmpeg__FFmpeg",
+      "upstream_url": "https://github.com/FFmpeg/FFmpeg",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_tip": "089a48eb36b2c0d185867522a1fc2613b5bbb96f",
+      "retrieved_at": "2026-09-28T16:24:27.288310+00:00",
+      "sha256": "6f9738b25f7f392d6d4d944d7b29ffd64c09a0bb86b09b8f4741226b8e7f9c1b",
+      "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/ffmpeg/raw/git_history.raw"
+    },
+    "upstream_reports": []
+  }
+}

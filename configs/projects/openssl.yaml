@@ -1,0 +1,74 @@
+name: openssl
+repo_url: https://github.com/openssl/openssl.git
+project:
+  name: openssl
+  display_name: OpenSSL
+  repo: openssl/openssl
+  language: C
+context:
+  description: 'OpenSSL is a widely-used open-source cryptographic library implementing
+
+    SSL/TLS protocols and general-purpose cryptography (libcrypto + libssl).
+
+    The codebase is primarily C with heavy use of custom allocators
+
+    (OPENSSL_malloc/OPENSSL_free), reference counting (up_ref/free patterns),
+
+    and ASN.1 parsing via generated code.
+
+    '
+  input_sources: 'network packets (TLS handshake, record layer), ASN.1-encoded certificates
+
+    and keys (PEM/DER), PKCS#7/PKCS#12 containers, configuration files,
+
+    engine/provider inputs, command-line tool arguments (openssl CLI)
+
+    '
+  assertion_macros: "ossl_assert(), OPENSSL_assert() \u2014 these are NOT compiled\
+    \ out in release\nbuilds (unlike C assert()). They log and return error rather\
+    \ than abort.\nDo NOT treat them as hard guards that prevent exploitation.\n"
+  common_bug_types:
+  - BufferOverflow (especially in ASN.1 parsing and Base64/hex decoding)
+  - NullPointerDereference (missing NULL checks after OPENSSL_malloc or method lookups)
+  - UseAfterFree (reference counting errors, double SSL_free, session reuse)
+  - UninitializedMemory (OPENSSL_malloc without memset, partial struct init)
+  - OutOfBoundsRead (length miscalculation in CBS/CBB, SEQUENCE parsing)
+  - DoubleFree (error path cleanup calling free on already-freed pointers)
+  - IntegerOverflow (length fields in ASN.1, size_t truncation to int)
+  - TimingSideChannel (non-constant-time comparison in signature verification)
+  file_patterns:
+  - crypto/**/*.c
+  - ssl/**/*.c
+  - include/openssl/*.h
+  - include/internal/*.h
+  - providers/**/*.c
+verify:
+  name: openssl
+  image: anypoc-openssl:latest
+  repo_url: https://github.com/openssl/openssl.git
+  build_script: 'set -e
+
+    cd /work
+
+    CC=clang ./Configure linux-x86_64 no-shared -g -O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=all -fno-omit-frame-pointer > build_configure.log 2>&1
+
+    make -j"${CGSA_BUILD_JOBS:-8}" > build_compile.log 2>&1
+
+    '
+  harness_source: null
+  harness_build: ''
+  run_cmd: echo "OpenSSL verification requires a per-task /poc/run.sh" >&2; exit 2
+  build_artifacts:
+  - apps/openssl
+  - libcrypto.a
+  - libssl.a
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 3600
+  run_timeout: 180
+  build_network: none
+  build_cache: false
+  build_git_mounts: false
+  build_support_files: []

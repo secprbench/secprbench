@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-385224934",
+  "bug_id": "OSSFUZZ-385224934",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "71716406e68a1f139717c5025e49f648e3666b0e",
+  "intro_parent": "84e0e2f43e424c8a9ae0d18711f204ffebd961ba",
+  "fix_commit": "1afbc40875069312dd729b5959fb04950c3938db",
+  "affected_files": [
+    "libavformat/wavdec.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Use of 32-bit signed int arithmetic for a multiplication of two untrusted, file-derived values (bits_per_coded_sample rounded up, and number of channels) without checking that the product fits in an int, leading to signed integer overflow (undefined behavior).",
+  "findings": [
+    "In w64_read_header(), when parsing the 'fmt ' chunk, the code attempts to sanity-check and possibly correct an invalid block_align value read from the file. The check computes `((bits_per_coded_sample + 7) / 8) * ch_layout.nb_channels` using plain `int` arithmetic and stores the result into a local `int block_align`. Because `bits_per_coded_sample` and `nb_channels` are attacker-controlled values "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "fc64cb4a906f3cac644b935a3d493e46d88a1650b774b23ebde4880b11d3fbe8",
+  "generated_artifact_sha256": {
+    "reference": "c1a81670d22274cbca7ec3a2a81265475f61e32095f4cc00d11b1321e9ea7db9",
+    "introducing": "62da9eb90f69911e8b20f6968a5a81225c28c7aab5277418998a3f82248695d6",
+    "companion": "2cb44a8f4870ddb02c3df11cc37951ff739e6de0427f0e83cb3e0f7563f71936"
+  }
+}

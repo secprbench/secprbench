@@ -1,0 +1,204 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-18806",
+    "bug_id": "GH-18806",
+    "bug_type": "DataRace",
+    "intro_commit": "68bd759c2bfe74799c3355ad29265b795a7e6c62",
+    "intro_parent": "b399a98d2da10ab51afc77f7d4b83769ec4fa6fd",
+    "fix_commit": "2a25ebe9580e52b375533a7d12a86dff29a36c44",
+    "affected_files": [
+      "lib/vtls/vtls_scache.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json's root cause: Curl_ssl_scache_unlock(data) was moved to right after the critical section in Curl_ssl_scache_take(), before the trace-log statement that itself reads the shared peer->sessions list via Curl_llist_count() -- an unlocked read of lock-protected data. Source inspection confirms this: in post_intro, vtls_scache.c line 825 calls Curl_ssl_scache_unlock(data) and only afterwards (lines 828-833) calls Curl_llist_count(&peer->sessions) inside CURL_TRC_CF. In pre_intro, unlock happens at line 799 but the subsequent CURL_TRC_CF at line 801 reads only the already-taken local pointer *ps, not the shared list, so no unlocked shared-state access exists. In post_benign (the fix), Curl_ssl_scache_unlock(data) moves to line 837, after the CURL_TRC_CF/Curl_llist_count call, restoring lock coverage over the read. Using the same reproducer command (run_poc, no args, which invokes /poc/run.sh) on all three built versions: pre_intro exits 0 with 'done ok=1920 fail=0' and no sanitizer report; post_intro crashes (exit 66) with a genuine ThreadSanitizer data-race report whose write side is Curl_llist_insert_next <- Curl_llist_append <- cf_scache_peer_add_session <- Curl_ssl_scache_put (session insertion from another thread's TLS handshake) and whose (previously observed, same build/run) read side is Curl_llist_count <- Curl_ssl_scache_take at vtls_scache.c:828, i.e. the exact racy trace-log line -- this matches the original upstream TSan CI report in discussion.md (same function pair/race pattern: Curl_llist_insert_next racing Curl_llist_count in Curl_ssl_scache_take). post_benign again exits 0 with 'done ok=1920 fail=0' and no sanitizer report, matching pre_intro. The race is reproducible only in post_intro, is isolated to the exact introduced/fixed code, and is absent pre-intro and post-benign under the identical reproducer."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-final (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/0cfa2bd2be8a28d4e723/attempts/03/pocs/curl/GH-18806",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "b399a98d2da10ab51afc77f7d4b83769ec4fa6fd",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "ad1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:149: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:151: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:156: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:156: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:158: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:159: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/.libs/libcurl.a(libcurl_la-keylog.o): in function `_sub_D_00099_0':\n/work/lib/vtls/keylog.c:165: undefined reference to `__asan_unregister_globals'\n/usr/bin/ld: /work/lib/.libs/libcurl.a(libcurl_la-keylog.o): in function `_sub_I_00099_1':\n/work/lib/vtls/keylog.c:165: undefined reference to `__asan_init'\n/usr/bin/ld: /work/lib/vtls/keylog.c:165: undefined reference to `__asan_version_mismatch_check_v8'\n/usr/bin/ld: /work/lib/vtls/keylog.c:165: undefined reference to `__asan_register_globals'\nclang: error: linker command failed with exit code 1 (use -v to see invocation)\nPOC BUILD FAILED\nVERIFY_EXIT=1\n\n+ cd /work\n+ CERT=/work/tests/certs/Server-localhost-sv.pem\n+ KEY=/work/tests/certs/Server-localhost-sv.key\n+ PORT=8444\n+ clang -g -O0 -o /tmp/server /poc/server.c -lssl -lcrypto\n+ SRV_PID=12\n+ sleep 1\n+ /tmp/server 8444 /work/tests/certs/Server-localhost-sv.pem /work/tests/certs/Server-localhost-sv.key\nlistening on 8444\n+ clang -g -O1 -fsanitize=thread -fno-omit-frame-pointer -I/work/include -o /tmp/poc /poc/poc.c /work/lib/.libs/libcurl.a -lpthread -lssl -lcrypto -lz\n+ BUILD_RC=1\n+ cat /tmp/poc_build.log\n+ '[' 1 -ne 0 ']'\n+ echo 'POC BUILD FAILED'\n+ kill 12\n+ exit 1\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "e08446847a0238efc381e182e52f9379b39ec277f36511a4c71e00635d991c9d"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "68bd759c2bfe74799c3355ad29265b795a7e6c62",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "ad1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:149: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:151: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:156: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:156: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:158: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:159: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/.libs/libcurl.a(libcurl_la-keylog.o): in function `_sub_D_00099_0':\n/work/lib/vtls/keylog.c:165: undefined reference to `__asan_unregister_globals'\n/usr/bin/ld: /work/lib/.libs/libcurl.a(libcurl_la-keylog.o): in function `_sub_I_00099_1':\n/work/lib/vtls/keylog.c:165: undefined reference to `__asan_init'\n/usr/bin/ld: /work/lib/vtls/keylog.c:165: undefined reference to `__asan_version_mismatch_check_v8'\n/usr/bin/ld: /work/lib/vtls/keylog.c:165: undefined reference to `__asan_register_globals'\nclang: error: linker command failed with exit code 1 (use -v to see invocation)\nPOC BUILD FAILED\nVERIFY_EXIT=1\n\n+ cd /work\n+ CERT=/work/tests/certs/Server-localhost-sv.pem\n+ KEY=/work/tests/certs/Server-localhost-sv.key\n+ PORT=8444\n+ clang -g -O0 -o /tmp/server /poc/server.c -lssl -lcrypto\n+ SRV_PID=12\n+ sleep 1\n+ /tmp/server 8444 /work/tests/certs/Server-localhost-sv.pem /work/tests/certs/Server-localhost-sv.key\nlistening on 8444\n+ clang -g -O1 -fsanitize=thread -fno-omit-frame-pointer -I/work/include -o /tmp/poc /poc/poc.c /work/lib/.libs/libcurl.a -lpthread -lssl -lcrypto -lz\n+ BUILD_RC=1\n+ cat /tmp/poc_build.log\n+ '[' 1 -ne 0 ']'\n+ echo 'POC BUILD FAILED'\n+ kill 12\n+ exit 1\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "8bef73b5fc17988b964681c31ec6c04f0a2077fcab6b387f528f513023e90a4e"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "b399a98d2da10ab51afc77f7d4b83769ec4fa6fd",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "ad1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:149: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:151: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:155: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:156: undefined reference to `__asan_report_load1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:156: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:158: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/vtls/keylog.c:159: undefined reference to `__asan_report_store1'\n/usr/bin/ld: /work/lib/.libs/libcurl.a(libcurl_la-keylog.o): in function `_sub_D_00099_0':\n/work/lib/vtls/keylog.c:165: undefined reference to `__asan_unregister_globals'\n/usr/bin/ld: /work/lib/.libs/libcurl.a(libcurl_la-keylog.o): in function `_sub_I_00099_1':\n/work/lib/vtls/keylog.c:165: undefined reference to `__asan_init'\n/usr/bin/ld: /work/lib/vtls/keylog.c:165: undefined reference to `__asan_version_mismatch_check_v8'\n/usr/bin/ld: /work/lib/vtls/keylog.c:165: undefined reference to `__asan_register_globals'\nclang: error: linker command failed with exit code 1 (use -v to see invocation)\nPOC BUILD FAILED\nVERIFY_EXIT=1\n\n+ cd /work\n+ CERT=/work/tests/certs/Server-localhost-sv.pem\n+ KEY=/work/tests/certs/Server-localhost-sv.key\n+ PORT=8444\n+ clang -g -O0 -o /tmp/server /poc/server.c -lssl -lcrypto\n+ SRV_PID=12\n+ sleep 1\n+ /tmp/server 8444 /work/tests/certs/Server-localhost-sv.pem /work/tests/certs/Server-localhost-sv.key\nlistening on 8444\n+ clang -g -O1 -fsanitize=thread -fno-omit-frame-pointer -I/work/include -o /tmp/poc /poc/poc.c /work/lib/.libs/libcurl.a -lpthread -lssl -lcrypto -lz\n+ BUILD_RC=1\n+ cat /tmp/poc_build.log\n+ '[' 1 -ne 0 ']'\n+ echo 'POC BUILD FAILED'\n+ kill 12\n+ exit 1\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "3a2c9812acaa08d3983fe1401251564fe3a4d4b2d21f6ebd0b501c8d2b4dc199"
+      }
+    }
+  },
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b2cb5968487e10ae2f3893eaf97600fbac9fd533576b5ddc0ddb9099643f7b7a",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "68bd759c2bfe74799c3355ad29265b795a7e6c62",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "8bef73b5fc17988b964681c31ec6c04f0a2077fcab6b387f528f513023e90a4e"
+        }
+      },
+      "run": {
+        "exit_code": 66,
+        "crashed": true,
+        "sanitizer": "==================\nWARNING: ThreadSanitizer: data race (pid=9114)\n  Write of size 8 at 0x7b6800000038 by thread T10 (mutexes: write M0):\n    #0 Curl_llist_insert_next /tmp/tsanbuild/src/lib/llist.c:115:3 (poc+0xdb813) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #1 Curl_llist_append /tmp/tsanbuild/src/lib/llist.c:134:3 (poc+0xdb813)\n    #2 cf_scache_peer_add_session /tmp/tsanbuild/src/lib/vtls/vtls_scache.c:751:5 (poc+0x119a86) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #3 Curl_ssl_scache_put /tmp/tsanbuild/src/lib/vtls/vtls_scache.c:781:12 (poc+0x119a86)\n    #4 Curl_ossl_add_session /tmp/tsanbuild/src/lib/vtls/openssl.c:2910:16 (poc+0x17b973) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #5 ossl_new_session_cb /tmp/tsanbuild/src/lib/vtls/openssl.c:2929:5 (poc+0x183e39) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #6 <null> <null> (libssl.so.3+0x3ad66) (BuildId: 7f9ef5128bd0182c9d52ccec1bf8087a47b87149)\n    #7 ssl_cf_recv /tmp/tsanbuild/src/lib/vtls/vtls.c:1446:11 (poc+0x116002) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #8 Curl_cf_def_recv /tmp/tsanbuild/src/lib/cfilters.c:116:5 (poc+0x1262d3) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #9 Curl_cf_def_recv /tmp/tsanbuild/src/lib/cfilters.c:116:5 (poc+0x1262d3) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #10 Curl_cf_recv /tmp/tsanbuild/src/lib/cfilters.c:253:21 (poc+0x126b51) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #11 Curl_conn_recv /tmp/tsanbuild/src/lib/cfilters.c:855:11 (poc+0x128d23) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #12 Curl_xfer_recv /tmp/tsanbuild/src/lib/transfer.c:964:10 (poc+0xfde47) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #13 xfer_recv_resp /tmp/tsanbuild/src/lib/transfer.c:236:12 (poc+0xfde47)\n    #14 sendrecv_dl /tmp/tsanbuild/src/lib/transfer.c:306:13 (poc+0xfde47)\n    #15 Curl_sendrecv /tmp/tsanbuild/src/lib/transfer.c:441:14 (poc+0xfde47)\n    #16 state_performing /tmp/tsanbuild/src/lib/multi.c:2165:12 (poc+0xe7ca7) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #17 multi_runsingle /tmp/tsanbuild/src/lib/multi.c:2852:12 (poc+0xe7ca7)\n    #18 curl_multi_perform /tmp/tsanbuild/src/lib/multi.c:3023:16 (poc+0xe666f) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #19 easy_transfer /tmp/tsanbuild/src/lib/easy.c:701:15 (poc+0xd7e5a) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #20 easy_perform /tmp/tsanbuild/src/lib/easy.c:796:42 (poc+0xd7e5a)\n    #21 curl_easy_perform /tmp/tsanbuild/src/lib/easy.c:815:10 (poc+0xd7e5a)\n    #22 test_thread /poc/poc.c:61:20 (poc+0xd7443) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n\n  Previous read of size 8 at 0x7b6800000038 by thread T3:\n    #0 Curl_llist_count /tmp/tsanbuild/src/lib/llist.c:242:16 (poc+0xdbe0a) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #1 Curl_ssl_scache_take /tmp/tsanbuild/src/lib/vtls/vtls_scache.c:828:5 (poc+0x11a37d) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #2 Curl_ossl_ctx_init /tmp/tsanbuild/src/lib/vtls/openssl.c:3965:14 (poc+0x17d0f2) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #3 ossl_connect_step1 /tmp/tsanbuild/src/lib/vtls/openssl.c:4020:12 (poc+0x183b36) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #4 ossl_connect_common /tmp/tsanbuild/src/lib/vtls/openssl.c:4777:14 (poc+0x183b36)\n    #5 ossl_connect_nonblocking /tmp/tsanbuild/src/lib/vtls/openssl.c:4854:10 (poc+0x181d1e) (BuildId: 3d826b99001f",
+        "stdout_tail": "023:16 (poc+0xe666f) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #16 easy_transfer /tmp/tsanbuild/src/lib/easy.c:701:15 (poc+0xd7e5a) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #17 easy_perform /tmp/tsanbuild/src/lib/easy.c:796:42 (poc+0xd7e5a)\n    #18 curl_easy_perform /tmp/tsanbuild/src/lib/easy.c:815:10 (poc+0xd7e5a)\n    #19 test_thread /poc/poc.c:61:20 (poc+0xd7443) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n\n  Location is heap block of size 1344 at 0x7b6800000000 allocated by main thread:\n    #0 calloc <null> (poc+0x56dd7) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #1 Curl_ssl_scache_create /tmp/tsanbuild/src/lib/vtls/vtls_scache.c:311:11 (poc+0x118980) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #2 curl_share_setopt /tmp/tsanbuild/src/lib/share.c:113:12 (poc+0xfb3cc) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #3 main /poc/poc.c:95:3 (poc+0xd719a) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n\n  Mutex M0 (0x555769f46200) created at:\n    #0 pthread_mutex_init <null> (poc+0x59b8f) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #1 main /poc/poc.c:92:5 (poc+0xd714a) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n\n  Thread T10 (tid=9131, running) created by main thread at:\n    #0 pthread_create <null> (poc+0x5838d) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #1 main /poc/poc.c:102:5 (poc+0xd71d6) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n\n  Thread T3 (tid=9118, running) created by main thread at:\n    #0 pthread_create <null> (poc+0x5838d) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n    #1 main /poc/poc.c:102:5 (poc+0xd71d6) (BuildId: 3d826b99001fd629ef70bf394f37366c573c201f)\n\nSUMMARY: ThreadSanitizer: data race /tmp/tsanbuild/src/lib/llist.c:115:3 in Curl_llist_insert_next\n==================\nPOC_EXIT=66\nVERIFY_EXIT=66\n\n+ set -o pipefail\n+ rm -rf /tmp/tsanbuild\n+ mkdir -p /tmp/tsanbuild\n+ cp -r /work /tmp/tsanbuild/src\n+ cd /tmp/tsanbuild/src\n+ make distclean\n+ ./configure --with-openssl --without-libpsl --disable-shared 'CFLAGS=-g -O1 -fsanitize=thread -fno-omit-frame-pointer' LDFLAGS=-fsanitize=thread CC=clang\n+ CONFIGURE_RC=0\n+ '[' 0 -ne 0 ']'\n++ nproc\n+ make -j64 -C lib\n+ MAKE_RC=0\n+ '[' 0 -ne 0 ']'\n+ CERT=/tmp/tsanbuild/src/tests/certs/Server-localhost-sv.pem\n+ KEY=/tmp/tsanbuild/src/tests/certs/Server-localhost-sv.key\n+ PORT=8444\n+ clang -g -O0 -o /tmp/server /poc/server.c -lssl -lcrypto\n+ SRV_PID=9108\n+ sleep 1\n+ /tmp/server 8444 /tmp/tsanbuild/src/tests/certs/Server-localhost-sv.pem /tmp/tsanbuild/src/tests/certs/Server-localhost-sv.key\nlistening on 8444\n+ clang -g -O1 -fsanitize=thread -fno-omit-frame-pointer -I/tmp/tsanbuild/src/include -o /tmp/poc /poc/poc.c /tmp/tsanbuild/src/lib/.libs/libcurl.a -lpthread -lssl -lcrypto -lz\n+ BUILD_RC=0\n+ cat /tmp/poc_build.log\n+ '[' 0 -ne 0 ']'\n+ TSAN_OPTIONS=halt_on_error=1:exitcode=66\n+ /tmp/poc https://127.0.0.1:8444/\n+ RC=66\n+ kill 9108\n+ wait 9108\n+ echo POC_EXIT=66\n+ exit 66\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b2cb5968487e10ae2f3893eaf97600fbac9fd533576b5ddc0ddb9099643f7b7a",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "b399a98d2da10ab51afc77f7d4b83769ec4fa6fd",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e08446847a0238efc381e182e52f9379b39ec277f36511a4c71e00635d991c9d"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "done ok=1920 fail=0\nPOC_EXIT=0\nVERIFY_EXIT=0\n\n+ set -o pipefail\n+ rm -rf /tmp/tsanbuild\n+ mkdir -p /tmp/tsanbuild\n+ cp -r /work /tmp/tsanbuild/src\n+ cd /tmp/tsanbuild/src\n+ make distclean\n+ ./configure --with-openssl --without-libpsl --disable-shared 'CFLAGS=-g -O1 -fsanitize=thread -fno-omit-frame-pointer' LDFLAGS=-fsanitize=thread CC=clang\n+ CONFIGURE_RC=0\n+ '[' 0 -ne 0 ']'\n++ nproc\n+ make -j64 -C lib\n+ MAKE_RC=0\n+ '[' 0 -ne 0 ']'\n+ CERT=/tmp/tsanbuild/src/tests/certs/Server-localhost-sv.pem\n+ KEY=/tmp/tsanbuild/src/tests/certs/Server-localhost-sv.key\n+ PORT=8444\n+ clang -g -O0 -o /tmp/server /poc/server.c -lssl -lcrypto\n+ SRV_PID=9108\n+ sleep 1\n+ /tmp/server 8444 /tmp/tsanbuild/src/tests/certs/Server-localhost-sv.pem /tmp/tsanbuild/src/tests/certs/Server-localhost-sv.key\nlistening on 8444\n+ clang -g -O1 -fsanitize=thread -fno-omit-frame-pointer -I/tmp/tsanbuild/src/include -o /tmp/poc /poc/poc.c /tmp/tsanbuild/src/lib/.libs/libcurl.a -lpthread -lssl -lcrypto -lz\n+ BUILD_RC=0\n+ cat /tmp/poc_build.log\n+ '[' 0 -ne 0 ']'\n+ TSAN_OPTIONS=halt_on_error=1:exitcode=66\n+ /tmp/poc https://127.0.0.1:8444/\n+ RC=0\n+ kill 9108\n+ wait 9108\n+ echo POC_EXIT=0\n+ exit 0\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b2cb5968487e10ae2f3893eaf97600fbac9fd533576b5ddc0ddb9099643f7b7a",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "b399a98d2da10ab51afc77f7d4b83769ec4fa6fd",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3a2c9812acaa08d3983fe1401251564fe3a4d4b2d21f6ebd0b501c8d2b4dc199"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "done ok=1920 fail=0\nPOC_EXIT=0\nVERIFY_EXIT=0\n\n+ set -o pipefail\n+ rm -rf /tmp/tsanbuild\n+ mkdir -p /tmp/tsanbuild\n+ cp -r /work /tmp/tsanbuild/src\n+ cd /tmp/tsanbuild/src\n+ make distclean\n+ ./configure --with-openssl --without-libpsl --disable-shared 'CFLAGS=-g -O1 -fsanitize=thread -fno-omit-frame-pointer' LDFLAGS=-fsanitize=thread CC=clang\n+ CONFIGURE_RC=0\n+ '[' 0 -ne 0 ']'\n++ nproc\n+ make -j64 -C lib\n+ MAKE_RC=0\n+ '[' 0 -ne 0 ']'\n+ CERT=/tmp/tsanbuild/src/tests/certs/Server-localhost-sv.pem\n+ KEY=/tmp/tsanbuild/src/tests/certs/Server-localhost-sv.key\n+ PORT=8444\n+ clang -g -O0 -o /tmp/server /poc/server.c -lssl -lcrypto\n+ SRV_PID=9108\n+ sleep 1\n+ /tmp/server 8444 /tmp/tsanbuild/src/tests/certs/Server-localhost-sv.pem /tmp/tsanbuild/src/tests/certs/Server-localhost-sv.key\nlistening on 8444\n+ clang -g -O1 -fsanitize=thread -fno-omit-frame-pointer -I/tmp/tsanbuild/src/include -o /tmp/poc /poc/poc.c /tmp/tsanbuild/src/lib/.libs/libcurl.a -lpthread -lssl -lcrypto -lz\n+ BUILD_RC=0\n+ cat /tmp/poc_build.log\n+ '[' 0 -ne 0 ']'\n+ TSAN_OPTIONS=halt_on_error=1:exitcode=66\n+ /tmp/poc https://127.0.0.1:8444/\n+ RC=0\n+ kill 9108\n+ wait 9108\n+ echo POC_EXIT=0\n+ exit 0\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "WARNING: ThreadSanitizer: data race ... Write of size 8 ... Curl_llist_insert_next lib/llist.c:115 <- Curl_llist_append <- cf_scache_peer_add_session lib/vtls/vtls_scache.c:751 <- Curl_ssl_scache_put; previously-observed-same-config Previous read: Curl_llist_count lib/llist.c:242 <- Curl_ssl_scache_take lib/vtls/vtls_scache.c:828; POC_EXIT=66",
+    "pre_marker": "done ok=1920 fail=0; POC_EXIT=0 (no ThreadSanitizer report)",
+    "benign_marker": "done ok=1920 fail=0; POC_EXIT=0 (no ThreadSanitizer report)",
+    "description": "Multi-threaded PoC (/poc/poc.c + /poc/server.c) spins up a local TLS server and many curl worker threads sharing one CURLSH with CURL_LOCK_DATA_SSL_SESSION, repeatedly performing HTTPS requests with CURLOPT_VERBOSE/curl_global_trace(\"all\") enabled so the CURL_TRC_CF tracing path in Curl_ssl_scache_take() executes. This drives concurrent Curl_ssl_scache_take() (session removal + trace-log session count) against concurrent Curl_ssl_scache_put()/cf_scache_peer_add_session() (session insertion) on the same shared peer->sessions list. /poc/run.sh (used identically via run_poc on all three versions) rebuilds libcurl from each version's unmodified /work source (copied aside, standard autotools configure/make, no source edits) with CFLAGS=-fsanitize=thread since the harness's default build is ASan/UBSan-only (which cannot detect data races and caused a link mismatch with the original TSan-only run.sh), then links and runs the PoC against that TSan-instrumented libcurl.a.",
+    "target_evidence": "run_poc(post_intro): exit=66, crashed=True, sanitizer report 'WARNING: ThreadSanitizer: data race ... Write of size 8 ... #0 Curl_llist_insert_next lib/llist.c:115 #1 Curl_llist_append #2 cf_scache_peer_add_session lib/vtls/vtls_scache.c:751 #3 Curl_ssl_scache_put lib/vtls/vtls_scache.c:781 #4 Curl_ossl_add_session ... #6 ossl_new_session_cb ... SUMMARY: ThreadSanitizer: data race ... Curl_llist_insert_next'. An earlier identical docker_shell run against the same TSan-built post_intro binary additionally captured the paired 'Previous read of size 8 ... #0 Curl_llist_count lib/llist.c:242:16 #1 Curl_ssl_scache_take lib/vtls/vtls_scache.c:828:5'. run_poc(pre_intro) and run_poc(post_benign): exit=0, crashed=False, output 'done ok=1920 fail=0', no sanitizer report, using the same /poc/run.sh reproducer."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "race",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

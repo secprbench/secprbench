@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_TESTCASE-e6cc82c0ccb6ff6a",
+  "bug_id": "TESTCASE-e6cc82c0ccb6ff6a",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "38aea9b0416f574757a56591b8a6f305cbc659ad",
+  "intro_parent": "8d209eb33c3ae900e913c6645603dfde435c59c1",
+  "fix_commit": "56309e476ab385881b15fe52634ba2208bb7f4ba",
+  "affected_files": [
+    "libavfilter/vf_vif.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The mirroring/reflection logic used to clamp filter indices near image boundaries was implemented as a single conditional reflection (`ii < 0 ? -ii : ...`) rather than a proper repeated/folded mirroring, which is only valid when the amount of overshoot does not exceed the array dimension itself. Small image dimensions (smaller than filt_w/2) violate this assumption, allowing indices computed as `i - filt_w/2 + filt_i` to overshoot by more than h or w, producing indices still out of the valid [0, dim-1] range after one reflection.",
+  "findings": [
+    "In vif_filter1d(), when computing the vertical and horizontal 1D filter passes near image edges, out-of-range indices ii/jj are 'mirrored' back into range using a single-step reflection: `ii = ii < 0 ? -ii : (ii >= h ? 2*h - ii - 1 : ii)` (and analogously for jj/w). This single reflection only corrects an index that is out of range by up to h (or w) once. Because the filter half-width is filt_w/2 "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "9c80896cea62f971598ac858ab869dbe00d8266e2306bfb3f9377d928e6fc004",
+  "generated_artifact_sha256": {
+    "reference": "c87a8d673826bc627e20344912a0bb8a235cc2a3568a9919c99530525416c87e",
+    "introducing": "7ce9ed83e62d78fd8f401e8171fb1941d7109b2cef98f7d757bbda08de9c2847",
+    "companion": "1f0ed0398a9f3a0239fd5f2071eace07f5d82ff457c2ce48e238ca4f402d17d3"
+  }
+}

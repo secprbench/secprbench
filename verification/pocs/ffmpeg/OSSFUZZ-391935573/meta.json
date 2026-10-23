@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-391935573",
+  "bug_id": "OSSFUZZ-391935573",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+  "intro_parent": "ac2442f0a7a97d41089fffe51cc831913799c89b",
+  "fix_commit": "43926e026dd80918e1387801077c58cf02b6c99d",
+  "affected_files": [
+    "libavcodec/mmvideo.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The refactor in commit 63ea1660fa (\"avcodec/mm: decode partial palette\") replaced a previous fixed 128-iteration loop with a stream-controlled 'start' offset and 'count' loop bound, but failed to mask/clamp the resulting array index (start+i) to the valid range of the palette array, allowing attacker-controlled values to index arbitrarily far outside the array.",
+  "findings": [
+    "mm_decode_pal() reads a 16-bit 'start' offset and a 16-bit 'count' directly from the bitstream (both attacker-controlled, up to 65535) and then writes 'count' consecutive unsigned ints into s->palette[start+i] without ever validating that start+i stays within the bounds of the palette array (unsigned int palette[AVPALETTE_COUNT], i.e. 256 entries). Because bytestream2_get_le16() imposes no limit o"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "641d59bdf0f5b4efef9667b47d1d19f077b8ecbb73d93f605c52998024c4225f",
+  "generated_artifact_sha256": {
+    "reference": "97623cba0b5ca19c2c0a2e6f138cd85a62bcef04d7ccc37d8ea912d13899a090",
+    "introducing": "a17fb71ba1b01f2183cebb887d65d0d0f1c1c24fbade87211652fcce06492c07",
+    "companion": "f96cab6c7476c32776ef3619a96ac690f64f8c1131c44b1ef208444b37bd69b7"
+  }
+}

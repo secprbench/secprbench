@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-16823",
+  "bug_id": "GH-16823",
+  "bug_type": "DoubleFree",
+  "intro_commit": "84853d94f2b8ac1cfd2ed3e3849e2af0f464d22c",
+  "intro_parent": "8188ca91eb0ac7b0b5c51371fcad857e63969070",
+  "fix_commit": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+  "affected_files": [
+    "lib/mqtt.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "curl",
+  "source": "locally_fix_derived",
+  "attachments": [],
+  "input_name": "replay.py",
+  "root_cause": "mqtt_doing captures mq->sendleftovers and frees the captured pointer after mqtt_send, while mq->sendleftovers can still own that same allocation if the retry exits on an allocation error. The newly added mqtt_done then frees it again. A supported repair may keep the 2022 char-pointer representation: detach the old remainder from the MQTT owner and clear its count before retrying; free only the captured old allocation afterward; have mqtt_done free any remainder still owned at completion. Preserve successful MQTT send behavior and avoid APIs that do not link in a normal 2022 build.",
+  "findings": [
+    "The retry frees a captured sendleftovers pointer after mqtt_send returns an allocation error, but the MQTT owner still retains it. The newly added mqtt_done callback frees that same pointer again."
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "efa44664a72aa79f2e5cdce5f393e01b8a37ec7492577aced174bb87b7ea5d23",
+  "generated_artifact_sha256": {
+    "reference": "d4d7e5c093b3706f21922c0983a0cf30cf2173dceeae1fc7cdb3229be0d576fc",
+    "introducing": "aed1f801aa64618b964cf2d7b498399ffa47d05aee6564e0132142156e3d5c2f",
+    "companion": "0313212480fd8985b6c7a20609cb225bfa0f942fe563d349a2830a3a26688480"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "bug_id": "421228429",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "de42e588f4f7bafc773e630f937407924528cb36",
+    "parent": "5851db91946d37fe63f67556b13eb549c283b2a3",
+    "fix": "ea0fdeca9749bedd4031ad05e53c06375c7bf02c"
+  },
+  "affected_files": [
+    "src/objects/js-array-buffer.cc",
+    "src/objects/js-array-buffer.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three ASan d8 builds were tested with the same command (/bin/bash /poc/run.sh) and probe.js. The harness uses the retained symbols to measure the affected internal operation without modifying target source: on pre_intro, the old GetVariableLengthOrOutOfBounds returned 16 elements, equivalent to 128 bytes (exit 0); on post_intro, the introduced GetVariableByteLengthOrOutOfBounds returned the unrounded 129 bytes (exit 1 with LOGIC_ERROR); on post_benign, the same helper returned 128 bytes (exi",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,187 @@
+{
+  "by_model_and_task_type": [
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Codex Security",
+      "model": "codex",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Codex Security",
+      "model": "codex",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.47547169811320755,
+      "target_hits": 126,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 260,
+      "label": "Anthropic harness, Opus 5.5 (high)",
+      "model": "defending",
+      "records": 265,
+      "scanned": 260,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 260,
+      "label": "Anthropic harness, Opus 5.5 (high)",
+      "model": "defending",
+      "records": 265,
+      "scanned": 260,
+      "target_hit_rate": 0.8,
+      "target_hits": 212,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "GLM 5.3",
+      "model": "glm",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "GLM 5.3",
+      "model": "glm",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.7471698113207547,
+      "target_hits": 198,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "GPT-5.6 sol (xhigh)",
+      "model": "gpt",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "GPT-5.6 sol (xhigh)",
+      "model": "gpt",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.5584905660377358,
+      "target_hits": 148,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Grok 4.6",
+      "model": "grok",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Grok 4.6",
+      "model": "grok",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.7811320754716982,
+      "target_hits": 207,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "MiniMax M3",
+      "model": "minimax",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "MiniMax M3",
+      "model": "minimax",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.32452830188679244,
+      "target_hits": 86,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Claude Opus 5.5 (high)",
+      "model": "opus",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Claude Opus 5.5 (high)",
+      "model": "opus",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.7396226415094339,
+      "target_hits": 196,
+      "task_type": "buggy"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Claude Sonnet 5",
+      "model": "sonnet",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.0,
+      "target_hits": 0,
+      "task_type": "benign"
+    },
+    {
+      "assigned": 265,
+      "judged": 265,
+      "label": "Claude Sonnet 5",
+      "model": "sonnet",
+      "records": 265,
+      "scanned": 265,
+      "target_hit_rate": 0.5924528301886792,
+      "target_hits": 157,
+      "task_type": "buggy"
+    }
+  ],
+  "case_count": 265,
+  "interpretation": "Deterministic recount of frozen current-274 records after membership filtering. Target hits on companion tasks are not calibrated false-positive rates. Missing or incomplete results stay in the denominator.",
+  "new_model_calls": false,
+  "record_count": 4240,
+  "release": "secprbench-265-20261010",
+  "schema_version": 1,
+  "task_count": 530
+}

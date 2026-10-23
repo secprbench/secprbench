@@ -1,0 +1,29 @@
+{
+  "bug_id": "0526535cd584",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "4ee05182b7cccfa6928dcb0a45c2b50b7d9ea39b",
+    "parent": "7f9308380f0f2e299ed8d2295b026cdd4ce057d2",
+    "fix": null
+  },
+  "affected_files": [
+    "Changelog",
+    "libavformat/Makefile",
+    "libavformat/allformats.c",
+    "libavformat/iamf.c",
+    "libavformat/iamf.h",
+    "libavformat/iamf_parse.c",
+    "libavformat/iamf_parse.h",
+    "libavformat/iamfdec.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The intro commit (4ee05182b7cc) adds the IAMF demuxer containing the bug: in audio_element_obu(), num_parameters for Channel audio elements (type=0) is read from untrusted input via ffio_read_leb() with no upper-bound check, while the IAMF spec allows at most 2 parameters for Channel representations. With num_parameters=3, post_intro accepts the value, calls param_parse() three times, and allocates three AVIAMFParamDefinition objects. Because element->demixing_info is overwritten by the second D",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

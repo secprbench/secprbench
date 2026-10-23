@@ -1,0 +1,38 @@
+{
+  "bug_id": "GL-1394",
+  "project": "freetype",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "ea94abb1851fcff553af724e7e31e4844b3adec6",
+    "parent": "13217f25096025df83ddcabeff15651acd0f5d4d",
+    "fix": "aa8ca27f9b48bbb99f02d605b7dbf1d6a016cbcb"
+  },
+  "affected_files": [
+    "src/cid/cidgload.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "pre_intro: build/apply failed (target build failed)",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "asan",
+    "environment": "docker image anypoc-freetype:latest (container capped --cpus 8 --memory 24g). Two build methods were needed because the intro/parent commits are from 2002 and predate every modern build system: (1) intro (ea94abb18) and parent (13217f250) were built by hand-compiling only the required modules (src/base aggregate, src/cid/type1cid.c, src/psaux/psaux.c, src/psnames/psnames.c, src/pshinter/pshinter.c) with `clang -fsanitize=address -g -O0 -DFT2_BUILD_LIBRARY -I include`, using a git worktree per commit, FT_CONFIG_OPTION_INCREMENTAL enabled in include/freetype/config/ftoption.h, and a trimmed include/freetype/config/ftmodule.h listing only the 4 needed modules (both are standard build-time configuration edits, not logic changes). (2) fix commit aa8ca27f9b48 and its parent aa8ca27^ (2025-era refactored code, structurally incompatible with the 2002 API) were built with the project's own CMake (already used successfully for this project in case GL-1356), `-DCMAKE_C_FLAGS='-fsanitize=address -g -O0'`, static libfreetyped.a, `-j8`. The fix build reused the pre-fix build incrementally: only src/cid/type1cid.c was recompiled and the single `type1cid.c.o` member was swapped into a copy of the already-built libfreetyped.a with `ar r` before relinking, per the incremental-compile rule.",
+    "parent": "13217f25096025df83ddcabeff15651acd0f5d4d, hand-built with ASan. At this commit FT_Open_Face/FT_FaceRec already carry the generic incremental-loading plumbing (added two commits earlier), but src/cid/cidgload.c's cid_load_glyph() does not yet check face->root.incremental_interface at all -- it unconditionally takes the ordinary CIDMap-file code path. Running the harness (which sets an incremental interface and a poc.cid file whose CIDMapOffset=0 points at all-zero padding) makes cid_load_glyph compute glyph_length=0 from the CIDMap and return cleanly with no glyph loaded. stdout: 'FT_Load_Glyph returned: 0' / 'done', exit 0, no ASan report -- a true, actively-exercised clean control (not a build failure and not feature-absence, since the incremental struct/flag already exist at this revision).",
+    "intro": "ea94abb1851fcff553af724e7e31e4844b3adec6, hand-built with ASan (same harness/font as parent). This is the commit that adds the `#ifdef FT_CONFIG_OPTION_INCREMENTAL / if (face->root.incremental_interface)` branch to cid_load_glyph(). Our callback returns fd_select=200 (byte 0 of the fake glyph data) while the font declares only cid->num_dicts=1, and the new code uses fd_select to index face->subrs/cid->font_dicts with no bounds check. AddressSanitizer reports a heap-buffer-overflow READ of size 4 at src/cid/cidgload.c:108:39 (`decoder->num_subrs = cid_subrs->num_subrs;`, where `cid_subrs = face->subrs + fd_select`), 3103 bytes past a 1-byte heap allocation for face->subrs (num_dicts==1). This is exactly the ground truth's primary finding line (source line 63 in the PR diff's post-image numbering corresponds to the fd_select read; the immediate OOB dereference is the next statement, matching must_cover related_locations 104/108).",
+    "benign": "Two data points, both clean: (a) aa8ca27f9b48^ (the fix's immediate parent, 2025-era refactored code) reproduces the SAME unchecked-fd_select bug in its modern form -- ASan heap-buffer-overflow READ of size 4 at src/cid/cidgload.c:237:38, same statement (`decoder->num_subrs = cid_subrs->num_subrs;`), proving the defect survived 20+ years of refactoring until the labelled fix. (b) aa8ca27f9b48bbb99f02d605b7dbf1d6a016cbcb itself (built incrementally from (a) by swapping in the patched src/cid/cidgload.c object): the new `if (fd_select >= cid->num_dicts)` check catches fd_select=200 >= num_dicts=1, logs 'cid_load_glyph: fail for glyph index 1: FD number 200 is larger than number of dictionaries (1)', returns FT_Err_Invalid_Offset (9), and FT_Load_Glyph returns cleanly. stdout ends 'FT_Load_Glyph returned: 9' / 'done', exit 0, no ASan report.",
+    "evidence": "intro (2002 code): 'AddressSanitizer: heap-buffer-overflow ... READ of size 4 ... #0 cid_load_glyph src/cid/cidgload.c:108:39 #1 CID_Load_Glyph cidgload.c:286 #2 FT_Load_Glyph ... allocated by ... FT_Alloc ftutil.c:58 #3 cid_load_glyph cidgload.c:70 (the FT_NEW_ARRAY(face->subrs, cid->num_dicts=1) allocation) ... SUMMARY: heap-buffer-overflow .../cidgload.c:108:39 in cid_load_glyph' (artifacts/asan_intro_2002.log). modern pre-fix: 'heap-buffer-overflow READ of size 4 ... #0 cid_load_glyph cidgload.c:237:38 ... SUMMARY: .../cidgload.c:237:38 in cid_load_glyph' (artifacts/asan_prefix_modern.log). fix: 'cid_load_glyph: fail for glyph index 1: FD number 200 is larger than number of dictionaries ",
+    "poc_source": "constructed",
+    "reason": "GL-1394 is a real, cleanly-attributable OOB read: the incremental-loading branch of cid_load_glyph() reads an attacker-supplied fd_select from the client-provided glyph-data callback and immediately uses it to index face->subrs / cid->font_dicts with no range check, while the pre-existing ordinary (non-incremental) code path already validated the equivalent value. I built a from-scratch 400-byte minimal CID-keyed Type-1 font (poc.cid, artifacts/make_font.py) that satisfies the 2002-era CID_New_Parser's fixed-256/266-byte-chunk header scanner (had to iterate: an initial too-short file made the very first chunk read fail with Invalid_Stream_Operation before the scanner ever looked at the bytes) and declares exactly one font dictionary (num_dicts=1). I paired it with a harness implementing FT_Incremental_Interface whose get_glyph_data() callback returns fd_select=200. Because this bug spans",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/freetype__GL-1394/result.json",
+    "poc_files": [
+      "minimal.cid"
+    ]
+  },
+  "final_disposition": "verified"
+}

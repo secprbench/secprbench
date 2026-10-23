@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-28216",
+  "bug_id": "GH-28216",
+  "bug_type": "LogicError",
+  "intro_commit": "3d254b31344e82b8f10fda8bab196757a377eb63",
+  "intro_parent": "643f542a89bee93e043d0899b2a1ca700d1cc418",
+  "fix_commit": "c0527256d2e6a148931e1d8b9b0ff4af7564caae",
+  "affected_files": [
+    "crypto/encode_decode/decoder_pkey.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "openssl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A new error-handling branch (checking lh_DECODER_CACHE_ENTRY_error) was added that jumps into a shared 'err:' cleanup path, but that cleanup path was written for the earlier failure points in the function (all of which occur before the write lock is taken) and therefore does not release cache->lock. The developer who added the new error check overlooked that this particular 'goto err' occurs after the lock had already been acquired, unlike the other 'goto err' sites in the same function.",
+  "findings": [
+    "In OSSL_DECODER_CTX_new_for_pkey(), when constructing a new decoder cache entry, the code takes a write lock on cache->lock via CRYPTO_THREAD_write_lock() and then attempts to insert the new entry into the hashtable with lh_DECODER_CACHE_ENTRY_insert(). This commit added an explicit check of lh_DECODER_CACHE_ENTRY_error() after the insert to detect an allocation failure inside the hash table (e.g."
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "13975fc1a8ced1e2ae5ff66e3839f3d61d12523dc2cf142b2d5308fc902154bc",
+  "generated_artifact_sha256": {
+    "reference": "b9ae57af6792ac17e0ede1084688972b40fbfb28155b7e49eb3b6212816fb88e",
+    "introducing": "de9b687f1b1cf0c2461eb7a3d8d79e3c2c598de8da1885069c9dbbb989bdd730",
+    "companion": "7722ce8c13ca068a22cd218e322a4f1d0336d8f23524930eaf1d8e103b84cee6"
+  }
+}

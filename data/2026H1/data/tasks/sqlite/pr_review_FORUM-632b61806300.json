@@ -1,0 +1,163 @@
+{
+  "task_id": "pr_review_FORUM-632b61806300",
+  "bug_id": "FORUM-632b61806300",
+  "commit_sha": "88a1650859cd828a80261f4c228247fef5635790",
+  "commit_message": "Fix a potential buffer overflow in the ICU upper() function.\n\nFossilOrigin-Name: b8dc1b9f5d413000387bfe784b69f5d0ee5c0489",
+  "commit_author": "drh",
+  "commit_date": "2016-02-26T21:20:57Z",
+  "pr_title": "Fix a potential buffer overflow in the ICU upper() function.",
+  "pr_description": "FossilOrigin-Name: b8dc1b9f5d413000387bfe784b69f5d0ee5c0489",
+  "files": [
+    {
+      "path": "ext/icu/icu.c",
+      "status": "modified",
+      "additions": 28,
+      "deletions": 20,
+      "diff": "diff --git a/ext/icu/icu.c b/ext/icu/icu.c\nindex 56543667ca..263cd98275 100644\n--- a/ext/icu/icu.c\n+++ b/ext/icu/icu.c\n@@ -353,15 +353,15 @@ static void icuRegexpFunc(sqlite3_context *p, int nArg, sqlite3_value **apArg){\n **\n ** http://www.icu-project.org/userguide/posix.html#case_mappings\n */\n static void icuCaseFunc16(sqlite3_context *p, int nArg, sqlite3_value **apArg){\n   const UChar *zInput;\n-  UChar *zOutput;\n+  UChar *zOutput = 0;\n   int nInput;\n-  int nOutput;\n-\n-  UErrorCode status = U_ZERO_ERROR;\n+  int nOut;\n+  int cnt;\n+  UErrorCode status;\n   const char *zLocale = 0;\n \n   assert(nArg==1 || nArg==2);\n   if( nArg==2 ){\n     zLocale = (const char *)sqlite3_value_text(apArg[1]);\n@@ -369,30 +369,38 @@ static void icuCaseFunc16(sqlite3_context *p, int nArg, sqlite3_value **apArg){\n \n   zInput = sqlite3_value_text16(apArg[0]);\n   if( !zInput ){\n     return;\n   }\n-  nInput = sqlite3_value_bytes16(apArg[0]);\n-\n-  nOutput = nInput * 2 + 2;\n-  zOutput = sqlite3_malloc(nOutput);\n-  if( !zOutput ){\n+  nOut = nInput = sqlite3_value_bytes16(apArg[0]);\n+  if( nOut==0 ){\n+    sqlite3_result_text16(p, \"\", 0, SQLITE_STATIC);\n     return;\n   }\n \n-  if( sqlite3_user_data(p) ){\n-    u_strToUpper(zOutput, nOutput/2, zInput, nInput/2, zLocale, &status);\n-  }else{\n-    u_strToLower(zOutput, nOutput/2, zInput, nInput/2, zLocale, &status);\n-  }\n-\n-  if( !U_SUCCESS(status) ){\n-    icuFunctionError(p, \"u_strToLower()/u_strToUpper\", status);\n-    return;\n+  for(cnt=0; cnt<2; cnt++){\n+    UChar *zNew = sqlite3_realloc(zOutput, nOut);\n+    if( zNew==0 ){\n+      sqlite3_free(zOutput);\n+      sqlite3_result_error_nomem(p);\n+      return;\n+    }\n+    zOutput = zNew;\n+    status = U_ZERO_ERROR;\n+    if( sqlite3_user_data(p) ){\n+      nOut = 2*u_strToUpper(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);\n+    }else{\n+      nOut = 2*u_strToLower(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);\n+    }\n+    if( !U_SUCCESS(status) ){\n+      if( status==U_BUFFER_OVERFLOW_ERROR ) continue;\n+      icuFunctionError(p,\n+          sqlite3_user_data(p) ? \"u_strToUpper()\" : \"u_strToLower\", status);\n+      return;\n+    }\n   }\n-\n-  sqlite3_result_text16(p, zOutput, -1, xFree);\n+  sqlite3_result_text16(p, zOutput, nOut, xFree);\n }\n \n /*\n ** Collation sequence destructor function. The pCtx argument points to\n ** a UCollator structure previously allocated using ucol_open().\n"
+    },
+    {
+      "path": "manifest",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 8,
+      "diff": "diff --git a/manifest b/manifest\nindex 3b14fffa3a..6f2f8535ef 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Further\\srefinements\\sto\\sthe\\sMSVC\\sbatch\\sbuild\\sprocess.\n-D 2016-02-26T21:03:16.418\n+C Fix\\sa\\spotential\\sbuffer\\soverflow\\sin\\sthe\\sICU\\supper()\\sfunction.\n+D 2016-02-26T21:20:57.225\n F Makefile.in 4e90dc1521879022aa9479268a4cd141d1771142\n F Makefile.linux-gcc 7bc79876b875010e8c8f9502eb935ca92aa3c434\n F Makefile.msc 56ea123a975690bf9ed38b31bb89ff87b02a7c2b\n F README.md 8ecc12493ff9f820cdea6520a9016001cb2e59b7\n F VERSION c6b1f51809551d60ad001e6d87cf3ab2c7f54b6f\n@@ -196,11 +196,11 @@ F ext/fts5/tool/fts5speed.tcl b0056f91a55b2d1a3684ec05729de92b042e2f85\n F ext/fts5/tool/fts5txt2db.tcl 1343745b89ca2a1e975c23f836d0cee410052975\n F ext/fts5/tool/loadfts5.tcl 95b03429ee6b138645703c6ca192c3ac96eaf093\n F ext/fts5/tool/mkfts5c.tcl d1c2a9ab8e0ec690a52316f33dd9b1d379942f45\n F ext/fts5/tool/showfts5.tcl d54da0e067306663e2d5d523965ca487698e722c\n F ext/icu/README.txt d9fbbad0c2f647c3fdf715fc9fd64af53aedfc43\n-F ext/icu/icu.c 194e972ff3545084b56c459131eb80e1485da75e\n+F ext/icu/icu.c be1f90d8babafe6d1a55a6912161bcac75baee0e\n F ext/icu/sqliteicu.h 728867a802baa5a96de7495e9689a8e01715ef37\n F ext/misc/amatch.c a1a8f66c29d40bd71b075546ddeddb477b17a2bb\n F ext/misc/closure.c 0d2a038df8fbae7f19de42e7c7d71f2e4dc88704\n F ext/misc/compress.c 122faa92d25033d6c3f07c39231de074ab3d2e83\n F ext/misc/eval.c f971962e92ebb8b0a4e6b62949463ee454d88fa2\n@@ -775,11 +775,11 @@ F test/fuzzer2.test a85ef814ce071293bce1ad8dffa217cbbaad4c14\n F test/fuzzerfault.test 8792cd77fd5bce765b05d0c8e01b9edcf8af8536\n F test/genesis.tcl 1e2e2e8e5cc4058549a154ff1892fe5c9de19f98\n F test/hexlit.test d7b0a5f41123df1e43985b91b8b2e70f95282d21\n F test/hidden.test 23c1393a79e846d68fd902d72c85d5e5dcf98711\n F test/hook.test 162d7cef7a2d2b04839fe14402934e6a1b79442f\n-F test/icu.test 70df4faca133254c042d02ae342c0a141f2663f4\n+F test/icu.test 73956798bace8982909c00476b216714a6d0559a\n F test/ieee754.test 806fc0ce7f305f57e3331eaceeddcfec9339e607\n F test/imposter1.test c3f1db2d3db2c24611a6596a3fc0ffc14f1466c8\n F test/in.test 61a24ae38d4b64ec69f06ccdf022992f68a98176\n F test/in2.test 5d4c61d17493c832f7d2d32bef785119e87bde75\n F test/in3.test 3cbf58c87f4052cee3a58b37b6389777505aa0c0\n@@ -1448,9 +1448,9 @@ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c\n F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547\n F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93\n F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc\n F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e\n F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0\n-P 424b7aee3310b9782bd312589dc3d9f287aa04b8 4e54e9c0fefe417f94a2d95921acf61b1dda5ca4\n-R 7da9769ad29c99be35565d7e5f8b1154\n-U mistachkin\n-Z 7d4c099032b4aee5af44d708663be688\n+P cf4e4fbdb6a29b7fbd5150958ab4f8f2a1cd7f21\n+R a5aa0b45f5ae16ce5e364c4bc7498593\n+U drh\n+Z d4cfa74b26d8bc26b2ff43ad0d4d53e2\n"
+    },
+    {
+      "path": "manifest.uuid",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/manifest.uuid b/manifest.uuid\nindex 07b70ce13e..38c7afbca2 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-cf4e4fbdb6a29b7fbd5150958ab4f8f2a1cd7f21\n\\ No newline at end of file\n+b8dc1b9f5d413000387bfe784b69f5d0ee5c0489\n\\ No newline at end of file\n"
+    },
+    {
+      "path": "test/icu.test",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 0,
+      "diff": "diff --git a/test/icu.test b/test/icu.test\nindex 73cb9b913e..743bcfaea1 100644\n--- a/test/icu.test\n+++ b/test/icu.test\n@@ -70,10 +70,14 @@ test_expr icu-2.5 {i1=$::OGRAVE} {lower(i1)}     $::ograve\n test_expr icu-2.6 {i1=$::OGRAVE} {upper(i1)}     $::OGRAVE\n \n test_expr icu-2.7 {i1=$::szlig} {upper(i1)}      \"SS\"\n test_expr icu-2.8 {i1='SS'} {lower(i1)}          \"ss\"\n \n+do_execsql_test icu-2.9 {\n+  SELECT upper(char(0xfb04,0xfb04,0xfb04,0xfb04));\n+} {FFLFFLFFLFFL}\n+\n # In turkish (locale=\"tr_TR\"), the lower case version of I\n # is \"small dotless i\" (code point 0x131 (decimal 305)).\n #\n set ::small_dotless_i \"\\u0131\"\n test_expr icu-3.1 {i1='I'} {lower(i1)}           \"i\"\n@@ -131,6 +135,11 @@ do_catchsql_test icu-5.4 {\n   SELECT 'abc' REGEXP 'a[abc]c.*'\n } {0 1}\n do_catchsql_test icu-5.4 { SELECT 'abc' REGEXP }    {1 {near \" \": syntax error}}\n do_catchsql_test icu-5.5 { SELECT 'abc' REGEXP, 1 } {1 {near \",\": syntax error}}\n \n+\n+do_malloc_test icu-6.10 -sqlbody {\n+  SELECT upper(char(0xfb04,0xdf,0xfb04,0xe8,0xfb04));\n+}\n+\n finish_test\n"
+    }
+  ],
+  "full_diff": "diff --git a/ext/icu/icu.c b/ext/icu/icu.c\nindex 56543667ca..263cd98275 100644\n--- a/ext/icu/icu.c\n+++ b/ext/icu/icu.c\n@@ -353,15 +353,15 @@ static void icuRegexpFunc(sqlite3_context *p, int nArg, sqlite3_value **apArg){\n **\n ** http://www.icu-project.org/userguide/posix.html#case_mappings\n */\n static void icuCaseFunc16(sqlite3_context *p, int nArg, sqlite3_value **apArg){\n   const UChar *zInput;\n-  UChar *zOutput;\n+  UChar *zOutput = 0;\n   int nInput;\n-  int nOutput;\n-\n-  UErrorCode status = U_ZERO_ERROR;\n+  int nOut;\n+  int cnt;\n+  UErrorCode status;\n   const char *zLocale = 0;\n \n   assert(nArg==1 || nArg==2);\n   if( nArg==2 ){\n     zLocale = (const char *)sqlite3_value_text(apArg[1]);\n@@ -369,30 +369,38 @@ static void icuCaseFunc16(sqlite3_context *p, int nArg, sqlite3_value **apArg){\n \n   zInput = sqlite3_value_text16(apArg[0]);\n   if( !zInput ){\n     return;\n   }\n-  nInput = sqlite3_value_bytes16(apArg[0]);\n-\n-  nOutput = nInput * 2 + 2;\n-  zOutput = sqlite3_malloc(nOutput);\n-  if( !zOutput ){\n+  nOut = nInput = sqlite3_value_bytes16(apArg[0]);\n+  if( nOut==0 ){\n+    sqlite3_result_text16(p, \"\", 0, SQLITE_STATIC);\n     return;\n   }\n \n-  if( sqlite3_user_data(p) ){\n-    u_strToUpper(zOutput, nOutput/2, zInput, nInput/2, zLocale, &status);\n-  }else{\n-    u_strToLower(zOutput, nOutput/2, zInput, nInput/2, zLocale, &status);\n-  }\n-\n-  if( !U_SUCCESS(status) ){\n-    icuFunctionError(p, \"u_strToLower()/u_strToUpper\", status);\n-    return;\n+  for(cnt=0; cnt<2; cnt++){\n+    UChar *zNew = sqlite3_realloc(zOutput, nOut);\n+    if( zNew==0 ){\n+      sqlite3_free(zOutput);\n+      sqlite3_result_error_nomem(p);\n+      return;\n+    }\n+    zOutput = zNew;\n+    status = U_ZERO_ERROR;\n+    if( sqlite3_user_data(p) ){\n+      nOut = 2*u_strToUpper(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);\n+    }else{\n+      nOut = 2*u_strToLower(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);\n+    }\n+    if( !U_SUCCESS(status) ){\n+      if( status==U_BUFFER_OVERFLOW_ERROR ) continue;\n+      icuFunctionError(p,\n+          sqlite3_user_data(p) ? \"u_strToUpper()\" : \"u_strToLower\", status);\n+      return;\n+    }\n   }\n-\n-  sqlite3_result_text16(p, zOutput, -1, xFree);\n+  sqlite3_result_text16(p, zOutput, nOut, xFree);\n }\n \n /*\n ** Collation sequence destructor function. The pCtx argument points to\n ** a UCollator structure previously allocated using ucol_open().\ndiff --git a/manifest b/manifest\nindex 3b14fffa3a..6f2f8535ef 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Further\\srefinements\\sto\\sthe\\sMSVC\\sbatch\\sbuild\\sprocess.\n-D 2016-02-26T21:03:16.418\n+C Fix\\sa\\spotential\\sbuffer\\soverflow\\sin\\sthe\\sICU\\supper()\\sfunction.\n+D 2016-02-26T21:20:57.225\n F Makefile.in 4e90dc1521879022aa9479268a4cd141d1771142\n F Makefile.linux-gcc 7bc79876b875010e8c8f9502eb935ca92aa3c434\n F Makefile.msc 56ea123a975690bf9ed38b31bb89ff87b02a7c2b\n F README.md 8ecc12493ff9f820cdea6520a9016001cb2e59b7\n F VERSION c6b1f51809551d60ad001e6d87cf3ab2c7f54b6f\n@@ -196,11 +196,11 @@ F ext/fts5/tool/fts5speed.tcl b0056f91a55b2d1a3684ec05729de92b042e2f85\n F ext/fts5/tool/fts5txt2db.tcl 1343745b89ca2a1e975c23f836d0cee410052975\n F ext/fts5/tool/loadfts5.tcl 95b03429ee6b138645703c6ca192c3ac96eaf093\n F ext/fts5/tool/mkfts5c.tcl d1c2a9ab8e0ec690a52316f33dd9b1d379942f45\n F ext/fts5/tool/showfts5.tcl d54da0e067306663e2d5d523965ca487698e722c\n F ext/icu/README.txt d9fbbad0c2f647c3fdf715fc9fd64af53aedfc43\n-F ext/icu/icu.c 194e972ff3545084b56c459131eb80e1485da75e\n+F ext/icu/icu.c be1f90d8babafe6d1a55a6912161bcac75baee0e\n F ext/icu/sqliteicu.h 728867a802baa5a96de7495e9689a8e01715ef37\n F ext/misc/amatch.c a1a8f66c29d40bd71b075546ddeddb477b17a2bb\n F ext/misc/closure.c 0d2a038df8fbae7f19de42e7c7d71f2e4dc88704\n F ext/misc/compress.c 122faa92d25033d6c3f07c39231de074ab3d2e83\n F ext/misc/eval.c f971962e92ebb8b0a4e6b62949463ee454d88fa2\n@@ -775,11 +775,11 @@ F test/fuzzer2.test a85ef814ce071293bce1ad8dffa217cbbaad4c14\n F test/fuzzerfault.test 8792cd77fd5bce765b05d0c8e01b9edcf8af8536\n F test/genesis.tcl 1e2e2e8e5cc4058549a154ff1892fe5c9de19f98\n F test/hexlit.test d7b0a5f41123df1e43985b91b8b2e70f95282d21\n F test/hidden.test 23c1393a79e846d68fd902d72c85d5e5dcf98711\n F test/hook.test 162d7cef7a2d2b04839fe14402934e6a1b79442f\n-F test/icu.test 70df4faca133254c042d02ae342c0a141f2663f4\n+F test/icu.test 73956798bace8982909c00476b216714a6d0559a\n F test/ieee754.test 806fc0ce7f305f57e3331eaceeddcfec9339e607\n F test/imposter1.test c3f1db2d3db2c24611a6596a3fc0ffc14f1466c8\n F test/in.test 61a24ae38d4b64ec69f06ccdf022992f68a98176\n F test/in2.test 5d4c61d17493c832f7d2d32bef785119e87bde75\n F test/in3.test 3cbf58c87f4052cee3a58b37b6389777505aa0c0\n@@ -1448,9 +1448,9 @@ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c\n F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547\n F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93\n F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc\n F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e\n F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0\n-P 424b7aee3310b9782bd312589dc3d9f287aa04b8 4e54e9c0fefe417f94a2d95921acf61b1dda5ca4\n-R 7da9769ad29c99be35565d7e5f8b1154\n-U mistachkin\n-Z 7d4c099032b4aee5af44d708663be688\n+P cf4e4fbdb6a29b7fbd5150958ab4f8f2a1cd7f21\n+R a5aa0b45f5ae16ce5e364c4bc7498593\n+U drh\n+Z d4cfa74b26d8bc26b2ff43ad0d4d53e2\ndiff --git a/manifest.uuid b/manifest.uuid\nindex 07b70ce13e..38c7afbca2 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-cf4e4fbdb6a29b7fbd5150958ab4f8f2a1cd7f21\n\\ No newline at end of file\n+b8dc1b9f5d413000387bfe784b69f5d0ee5c0489\n\\ No newline at end of file\ndiff --git a/test/icu.test b/test/icu.test\nindex 73cb9b913e..743bcfaea1 100644\n--- a/test/icu.test\n+++ b/test/icu.test\n@@ -70,10 +70,14 @@ test_expr icu-2.5 {i1=$::OGRAVE} {lower(i1)}     $::ograve\n test_expr icu-2.6 {i1=$::OGRAVE} {upper(i1)}     $::OGRAVE\n \n test_expr icu-2.7 {i1=$::szlig} {upper(i1)}      \"SS\"\n test_expr icu-2.8 {i1='SS'} {lower(i1)}          \"ss\"\n \n+do_execsql_test icu-2.9 {\n+  SELECT upper(char(0xfb04,0xfb04,0xfb04,0xfb04));\n+} {FFLFFLFFLFFL}\n+\n # In turkish (locale=\"tr_TR\"), the lower case version of I\n # is \"small dotless i\" (code point 0x131 (decimal 305)).\n #\n set ::small_dotless_i \"\\u0131\"\n test_expr icu-3.1 {i1='I'} {lower(i1)}           \"i\"\n@@ -131,6 +135,11 @@ do_catchsql_test icu-5.4 {\n   SELECT 'abc' REGEXP 'a[abc]c.*'\n } {0 1}\n do_catchsql_test icu-5.4 { SELECT 'abc' REGEXP }    {1 {near \" \": syntax error}}\n do_catchsql_test icu-5.5 { SELECT 'abc' REGEXP, 1 } {1 {near \",\": syntax error}}\n \n+\n+do_malloc_test icu-6.10 -sqlbody {\n+  SELECT upper(char(0xfb04,0xdf,0xfb04,0xe8,0xfb04));\n+}\n+\n finish_test\n",
+  "ground_truth": {
+    "bug_id": "FORUM-632b61806300",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "632b618063002fd1497584b557e24f86a5ce07b3",
+      "short_sha": "632b618",
+      "message": "Prevent integer overflow in the ICU extension. [bugs:/forumpost/844bdd7d5c|Bug report 844bdd7d5c].",
+      "author": "drh",
+      "date": "2026-05-19T18:56:11Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-intoverflow-001",
+        "title": "Integer overflow in icuCaseFunc16 when computing output buffer size",
+        "message": "In icuCaseFunc16(), the variable nOut is declared as int (32-bit signed). After calling u_strToUpper() or u_strToLower() (both returning int32_t), the result is multiplied by 2 using plain integer arithmetic: nOut = 2*u_strToUpper(...). If the ICU function returns a value close to INT_MAX/2 (approximately 1.07 billion), the multiplication overflows a signed 32-bit integer, wrapping nOut to a negative or unexpectedly small positive value. This overflowed nOut is then passed directly to sqlite3_realloc(zOutput, nOut), which accepts an int. A negative size value causes sqlite3_realloc to allocate 0 bytes (or fail), while a very small wrapped positive value allocates a far-too-small buffer. On the second loop iteration or during result storage, the actual output data is then written into this undersized buffer, potentially causing heap memory corruption.",
+        "location": {
+          "file": "ext/icu/icu.c",
+          "start_line": 360,
+          "end_line": 392,
+          "start_column": null,
+          "end_column": null,
+          "function": "icuCaseFunc16",
+          "snippet": "  int nOut;\n  ...\n  for(cnt=0; cnt<2; cnt++){\n    UChar *zNew = sqlite3_realloc(zOutput, nOut);\n    ...\n      nOut = 2*u_strToUpper(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);\n    }else{\n      nOut = 2*u_strToLower(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "ext/icu/icu.c",
+            "start_line": 381,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "icuCaseFunc16",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "ext/icu/icu.c",
+            "start_line": 390,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "icuCaseFunc16",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "ext/icu/icu.c",
+            "start_line": 392,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "icuCaseFunc16",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.95,
+        "suggestion": "Declare nOut as sqlite3_int64 instead of int, use 2LL* to perform 64-bit multiplication when computing the doubled output size, and replace sqlite3_realloc() with sqlite3_realloc64() so the allocation size is passed as a 64-bit value.",
+        "suggestion_code": "  sqlite3_int64 nOut;\n  ...\n    UChar *zNew = sqlite3_realloc64(zOutput, nOut);\n    ...\n      nOut = 2LL*u_strToUpper(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);\n    }else{\n      nOut = 2LL*u_strToLower(zOutput,nOut/2,zInput,nInput/2,zLocale,&status);",
+        "tags": [
+          "security",
+          "integer-overflow",
+          "heap-corruption",
+          "icu"
+        ],
+        "cwe_ids": [
+          "CWE-190",
+          "CWE-122"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "ext/icu/icu.c"
+    ],
+    "root_cause": "nOut was typed as int (32-bit signed) rather than a 64-bit integer type. The expression 2*u_strToUpper(...) performs a signed 32-bit multiplication; for sufficiently large inputs the result wraps around. Additionally, sqlite3_realloc() takes an int argument, so even if nOut were computed correctly it would be truncated on a 64-bit platform unless sqlite3_realloc64() is used.",
+    "must_cover": [
+      {
+        "file": "ext/icu/icu.c",
+        "function": "icuCaseFunc16",
+        "start_line": 360,
+        "end_line": 392,
+        "role": "primary",
+        "reason": "Primary location of finding: Integer overflow in icuCaseFunc16 when computing output buffer size"
+      },
+      {
+        "file": "ext/icu/icu.c",
+        "function": "icuCaseFunc16",
+        "start_line": 381,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Integer overflow in icuCaseFunc16 when computing output buffer size"
+      },
+      {
+        "file": "ext/icu/icu.c",
+        "function": "icuCaseFunc16",
+        "start_line": 390,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Integer overflow in icuCaseFunc16 when computing output buffer size"
+      },
+      {
+        "file": "ext/icu/icu.c",
+        "function": "icuCaseFunc16",
+        "start_line": 392,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Integer overflow in icuCaseFunc16 when computing output buffer size"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "88a1650859cd828a80261f4c228247fef5635790",
+  "fix_commit_sha": null
+}

@@ -1,0 +1,84 @@
+{
+  "bug_id": "OSSFUZZ-438961582",
+  "title": "avcodec/dxv: Check coded_height, to avoid invalid av_clip()",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "ffmpeg",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "avcodec/dxv: Check coded_height, to avoid invalid av_clip()\n\nFixes: assertion failure\nFixes: 438961582/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_DXV_DEC_fuzzer-5850827739955200\n\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "commit_ids": [
+    "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9"
+  ],
+  "summary": "avcodec/dxv: Check coded_height, to avoid invalid av_clip()",
+  "description": "avcodec/dxv: Check coded_height, to avoid invalid av_clip()\n\nFixes: assertion failure\nFixes: 438961582/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_DXV_DEC_fuzzer-5850827739955200\n\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "fix_commit": "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+  "fix_commit_sha": "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+  "mainline_fix_commits": [
+    "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9"
+  ],
+  "fix_date": "2025-08-19T11:25:39-03:00",
+  "date_fixed": "2025-08-19T11:25:39-03:00",
+  "mainline_verified": true,
+  "mainline_ref": "refs/remotes/origin/master",
+  "date_basis": "attributed_mainline_fix_commit",
+  "fix_date_source": "local_git_committer_date",
+  "season": "2025H2",
+  "source_url": "https://github.com/FFmpeg/FFmpeg/commit/cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+  "affected_files": [
+    "libavcodec/dxv.c"
+  ],
+  "changed_lines": 2,
+  "cve_ids": [],
+  "cve_hints": [],
+  "report_references": [
+    {
+      "id": "OSSFUZZ-438961582",
+      "url": "https://issues.oss-fuzz.com/issues/438961582",
+      "evidence": "Fixes: 438961582/clusterfuzz"
+    },
+    {
+      "id": "TESTCASE-baddd0329718b553",
+      "url": null,
+      "evidence": "Fixes: 438961582/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_DXV_DEC_fuzzer-5850827739955200"
+    },
+    {
+      "id": null,
+      "url": null,
+      "evidence": "Found-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg",
+      "reporter": "continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg"
+    }
+  ],
+  "candidate_status": "pending_reference_and_pair_construction_no_replay",
+  "security_qualification": "upstream_attributed_security_context_candidate_not_replay_verified",
+  "construction_requirements": [
+    "confirm_root_cause_and_earliest_fix",
+    "construct_benign_and_buggy_pair"
+  ],
+  "provenance": {
+    "source_url": "https://github.com/FFmpeg/FFmpeg/commit/cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+    "collector": "attributed_git_report_v1",
+    "fix_evidence": {
+      "source_url": "https://github.com/FFmpeg/FFmpeg/commit/cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+      "retrieved_at": "2026-09-28T16:24:27.288310+00:00",
+      "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/ffmpeg/raw/cdee519d40e61bd65ba5b3fbec00acd50a08d0d9.patch",
+      "sha256": "0c9e2978834529da6764e0a9aa2abfa0fab67adb9fcf7f8724a1fdd9b5d139a3",
+      "git_object": "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_tip": "089a48eb36b2c0d185867522a1fc2613b5bbb96f",
+      "mainline_ancestry_verified": true,
+      "role": "upstream_fix_with_explicit_report_attribution"
+    },
+    "history": {
+      "repository": "/research/repos/FFmpeg__FFmpeg",
+      "upstream_url": "https://github.com/FFmpeg/FFmpeg",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_tip": "089a48eb36b2c0d185867522a1fc2613b5bbb96f",
+      "retrieved_at": "2026-09-28T16:24:27.288310+00:00",
+      "sha256": "6f9738b25f7f392d6d4d944d7b29ffd64c09a0bb86b09b8f4741226b8e7f9c1b",
+      "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/ffmpeg/raw/git_history.raw"
+    },
+    "upstream_reports": []
+  }
+}

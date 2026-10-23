@@ -1,0 +1,47 @@
+{
+  "checked_at": "2026-10-22",
+  "contract_example": {
+    "paid_calls": 0,
+    "schema_valid": true
+  },
+  "dataset_integrity": {
+    "cases": 265,
+    "manifest_files": 982,
+    "passed": true,
+    "tasks": 530
+  },
+  "frozen_result_report": {
+    "arms": 8,
+    "assignment_denominator_per_arm_and_task_type": 265,
+    "passed": true
+  },
+  "host_path_redaction": {
+    "derived_entries_rebound": 3,
+    "evidence_entries_rebound": 247,
+    "poc_directories_with_redacted_metadata": 3,
+    "task_bytes_changed": 0
+  },
+  "lint": {
+    "command": "ruff check secprbench tests examples tools",
+    "passed": true
+  },
+  "package_version": "0.2.0",
+  "pytest": {
+    "command": "python -m pytest -q -m 'not integration and not docker and not live'",
+    "deselected": 10,
+    "errors": 0,
+    "failures": 0,
+    "installation": "clean virtual environment; test extra",
+    "passed": 178,
+    "python": "3.11",
+    "skipped": 9
+  },
+  "release": "secprbench-265-20261010",
+  "schema_version": 1,
+  "scope": "Offline release acceptance for the public repository; no new historical vulnerability replay or model evaluation.",
+  "verification_integrity": {
+    "cases": 265,
+    "files": 1044,
+    "passed": true
+  }
+}

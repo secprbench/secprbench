@@ -1,0 +1,38 @@
+{
+  "bug_id": "OSSFUZZ-499455833",
+  "project": "freetype",
+  "bug_type": "BufferOverflow",
+  "commits": {
+    "intro": "96cddb8d1d32d6738b06552083db9d6cee5b5cb4",
+    "parent": "9290fa9022c29c616ea783dc1028aad1ea92f2ee",
+    "fix": "1803559c4ee407d0bcbf2a67dbe96690cee869d2"
+  },
+  "affected_files": [
+    "src/truetype/ttinterp.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "no PoC available: no PoC under pocs/freetype/OSSFUZZ-499455833/ or pocs/freetype/OSSFUZZ-499455833.*; add a PoC directory (input file and/or run.sh) or a flat input file",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "project": "freetype",
+    "status": "intro_reproduced_behavioral",
+    "method": "benchmark-verify engine (build parent/intro/benign + run PoC, ASan)",
+    "intro_verified": "behavioral (gdb)",
+    "benign_verified": null,
+    "poc_source": "anypoc-generated",
+    "reason": "anypoc built the introducing commit 96cddb8d (pre-CMake; objects compiled directly) and proved via gdb that Ins_SHZ/Move_Zp2_Point reads out of the glyph zone (limit=40 while zp2.n_points=12) \u2014 the introduced missing bounds/rebase check. | ASan stays silent at the exact intro commit because the 2012-era glyph loader over-allocates outline arrays ~2x; the same crafted font produces an ASan heap-buffer-overflow at a later revision (Move_Zp2_Point ttinterp.c). So the clean ASan-crash-at-intro oracle does not apply; this is a behavioral/invariant reproduction. | Engine 3-way (CMake) not applicable: intro commit predates root CMakeLists.txt (autogen/configure only).",
+    "target_match": "Ins_SHZ out-of-zone access at intro (gdb), ASan crash at later rev",
+    "correct_vulnerable_rev": null,
+    "verified_by": "benchmark-verify",
+    "poc_files": [
+      "poc.ttf",
+      "run.sh",
+      "test_poc.c"
+    ]
+  },
+  "final_disposition": "intro_reproduced_behavioral"
+}

@@ -1,0 +1,23 @@
+{
+  "bug_id": "FORUM-b7c32f2f29cd",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "b8123415b2952793279bad794680c14e191d7ca5",
+    "parent": "7c5a829025914550de138aab2a8cf3f8090b7c3e",
+    "fix": "b7c32f2f29cd393d698f218d8c2522598811a63e"
+  },
+  "affected_files": [
+    "src/analyze.c",
+    "src/sqliteInt.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The stock build failed because UBSan instrumented SQLite's build-time lemon generator, which aborted before sqlite3 was produced. I therefore built each supplied worktree in a persistent cgsa-sqlite Docker container with 32-bit multilib support, generated sqlite3.c using unsanitized build tools, and compiled the identical /poc/poc.c with 32-bit ASan+UBSan for every version. With the same harness and run environment, pre_intro (7c5a82902591) exited 0 and loadStatTbl returned SQLITE_NOMEM (7); pos",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

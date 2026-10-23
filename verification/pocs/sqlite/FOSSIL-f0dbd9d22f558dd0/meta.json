@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_FOSSIL-f0dbd9d22f558dd0",
+  "bug_id": "FOSSIL-f0dbd9d22f558dd0",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "2ec78c0e4bab11ce288a830c3a13fe34a9224c4a",
+  "intro_parent": "4f2144dac0119044f36de618fae1a5ed24046a3a",
+  "fix_commit": "5b15123fba29709ff32a0aaa13f223223989d369",
+  "affected_files": [
+    "ext/fts5/fts5_main.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "sqlite",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Lengths obtained from sqlite3_value_bytes() (an int, bounded in principle only by the compile-time SQLITE_MAX_LENGTH) are stored and summed using 32-bit 'int' arithmetic (nBlob = nLocale + 1 + nText) and then passed to the 32-bit-size-parameter sqlite3_malloc(), instead of using a 64-bit type and sqlite3_malloc64() throughout the computation and allocation.",
+  "findings": [
+    "fts5LocaleFunc() (the implementation of the SQL function fts5_locale(LOCALE, TEXT)) declares nLocale, nText and nBlob as plain 'int' and computes nBlob = nLocale + 1 + nText before allocating the result buffer with sqlite3_malloc(nBlob). sqlite3_value_bytes() returns an int whose value can approach SQLITE_MAX_LENGTH; when SQLite is built with an oversized SQLITE_MAX_LENGTH (a supported, documented"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "74528ed4167cda8c8009627f317294a83ba186577861f9d8322946b1421b08b4",
+  "generated_artifact_sha256": {
+    "reference": "bee8ae6297f6da12ecf3ee9f42fa58c0cfa22686ca0efbacf3a130f18f8acb7e",
+    "introducing": "7253269f427a00d9ff398618d8029deeadce5c2e2e3adeab9a9b362268f79f8d",
+    "companion": "019f5d2bdd19c6f30df22ae50a126ea8e333863ea47f6344c700ded3c8a2841b"
+  }
+}

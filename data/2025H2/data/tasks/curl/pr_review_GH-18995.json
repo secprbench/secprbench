@@ -1,0 +1,87 @@
+{
+  "task_id": "pr_review_GH-18995",
+  "bug_id": "GH-18995",
+  "commit_sha": "06d12105c7aa883a62802e36eebb76d5303247d0",
+  "commit_message": "url: free old conn better on reuse\n\nMake use of conn_free() better and avoid duplicate code.\n\nReported-by: Andrea Pappacoda\nFixes #8841\nCloses #8842",
+  "commit_author": "Daniel Stenberg",
+  "commit_date": "2022-05-14T18:04:46+02:00",
+  "pr_title": "url: free old conn better on reuse",
+  "pr_description": "Make use of conn_free() better and avoid duplicate code.\n\nReported-by: Andrea Pappacoda\nFixes #8841\nCloses #8842\n",
+  "files": [
+    {
+      "path": "lib/url.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 30,
+      "diff": "diff --git a/lib/url.c b/lib/url.c\nindex 631e496967..c2d9e78f47 100644\n--- a/lib/url.c\n+++ b/lib/url.c\n@@ -3496,21 +3496,10 @@ static void reuse_conn(struct Curl_easy *data,\n   /* 'local_ip' and 'local_port' get filled with local's numerical\n      ip address and port number whenever an outgoing connection is\n      **established** from the primary socket to a remote address. */\n   char local_ip[MAX_IPADR_LEN] = \"\";\n   int local_port = -1;\n-#ifndef CURL_DISABLE_PROXY\n-  Curl_free_idnconverted_hostname(&old_conn->http_proxy.host);\n-  Curl_free_idnconverted_hostname(&old_conn->socks_proxy.host);\n-\n-  free(old_conn->http_proxy.host.rawalloc);\n-  free(old_conn->socks_proxy.host.rawalloc);\n-  Curl_free_primary_ssl_config(&old_conn->proxy_ssl_config);\n-#endif\n-  /* free the SSL config struct from this connection struct as this was\n-     allocated in vain and is targeted for destruction */\n-  Curl_free_primary_ssl_config(&old_conn->ssl_config);\n \n   /* get the user+password information from the old_conn struct since it may\n    * be new for this request even when we re-use an existing connection */\n   if(old_conn->user) {\n     /* use the new user name and password though */\n@@ -3537,24 +3526,21 @@ static void reuse_conn(struct Curl_easy *data,\n     old_conn->http_proxy.user = NULL;\n     old_conn->socks_proxy.user = NULL;\n     old_conn->http_proxy.passwd = NULL;\n     old_conn->socks_proxy.passwd = NULL;\n   }\n-  Curl_safefree(old_conn->http_proxy.user);\n-  Curl_safefree(old_conn->socks_proxy.user);\n-  Curl_safefree(old_conn->http_proxy.passwd);\n-  Curl_safefree(old_conn->socks_proxy.passwd);\n #endif\n \n-  /* host can change, when doing keepalive with a proxy or if the case is\n-     different this time etc */\n   Curl_free_idnconverted_hostname(&conn->host);\n   Curl_free_idnconverted_hostname(&conn->conn_to_host);\n   Curl_safefree(conn->host.rawalloc);\n   Curl_safefree(conn->conn_to_host.rawalloc);\n   conn->host = old_conn->host;\n+  old_conn->host.rawalloc = NULL;\n+  old_conn->host.encalloc = NULL;\n   conn->conn_to_host = old_conn->conn_to_host;\n+  old_conn->conn_to_host.rawalloc = NULL;\n   conn->conn_to_port = old_conn->conn_to_port;\n   conn->remote_port = old_conn->remote_port;\n   Curl_safefree(conn->hostname_resolve);\n \n   conn->hostname_resolve = old_conn->hostname_resolve;\n@@ -3570,19 +3556,11 @@ static void reuse_conn(struct Curl_easy *data,\n   conn_reset_all_postponed_data(old_conn); /* free buffers */\n \n   /* re-use init */\n   conn->bits.reuse = TRUE; /* yes, we're re-using here */\n \n-  Curl_safefree(old_conn->user);\n-  Curl_safefree(old_conn->passwd);\n-  Curl_safefree(old_conn->options);\n-  Curl_safefree(old_conn->localdev);\n-  Curl_llist_destroy(&old_conn->easyq, NULL);\n-\n-#ifdef USE_UNIX_SOCKETS\n-  Curl_safefree(old_conn->unix_domain_socket);\n-#endif\n+  conn_free(old_conn);\n }\n \n /**\n  * create_conn() sets up a new connectdata struct, or re-uses an already\n  * existing one, and resolves host name.\n@@ -3928,14 +3906,10 @@ static CURLcode create_conn(struct Curl_easy *data,\n      * We already have a connection for this, we got the former connection in\n      * the conn_temp variable and thus we need to cleanup the one we just\n      * allocated before we can move along and use the previously existing one.\n      */\n     reuse_conn(data, conn, conn_temp);\n-#ifdef USE_SSL\n-    free(conn->ssl_extra);\n-#endif\n-    free(conn);          /* we don't need this anymore */\n     conn = conn_temp;\n     *in_connect = conn;\n \n #ifndef CURL_DISABLE_PROXY\n     infof(data, \"Re-using existing connection #%ld with %s %s\",\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/url.c b/lib/url.c\nindex 631e496967..c2d9e78f47 100644\n--- a/lib/url.c\n+++ b/lib/url.c\n@@ -3496,21 +3496,10 @@ static void reuse_conn(struct Curl_easy *data,\n   /* 'local_ip' and 'local_port' get filled with local's numerical\n      ip address and port number whenever an outgoing connection is\n      **established** from the primary socket to a remote address. */\n   char local_ip[MAX_IPADR_LEN] = \"\";\n   int local_port = -1;\n-#ifndef CURL_DISABLE_PROXY\n-  Curl_free_idnconverted_hostname(&old_conn->http_proxy.host);\n-  Curl_free_idnconverted_hostname(&old_conn->socks_proxy.host);\n-\n-  free(old_conn->http_proxy.host.rawalloc);\n-  free(old_conn->socks_proxy.host.rawalloc);\n-  Curl_free_primary_ssl_config(&old_conn->proxy_ssl_config);\n-#endif\n-  /* free the SSL config struct from this connection struct as this was\n-     allocated in vain and is targeted for destruction */\n-  Curl_free_primary_ssl_config(&old_conn->ssl_config);\n \n   /* get the user+password information from the old_conn struct since it may\n    * be new for this request even when we re-use an existing connection */\n   if(old_conn->user) {\n     /* use the new user name and password though */\n@@ -3537,24 +3526,21 @@ static void reuse_conn(struct Curl_easy *data,\n     old_conn->http_proxy.user = NULL;\n     old_conn->socks_proxy.user = NULL;\n     old_conn->http_proxy.passwd = NULL;\n     old_conn->socks_proxy.passwd = NULL;\n   }\n-  Curl_safefree(old_conn->http_proxy.user);\n-  Curl_safefree(old_conn->socks_proxy.user);\n-  Curl_safefree(old_conn->http_proxy.passwd);\n-  Curl_safefree(old_conn->socks_proxy.passwd);\n #endif\n \n-  /* host can change, when doing keepalive with a proxy or if the case is\n-     different this time etc */\n   Curl_free_idnconverted_hostname(&conn->host);\n   Curl_free_idnconverted_hostname(&conn->conn_to_host);\n   Curl_safefree(conn->host.rawalloc);\n   Curl_safefree(conn->conn_to_host.rawalloc);\n   conn->host = old_conn->host;\n+  old_conn->host.rawalloc = NULL;\n+  old_conn->host.encalloc = NULL;\n   conn->conn_to_host = old_conn->conn_to_host;\n+  old_conn->conn_to_host.rawalloc = NULL;\n   conn->conn_to_port = old_conn->conn_to_port;\n   conn->remote_port = old_conn->remote_port;\n   Curl_safefree(conn->hostname_resolve);\n \n   conn->hostname_resolve = old_conn->hostname_resolve;\n@@ -3570,19 +3556,11 @@ static void reuse_conn(struct Curl_easy *data,\n   conn_reset_all_postponed_data(old_conn); /* free buffers */\n \n   /* re-use init */\n   conn->bits.reuse = TRUE; /* yes, we're re-using here */\n \n-  Curl_safefree(old_conn->user);\n-  Curl_safefree(old_conn->passwd);\n-  Curl_safefree(old_conn->options);\n-  Curl_safefree(old_conn->localdev);\n-  Curl_llist_destroy(&old_conn->easyq, NULL);\n-\n-#ifdef USE_UNIX_SOCKETS\n-  Curl_safefree(old_conn->unix_domain_socket);\n-#endif\n+  conn_free(old_conn);\n }\n \n /**\n  * create_conn() sets up a new connectdata struct, or re-uses an already\n  * existing one, and resolves host name.\n@@ -3928,14 +3906,10 @@ static CURLcode create_conn(struct Curl_easy *data,\n      * We already have a connection for this, we got the former connection in\n      * the conn_temp variable and thus we need to cleanup the one we just\n      * allocated before we can move along and use the previously existing one.\n      */\n     reuse_conn(data, conn, conn_temp);\n-#ifdef USE_SSL\n-    free(conn->ssl_extra);\n-#endif\n-    free(conn);          /* we don't need this anymore */\n     conn = conn_temp;\n     *in_connect = conn;\n \n #ifndef CURL_DISABLE_PROXY\n     infof(data, \"Re-using existing connection #%ld with %s %s\",\n",
+  "ground_truth": {
+    "bug_id": "GH-18995",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "bf41be6292cf712315815c722aab2653a0ec827f",
+      "short_sha": "bf41be629",
+      "message": "conn: fix hostname move on connection reuse",
+      "author": "Stefan Eissing",
+      "date": "2025-10-10T09:48:52+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-double-free-001",
+        "title": "Missing NULLing of conn_to_host.encalloc leads to double free on connection reuse",
+        "message": "In reuse_conn(), when an existing connection is reused, the `host` and `conn_to_host` struct hostname fields are moved (shallow-copied) from `old_conn` to `conn`. For `host`, both `rawalloc` and `encalloc` are correctly zeroed out on the source (`old_conn->host.rawalloc = NULL; old_conn->host.encalloc = NULL;`) after the copy, preventing the pointers from being freed twice. However, for `conn_to_host` only `rawalloc` is zeroed (`old_conn->conn_to_host.rawalloc = NULL;`) while `encalloc` is left untouched. Since `conn->conn_to_host = old_conn->conn_to_host;` is a shallow struct copy, both `conn->conn_to_host.encalloc` and `old_conn->conn_to_host.encalloc` now point at the same heap allocation. When `old_conn` is subsequently torn down (via conn_free(), which calls Curl_free_idnconverted_hostname() and frees `encalloc`), and later `conn->conn_to_host` is freed/reset (also via Curl_free_idnconverted_hostname(), e.g. on the next reuse or connection close), the same `encalloc` buffer is freed a second time, resulting in a double free / use-after-free that can be leveraged for memory corruption.",
+        "location": {
+          "file": "lib/url.c",
+          "start_line": 3533,
+          "end_line": 3541,
+          "start_column": null,
+          "end_column": null,
+          "function": "reuse_conn",
+          "snippet": "  Curl_free_idnconverted_hostname(&conn->host);\n  Curl_free_idnconverted_hostname(&conn->conn_to_host);\n  Curl_safefree(conn->host.rawalloc);\n  Curl_safefree(conn->conn_to_host.rawalloc);\n  conn->host = old_conn->host;\n  old_conn->host.rawalloc = NULL;\n  old_conn->host.encalloc = NULL;\n  conn->conn_to_host = old_conn->conn_to_host;\n  old_conn->conn_to_host.rawalloc = NULL;",
+          "snippet_hash": "08e7842b0510421b3caa512a34c33ddd3185a6398d1a82bf9eaeb8c2d4f3b0e2",
+          "description": null,
+          "snippet_start_line": 3533,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "DoubleFree",
+        "confidence": 0.92,
+        "suggestion": "After copying old_conn->conn_to_host into conn->conn_to_host, fully clear the source struct (both rawalloc and encalloc, or the whole struct) so the moved-from connection no longer holds a live pointer to the transferred allocation. Best practice, as later adopted upstream, is to factor this move into a helper function that frees the destination's existing allocations, copies the struct, and then memsets the source struct to zero (or NULLs every pointer member) to fully sever ownership.",
+        "suggestion_code": "static void url_move_hostname(struct hostname *dest, struct hostname *src)\n{\n  Curl_safefree(dest->rawalloc);\n  Curl_free_idnconverted_hostname(dest);\n  *dest = *src;\n  memset(src, 0, sizeof(*src));\n}\n\n/* in reuse_conn(): */\nurl_move_hostname(&conn->host, &old_conn->host);\nurl_move_hostname(&conn->conn_to_host, &old_conn->conn_to_host);",
+        "tags": [
+          "security",
+          "memory-safety",
+          "double-free"
+        ],
+        "cwe_ids": [
+          "CWE-415",
+          "CWE-416"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "DoubleFree",
+    "affected_files": [
+      "lib/url.c"
+    ],
+    "root_cause": "Manual, ad-hoc 'move' semantics implemented by copying a struct and then individually NULLing out its pointer fields on the source is error-prone and was not applied consistently to all pointer members (`encalloc` was missed for `conn_to_host` while it was handled for `host`), leaving a dangling shared pointer between two structures.",
+    "must_cover": [
+      {
+        "file": "lib/url.c",
+        "function": "reuse_conn",
+        "start_line": 3533,
+        "end_line": 3541,
+        "role": "primary",
+        "reason": "Primary location of finding: Missing NULLing of conn_to_host.encalloc leads to double free on connection reuse"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "06d12105c7aa883a62802e36eebb76d5303247d0",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

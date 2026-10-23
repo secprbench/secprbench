@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-51b2c3863b31",
+  "project": "sqlite",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "68c0da6f66f6468aae09f7976ecf95cdeebca4e6",
+    "parent": "48824f23cbc68b60f337127578bb2c5c7712b340",
+    "fix": "51b2c3863b31437b4f88b50133262f610ad0c575"
+  },
+  "affected_files": [
+    "ext/fts5/fts5_index.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the same /poc/poc.sql and the same ASan/UBSan-instrumented FTS5 extension build/run command for every version: pre_intro exited 0 with no sanitizer crash; post_intro exited 134 with AddressSanitizer reporting a READ SEGV in sqlite3Fts5GetVarint at fts5_varint.c:105, called directly by fts5DoSecureDelete at fts5_index.c:4745; post_benign exited 1 with 'database disk image is malformed' and no sanitizer crash. The harness supplies FTS5_CORRUPT_IDX as a version-neutral compile definition beca",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

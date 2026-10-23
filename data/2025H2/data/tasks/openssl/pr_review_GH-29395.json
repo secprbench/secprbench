@@ -1,0 +1,94 @@
+{
+  "task_id": "pr_review_GH-29395",
+  "bug_id": "GH-29395",
+  "commit_sha": "1a91fda1839bc745e8359f82d19a5ef44ca36f7e",
+  "commit_message": "Make s_client -quic -debug work\n\nThe callback that makes -debug print the data sent/received needed extending\nfor the new QUIC callback codes.\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Hugo Landau <hlandau@openssl.org>\nReviewed-by: Paul Dale <pauli@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/22480)",
+  "commit_author": "Matt Caswell",
+  "commit_date": "2023-10-13T12:19:40+01:00",
+  "pr_title": "Make s_client -quic -debug work",
+  "pr_description": "The callback that makes -debug print the data sent/received needed extending\nfor the new QUIC callback codes.\n\nReviewed-by: Tomas Mraz <tomas@openssl.org>\nReviewed-by: Hugo Landau <hlandau@openssl.org>\nReviewed-by: Paul Dale <pauli@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/22480)\n",
+  "files": [
+    {
+      "path": "apps/lib/s_cb.c",
+      "status": "modified",
+      "additions": 52,
+      "deletions": 2,
+      "diff": "diff --git a/apps/lib/s_cb.c b/apps/lib/s_cb.c\nindex dcfea55dc56..743d88993f4 100644\n--- a/apps/lib/s_cb.c\n+++ b/apps/lib/s_cb.c\n@@ -432,33 +432,83 @@ int ssl_print_tmp_key(BIO *out, SSL *s)\n \n long bio_dump_callback(BIO *bio, int cmd, const char *argp, size_t len,\n                        int argi, long argl, int ret, size_t *processed)\n {\n     BIO *out;\n+    BIO_MMSG_CB_ARGS *mmsgargs;\n+    size_t i;\n \n     out = (BIO *)BIO_get_callback_arg(bio);\n     if (out == NULL)\n         return ret;\n \n-    if (cmd == (BIO_CB_READ | BIO_CB_RETURN)) {\n+    switch (cmd) {\n+    case (BIO_CB_READ | BIO_CB_RETURN):\n         if (ret > 0 && processed != NULL) {\n             BIO_printf(out, \"read from %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n                        (void *)bio, (void *)argp, len, *processed, *processed);\n             BIO_dump(out, argp, (int)*processed);\n         } else {\n             BIO_printf(out, \"read from %p [%p] (%zu bytes => %d)\\n\",\n                        (void *)bio, (void *)argp, len, ret);\n         }\n-    } else if (cmd == (BIO_CB_WRITE | BIO_CB_RETURN)) {\n+        break;\n+\n+    case (BIO_CB_WRITE | BIO_CB_RETURN):\n         if (ret > 0 && processed != NULL) {\n             BIO_printf(out, \"write to %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n                        (void *)bio, (void *)argp, len, *processed, *processed);\n             BIO_dump(out, argp, (int)*processed);\n         } else {\n             BIO_printf(out, \"write to %p [%p] (%zu bytes => %d)\\n\",\n                        (void *)bio, (void *)argp, len, ret);\n         }\n+        break;\n+\n+    case (BIO_CB_RECVMMSG | BIO_CB_RETURN):\n+        mmsgargs = (BIO_MMSG_CB_ARGS *)argp;\n+        if (ret > 0) {\n+            for (i = 0; i < *(mmsgargs->msgs_processed); i++) {\n+                BIO_MSG *msg = (BIO_MSG *)((char *)mmsgargs->msg\n+                                           + (i * mmsgargs->stride));\n+\n+                BIO_printf(out, \"read from %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n+                           (void *)bio, (void *)msg->data, msg->data_len,\n+                           msg->data_len, msg->data_len);\n+                BIO_dump(out, msg->data, msg->data_len);\n+            }\n+        } else if (mmsgargs->num_msg > 0) {\n+            BIO_MSG *msg = mmsgargs->msg;\n+\n+            BIO_printf(out, \"read from %p [%p] (%zu bytes => %d)\\n\",\n+                       (void *)bio, (void *)msg->data, msg->data_len, ret);\n+        }\n+        break;\n+\n+    case (BIO_CB_SENDMMSG | BIO_CB_RETURN):\n+        mmsgargs = (BIO_MMSG_CB_ARGS *)argp;\n+        if (ret > 0) {\n+            for (i = 0; i < *(mmsgargs->msgs_processed); i++) {\n+                BIO_MSG *msg = (BIO_MSG *)((char *)mmsgargs->msg\n+                                           + (i * mmsgargs->stride));\n+\n+                BIO_printf(out, \"write to %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n+                           (void *)bio, (void *)msg->data, msg->data_len,\n+                           msg->data_len, msg->data_len);\n+                BIO_dump(out, msg->data, msg->data_len);\n+            }\n+        } else if (mmsgargs->num_msg > 0) {\n+            BIO_MSG *msg = mmsgargs->msg;\n+\n+            BIO_printf(out, \"write to %p [%p] (%zu bytes => %d)\\n\",\n+                       (void *)bio, (void *)msg->data, msg->data_len, ret);\n+        }\n+        break;\n+\n+    default:\n+        /* do nothing */\n+        break;\n     }\n     return ret;\n }\n \n void apps_ssl_info_callback(const SSL *s, int where, int ret)\n"
+    },
+    {
+      "path": "crypto/bio/bio_lib.c",
+      "status": "modified",
+      "additions": 6,
+      "deletions": 6,
+      "diff": "diff --git a/crypto/bio/bio_lib.c b/crypto/bio/bio_lib.c\nindex dc7f1b7b9eb..e4f72bcd1b8 100644\n--- a/crypto/bio/bio_lib.c\n+++ b/crypto/bio/bio_lib.c\n@@ -416,12 +416,12 @@ int BIO_sendmmsg(BIO *b, BIO_MSG *msg,\n         args.num_msg        = num_msg;\n         args.flags          = flags;\n         args.msgs_processed = msgs_processed;\n \n         ret = (size_t)bio_call_callback(b, BIO_CB_SENDMMSG, (void *)&args,\n-                                        0, 0, 0, 0, NULL);\n-        if (ret == 0)\n+                                        0, 0, 0, 1, NULL);\n+        if (ret <= 0)\n             return 0;\n     }\n \n     if (!b->init) {\n         *msgs_processed = 0;\n@@ -431,11 +431,11 @@ int BIO_sendmmsg(BIO *b, BIO_MSG *msg,\n \n     ret = b->method->bsendmmsg(b, msg, stride, num_msg, flags, msgs_processed);\n \n     if (HAS_CALLBACK(b))\n         ret = (size_t)bio_call_callback(b, BIO_CB_SENDMMSG | BIO_CB_RETURN,\n-                                        (void *)&args, ret, 0, 0, 0, NULL);\n+                                        (void *)&args, ret, 0, 0, ret, NULL);\n \n     return ret;\n }\n \n int BIO_recvmmsg(BIO *b, BIO_MSG *msg,\n@@ -463,12 +463,12 @@ int BIO_recvmmsg(BIO *b, BIO_MSG *msg,\n         args.num_msg        = num_msg;\n         args.flags          = flags;\n         args.msgs_processed = msgs_processed;\n \n         ret = bio_call_callback(b, BIO_CB_RECVMMSG, (void *)&args,\n-                                0, 0, 0, 0, NULL);\n-        if (ret == 0)\n+                                0, 0, 0, 1, NULL);\n+        if (ret <= 0)\n             return 0;\n     }\n \n     if (!b->init) {\n         *msgs_processed = 0;\n@@ -478,11 +478,11 @@ int BIO_recvmmsg(BIO *b, BIO_MSG *msg,\n \n     ret = b->method->brecvmmsg(b, msg, stride, num_msg, flags, msgs_processed);\n \n     if (HAS_CALLBACK(b))\n         ret = (size_t)bio_call_callback(b, BIO_CB_RECVMMSG | BIO_CB_RETURN,\n-                                        (void *)&args, ret, 0, 0, 0, NULL);\n+                                        (void *)&args, ret, 0, 0, ret, NULL);\n \n     return ret;\n }\n \n int BIO_get_rpoll_descriptor(BIO *b, BIO_POLL_DESCRIPTOR *desc)\n"
+    }
+  ],
+  "full_diff": "diff --git a/apps/lib/s_cb.c b/apps/lib/s_cb.c\nindex dcfea55dc56..743d88993f4 100644\n--- a/apps/lib/s_cb.c\n+++ b/apps/lib/s_cb.c\n@@ -432,33 +432,83 @@ int ssl_print_tmp_key(BIO *out, SSL *s)\n \n long bio_dump_callback(BIO *bio, int cmd, const char *argp, size_t len,\n                        int argi, long argl, int ret, size_t *processed)\n {\n     BIO *out;\n+    BIO_MMSG_CB_ARGS *mmsgargs;\n+    size_t i;\n \n     out = (BIO *)BIO_get_callback_arg(bio);\n     if (out == NULL)\n         return ret;\n \n-    if (cmd == (BIO_CB_READ | BIO_CB_RETURN)) {\n+    switch (cmd) {\n+    case (BIO_CB_READ | BIO_CB_RETURN):\n         if (ret > 0 && processed != NULL) {\n             BIO_printf(out, \"read from %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n                        (void *)bio, (void *)argp, len, *processed, *processed);\n             BIO_dump(out, argp, (int)*processed);\n         } else {\n             BIO_printf(out, \"read from %p [%p] (%zu bytes => %d)\\n\",\n                        (void *)bio, (void *)argp, len, ret);\n         }\n-    } else if (cmd == (BIO_CB_WRITE | BIO_CB_RETURN)) {\n+        break;\n+\n+    case (BIO_CB_WRITE | BIO_CB_RETURN):\n         if (ret > 0 && processed != NULL) {\n             BIO_printf(out, \"write to %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n                        (void *)bio, (void *)argp, len, *processed, *processed);\n             BIO_dump(out, argp, (int)*processed);\n         } else {\n             BIO_printf(out, \"write to %p [%p] (%zu bytes => %d)\\n\",\n                        (void *)bio, (void *)argp, len, ret);\n         }\n+        break;\n+\n+    case (BIO_CB_RECVMMSG | BIO_CB_RETURN):\n+        mmsgargs = (BIO_MMSG_CB_ARGS *)argp;\n+        if (ret > 0) {\n+            for (i = 0; i < *(mmsgargs->msgs_processed); i++) {\n+                BIO_MSG *msg = (BIO_MSG *)((char *)mmsgargs->msg\n+                                           + (i * mmsgargs->stride));\n+\n+                BIO_printf(out, \"read from %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n+                           (void *)bio, (void *)msg->data, msg->data_len,\n+                           msg->data_len, msg->data_len);\n+                BIO_dump(out, msg->data, msg->data_len);\n+            }\n+        } else if (mmsgargs->num_msg > 0) {\n+            BIO_MSG *msg = mmsgargs->msg;\n+\n+            BIO_printf(out, \"read from %p [%p] (%zu bytes => %d)\\n\",\n+                       (void *)bio, (void *)msg->data, msg->data_len, ret);\n+        }\n+        break;\n+\n+    case (BIO_CB_SENDMMSG | BIO_CB_RETURN):\n+        mmsgargs = (BIO_MMSG_CB_ARGS *)argp;\n+        if (ret > 0) {\n+            for (i = 0; i < *(mmsgargs->msgs_processed); i++) {\n+                BIO_MSG *msg = (BIO_MSG *)((char *)mmsgargs->msg\n+                                           + (i * mmsgargs->stride));\n+\n+                BIO_printf(out, \"write to %p [%p] (%zu bytes => %zu (0x%zX))\\n\",\n+                           (void *)bio, (void *)msg->data, msg->data_len,\n+                           msg->data_len, msg->data_len);\n+                BIO_dump(out, msg->data, msg->data_len);\n+            }\n+        } else if (mmsgargs->num_msg > 0) {\n+            BIO_MSG *msg = mmsgargs->msg;\n+\n+            BIO_printf(out, \"write to %p [%p] (%zu bytes => %d)\\n\",\n+                       (void *)bio, (void *)msg->data, msg->data_len, ret);\n+        }\n+        break;\n+\n+    default:\n+        /* do nothing */\n+        break;\n     }\n     return ret;\n }\n \n void apps_ssl_info_callback(const SSL *s, int where, int ret)\ndiff --git a/crypto/bio/bio_lib.c b/crypto/bio/bio_lib.c\nindex dc7f1b7b9eb..e4f72bcd1b8 100644\n--- a/crypto/bio/bio_lib.c\n+++ b/crypto/bio/bio_lib.c\n@@ -416,12 +416,12 @@ int BIO_sendmmsg(BIO *b, BIO_MSG *msg,\n         args.num_msg        = num_msg;\n         args.flags          = flags;\n         args.msgs_processed = msgs_processed;\n \n         ret = (size_t)bio_call_callback(b, BIO_CB_SENDMMSG, (void *)&args,\n-                                        0, 0, 0, 0, NULL);\n-        if (ret == 0)\n+                                        0, 0, 0, 1, NULL);\n+        if (ret <= 0)\n             return 0;\n     }\n \n     if (!b->init) {\n         *msgs_processed = 0;\n@@ -431,11 +431,11 @@ int BIO_sendmmsg(BIO *b, BIO_MSG *msg,\n \n     ret = b->method->bsendmmsg(b, msg, stride, num_msg, flags, msgs_processed);\n \n     if (HAS_CALLBACK(b))\n         ret = (size_t)bio_call_callback(b, BIO_CB_SENDMMSG | BIO_CB_RETURN,\n-                                        (void *)&args, ret, 0, 0, 0, NULL);\n+                                        (void *)&args, ret, 0, 0, ret, NULL);\n \n     return ret;\n }\n \n int BIO_recvmmsg(BIO *b, BIO_MSG *msg,\n@@ -463,12 +463,12 @@ int BIO_recvmmsg(BIO *b, BIO_MSG *msg,\n         args.num_msg        = num_msg;\n         args.flags          = flags;\n         args.msgs_processed = msgs_processed;\n \n         ret = bio_call_callback(b, BIO_CB_RECVMMSG, (void *)&args,\n-                                0, 0, 0, 0, NULL);\n-        if (ret == 0)\n+                                0, 0, 0, 1, NULL);\n+        if (ret <= 0)\n             return 0;\n     }\n \n     if (!b->init) {\n         *msgs_processed = 0;\n@@ -478,11 +478,11 @@ int BIO_recvmmsg(BIO *b, BIO_MSG *msg,\n \n     ret = b->method->brecvmmsg(b, msg, stride, num_msg, flags, msgs_processed);\n \n     if (HAS_CALLBACK(b))\n         ret = (size_t)bio_call_callback(b, BIO_CB_RECVMMSG | BIO_CB_RETURN,\n-                                        (void *)&args, ret, 0, 0, 0, NULL);\n+                                        (void *)&args, ret, 0, 0, ret, NULL);\n \n     return ret;\n }\n \n int BIO_get_rpoll_descriptor(BIO *b, BIO_POLL_DESCRIPTOR *desc)\n",
+  "ground_truth": {
+    "bug_id": "GH-29395",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "380ff1448596926fc9d252c8e4c2720b006ef912",
+      "short_sha": "380ff144859",
+      "message": "BIO_send/recvmmsg(): Pass msgs_processed to the return callback",
+      "author": "Tomas Mraz",
+      "date": "2025-12-15T11:41:38+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-null-deref-01",
+        "title": "NULL pointer dereference in legacy BIO callback path for BIO_sendmmsg/BIO_recvmmsg",
+        "message": "When BIO_sendmmsg() and BIO_recvmmsg() invoke the BIO_CB_*MMSG|BIO_CB_RETURN callback via bio_call_callback(), they pass a hard-coded NULL for the `processed` output parameter, while passing the actual number of processed messages (`ret`) as the `inret` argument. Prior to this commit, `inret` was always hard-coded to 0 for the RETURN callback, so the legacy-callback branch in bio_call_callback() (`if (inret > 0 && (oper & BIO_CB_RETURN) ...) { if (*processed > INT_MAX) ... inret = *processed; }`) could never execute, since inret was never >0. This commit changed the call so that `inret` is now the real `ret` value returned by the underlying bsendmmsg/brecvmmsg method, which can legitimately be >0 whenever any messages were sent/received. When a legacy (non-_ex) BIO callback is installed on the BIO via BIO_set_callback(), and BIO_sendmmsg()/BIO_recvmmsg() successfully process at least one message, bio_call_callback() will now dereference the `processed` pointer (`*processed > INT_MAX`) even though NULL was passed for it, causing a NULL pointer dereference and crash (reported by Stanislav Fort, Aisle Research).",
+        "location": {
+          "file": "crypto/bio/bio_lib.c",
+          "start_line": 434,
+          "end_line": 436,
+          "start_column": null,
+          "end_column": null,
+          "function": "BIO_sendmmsg",
+          "snippet": "    ret = b->method->bsendmmsg(b, msg, stride, num_msg, flags, msgs_processed);\n\n    if (HAS_CALLBACK(b))\n        ret = (size_t)bio_call_callback(b, BIO_CB_SENDMMSG | BIO_CB_RETURN,\n                                        (void *)&args, ret, 0, 0, ret, NULL);\n\n    return ret;",
+          "snippet_hash": "d911080604c3c03358527fc13b53cde1b35a79f2859d9caf8b9e024aeb90c95a",
+          "description": null,
+          "snippet_start_line": 432,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.85,
+        "suggestion": "Pass the actual `msgs_processed` pointer (instead of NULL) as the `processed` argument to bio_call_callback() for the BIO_CB_SENDMMSG|BIO_CB_RETURN and BIO_CB_RECVMMSG|BIO_CB_RETURN calls, so that the legacy-callback compatibility path in bio_call_callback() can safely write/read through it whenever inret (the return value) is greater than zero.",
+        "suggestion_code": "    if (HAS_CALLBACK(b))\n        ret = (size_t)bio_call_callback(b, BIO_CB_SENDMMSG | BIO_CB_RETURN,\n                                        (void *)&args, ret, 0, 0, (long)ret, msgs_processed);\n",
+        "tags": [
+          "security",
+          "null-pointer-dereference",
+          "bio",
+          "callback"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "crypto/bio/bio_lib.c"
+    ],
+    "root_cause": "The BIO_sendmmsg/BIO_recvmmsg 'return' callback invocations pass NULL for the processed-message-count out-parameter while also passing a nonzero 'inret' value, and the internal legacy-callback shim (bio_call_callback) unconditionally dereferences that pointer whenever inret > 0 for BIO_CB_RETURN callback invocations that aren't BIO_CB_CTRL. The introducing commit changed inret from a permanently-zero placeholder to the genuine (potentially positive) return value without also supplying a valid processed pointer, re-activating a previously dead/safe code path with an invalid NULL argument.",
+    "must_cover": [
+      {
+        "file": "crypto/bio/bio_lib.c",
+        "function": "BIO_sendmmsg",
+        "start_line": 434,
+        "end_line": 436,
+        "role": "primary",
+        "reason": "Primary location of finding: NULL pointer dereference in legacy BIO callback path for BIO_sendmmsg/BIO_recvmmsg"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "1a91fda1839bc745e8359f82d19a5ef44ca36f7e",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

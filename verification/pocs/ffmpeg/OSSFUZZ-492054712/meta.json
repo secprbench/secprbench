@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-492054712",
+  "bug_id": "OSSFUZZ-492054712",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "863c748144a1406ce6340c3eb6ce8ee52e715906",
+  "intro_parent": "3607a10dc386fc0d41372ec43f1fa98aa11b5635",
+  "fix_commit": "f84c859ec54d11bd743daafd89f42bb34873d29d",
+  "affected_files": [
+    "libavcodec/bsf/extract_extradata.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "write_lcevc_nalu()'s return value (bytestream2_tell_p, an absolute position in the shared PutByteContext) was misused as an incremental per-NAL size delta and summed cumulatively across iterations, producing a grossly inflated total size that no longer matches the number of bytes actually written or the size of the allocated buffer.",
+  "findings": [
+    "In extract_extradata_lcevc(), write_lcevc_nalu() returns bytestream2_tell_p(pbc), which is the ABSOLUTE write position within the target PutByteContext after writing the current NAL, not the number of bytes written by this particular call. The code treats this return value as an incremental size and repeatedly accumulates it into *size (and filtered_size) across the NAL loop: `*size += ret;` and `"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "7c5c258f81aaa8e7e10705a78d374a6b2a2e17bd1dc5e76fa4a80f59ea379847",
+  "generated_artifact_sha256": {
+    "reference": "1cda072af54622b6d5a04d3cd884476f6d50659203784b8816bbb0b593fe882f",
+    "introducing": "c8f9a945c07277887c7d530dab404be6a2a8b8ec8ca4ac48aa3fbfb89562f5ef",
+    "companion": "3018bea30ec7e62bde153041969e49d47ed538a3e02eff4d76217d473b700cd9"
+  }
+}

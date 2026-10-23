@@ -1,0 +1,92 @@
+{
+  "bug_id": "GH-13862",
+  "title": "Fix potential infinite loop of RANDOMKEY during client pause (#13863)",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "hang_or_dos"
+  ],
+  "product": "redis",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public identifiers in the upstream fixing commit:\n- GH-13862: https://github.com/redis/redis/issues/13862\n- GH-13863: https://github.com/redis/redis/issues/13863\n\nExact upstream commit message:\nFix potential infinite loop of RANDOMKEY during client pause (#13863)\n\nThe bug mentioned in this\n[#13862](https://github.com/redis/redis/issues/13862) has been fixed.\n\n---------\n\nSigned-off-by: li-benson <1260437731@qq.com>\nSigned-off-by: youngmore1024 <youngmore1024@outlook.com>\nCo-authored-by: youngmore1024 <youngmore1024@outlook.com>\u0000\n\nMainline fixing revision candidate: 427c36888e1a0896dbbc830873ac6935a8019d41\nDerive the introducing revision independently. No issue content was fetched and no bug replay was run.",
+  "commit_ids": [
+    "427c36888e1a0896dbbc830873ac6935a8019d41"
+  ],
+  "fix_commit_sha": "427c36888e1a0896dbbc830873ac6935a8019d41",
+  "fix_date": "2025-03-20T13:32:12Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H1",
+  "aliases": [
+    "GH-13863"
+  ],
+  "report_references": [
+    {
+      "id": "GH-13862",
+      "url": "https://github.com/redis/redis/issues/13862",
+      "kind": "github_issue_or_pr",
+      "evidence": "https://github.com/redis/redis/issues/13862"
+    },
+    {
+      "id": "GH-13863",
+      "url": "https://github.com/redis/redis/issues/13863",
+      "kind": "github_squash_reference",
+      "evidence": "(#13863)"
+    }
+  ],
+  "defect_evidence": [
+    {
+      "kind": "hang_or_dos",
+      "text": "infinite loop",
+      "start": 14,
+      "end": 27
+    }
+  ],
+  "fix_role_evidence": [
+    {
+      "kind": "explicit_fix",
+      "text": "Fix",
+      "start": 0,
+      "end": 3
+    }
+  ],
+  "affected_files": [
+    "src/db.c",
+    "tests/unit/pause.tcl"
+  ],
+  "changed_lines": 22,
+  "candidate_status": "documented_fix_pending_task_construction_and_verification",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "documented_fixes_2025h1_v1",
+    "selection": "commit_message_public_identity_and_concrete_defect",
+    "source_url": "https://github.com/redis/redis/commit/427c36888e1a0896dbbc830873ac6935a8019d41",
+    "issue_contents": "not_fetched",
+    "introducing_commit": "not_inferred",
+    "mainline_ref": "refs/remotes/origin/unstable",
+    "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+    "mainline_ancestry_verified": true,
+    "original_committer_date": "2025-03-20T21:32:12+08:00",
+    "commit_object": {
+      "git_sha": "427c36888e1a0896dbbc830873ac6935a8019d41",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/commits/427c36888e1a0896dbbc830873ac6935a8019d41.commit",
+      "sha256": "a3edc7b347a452c4ddb5160bfd07e32e21ed3008f4d9f9562b6ffccca3b388cf"
+    },
+    "patch": {
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/commits/427c36888e1a0896dbbc830873ac6935a8019d41.patch",
+      "sha256": "b76ac3a75eaeb60b6c2ced7743bdfcfb07c96d877c7ba517b274aeeb1b9696f1"
+    },
+    "history": {
+      "repository": "/research/repos/redis__redis",
+      "upstream_url": "https://github.com/redis/redis",
+      "mainline_ref": "refs/remotes/origin/unstable",
+      "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+      "window_start_utc_inclusive": "2025-01-01T00:00:00Z",
+      "window_end_utc_exclusive": "2025-07-01T00:00:00Z",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/git_history.106a4f347b21597ca3c17378f731cea61bfb5c9c7a41a05887905d66d2ad76c4.raw",
+      "sha256": "106a4f347b21597ca3c17378f731cea61bfb5c9c7a41a05887905d66d2ad76c4"
+    }
+  }
+}

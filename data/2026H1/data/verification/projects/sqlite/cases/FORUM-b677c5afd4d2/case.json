@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-b677c5afd4d2",
+  "project": "sqlite",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "30b650e2f423bda7af3f2ca2ae8eb9442b5b4f7e",
+    "parent": "c5b44f3d906ea814e50a955e31dcf3b39c3b7487",
+    "fix": "b677c5afd4d26ae7fa75f04ef37995c30f6e8f8d"
+  },
+  "affected_files": [
+    "ext/fts5/fts5_expr.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Verified the required three-way pattern with one invariant command. pre_intro exited 0 with no sanitizer crash; post_intro exited 134 and ASan reported heap-use-after-free reading in sqlite3Fts5PoslistNext64 (fts5_buffer.c:153), reached from fts5LookaheadReaderNext/fts5ExprNearIsMatch, after sqlite3_realloc was called by sqlite3Fts5PoslistWriterAppend in the same NEAR matcher; post_benign exited 0 with no sanitizer crash. The custom ASan-only build was necessary because the supplied default buil",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

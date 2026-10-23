@@ -1,0 +1,19 @@
+{
+  "status": "inconclusive",
+  "outcome": {
+    "task_id": "pr_review_439758498",
+    "status": "inconclusive",
+    "via": "agent",
+    "intro_verified": "unknown",
+    "benign_verified": "unknown",
+    "bug_class": "memory-safety",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/replay/pr_review_439758498.report.md",
+    "agent_verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/replay/pr_review_439758498.agent_verdict.json"
+  },
+  "agent_used": true,
+  "case_record": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/verification/projects/v8/cases/439758498/case.json",
+  "recipe_sha256": "4523edbd949b1fdc04b4",
+  "cache_root": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cache/v8/4523edbd949b1fdc04b4/worktrees",
+  "cache_lane": 0,
+  "final_poc_sha256": "2fb8f52fc95d3a69af9ffdc2c02ba2ec98dc32a618a03d94cff3a7891a13d21f"
+}

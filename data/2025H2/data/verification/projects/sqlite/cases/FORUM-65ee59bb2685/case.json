@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-65ee59bb2685",
+  "project": "sqlite",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "3265b5649ec87ca82026c7cd177434993a00c482",
+    "parent": "b2950c48e155e00d476797f2fd1df2a3956ca41d",
+    "fix": "65ee59bb26858ba8f8136abc4e2e6d15331b7233"
+  },
+  "affected_files": [
+    "ext/misc/completion.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. Using the exact same guarded command in every version, the completion extension was compiled with ASan/UBSan and loaded into the sanitized sqlite3 shell, then queried with `SELECT count(*) FROM completion WHERE wholeline = zeroblob(16);`. pre_intro exited 0 without a sanitizer finding (the extension did not yet exist). post_intro exited 134 and ASan reported a READ-of-size-1 heap-buffer-overflow in completionFilter at ext/misc/completion.c:284, 7 bytes past ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

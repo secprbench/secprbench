@@ -1,0 +1,87 @@
+{
+  "task_id": "pr_review_486383560",
+  "bug_id": "486383560",
+  "commit_sha": "b2123b6a6014b2a961192815be50f8b071845250",
+  "commit_message": "[d8] Add missing call to {ResetOnProfileEndListener}\n\nR=clemensb@chromium.org\n\nBug: chromium:1405157\nChange-Id: I01d7b1f85034501cdf0441103f4308dcd6f7234d\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/4138252\nCommit-Queue: Andreas Haas <ahaas@chromium.org>\nReviewed-by: Clemens Backes <clemensb@chromium.org>\nCr-Commit-Position: refs/heads/main@{#85132}",
+  "commit_author": "Andreas Haas",
+  "commit_date": "2023-01-05T17:33:29+01:00",
+  "pr_title": "[d8] Add missing call to {ResetOnProfileEndListener}",
+  "pr_description": "R=clemensb@chromium.org\n\nBug: chromium:1405157\nChange-Id: I01d7b1f85034501cdf0441103f4308dcd6f7234d\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/4138252\nCommit-Queue: Andreas Haas <ahaas@chromium.org>\nReviewed-by: Clemens Backes <clemensb@chromium.org>\nCr-Commit-Position: refs/heads/main@{#85132}\n",
+  "files": [
+    {
+      "path": "src/d8/d8.cc",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 0,
+      "diff": "diff --git a/src/d8/d8.cc b/src/d8/d8.cc\nindex 70e6473d6d9..a6f90c150c7 100644\n--- a/src/d8/d8.cc\n+++ b/src/d8/d8.cc\n@@ -2531,10 +2531,13 @@ void Shell::ProfilerSetOnProfileEndListener(\n bool Shell::HasOnProfileEndListener(Isolate* isolate) {\n   return profiler_end_callback_.find(isolate) != profiler_end_callback_.end();\n }\n \n void Shell::ResetOnProfileEndListener(Isolate* isolate) {\n+  // If the inspector is enabled, then the installed console is not the\n+  // D8Console.\n+  if (options.enable_inspector) return;\n   profiler_end_callback_.erase(isolate);\n \n   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n   D8Console* console =\n       reinterpret_cast<D8Console*>(i_isolate->console_delegate());\n@@ -2968,10 +2971,11 @@ void Shell::WorkerTerminateAndWait(\n void Shell::QuitOnce(v8::FunctionCallbackInfo<v8::Value>* args) {\n   int exit_code = (*args)[0]\n                       ->Int32Value(args->GetIsolate()->GetCurrentContext())\n                       .FromMaybe(0);\n   Isolate* isolate = args->GetIsolate();\n+  ResetOnProfileEndListener(isolate);\n   isolate->Exit();\n \n   // As we exit the process anyway, we do not dispose the platform and other\n   // global data and manually unlock to quell DCHECKs. Other isolates might\n   // still be running, so disposing here can cause them to crash.\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/d8/d8.cc b/src/d8/d8.cc\nindex 70e6473d6d9..a6f90c150c7 100644\n--- a/src/d8/d8.cc\n+++ b/src/d8/d8.cc\n@@ -2531,10 +2531,13 @@ void Shell::ProfilerSetOnProfileEndListener(\n bool Shell::HasOnProfileEndListener(Isolate* isolate) {\n   return profiler_end_callback_.find(isolate) != profiler_end_callback_.end();\n }\n \n void Shell::ResetOnProfileEndListener(Isolate* isolate) {\n+  // If the inspector is enabled, then the installed console is not the\n+  // D8Console.\n+  if (options.enable_inspector) return;\n   profiler_end_callback_.erase(isolate);\n \n   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n   D8Console* console =\n       reinterpret_cast<D8Console*>(i_isolate->console_delegate());\n@@ -2968,10 +2971,11 @@ void Shell::WorkerTerminateAndWait(\n void Shell::QuitOnce(v8::FunctionCallbackInfo<v8::Value>* args) {\n   int exit_code = (*args)[0]\n                       ->Int32Value(args->GetIsolate()->GetCurrentContext())\n                       .FromMaybe(0);\n   Isolate* isolate = args->GetIsolate();\n+  ResetOnProfileEndListener(isolate);\n   isolate->Exit();\n \n   // As we exit the process anyway, we do not dispose the platform and other\n   // global data and manually unlock to quell DCHECKs. Other isolates might\n   // still be running, so disposing here can cause them to crash.\n",
+  "ground_truth": {
+    "bug_id": "486383560",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1",
+      "short_sha": "d747340f097",
+      "message": "[d8] Fix use-after-free in Shell::ResetOnProfileEndListener(..)",
+      "author": "Igor Sheludko",
+      "date": "2026-02-23T13:36:43+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-uaf-001",
+        "title": "Early return in Shell::ResetOnProfileEndListener skips erasing stale isolate-keyed callback map entry, leading to use-after-free",
+        "message": "Shell::ResetOnProfileEndListener(Isolate*) is responsible for tearing down the per-isolate profiler-end callback state before an Isolate is disposed. The function was modified to add an early 'if (options.enable_inspector) return;' guard BEFORE the call to profiler_end_callback_.erase(isolate). When the inspector is enabled, the function returns immediately without erasing the isolate's entry from the profiler_end_callback_ map (which stores v8::Global<Function>/v8::Global<Context> handles keyed by Isolate*). Callers of ResetOnProfileEndListener (e.g. SourceGroup::ExecuteInThread, Worker::ExecuteInThread, Shell::Main, Shell::QuitOnce) call this function immediately before disposing the Isolate, expecting all isolate-associated state to be cleaned up. Because the erase is skipped whenever the inspector is enabled, the stale map entry (and the dangling Isolate* key, plus Global handles bound to a soon-to-be-destroyed Isolate) survives isolate disposal. Any later interaction that touches profiler_end_callback_ with the freed Isolate pointer (e.g. HasOnProfileEndListener/TriggerOnProfileEndListener being invoked again, e.g. if the isolate address is reused or the map is iterated/looked up) results in a use-after-free, since the stored Global<Function>/Global<Context> objects reference memory owned by the disposed isolate.",
+        "location": {
+          "file": "src/d8/d8.cc",
+          "start_line": 2535,
+          "end_line": 2547,
+          "start_column": null,
+          "end_column": null,
+          "function": "Shell::ResetOnProfileEndListener",
+          "snippet": "void Shell::ResetOnProfileEndListener(Isolate* isolate) {\n  // If the inspector is enabled, then the installed console is not the\n  // D8Console.\n  if (options.enable_inspector) return;\n  profiler_end_callback_.erase(isolate);\n\n  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n  D8Console* console =\n      reinterpret_cast<D8Console*>(i_isolate->console_delegate());\n  if (console) {\n    console->DisposeProfiler();\n  }\n}",
+          "snippet_hash": "be2f396526cd50f00dbe790adb02bea343c2b463859c6fed36f8ddd3b81a07a0",
+          "description": null,
+          "snippet_start_line": 2535,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "UseAfterFree",
+        "confidence": 0.85,
+        "suggestion": "Perform the profiler_end_callback_.erase(isolate) call unconditionally, before checking options.enable_inspector, so the per-isolate map entry is always cleaned up regardless of whether the inspector console (D8Console) is installed. Only the D8Console-specific cleanup (console_delegate cast and DisposeProfiler()) should be skipped when the inspector is enabled.",
+        "suggestion_code": "void Shell::ResetOnProfileEndListener(Isolate* isolate) {\n  {\n    base::MutexGuard lock_guard(&profiler_end_callback_lock_);\n    profiler_end_callback_.erase(isolate);\n  }\n\n  // If the inspector is enabled, then the installed console is not the\n  // D8Console.\n  if (options.enable_inspector) return;\n\n  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n  D8Console* console =\n      reinterpret_cast<D8Console*>(i_isolate->console_delegate());\n  if (console) {\n    console->DisposeProfiler();\n  }\n}",
+        "tags": [
+          "security",
+          "memory-safety",
+          "use-after-free",
+          "d8"
+        ],
+        "cwe_ids": [
+          "CWE-416"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "UseAfterFree",
+    "affected_files": [
+      "src/d8/d8.cc"
+    ],
+    "root_cause": "The cleanup guard for D8Console-specific teardown (skip when inspector enabled) was placed before the unconditional map-erase operation that must always run to keep the isolate-keyed profiler_end_callback_ map in sync with isolate lifetime, causing the erase to be conditionally skipped and leaving dangling references to a disposed Isolate.",
+    "must_cover": [
+      {
+        "file": "src/d8/d8.cc",
+        "function": "Shell::ResetOnProfileEndListener",
+        "start_line": 2535,
+        "end_line": 2547,
+        "role": "primary",
+        "reason": "Primary location of finding: Early return in Shell::ResetOnProfileEndListener skips erasing stale isolate-keyed callback map entry, leading to use-after-free"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "b2123b6a6014b2a961192815be50f8b071845250",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

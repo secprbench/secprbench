@@ -1,0 +1,32 @@
+{
+  "bug_id": "1942551",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "68c1bb275d92bc6bf2eae776fd831e0b431c517c",
+    "parent": "98775cdd4819c34c240b104bcc33b35d9bcc0066",
+    "fix": "c61dd19ea975e5b87a7ecee6789161015782b4e6"
+  },
+  "affected_files": [
+    "third_party/libwebrtc/modules/video_capture/linux/pipewire_session.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Confirmed by source inspection of the built trees plus a targeted runtime reproduction.  Source (grep on each built container's third_party/libwebrtc/modules/video_capture/linux/pipewire_session.cc): - pre_intro (98775cdd4819): file does not exist yet \u2014 feature/bug not present, trivially not vulnerable. - post_intro (68c1bb275d92): PipeWireNode::~PipeWireNode() is literally `pw_proxy_destroy(proxy_); spa_hook_remove(&node_listener_);` \u2014 the buggy order. - post_benign (agent-composed variant on t",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.66.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "Confirmed by source inspection of the built trees plus a targeted runtime reproduction.  Source (grep on each built container's third_party/libwebrtc/modules/video_capture/linux/pipewire_session.cc): - pre_intro (98775cdd4819): file does not exist yet \u2014 feature/bug not present, trivially not vulnerable. - post_intro (68c1bb275d92): PipeWireNode::~PipeWireNode() is literally `pw_proxy_destroy(proxy_); spa_hook_remove(&node_listener_);` \u2014 the buggy order. - post_benign (agent-composed variant on the pre_intro parent, per meta.json's has_benign/benign_composed_via, NOT the fix commit): implements",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1942551.json"
+  },
+  "final_disposition": "verified"
+}

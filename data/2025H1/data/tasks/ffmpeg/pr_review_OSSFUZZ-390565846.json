@@ -1,0 +1,87 @@
+{
+  "task_id": "pr_review_OSSFUZZ-390565846",
+  "bug_id": "OSSFUZZ-390565846",
+  "commit_sha": "8eb1d76e146a0e557d596a4039efebac746b4d83",
+  "commit_message": "lavc/vvc/refs: export keyframe and picture type in output frames\n\nfixes https://trac.ffmpeg.org/ticket/11406\n\nCo-authored-by: Ruben Gonzalez <rgonzalez@fluendo.com>\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "commit_author": "Nuo Mi",
+  "commit_date": "2025-01-12T11:34:17+08:00",
+  "pr_title": "lavc/vvc/refs: export keyframe and picture type in output frames",
+  "pr_description": "fixes https://trac.ffmpeg.org/ticket/11406\n\nCo-authored-by: Ruben Gonzalez <rgonzalez@fluendo.com>\nSigned-off-by: James Almer <jamrial@gmail.com>\n",
+  "files": [
+    {
+      "path": "libavcodec/vvc/refs.c",
+      "status": "modified",
+      "additions": 32,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/vvc/refs.c b/libavcodec/vvc/refs.c\nindex bc3b3d0d13..79b692ac48 100644\n--- a/libavcodec/vvc/refs.c\n+++ b/libavcodec/vvc/refs.c\n@@ -19,10 +19,11 @@\n  * License along with FFmpeg; if not, write to the Free Software\n  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n  */\n \n #include <stdatomic.h>\n+#include <stdbool.h>\n \n #include \"libavutil/mem.h\"\n #include \"libavutil/thread.h\"\n #include \"libavutil/refstruct.h\"\n #include \"libavcodec/thread.h\"\n@@ -166,10 +167,40 @@ fail:\n     }\n     av_log(s->avctx, AV_LOG_ERROR, \"Error allocating frame, DPB full.\\n\");\n     return NULL;\n }\n \n+static void set_pict_type(AVFrame *frame, const VVCContext *s, const VVCFrameContext *fc)\n+{\n+    bool has_b = false, has_inter = false;\n+\n+    if (IS_IRAP(s)) {\n+        frame->pict_type = AV_PICTURE_TYPE_I;\n+        frame->flags |= AV_FRAME_FLAG_KEY;\n+        return;\n+    }\n+\n+    if (fc->ps.ph.r->ph_inter_slice_allowed_flag) {\n+        // At this point, fc->slices is not fully initialized; we need to inspect the CBS directly.\n+        const CodedBitstreamFragment *current = &s->current_frame;\n+        for (int i = 0; i < current->nb_units && !has_b; i++) {\n+            const CodedBitstreamUnit *unit = current->units + i;\n+            if (unit->type <= VVC_RSV_IRAP_11) {\n+                const H266RawSliceHeader *rsh = unit->content_ref;\n+                has_inter |= !IS_I(rsh);\n+                has_b     |= IS_B(rsh);\n+            }\n+        }\n+    }\n+    if (!has_inter)\n+        frame->pict_type = AV_PICTURE_TYPE_I;\n+    else if (has_b)\n+        frame->pict_type = AV_PICTURE_TYPE_B;\n+    else\n+        frame->pict_type = AV_PICTURE_TYPE_P;\n+}\n+\n int ff_vvc_set_new_ref(VVCContext *s, VVCFrameContext *fc, AVFrame **frame)\n {\n     const VVCPH *ph= &fc->ps.ph;\n     const int poc = ph->poc;\n     VVCFrame *ref;\n@@ -187,10 +218,11 @@ int ff_vvc_set_new_ref(VVCContext *s, VVCFrameContext *fc, AVFrame **frame)\n \n     ref = alloc_frame(s, fc);\n     if (!ref)\n         return AVERROR(ENOMEM);\n \n+    set_pict_type(ref->frame, s, fc);\n     *frame = ref->frame;\n     fc->ref = ref;\n \n     if (s->no_output_before_recovery_flag && (IS_RASL(s) || !GDR_IS_RECOVERED(s)))\n         ref->flags = VVC_FRAME_FLAG_SHORT_REF;\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/vvc/refs.c b/libavcodec/vvc/refs.c\nindex bc3b3d0d13..79b692ac48 100644\n--- a/libavcodec/vvc/refs.c\n+++ b/libavcodec/vvc/refs.c\n@@ -19,10 +19,11 @@\n  * License along with FFmpeg; if not, write to the Free Software\n  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA\n  */\n \n #include <stdatomic.h>\n+#include <stdbool.h>\n \n #include \"libavutil/mem.h\"\n #include \"libavutil/thread.h\"\n #include \"libavutil/refstruct.h\"\n #include \"libavcodec/thread.h\"\n@@ -166,10 +167,40 @@ fail:\n     }\n     av_log(s->avctx, AV_LOG_ERROR, \"Error allocating frame, DPB full.\\n\");\n     return NULL;\n }\n \n+static void set_pict_type(AVFrame *frame, const VVCContext *s, const VVCFrameContext *fc)\n+{\n+    bool has_b = false, has_inter = false;\n+\n+    if (IS_IRAP(s)) {\n+        frame->pict_type = AV_PICTURE_TYPE_I;\n+        frame->flags |= AV_FRAME_FLAG_KEY;\n+        return;\n+    }\n+\n+    if (fc->ps.ph.r->ph_inter_slice_allowed_flag) {\n+        // At this point, fc->slices is not fully initialized; we need to inspect the CBS directly.\n+        const CodedBitstreamFragment *current = &s->current_frame;\n+        for (int i = 0; i < current->nb_units && !has_b; i++) {\n+            const CodedBitstreamUnit *unit = current->units + i;\n+            if (unit->type <= VVC_RSV_IRAP_11) {\n+                const H266RawSliceHeader *rsh = unit->content_ref;\n+                has_inter |= !IS_I(rsh);\n+                has_b     |= IS_B(rsh);\n+            }\n+        }\n+    }\n+    if (!has_inter)\n+        frame->pict_type = AV_PICTURE_TYPE_I;\n+    else if (has_b)\n+        frame->pict_type = AV_PICTURE_TYPE_B;\n+    else\n+        frame->pict_type = AV_PICTURE_TYPE_P;\n+}\n+\n int ff_vvc_set_new_ref(VVCContext *s, VVCFrameContext *fc, AVFrame **frame)\n {\n     const VVCPH *ph= &fc->ps.ph;\n     const int poc = ph->poc;\n     VVCFrame *ref;\n@@ -187,10 +218,11 @@ int ff_vvc_set_new_ref(VVCContext *s, VVCFrameContext *fc, AVFrame **frame)\n \n     ref = alloc_frame(s, fc);\n     if (!ref)\n         return AVERROR(ENOMEM);\n \n+    set_pict_type(ref->frame, s, fc);\n     *frame = ref->frame;\n     fc->ref = ref;\n \n     if (s->no_output_before_recovery_flag && (IS_RASL(s) || !GDR_IS_RECOVERED(s)))\n         ref->flags = VVC_FRAME_FLAG_SHORT_REF;\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-390565846",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "a50d36b5fd3914795f470abefcd37699b23bc8d4",
+      "short_sha": "a50d36b5fd",
+      "message": "avcodec/vvc/refs: Check content_ref in set_pict_type()",
+      "author": "Michael Niedermayer",
+      "date": "2025-02-02T22:17:21+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullptr-1",
+        "title": "NULL pointer dereference in set_pict_type() via unit->content_ref",
+        "message": "In set_pict_type(), when determining the picture type for a VVC frame, the code iterates over the CodedBitstreamUnit array of the current access unit and, for every unit whose type is <= VVC_RSV_IRAP_11 (i.e. a slice NAL unit), directly dereferences unit->content_ref as an H266RawSliceHeader* without first checking that content_ref is non-NULL. The CBS layer does not guarantee that content_ref has been populated for every unit with a slice NAL unit type at this point in decoding (e.g. malformed/truncated bitstreams can produce slice-type units whose content has not been parsed/attached yet). When content_ref is NULL, IS_I(rsh) and IS_B(rsh) dereference a NULL H266RawSliceHeader pointer, causing a NULL pointer dereference crash. This was found by OSS-Fuzz (clusterfuzz testcase for the VVC fuzzer).",
+        "location": {
+          "file": "libavcodec/vvc/refs.c",
+          "start_line": 186,
+          "end_line": 191,
+          "start_column": null,
+          "end_column": null,
+          "function": "set_pict_type",
+          "snippet": "        for (int i = 0; i < current->nb_units && !has_b; i++) {\n            const CodedBitstreamUnit *unit = current->units + i;\n            if (unit->type <= VVC_RSV_IRAP_11) {\n                const H266RawSliceHeader *rsh = unit->content_ref;\n                has_inter |= !IS_I(rsh);\n                has_b     |= IS_B(rsh);\n            }\n        }",
+          "snippet_hash": "44a4a47a7ea27e4f24e74d1692bf8937e44eff7e1292c5e2c53c139f7c2beda2",
+          "description": null,
+          "snippet_start_line": 185,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.95,
+        "suggestion": "Check that unit->content_ref is non-NULL before treating it as a valid H266RawSliceHeader pointer and dereferencing it via IS_I/IS_B macros.",
+        "suggestion_code": "if (unit->content_ref && unit->type <= VVC_RSV_IRAP_11) {\n    const H266RawSliceHeader *rsh = unit->content_ref;\n    has_inter |= !IS_I(rsh);\n    has_b     |= IS_B(rsh);\n}",
+        "tags": [
+          "security",
+          "null-pointer-dereference",
+          "vvc",
+          "fuzzing"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "libavcodec/vvc/refs.c"
+    ],
+    "root_cause": "Missing NULL check on unit->content_ref before dereferencing it as a parsed slice header structure; the code assumed that any CBS unit with a slice-like NAL unit type would always have its content_ref populated, which is not guaranteed for malformed/incompletely parsed bitstreams.",
+    "must_cover": [
+      {
+        "file": "libavcodec/vvc/refs.c",
+        "function": "set_pict_type",
+        "start_line": 186,
+        "end_line": 191,
+        "role": "primary",
+        "reason": "Primary location of finding: NULL pointer dereference in set_pict_type() via unit->content_ref"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "8eb1d76e146a0e557d596a4039efebac746b4d83",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

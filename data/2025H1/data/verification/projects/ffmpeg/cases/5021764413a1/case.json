@@ -1,0 +1,22 @@
+{
+  "bug_id": "5021764413a1",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "f91906973c62459f31beb5683a8e2105758af0bb",
+    "parent": "cb98483ea081c0ea7949a75f9776703f395f8e8d",
+    "fix": null
+  },
+  "affected_files": [
+    "libavformat/mov.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The intro commit f91906973c62 added get_eia608_packet with two flaws: (1) it calls avio_skip(pb,8) only once, skipping only the first atom's header, then reads ALL remaining bytes as raw caption pairs \u2014 so the second atom's 8-byte header (size + 'cdt2') is consumed as caption data; (2) it hard-codes 0xFC for every triplet, making CC field 2 (cdt2) indistinguishable from field 1. With a crafted synthetic MOV whose c608 sample contains two atoms (cdat: 0xAB 0xCD, cdt2: 0xEF 0x01), post_intro produ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

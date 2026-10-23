@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_486383560",
+  "bug_id": "486383560",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "b2123b6a6014b2a961192815be50f8b071845250",
+  "intro_parent": "ff2b5a672985c0d18d2871732dd4407fd107032d",
+  "fix_commit": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1",
+  "affected_files": [
+    "src/d8/d8.cc"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "v8",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_regress-486383560.js: git:d747340f097ee16ddadb5cdf05c410fcfa8ef2b1:test/debugger/regress/regress-486383560.js",
+    "- evidence/test_01_f325c620a078e825_regress-486383560.js: test/debugger/regress/regress-486383560.js"
+  ],
+  "input_name": "regress-486383560.js",
+  "root_cause": "The cleanup guard for D8Console-specific teardown (skip when inspector enabled) was placed before the unconditional map-erase operation that must always run to keep the isolate-keyed profiler_end_callback_ map in sync with isolate lifetime, causing the erase to be conditionally skipped and leaving dangling references to a disposed Isolate.",
+  "findings": [
+    "Shell::ResetOnProfileEndListener(Isolate*) is responsible for tearing down the per-isolate profiler-end callback state before an Isolate is disposed. The function was modified to add an early 'if (options.enable_inspector) return;' guard BEFORE the call to profiler_end_callback_.erase(isolate). When the inspector is enabled, the function returns immediately without erasing the isolate's entry from"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "458a234f2d7a73c0e921f69c911da15b9daa643f0041e242c9f710df017baf36",
+  "generated_artifact_sha256": {
+    "reference": "08f1a397a261254c8cffdb30dce08adfbfb08b692d315a4144ab31f4150d1c1d",
+    "introducing": "c298446295c910afaff1567ed09e7280643eb266f35402f19a2ea5a1c5e1d4aa",
+    "companion": "6f5fc69976821ef1e26fcf40969fbac4c693102dd683970da6b6147594668c58"
+  }
+}

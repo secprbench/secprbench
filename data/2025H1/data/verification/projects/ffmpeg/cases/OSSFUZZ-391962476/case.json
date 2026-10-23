@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-391962476",
+  "project": "ffmpeg",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "86dd15fd0dd0deeb69ffcff9952b801bbb2f38c7",
+    "parent": "f651ca3a6838be90e7d5189d831c9db8cb7e3ec8",
+    "fix": "251d43aef0df9262f2688c1c848af993bbb67d08"
+  },
+  "affected_files": [
+    "libavformat/mlvdec.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Ran the identical command (`/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -`) against all three built revisions using the same crafted MLV file. post_intro (86dd15fd0dd0) crashed with AddressSanitizer heap-buffer-overflow WRITE of size 2 at bytestream2_put_le16 <- write_tiff_short <- get_packet_lj92 <- read_packet <- ff_read_packet — matching the oss-fuzz Crash State/Type exactly. pre_intro (f651ca3a6838) lacks the LJ92/get_packet_lj92 code path entirely (the whole TIFF/LJ92 decode feature, including get_packet_lj92, was added by the intro commit), so the same input/command now completes cleanly with exit 0 and no sanitizer report -- confirming the flaw did not exist before introduction. post_benign (companion fix, added `if (size < 8) ...` and `if (size < space + 4LL) return AVERROR_INVALIDDATA;` bounds checks in read_packet()) also completes cleanly with exit 0 on the identical input: the malformed space/size relationship is now rejected via a normal recoverable AVERROR_INVALIDDATA before the underflow can occur, instead of crashing. The single reproducer/command thus cleanly discriminates all three revisions: crash only in post_intro, clean exit 0 in both pre_intro and post_benign.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/e46595354365cb012a65/attempts/03/replay/pr_review_OSSFUZZ-391962476.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/e46595354365cb012a65/attempts/03/replay/pr_review_OSSFUZZ-391962476.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/e46595354365cb012a65/attempts/03/replay/pr_review_OSSFUZZ-391962476.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -",
+          "input": null,
+          "poc_sha256": "d160df5e9c0e373fe8d4ab449642bb56106772ee203c670295dc5b697d0dd4fb",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "86dd15fd0dd0deeb69ffcff9952b801bbb2f38c7",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "8abae6a3c501616bbe811bc4faedbc0925247049a390aa4483094615e0eb551e"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "mple   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\n[mlv @ 0x616000000080] Opening '/poc/poc.m00' for reading\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x607000000068 at pc 0x5640da2f3cbc bp 0x7ffd0c6a0a50 sp 0x7ffd0c6a0a48\nWRITE of size 2 at 0x607000000068 thread T0\n    #0 0x5640da2f3cbb in bytestream2_put_le16 /work/./libavcodec/bytestream.h:94:1\n    #1 0x5640da2f3cbb in write_tiff_short /work/libavformat/mlvdec.c:425:5\n    #2 0x5640da2f3cbb in get_packet_lj92 /work/libavformat/mlvdec.c:483:5\n    #3 0x5640da2efe88 in read_packet /work/libavformat/mlvdec.c:569:19\n    #4 0x5640da1d464f in ff_read_packet /work/libavformat/demux.c:649:15\n    #5 0x5640da1d632a in read_frame_internal /work/libavformat/demux.c:1344:15\n    #6 0x5640da1db700 in avformat_find_stream_info /work/libavformat/demux.c:2711:15\n    #7 0x5640d9a51a74 in ifile_open /work/fftools/ffmpeg_demux.c:1767:15\n    #8 0x5640d9a95e64 in open_files /work/fftools/ffmpeg_opt.c:1363:15\n    #9 0x5640d9a95e64 in ffmpeg_parse_options /work/fftools/ffmpeg_opt.c:1412:11\n    #10 0x5640d9ac20e9 in main /work/fftools/ffmpeg.c:974:11\n    #11 0x7f186b1afd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7f186b1afe3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x5640d99862a4 in _start (/work/ffmpeg+0x8bb2a4) (BuildId: c3304e6ece94ebdb0486e419c1f448c1f9c8b41e)\n\n0x607000000068 is located 0 bytes to the right of 72-byte region [0x607000000020,0x607000000068)\nallocated by thread T0 here:\n    #0 0x5640d9a09516 in __interceptor_realloc (/work/ffmpeg+0x93e516) (BuildId: c3304e6ece94ebdb0486e419c1f448c1f9c8b41e)\n    #1 0x5640dbee5100 in av_realloc /work/libavutil/mem.c:164:11\n    #2 0x5640dbea2075 in av_buffer_realloc /work/libavutil/buffer.c:192:25\n    #3 0x5640dae8e4b5 in packet_alloc /work/libavcodec/packet.c:90:11\n    #4 0x5640dae8e4b5 in av_new_packet /work/libavcodec/packet.c:102:15\n    #5 0x5640da2f1747 in get_packet_lj92 /work/libavformat/mlvdec.c:467:16\n    #6 0x5640da2efe88 in read_packet /work/libavformat/mlvdec.c:569:19\n    #7 0x5640da1d464f in ff_read_packet /work/libavformat/demux.c:649:15\n    #8 0x5640da1d632a in read_frame_internal /work/libavformat/demux.c:1344:15\n    #9 0x5640da1db700 in avformat_find_stream_info /work/libavformat/demux.c:2711:15\n    #10 0x5640d9a51a74 in ifile_open /work/fftools/ffmpeg_demux.c:1767:15\n    #11 0x5640d9a95e64 in open_files /work/fftools/ffmpeg_opt.c:1363:15\n    #12 0x5640d9a95e64 in ffmpeg_parse_options /work/fftools/ffmpeg_opt.c:1412:11\n    #13 0x5640d9ac20e9 in main /work/fftools/ffmpeg.c:974:11\n    #14 0x7f186b1afd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/./libavcodec/bytestream.h:94:1 in bytestream2_put_le16\nShadow bytes around the buggy address:\n  0x0c0e7fff7fb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c0e7fff8000: fa fa fa fa 00 00 00 00 00 00 00 00 00[fa]fa fa\n  0x0c0e7fff8010: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0e7fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0e7fff8030: fa fa fa fa fa fa fa fa",
+            "stdout_tail": "ffmpeg+0x8bb2a4) (BuildId: c3304e6ece94ebdb0486e419c1f448c1f9c8b41e)\n\n0x607000000068 is located 0 bytes to the right of 72-byte region [0x607000000020,0x607000000068)\nallocated by thread T0 here:\n    #0 0x5640d9a09516 in __interceptor_realloc (/work/ffmpeg+0x93e516) (BuildId: c3304e6ece94ebdb0486e419c1f448c1f9c8b41e)\n    #1 0x5640dbee5100 in av_realloc /work/libavutil/mem.c:164:11\n    #2 0x5640dbea2075 in av_buffer_realloc /work/libavutil/buffer.c:192:25\n    #3 0x5640dae8e4b5 in packet_alloc /work/libavcodec/packet.c:90:11\n    #4 0x5640dae8e4b5 in av_new_packet /work/libavcodec/packet.c:102:15\n    #5 0x5640da2f1747 in get_packet_lj92 /work/libavformat/mlvdec.c:467:16\n    #6 0x5640da2efe88 in read_packet /work/libavformat/mlvdec.c:569:19\n    #7 0x5640da1d464f in ff_read_packet /work/libavformat/demux.c:649:15\n    #8 0x5640da1d632a in read_frame_internal /work/libavformat/demux.c:1344:15\n    #9 0x5640da1db700 in avformat_find_stream_info /work/libavformat/demux.c:2711:15\n    #10 0x5640d9a51a74 in ifile_open /work/fftools/ffmpeg_demux.c:1767:15\n    #11 0x5640d9a95e64 in open_files /work/fftools/ffmpeg_opt.c:1363:15\n    #12 0x5640d9a95e64 in ffmpeg_parse_options /work/fftools/ffmpeg_opt.c:1412:11\n    #13 0x5640d9ac20e9 in main /work/fftools/ffmpeg.c:974:11\n    #14 0x7f186b1afd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/./libavcodec/bytestream.h:94:1 in bytestream2_put_le16\nShadow bytes around the buggy address:\n  0x0c0e7fff7fb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c0e7fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c0e7fff8000: fa fa fa fa 00 00 00 00 00 00 00 00 00[fa]fa fa\n  0x0c0e7fff8010: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0e7fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0e7fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0e7fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0e7fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -'\n"
+          }
+        },
+        "pre_intro": {
+          "command": "/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -",
+          "input": null,
+          "poc_sha256": "d160df5e9c0e373fe8d4ab449642bb56106772ee203c670295dc5b697d0dd4fb",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "f651ca3a6838be90e7d5189d831c9db8cb7e3ec8",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "a70c6d23f20a1957507d7fd5962516c376f899608f21105e99c0e6c79c828905"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\nffmpeg version 7.1.git Copyright (c) 2000-2025 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 55.100 / 59. 55.100\n  libavcodec     61. 31.100 / 61. 31.100\n  libavformat    61.  9.105 / 61.  9.105\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.101 / 10.  6.101\n  libswscale      8. 13.100 /  8. 13.100\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\n[mlv @ 0x616000000080] unknown video class is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.\n[mlv @ 0x616000000080] If you want to help, upload a sample of this file to https://streams.videolan.org/upload/ and contact the ffmpeg-devel mailing list. (ffmpeg-devel@ffmpeg.org)\n[mlv @ 0x616000000080] Opening '/poc/poc.m00' for reading\n[mlv @ 0x616000000080] Could not find codec parameters for stream 0 (Video: none (BIT[16] / 0x10544942), bayer_rggb16le, 16x16): unknown codec\nConsider increasing the value for the 'analyzeduration' (0) and 'probesize' (5000000) options\nInput #0, mlv, from '/poc/poc.mlv':\n  Metadata:\n    guid            : 0x0\n  Duration: 00:00:00.03, bitrate: 63 kb/s\n  Stream #0:0: Video: none (BIT[16] / 0x10544942), bayer_rggb16le, 16x16, 30 tbr, 30 tbn\nStream mapping:\n  Stream #0:0 -> #0:0 (copy)\nOutput #0, null, to 'pipe:':\n  Metadata:\n    guid            : 0x0\n    encoder         : Lavf61.9.105\n  Stream #0:0: Video: none (BIT[16] / 0x10544942), bayer_rggb16le, 16x16, q=2-31, 30 tbr, 30 tbn\nPress [q] to stop, [?] for help\n[out#0/null @ 0x611000000180] video:0KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown\n[out#0/null @ 0x611000000180] Output file is empty, nothing was encoded\nframe=    0 fps=0.0 q=-1.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A    \n"
+          }
+        },
+        "post_benign": {
+          "command": "/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -",
+          "input": null,
+          "poc_sha256": "d160df5e9c0e373fe8d4ab449642bb56106772ee203c670295dc5b697d0dd4fb",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "f651ca3a6838be90e7d5189d831c9db8cb7e3ec8",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "ddca469222bd4c2845e2ab115c097952e99f100d4e53987a829ccca76aab60d2"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\nffmpeg version 7.1.git Copyright (c) 2000-2025 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 55.100 / 59. 55.100\n  libavcodec     61. 31.100 / 61. 31.100\n  libavformat    61.  9.105 / 61.  9.105\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.101 / 10.  6.101\n  libswscale      8. 13.100 /  8. 13.100\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\n[mlv @ 0x616000000080] Opening '/poc/poc.m00' for reading\nInput #0, mlv, from '/poc/poc.mlv':\n  Metadata:\n    guid            : 0x0\n  Duration: 00:00:00.03, bitrate: 63 kb/s\n  Stream #0:0: Video: tiff (BIT[16] / 0x10544942), bayer_rggb16le, 16x16, 30 tbr, 30 tbn\nStream mapping:\n  Stream #0:0 -> #0:0 (copy)\nOutput #0, null, to 'pipe:':\n  Metadata:\n    guid            : 0x0\n    encoder         : Lavf61.9.105\n  Stream #0:0: Video: tiff (BIT[16] / 0x10544942), bayer_rggb16le, 16x16, q=2-31, 30 tbr, 30 tbn\nPress [q] to stop, [?] for help\n[in#0/mlv @ 0x612000000040] Error during demuxing: Invalid data found when processing input\n[out#0/null @ 0x611000000180] video:0KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown\n[out#0/null @ 0x611000000180] Output file is empty, nothing was encoded\nframe=    0 fps=0.0 q=-1.0 Lsize=N/A time=N/A bitrate=N/A speed=N/A    \n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "Hand-crafted 264-byte MLV file (poc.mlv): 52-byte MLVI header declaring video class LJ92|RAW (codec_id TIFF), 180-byte RAWI block (width=height=16, bits_per_coded_sample=16), and a 32-byte VIDF block whose declared block size (120) and 'space' field (2140) make the unsigned subtraction `size -= space` in read_packet() underflow to 4294965256. That value is passed unchanged into get_packet_lj92(..., int64_t size); `av_new_packet(pkt, size + MAX_HEADER_SIZE)` truncates the 64-bit sum to a 32-bit int, wrapping to 8, so only a tiny (8-byte, 72-byte incl. redzone/padding) packet buffer is allocated while bytestream2_init_writer() is told it has the full 2048-byte MAX_HEADER_SIZE to write TIFF/DNG header fields into — causing a heap-buffer-overflow write. Reproduced with: /work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -",
+        "target_evidence": "post_intro AddressSanitizer report for `/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -`:\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x607000000068\nWRITE of size 2 at 0x607000000068 thread T0\n    #0 bytestream2_put_le16 /work/./libavcodec/bytestream.h:94:1\n    #1 write_tiff_short /work/libavformat/mlvdec.c:425:5\n    #2 get_packet_lj92 /work/libavformat/mlvdec.c:483:5\n    #3 read_packet /work/libavformat/mlvdec.c:569:19\n    #4 ff_read_packet /work/libavformat/demux.c:649:15\n    #5 read_frame_internal /work/libavformat/demux.c:1344:15\n    #6 avformat_find_stream_info /work/libavformat/demux.c:2711:15\n0x607000000068 is located 0 bytes to the right of 72-byte region [0x607000000020,0x607000000068), allocated by av_new_packet at mlvdec.c:467:16 (get_packet_lj92).\nThis matches the oss-fuzz tracker's Crash State (get_packet_lj92/read_packet/ff_read_packet) and Crash Type (Heap-buffer-overflow WRITE 2).\npre_intro run of the identical command/file: exit=0, crashed=False, clean completion (no sanitizer report); log shows \"unknown video class is not implemented\" (avpriv_request_sample warning only) and \"Could not find codec parameters ... unknown codec\" (codec_id stays AV_CODEC_ID_NONE because get_packet_lj92/AV_CODEC_ID_TIFF path does not exist in this revision), then -c copy remuxes 0 frames cleanly to null muxer, exit 0.\npost_benign run of the identical command/file: exit=0, crashed=False, clean completion; log shows normal probing (\"Video: tiff ...\") then a recoverable \"[in#0/mlv] Error during demuxing: Invalid data found when processing input\" (the fix's new bounds checks in read_packet() return AVERROR_INVALIDDATA instead of underflowing), and ffmpeg exits 0 with \"Output file is empty, nothing was encoded\"."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Ran the identical command (`/work/ffmpeg -y -f mlv -i /poc/poc.mlv -c copy -f null -`) against all three built revisions using the same crafted MLV file. post_intro (86dd15fd0dd0) crashed with AddressSanitizer heap-buffer-overflow WRITE of size 2 at bytestream2_put_le16 <- write_tiff_short <- get_packet_lj92 <- read_packet <- ff_read_packet — matching the oss-fuzz Crash State/Type exactly. pre_intro (f651ca3a6838) lacks the LJ92/get_packet_lj92 code path entirely (the whole TIFF/LJ92 decode feature, including get_packet_lj92, was added by the intro commit), so the same input/command now completes cleanly with exit 0 and no sanitizer report -- confirming the flaw did not exist before introduction. post_benign (companion fix, added `if (size < 8) ...` and `if (size < space + 4LL) return AVERROR_INVALIDDATA;` bounds checks in read_packet()) also completes cleanly with exit 0 on the identical input: the malformed space/size relationship is now rejected via a normal recoverable AVERROR_INVALIDDATA before the underflow can occur, instead of crashing. The single reproducer/command thus cleanly discriminates all three revisions: crash only in post_intro, clean exit 0 in both pre_intro and post_benign."
+    }
+  },
+  "task_hashes": {
+    "buggy": "d35371d3dc7b75303748f370eea9185e7cf9c6cb26e40ff3a464f7f6d5794fda",
+    "benign": "67087de9142f7a30f6807f92f9d4e35c8770b67e9cff2b8835ec2970bf1f024d"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "bug_id": "1952215",
+  "project": "firefox",
+  "bug_type": "WildPointer",
+  "commits": {
+    "intro": "3cd1bb82abdddde41ce421a9546fdc7a731ff12e",
+    "parent": "05970d79ed26d196890c6dd269628f67248cff8c",
+    "fix": "c8463bc8747052fd60cdb677a1e0b943c6b3f3a6"
+  },
+  "affected_files": [
+    "js/src/wasm/WasmCode.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. The default invocation was unusable because no input was configured, and the original single-function PoC passed on post_intro. With the strengthened two-function harness, the identical command `gdb --return-child-result -q --batch -x /poc/skip_unrelated_assert.gdb --args /work/obj-verify-js/dist/bin/js -P wasm_lazy_tiering -P wasm_lazy_tiering_synchronous -P wasm_lazy_tiering_level=9 /poc/poc_two_funcs.js` was run on every revision. pre_intro exited 0, prin",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.82.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three sanitizer builds succeeded. The default invocation was unusable because no input was configured, and the original single-function PoC passed on post_intro. With the strengthened two-function harness, the identical command `gdb --return-child-result -q --batch -x /poc/skip_unrelated_assert.gdb --args /work/obj-verify-js/dist/bin/js -P wasm_lazy_tiering -P wasm_lazy_tiering_synchronous -P wasm_lazy_tiering_level=9 /poc/poc_two_funcs.js` was run on every revision. pre_intro exited 0, printed `ok`, and had no sanitizer crash. post_intro exited 255 with crashed=True and an AddressSanitize",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1952215.json"
+  },
+  "final_disposition": "verified"
+}

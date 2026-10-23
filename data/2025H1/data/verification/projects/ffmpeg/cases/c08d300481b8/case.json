@@ -1,0 +1,26 @@
+{
+  "bug_id": "c08d300481b8",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "cb80ec0b6cd7f954839427b4c86958d1475f2df4",
+    "parent": "6d05e7e314207209200566f5b6fb0a77bc968028",
+    "fix": "c08d300481b8ebb846cd43a473988fdbc6793d1b"
+  },
+  "affected_files": [
+    "libavformat/avformat.c",
+    "libavformat/avformat_internal.h",
+    "libavformat/demux.c",
+    "libavformat/demux_utils.c",
+    "libavformat/internal.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The supplied default PoC only decoded to the null muxer and did not reach the affected mux packet queue; the reporter's full MP4/mpeg4 command also exited cleanly in this build. A deterministic harness directly used FFmpeg's mux interleaver to leave one packet in FFFormatContext.packet_buffer before avformat_free_context(). Using the exact same compile/run command on all versions, pre_intro exited 0 with no sanitizer finding, post_intro emitted LeakSanitizer's 507-byte leak (direct allocation at",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

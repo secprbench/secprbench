@@ -1,0 +1,38 @@
+{
+  "by_project": {
+    "curl": 52,
+    "ffmpeg": 122,
+    "firefox": 54,
+    "freetype": 30,
+    "openssl": 58,
+    "redis": 32,
+    "sqlite": 66,
+    "v8": 88,
+    "wasmtime": 28
+  },
+  "exact_task_bytes": true,
+  "global_file": "instances/secprbench.jsonl",
+  "instance_count": 530,
+  "paired_bug_count": 265,
+  "project_case_counts": {
+    "curl": 26,
+    "ffmpeg": 61,
+    "firefox": 27,
+    "freetype": 15,
+    "openssl": 29,
+    "redis": 16,
+    "sqlite": 33,
+    "v8": 44,
+    "wasmtime": 14
+  },
+  "release": "secprbench-265-20261010",
+  "roster": "data/roster.json",
+  "schema_version": 1,
+  "size_cap": {
+    "files_changed": 30,
+    "lines_changed": 2000
+  },
+  "status": "staged_with_known_limitations",
+  "task_path_base": "repository",
+  "version": "0.1.0"
+}

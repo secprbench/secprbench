@@ -1,0 +1,104 @@
+{
+  "task_id": "pr_review_7f9c7f9849a2",
+  "bug_id": "7f9c7f9849a2",
+  "commit_sha": "80344959f064c7ea10d023862e0f6b79835de9de",
+  "commit_message": "avcodec/jpeg2000dec: Free lengthinc earlier\n\nReduces memory needed\n\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "commit_author": "Michael Niedermayer",
+  "commit_date": "2017-12-17T23:35:26+01:00",
+  "pr_title": "avcodec/jpeg2000dec: Free lengthinc earlier",
+  "pr_description": "Reduces memory needed\n\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "files": [
+    {
+      "path": "libavcodec/jpeg2000dec.c",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/jpeg2000dec.c b/libavcodec/jpeg2000dec.c\nindex 617273b36b..8071dc3c84 100644\n--- a/libavcodec/jpeg2000dec.c\n+++ b/libavcodec/jpeg2000dec.c\n@@ -1044,10 +1044,12 @@ static int jpeg2000_decode_packet(Jpeg2000DecoderContext *s, Jpeg2000Tile *tile,\n         Jpeg2000Prec *prec = band->prec + precno;\n \n         nb_code_blocks = prec->nb_codeblocks_height * prec->nb_codeblocks_width;\n         for (cblkno = 0; cblkno < nb_code_blocks; cblkno++) {\n             Jpeg2000Cblk *cblk = prec->cblk + cblkno;\n+            if (!cblk->nb_terminationsinc && !cblk->lengthinc)\n+                continue;\n             for (cwsno = 0; cwsno < cblk->nb_lengthinc; cwsno ++) {\n                 if (cblk->data_allocated < cblk->length + cblk->lengthinc[cwsno] + 4) {\n                     size_t new_size = FFMAX(2*cblk->data_allocated, cblk->length + cblk->lengthinc[cwsno] + 4);\n                     void *new = av_realloc(cblk->data, new_size);\n                     if (new) {\n@@ -1073,10 +1075,11 @@ static int jpeg2000_decode_packet(Jpeg2000DecoderContext *s, Jpeg2000Tile *tile,\n                     cblk->data[cblk->length++] = 0xFF;\n                     cblk->data[cblk->length++] = 0xFF;\n                     cblk->data_start[cblk->nb_terminations] = cblk->length;\n                 }\n             }\n+            av_freep(&cblk->lengthinc);\n         }\n     }\n     return 0;\n }\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/jpeg2000dec.c b/libavcodec/jpeg2000dec.c\nindex 617273b36b..8071dc3c84 100644\n--- a/libavcodec/jpeg2000dec.c\n+++ b/libavcodec/jpeg2000dec.c\n@@ -1044,10 +1044,12 @@ static int jpeg2000_decode_packet(Jpeg2000DecoderContext *s, Jpeg2000Tile *tile,\n         Jpeg2000Prec *prec = band->prec + precno;\n \n         nb_code_blocks = prec->nb_codeblocks_height * prec->nb_codeblocks_width;\n         for (cblkno = 0; cblkno < nb_code_blocks; cblkno++) {\n             Jpeg2000Cblk *cblk = prec->cblk + cblkno;\n+            if (!cblk->nb_terminationsinc && !cblk->lengthinc)\n+                continue;\n             for (cwsno = 0; cwsno < cblk->nb_lengthinc; cwsno ++) {\n                 if (cblk->data_allocated < cblk->length + cblk->lengthinc[cwsno] + 4) {\n                     size_t new_size = FFMAX(2*cblk->data_allocated, cblk->length + cblk->lengthinc[cwsno] + 4);\n                     void *new = av_realloc(cblk->data, new_size);\n                     if (new) {\n@@ -1073,10 +1075,11 @@ static int jpeg2000_decode_packet(Jpeg2000DecoderContext *s, Jpeg2000Tile *tile,\n                     cblk->data[cblk->length++] = 0xFF;\n                     cblk->data[cblk->length++] = 0xFF;\n                     cblk->data_start[cblk->nb_terminations] = cblk->length;\n                 }\n             }\n+            av_freep(&cblk->lengthinc);\n         }\n     }\n     return 0;\n }\n \n",
+  "task_type": "buggy",
+  "intro_commit_sha": "80344959f064c7ea10d023862e0f6b79835de9de",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "7f9c7f9849a2",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "lengthinc array freed without clearing nb_lengthinc counter, leading to NULL pointer dereference",
+        "message": "The `av_freep(&cblk->lengthinc)` call at line 1080 frees the `lengthinc` array and sets the pointer to NULL, but does not reset `cblk->nb_lengthinc` to 0. When `jpeg2000_decode_packet` is called again for the same code block (e.g., across multiple tile parts in a JPEG2000 stream), the stale `nb_lengthinc` value causes the for loop at line 1051 to execute, attempting to dereference the now-NULL `cblk->lengthinc` pointer at line 1052 (`cblk->lengthinc[cwsno]`). The guard at line 1049 (`!cblk->nb_terminationsinc && !cblk->lengthinc`) does not prevent this because `nb_terminationsinc` may be non-zero in a subsequent call, causing the `continue` to be skipped. This results in a SEGV (NULL pointer dereference) that can be triggered by a crafted JPEG2000 file, causing denial of service. Assigned CVE-2025-22921.",
+        "bug_type": "NullPointerDereference",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "location": {
+          "file": "libavcodec/jpeg2000dec.c",
+          "function": "jpeg2000_decode_packet",
+          "start_line": 1080,
+          "end_line": 1080,
+          "snippet": "            }\n            av_freep(&cblk->lengthinc);\n        }\n    }\n    return 0;"
+        },
+        "related_locations": [
+          {
+            "file": "libavcodec/jpeg2000dec.c",
+            "start_line": 1051,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "jpeg2000_decode_packet",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "libavcodec/jpeg2000dec.c",
+            "start_line": 1049,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "jpeg2000_decode_packet",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "After freeing the lengthinc array with av_freep(), also reset cblk->nb_lengthinc to 0 so subsequent calls to jpeg2000_decode_packet do not attempt to iterate over a freed (NULL) array.",
+        "rule_id": "sec-nullptr-001"
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "libavcodec/jpeg2000dec.c"
+    ],
+    "root_cause": "When commit 80344959 added `av_freep(&cblk->lengthinc)` to free the lengthinc array earlier for memory optimization, it neglected to also reset `cblk->nb_lengthinc` to 0. The `av_freep` macro sets the pointer to NULL, but the loop counter remains non-zero, creating an inconsistent state. On a subsequent call to the function for the same code block, the guard condition `!cblk->nb_terminationsinc && !cblk->lengthinc` can be bypassed (when `nb_terminationsinc` is non-zero), and the stale `nb_lengthinc` causes the code to dereference the NULL `lengthinc` pointer.",
+    "must_cover": [
+      {
+        "file": "libavcodec/jpeg2000dec.c",
+        "function": "jpeg2000_decode_packet",
+        "reason": "Primary location of finding: lengthinc array freed without clearing nb_lengthinc counter, leading to NULL pointer dereference"
+      },
+      {
+        "file": "libavcodec/jpeg2000dec.c",
+        "function": "jpeg2000_decode_packet",
+        "reason": "Related location for: lengthinc array freed without clearing nb_lengthinc counter, leading to NULL pointer dereference"
+      },
+      {
+        "file": "libavcodec/jpeg2000dec.c",
+        "function": "jpeg2000_decode_packet",
+        "reason": "Related location for: lengthinc array freed without clearing nb_lengthinc counter, leading to NULL pointer dereference"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "ffmpeg__7f9c7f9849a2__buggy",
+    "project": "ffmpeg",
+    "repo_url": "https://github.com/FFmpeg/FFmpeg.git",
+    "parent_sha": "4b2a186ef02c1fbe7f7cae30a2bdfff72bcc75f7",
+    "diff_stats": {
+      "files_changed": 1,
+      "lines_changed": 3
+    }
+  }
+}

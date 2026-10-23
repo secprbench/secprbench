@@ -1,0 +1,142 @@
+{
+  "bug_id": "GH-28962",
+  "project": "openssl",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "3c963394d0c7dad0bffdbc452f2c5354355a9720",
+    "parent": "48a2d1e448d48533c88d8b4087ce201d8b33e265",
+    "fix": "dfc6f643c09aba831d4856597ef9633dda2fb6c4"
+  },
+  "affected_files": [
+    "crypto/x509/x509_vfy.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; meta.json/discussion.md: intro commit 3c963394d0c7 (parent 48a2d1e448d4) added a \"99991231235959Z\" no-expiry special case to ossl_x509_check_cert_time() in crypto/x509/x509_vfy.c that calls strcmp() on the raw ASN1_STRING_get0_data() buffer of the notAfter field, which is not guaranteed to be NUL-terminated. Upstream fix dfc6f643c09a (mirrored by post_benign) replaces this with an explicit length check (`notafter->length == 15`) plus memcmp(). Source diff confirms: pre_intro has none of this special-case code at all; post_intro has the strcmp version; post_benign has the length-checked memcmp version. Because normal DER-parsed X.509 certs are always NUL-terminated in this non-fuzzing build configuration (no-fuzz-libfuzzer/no-fuzz-afl; ASN1_STRING_set()/asn1_collect() both append a NUL byte unless FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION is defined), no ordinary certificate-parsing path can supply a non-NUL-terminated buffer here, matching the upstream report title \"heap-buffer-overflow in CI fuzzing tests\". I therefore built a minimal harness that calls the internal function directly with a controlled ASN1_STRING (via the public ASN1_STRING_set0() API) holding an exactly-sized, non-NUL-terminated buffer that is a genuine prefix of the magic string (so strcmp does not mismatch before running off the end of the allocation) — this reaches the exact vulnerable line via the real target code path (ossl_x509_check_cert_time), not a source copy or grep. Running the identical run.sh/poc.c through run_poc against all three built revisions: pre_intro exits cleanly (return 0, no crash — code doesn't exist yet), post_intro crashes under AddressSanitizer with \"heap-buffer-overflow READ of size 6 ... in __interceptor_strcmp ... in ossl_x509_check_cert_time /work/crypto/x509/x509_vfy.c:2213\" (the exact strcmp line added by the intro commit, 0 bytes past a 5-byte CRYPTO_malloc'd region), and post_benign exits cleanly again (return 0) using the length-checked memcmp fix. This satisfies the invariance requirement (identical reproducer across all three revisions) with an unambiguous, target-specific sanitizer report confined to post_intro only.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/openssl/491a3d86cd649fabcbe9/attempts/02/replay/pr_review_GH-28962.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/openssl/491a3d86cd649fabcbe9/attempts/02/replay/pr_review_GH-28962.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/openssl/491a3d86cd649fabcbe9/attempts/02/replay/pr_review_GH-28962.agent_verdict.json",
+      "executions": {
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "37f1cf7ce0eb0568cbcdd82ef6cacadd2bdf185ae8527b9f0803033b4c028db2",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "48a2d1e448d48533c88d8b4087ce201d8b33e265",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "eb418546bf17d1a82de9e63117220f0c414178ea821b97c8cda583b46c894eeb"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "Calling ossl_x509_check_cert_time...\nossl_x509_check_cert_time returned 0\nDONE_NO_CRASH\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "37f1cf7ce0eb0568cbcdd82ef6cacadd2bdf185ae8527b9f0803033b4c028db2",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "3c963394d0c7dad0bffdbc452f2c5354355a9720",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "05bb2c29970d2efaa3dbb48653da3be90108069eb70cf52d7d4030a66e29e37b"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "Calling ossl_x509_check_cert_time...\nVERIFY_EXIT=134\n\n=================================================================\n==14==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000155 at pc 0x7fa9f09515b3 bp 0x7ffccd905930 sp 0x7ffccd9050d8\nREAD of size 6 at 0x502000000155 thread T0\n    #0 0x7fa9f09515b2 in __interceptor_strcmp ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:466\n    #1 0x56091952de8a in ossl_x509_check_cert_time /work/crypto/x509/x509_vfy.c:2213\n    #2 0x56091951ce78 in main /poc/poc.c:62\n    #3 0x7fa9f008ad8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #4 0x7fa9f008ae3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #5 0x56091951cca4 in _start (/tmp/poc+0x43fca4)\n\n0x502000000155 is located 0 bytes to the right of 5-byte region [0x502000000150,0x502000000155)\nallocated by thread T0 here:\n    #0 0x7fa9f0973887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x5609195206d7 in CRYPTO_malloc /work/crypto/mem.c:212\n    #2 0x56091951ce05 in main /poc/poc.c:50\n    #3 0x7fa9f008ad8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:466 in __interceptor_strcmp\nShadow bytes around the buggy address:\n  0x0a047fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a047fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a047fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a047fff8000: fa fa 00 00 fa fa 00 00 fa fa 05 fa fa fa 00 00\n  0x0a047fff8010: fa fa 00 00 fa fa 00 00 fa fa 00 00 fa fa 00 00\n=>0x0a047fff8020: fa fa 00 fa fa fa 00 07 fa fa[05]fa fa fa fa fa\n  0x0a047fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==14==ABORTING\n/poc/run.sh: line 8:    14 Aborted                 /tmp/poc\n",
+            "stdout_tail": "Calling ossl_x509_check_cert_time...\nVERIFY_EXIT=134\n\n=================================================================\n==14==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x502000000155 at pc 0x7fa9f09515b3 bp 0x7ffccd905930 sp 0x7ffccd9050d8\nREAD of size 6 at 0x502000000155 thread T0\n    #0 0x7fa9f09515b2 in __interceptor_strcmp ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:466\n    #1 0x56091952de8a in ossl_x509_check_cert_time /work/crypto/x509/x509_vfy.c:2213\n    #2 0x56091951ce78 in main /poc/poc.c:62\n    #3 0x7fa9f008ad8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #4 0x7fa9f008ae3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #5 0x56091951cca4 in _start (/tmp/poc+0x43fca4)\n\n0x502000000155 is located 0 bytes to the right of 5-byte region [0x502000000150,0x502000000155)\nallocated by thread T0 here:\n    #0 0x7fa9f0973887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x5609195206d7 in CRYPTO_malloc /work/crypto/mem.c:212\n    #2 0x56091951ce05 in main /poc/poc.c:50\n    #3 0x7fa9f008ad8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:466 in __interceptor_strcmp\nShadow bytes around the buggy address:\n  0x0a047fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a047fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a047fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a047fff8000: fa fa 00 00 fa fa 00 00 fa fa 05 fa fa fa 00 00\n  0x0a047fff8010: fa fa 00 00 fa fa 00 00 fa fa 00 00 fa fa 00 00\n=>0x0a047fff8020: fa fa 00 fa fa fa 00 07 fa fa[05]fa fa fa fa fa\n  0x0a047fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a047fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==14==ABORTING\n/poc/run.sh: line 8:    14 Aborted                 /tmp/poc\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "37f1cf7ce0eb0568cbcdd82ef6cacadd2bdf185ae8527b9f0803033b4c028db2",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "48a2d1e448d48533c88d8b4087ce201d8b33e265",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "1b09ad01fe95f7a93602cc9d62df7d77d45056a281efbb4955111bd8e001ed5f"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "Calling ossl_x509_check_cert_time...\nossl_x509_check_cert_time returned 0\nDONE_NO_CRASH\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "other",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "AddressSanitizer heap-buffer-overflow report naming the exact vulnerable line (x509_vfy.c:2213, the strcmp on ASN1_STRING_get0_data(notafter) added by the intro commit) fires only on post_intro under run_poc; pre_intro and post_benign both complete normally (exit=0, \"ossl_x509_check_cert_time returned 0 / DONE_NO_CRASH\") for the identical harness/input.",
+        "target_evidence": "post_intro (run_poc): \"AddressSanitizer: heap-buffer-overflow ... READ of size 6 at 0x502000000155 ... #0 __interceptor_strcmp ... #1 ossl_x509_check_cert_time /work/crypto/x509/x509_vfy.c:2213 ... 0 bytes to the right of 5-byte region ... allocated by CRYPTO_malloc /work/crypto/mem.c:212\"; exit=134, crashed=True. pre_intro (run_poc): exit=0, crashed=False, \"ossl_x509_check_cert_time returned 0 / DONE_NO_CRASH\". post_benign (run_poc): exit=0, crashed=False, \"ossl_x509_check_cert_time returned 0 / DONE_NO_CRASH\"."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "meta.json/discussion.md: intro commit 3c963394d0c7 (parent 48a2d1e448d4) added a \"99991231235959Z\" no-expiry special case to ossl_x509_check_cert_time() in crypto/x509/x509_vfy.c that calls strcmp() on the raw ASN1_STRING_get0_data() buffer of the notAfter field, which is not guaranteed to be NUL-terminated. Upstream fix dfc6f643c09a (mirrored by post_benign) replaces this with an explicit length check (`notafter->length == 15`) plus memcmp(). Source diff confirms: pre_intro has none of this special-case code at all; post_intro has the strcmp version; post_benign has the length-checked memcmp version. Because normal DER-parsed X.509 certs are always NUL-terminated in this non-fuzzing build configuration (no-fuzz-libfuzzer/no-fuzz-afl; ASN1_STRING_set()/asn1_collect() both append a NUL byte unless FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION is defined), no ordinary certificate-parsing path can supply a non-NUL-terminated buffer here, matching the upstream report title \"heap-buffer-overflow in CI fuzzing tests\". I therefore built a minimal harness that calls the internal function directly with a controlled ASN1_STRING (via the public ASN1_STRING_set0() API) holding an exactly-sized, non-NUL-terminated buffer that is a genuine prefix of the magic string (so strcmp does not mismatch before running off the end of the allocation) — this reaches the exact vulnerable line via the real target code path (ossl_x509_check_cert_time), not a source copy or grep. Running the identical run.sh/poc.c through run_poc against all three built revisions: pre_intro exits cleanly (return 0, no crash — code doesn't exist yet), post_intro crashes under AddressSanitizer with \"heap-buffer-overflow READ of size 6 ... in __interceptor_strcmp ... in ossl_x509_check_cert_time /work/crypto/x509/x509_vfy.c:2213\" (the exact strcmp line added by the intro commit, 0 bytes past a 5-byte CRYPTO_malloc'd region), and post_benign exits cleanly again (return 0) using the length-checked memcmp fix. This satisfies the invariance requirement (identical reproducer across all three revisions) with an unambiguous, target-specific sanitizer report confined to post_intro only."
+    }
+  },
+  "task_hashes": {
+    "buggy": "6aa0fa58c22d4360505f917d12fd85bc31eeb621d59b2c93192886551846533d",
+    "benign": "78486d2383bd1aa14cae119b38b009a0353e55845506c039f8b92a1c68c7a815"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "task_id": "pr_review_GH-18902",
+  "bug_id": "GH-18902",
+  "bug_type": "LogicError",
+  "intro_commit": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+  "intro_parent": "07a3cd83e0456ca17dfd8c3104af7cf45b7a1ff5",
+  "fix_commit": "4bfd7a961521e1fd6aab7610e931d82a342781a8",
+  "affected_files": [
+    "lib/vtls/openssl.c",
+    "lib/vtls/vtls_int.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "curl",
+  "source": "locally_fix_derived",
+  "attachments": [],
+  "input_name": "ocsp-session.poc",
+  "root_cause": "In the introducing tree, servercert skips verifystatus() when connssl->reused_session is true, but ossl_connect_step1 still loads a cached session under if(ssl_config->primary.sessionid). The 2025 fix gates a later cache_session API. The equivalent repair for the 2023 tree is the one-line intro-era guard if(ssl_config->primary.sessionid && !conn_config->verifystatus), forcing a full handshake and status check.",
+  "findings": [
+    "The new reused_session condition suppresses verifystatus, while the existing cache lookup can still offer a session when status verification is requested."
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "f2e61b0b91270c9528c60d85115e3406b4b1ea88362e9a0b64b4f05e71c6dafd",
+  "generated_artifact_sha256": {
+    "reference": "fd8885b8efe5e7a6896706276debbba83747434fe46c622d74634a17f7653663",
+    "introducing": "85944c7d2ef821acf1d46099aa6429974b2e8de7b377e8618ad077a636e3630a",
+    "companion": "70a6c065353df267b049ae3457d22728defe14e575b3705ea88dd8ca7e6c5e86"
+  }
+}

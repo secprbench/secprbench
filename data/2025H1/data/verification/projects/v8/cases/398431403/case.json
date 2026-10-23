@@ -1,0 +1,23 @@
+{
+  "bug_id": "398431403",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "65beb80d9cd6da4cca447a3a8857b59035412417",
+    "parent": "85920bfb53ca45396895f23d332901c7e02a9911",
+    "fix": "e9c28abfe4d8f4c86c15d0280645bc95cbae9779"
+  },
+  "affected_files": [
+    "src/compiler/turbofan-typer.cc",
+    "test/mjsunit/compiler/regress-394650781.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured Docker builds succeeded and were run with the identical PoC and command. pre_intro (85920bfb53ca) exited 0 with no crash. post_intro (65beb80d9cd6) exited 133/SIGTRAP; a diagnostic rerun showed the bug-specific V8 fatal message `UpdateType error for node 119: ObjectIsArrayBufferView(73)` with a Phi input. post_benign exited 0 with no crash. Thus the intro commit introduces the labelled TurboFan typing logic error and the benign companion avoids/removes it.",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

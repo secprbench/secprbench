@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-29395",
+  "bug_id": "GH-29395",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "1a91fda1839bc745e8359f82d19a5ef44ca36f7e",
+  "intro_parent": "8c110311fd5e7f04e2c152b17d44acfd4a279ea6",
+  "fix_commit": "380ff1448596926fc9d252c8e4c2720b006ef912",
+  "affected_files": [
+    "crypto/bio/bio_lib.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "openssl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The BIO_sendmmsg/BIO_recvmmsg 'return' callback invocations pass NULL for the processed-message-count out-parameter while also passing a nonzero 'inret' value, and the internal legacy-callback shim (bio_call_callback) unconditionally dereferences that pointer whenever inret > 0 for BIO_CB_RETURN callback invocations that aren't BIO_CB_CTRL. The introducing commit changed inret from a permanently-zero placeholder to the genuine (potentially positive) return value without also supplying a valid processed pointer, re-activating a previously dead/safe code path with an invalid NULL argument.",
+  "findings": [
+    "When BIO_sendmmsg() and BIO_recvmmsg() invoke the BIO_CB_*MMSG|BIO_CB_RETURN callback via bio_call_callback(), they pass a hard-coded NULL for the `processed` output parameter, while passing the actual number of processed messages (`ret`) as the `inret` argument. Prior to this commit, `inret` was always hard-coded to 0 for the RETURN callback, so the legacy-callback branch in bio_call_callback() ("
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "8c9cd6b8d7871d65d956611cec2bd8f26b2d90f9c76eb5b339b41003fde9e4cd",
+  "generated_artifact_sha256": {
+    "reference": "e568b88170243f3e7ef45e706f3494f531a45bfd862f03a936fdc6ec154e8015",
+    "introducing": "9421a4ba2ecc9df228107e99447db6947621c3e3bf36436d63438214190ef7de",
+    "companion": "d804cb143673a0e210c9a9bdb6f1f3c5b5af54d0c8173747b9d579df1e547320"
+  }
+}

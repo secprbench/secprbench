@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_TESTCASE-e41b1ba1b6253578",
+  "bug_id": "TESTCASE-e41b1ba1b6253578",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "6d0c89980c78ffd3b112676186786334c915ace7",
+  "intro_parent": "6def8e3923f838a217c5e4567435b0e975b9aee7",
+  "fix_commit": "f435ce22e10e2c93fc8027cc72eeb09eba50ab8d",
+  "affected_files": [
+    "libavcodec/h2645_sei.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The struct fields for the newly-allocated side-data object are initialized AFTER handing the wrapping buffer off to a function (ff_frame_new_side_data_from_buf_ext) that can take ownership of / free that buffer, instead of before. This creates a window in which the memory the code is about to write to is no longer guaranteed to be valid/owned by this code path.",
+  "findings": [
+    "In h2645_sei_to_side_data(), when handling the Ambient Viewing Environment SEI, a new AVAmbientViewingEnvironment struct (dst_env) is allocated and wrapped in an AVBufferRef (buf), which is then handed off to ff_frame_new_side_data_from_buf_ext(). This function can fail (returning ret < 0) after having already taken ownership of / freed the buffer (e.g. if av_frame_side_data_add fails or another i"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "cd40b1a5476c8a423bdee73959cc3a86f22a0e33aed3749be64f3931b9517551",
+  "generated_artifact_sha256": {
+    "reference": "c0ec8cb15f8d67ddbcdb4df9a8dc88f5028535cb0a636088a7e287d6dbd5612d",
+    "introducing": "815c81101016a423a286f9f6b399e1de4d3aad8803634dd9618bf4d61faa58bc",
+    "companion": "f18dfd8b7741ba15f2c3271feaa61d2ce8fdcb6e447b38dfd7b680f65e70a52d"
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "bug_id": "FORUM-b617e497287235d0",
+  "project": "sqlite",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "9dcf3d08c9edc0c30e07a6a06f9d0dd73bfad529",
+    "parent": "0424f255efb2aaa89e29a265683fd260da2b94c7",
+    "fix": "66cd200ede04bbe2c44729c3a4c55433430c4214"
+  },
+  "affected_files": [
+    "src/vdbeapi.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Source inspection across versions confirms meta.json's root cause: pre_intro's sqlite3_preupdate_old() (src/vdbeapi.c) checks `iIdx>=p->pCsr->nField` directly and never calls sqlite3TableColumnToStorage(); post_intro's refactor adds `iStore = sqlite3TableColumnToStorage(p->pTab, iIdx)` in the non-pPk branch with no prior bound check of iIdx against pTab->nCol; post_benign (built from the parent source with the fix applied) inserts `else if( iIdx>=p->pTab->nCol ){ rc = SQLITE_MISUSE_BKPT; goto preupdate_old_out; }` before that call, matching fix commit 66cd200ede04. sqlite3TableColumnToStorage() (build.c) has only a debug-only assert and, for a table with a virtual/generated column, loops `for(i=0,n=0;i<iCol;i++) ... pTab->aCol[i]`, reading past the end of the aCol[] allocation when iCol is out of range. Ran the identical PoC via the run_poc tool (same command/input) against all three built versions: post_intro -> exit=134, crashed=True, 'AddressSanitizer: heap-buffer-overflow ... READ of size 2 ... in sqlite3TableColumnToStorage', with the call stack going through sqlite3_preupdate_old -> the harness's preupdate hook -> sqlite3VdbePreUpdateHook, i.e. exactly the labelled API and root cause; pre_intro -> exit=0, crashed=False, harness ran to completion ('done'); post_benign -> exit=0, crashed=False, same clean completion. This is the canonical pattern (pre clean, intro crashes, benign clean) confirming both introduction and the benign fix.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/sqlite/1563148e5154b3e39348/attempts/01/replay/pr_review_FORUM-b617e497287235d0.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/sqlite/1563148e5154b3e39348/attempts/01/replay/pr_review_FORUM-b617e497287235d0.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/sqlite/1563148e5154b3e39348/attempts/01/replay/pr_review_FORUM-b617e497287235d0.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "6e2f9fa0067a3b19c5f5b4472771c73298514ac7d5f73082bc4c0341087ee885",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "9dcf3d08c9edc0c30e07a6a06f9d0dd73bfad529",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "b559de3c638b95dcf5b8f2daad408db285c85de223da3fab2e4624c8d4b976e1"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=134\n\n=================================================================\n==16==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x5060000002a6 at pc 0x55addc7ccb73 bp 0x7ffd6f49ef10 sp 0x7ffd6f49ef00\nREAD of size 2 at 0x5060000002a6 thread T0\n    #0 0x55addc7ccb72 in sqlite3TableColumnToStorage /work/sqlite3.c:123181\n    #1 0x55addc9288ca in sqlite3_preupdate_old /work/sqlite3.c:92759\n    #2 0x55addc7b2cc5 in preupdate_hook /poc/poc.c:17\n    #3 0x55addc812d15 in sqlite3VdbePreUpdateHook /work/sqlite3.c:90538\n    #4 0x55addc9dfabe in sqlite3VdbeExec /work/sqlite3.c:99334\n    #5 0x55addc9fc7cd in sqlite3Step /work/sqlite3.c:91408\n    #6 0x55addc9fc7cd in sqlite3_step /work/sqlite3.c:91469\n    #7 0x55addc9fdba3 in sqlite3_exec /work/sqlite3.c:137187\n    #8 0x55addc7b3100 in main /poc/poc.c:46\n    #9 0x7faea2283d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #10 0x7faea2283e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #11 0x55addc7b2b44 in _start (/tmp/poc+0x370b44)\n\n0x5060000002a6 is located 14 bytes to the right of 56-byte region [0x506000000260,0x506000000298)\nallocated by thread T0 here:\n    #0 0x7faea2b6cc38 in __interceptor_realloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:164\n    #1 0x55addc8d9f10 in sqlite3MemRealloc /work/sqlite3.c:27097\n    #2 0x55addc819b0b in sqlite3Realloc /work/sqlite3.c:31032\n    #3 0x55addc84893e in dbReallocFinish /work/sqlite3.c:31223\n    #4 0x55addc8489d9 in sqlite3DbRealloc /work/sqlite3.c:31206\n    #5 0x55addca2a8ee in sqlite3AddColumn /work/sqlite3.c:123572\n    #6 0x55addca2a8ee in yy_reduce /work/sqlite3.c:177858\n    #7 0x55addca2a8ee in sqlite3Parser /work/sqlite3.c:179506\n    #8 0x55addca2a8ee in sqlite3RunParser /work/sqlite3.c:180840\n    #9 0x55addca4ec05 in sqlite3Prepare /work/sqlite3.c:143435\n    #10 0x55addca5f7c3 in sqlite3InitCallback /work/sqlite3.c:142794\n    #11 0x55addc9fdb60 in sqlite3_exec /work/sqlite3.c:137218\n    #12 0x55addc9e9fa5 in sqlite3VdbeExec /work/sqlite3.c:100507\n    #13 0x55addc9fc7cd in sqlite3Step /work/sqlite3.c:91408\n    #14 0x55addc9fc7cd in sqlite3_step /work/sqlite3.c:91469\n    #15 0x55addc9fdba3 in sqlite3_exec /work/sqlite3.c:137187\n    #16 0x55addc7b2f34 in main /poc/poc.c:31\n    #17 0x7faea2283d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/sqlite3.c:123181 in sqlite3TableColumnToStorage\nShadow bytes around the buggy address:\n  0x0a0c7fff8000: fa fa fa fa fd fd fd fd fd fd fd fa fa fa fa fa\n  0x0a0c7fff8010: fd fd fd fd fd fd fd fa fa fa fa fa fd fd fd fd\n  0x0a0c7fff8020: fd fd fd fd fa fa fa fa fd fd fd fd fd fd fd fa\n  0x0a0c7fff8030: fa fa fa fa fd fd fd fd fd fd fd fa fa fa fa fa\n  0x0a0c7fff8040: fd fd fd fd fd fd fd fd fa fa fa fa 00 00 00 00\n=>0x0a0c7fff8050: 00 00 00 fa[fa]fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8090: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff80a0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right re",
+            "stdout_tail": "addc7b2b44 in _start (/tmp/poc+0x370b44)\n\n0x5060000002a6 is located 14 bytes to the right of 56-byte region [0x506000000260,0x506000000298)\nallocated by thread T0 here:\n    #0 0x7faea2b6cc38 in __interceptor_realloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:164\n    #1 0x55addc8d9f10 in sqlite3MemRealloc /work/sqlite3.c:27097\n    #2 0x55addc819b0b in sqlite3Realloc /work/sqlite3.c:31032\n    #3 0x55addc84893e in dbReallocFinish /work/sqlite3.c:31223\n    #4 0x55addc8489d9 in sqlite3DbRealloc /work/sqlite3.c:31206\n    #5 0x55addca2a8ee in sqlite3AddColumn /work/sqlite3.c:123572\n    #6 0x55addca2a8ee in yy_reduce /work/sqlite3.c:177858\n    #7 0x55addca2a8ee in sqlite3Parser /work/sqlite3.c:179506\n    #8 0x55addca2a8ee in sqlite3RunParser /work/sqlite3.c:180840\n    #9 0x55addca4ec05 in sqlite3Prepare /work/sqlite3.c:143435\n    #10 0x55addca5f7c3 in sqlite3InitCallback /work/sqlite3.c:142794\n    #11 0x55addc9fdb60 in sqlite3_exec /work/sqlite3.c:137218\n    #12 0x55addc9e9fa5 in sqlite3VdbeExec /work/sqlite3.c:100507\n    #13 0x55addc9fc7cd in sqlite3Step /work/sqlite3.c:91408\n    #14 0x55addc9fc7cd in sqlite3_step /work/sqlite3.c:91469\n    #15 0x55addc9fdba3 in sqlite3_exec /work/sqlite3.c:137187\n    #16 0x55addc7b2f34 in main /poc/poc.c:31\n    #17 0x7faea2283d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/sqlite3.c:123181 in sqlite3TableColumnToStorage\nShadow bytes around the buggy address:\n  0x0a0c7fff8000: fa fa fa fa fd fd fd fd fd fd fd fa fa fa fa fa\n  0x0a0c7fff8010: fd fd fd fd fd fd fd fa fa fa fa fa fd fd fd fd\n  0x0a0c7fff8020: fd fd fd fd fa fa fa fa fd fd fd fd fd fd fd fa\n  0x0a0c7fff8030: fa fa fa fa fd fd fd fd fd fd fd fa fa fa fa fa\n  0x0a0c7fff8040: fd fd fd fd fd fd fd fd fa fa fa fa 00 00 00 00\n=>0x0a0c7fff8050: 00 00 00 fa[fa]fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8080: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff8090: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0c7fff80a0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==16==ABORTING\n/poc/run.sh: line 6:    16 Aborted                 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 /tmp/poc\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "6e2f9fa0067a3b19c5f5b4472771c73298514ac7d5f73082bc4c0341087ee885",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "0424f255efb2aaa89e29a265683fd260da2b94c7",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "226cecc6765821335512c533e76120453ca4956a052017bfb5ed9b22f29bfc9f"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "preupdate_hook done op=23\ndone\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "6e2f9fa0067a3b19c5f5b4472771c73298514ac7d5f73082bc4c0341087ee885",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "0424f255efb2aaa89e29a265683fd260da2b94c7",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "e4d121b3641817f72e773181f70789f294e11f43ff0c6ceed36e91ace711a77d"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "preupdate_hook done op=23\ndone\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "explanation": "Source inspection across versions confirms meta.json's root cause: pre_intro's sqlite3_preupdate_old() (src/vdbeapi.c) checks `iIdx>=p->pCsr->nField` directly and never calls sqlite3TableColumnToStorage(); post_intro's refactor adds `iStore = sqlite3TableColumnToStorage(p->pTab, iIdx)` in the non-pPk branch with no prior bound check of iIdx against pTab->nCol; post_benign (built from the parent source with the fix applied) inserts `else if( iIdx>=p->pTab->nCol ){ rc = SQLITE_MISUSE_BKPT; goto preupdate_old_out; }` before that call, matching fix commit 66cd200ede04. sqlite3TableColumnToStorage() (build.c) has only a debug-only assert and, for a table with a virtual/generated column, loops `for(i=0,n=0;i<iCol;i++) ... pTab->aCol[i]`, reading past the end of the aCol[] allocation when iCol is out of range. Ran the identical PoC via the run_poc tool (same command/input) against all three built versions: post_intro -> exit=134, crashed=True, 'AddressSanitizer: heap-buffer-overflow ... READ of size 2 ... in sqlite3TableColumnToStorage', with the call stack going through sqlite3_preupdate_old -> the harness's preupdate hook -> sqlite3VdbePreUpdateHook, i.e. exactly the labelled API and root cause; pre_intro -> exit=0, crashed=False, harness ran to completion ('done'); post_benign -> exit=0, crashed=False, same clean completion. This is the canonical pattern (pre clean, intro crashes, benign clean) confirming both introduction and the benign fix."
+    }
+  },
+  "task_hashes": {
+    "buggy": "f6597a1a593b91a14b4e7a4e4c5e342781a4c82e7642e3edc38ddfd3f7ae0a6b",
+    "benign": "8c00798d1d2ef9e67914e2f4d43ae6fe1bc6aade667eab21afaddb29ac488235"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-28221",
+  "bug_id": "GH-28221",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "cccdf41010d0859a0d134ac45be7218d9ffd90d2",
+  "intro_parent": "ba6f115ccfbb63fbeb2bc8df3c07918a7a59a186",
+  "fix_commit": "24f72a5aaab0243c136e1402b54348fda9cdbc36",
+  "affected_files": [
+    "crypto/x509/v3_attrdesc.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "openssl",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The field hash->hashValue is declared OPTIONAL (ASN1_OPT) in the OSSL_HASH ASN.1 template, meaning the decoder may leave it NULL. The i2r_HASH() printing function introduced alongside this new extension never checked for that NULL case before passing hash->hashValue->data/length to the hex-printing helper, assuming the field was always present.",
+  "findings": [
+    "The OSSL_HASH ASN1 structure defines hashValue as an OPTIONAL field (ASN1_OPT(OSSL_HASH, hashValue, ASN1_BIT_STRING)). The i2r_HASH() print routine, used when rendering the attributeDescriptor X.509v3 extension (reachable from CRL/certificate extension printing), unconditionally dereferences hash->hashValue->data and hash->hashValue->length without first checking that hash->hashValue is non-NULL. "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "c1ecf8d98d40f5903ed7c5d3cf2496c0e6a99b35fc86e0f69a16f068bbeecdfb",
+  "generated_artifact_sha256": {
+    "reference": "a69d6f1d9ecc23d2c5a05daa8f77b4cb7094df248e1521b43c05226e1dccfc2c",
+    "introducing": "72121f57c1e8a6053961bade4235dc87016a58f11a98334701b921e55da750df",
+    "companion": "e129114843fcb39ba0d3d3215f07ea5c1fca6e7d5bcea0a8d126f5f056be6450"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "firefox/2018075",
+  "case_id": "20d772f6768a99d535dc",
+  "project": "firefox",
+  "bug_id": "2018075",
+  "season": "2026H1",
+  "source_sha256": "d95be093e6845f946f902c43bc4e2b821a8a4abe731bfcd936ffad862f29c836",
+  "generated_artifact_sha256": {
+    "reference": "fc50bc5c00d2e5dd7b93d23247f5880a4e367ba041a8cba8bc8ed4871b467c37",
+    "introducing": "b1fea67aff7c03d331f5b90748c6a44399993fc1e5d20eadf5812f5c1e5f3095",
+    "companion": "6bc2614083cd2c51e90061801f0c7ab504d527ceee2f0d618935eb9442644ed0"
+  },
+  "poc_status": "poc_fetched",
+  "fingerprint": "5e18b51215e943a6b2bf48c2d46fb6d05b7abd11814800519414bc80cc2c647a",
+  "recipe_source_sha256": "26d2daac9d53cf5269d2e00a4fee119d2b3cf50f0341160919997cec976c6149",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "verified",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01",
+      "started_at": "2026-10-05T00:56:35.138410+00:00",
+      "status": "verified",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01/result.json",
+      "agent_used": false,
+      "ended_at": "2026-10-05T01:32:35.578002+00:00"
+    }
+  ],
+  "updated_at": "2026-10-05T01:32:35.578002+00:00",
+  "case_record": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/verification/projects/firefox/cases/2018075/case.json",
+  "report": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01/replay/pr_review_2018075.report.md",
+  "agent_used": false,
+  "recipe_sha256": "402b808220c82766e43b",
+  "final_poc_sha256": "5a0c4fa036f2c81c31774b88f8aab6d4212e82fd7275e86cf24df1d771c5ec2e"
+}

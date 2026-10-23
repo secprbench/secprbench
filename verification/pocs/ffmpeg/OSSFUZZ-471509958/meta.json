@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-471509958",
+  "bug_id": "OSSFUZZ-471509958",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "30fc5b1baaa0823f134768823ab6695211d0fe21",
+  "intro_parent": "58c0711fca17cb5231506c63f63a2aa5568a4997",
+  "fix_commit": "65fd5167686e8cf8489a271bf22fa9dc8c818a70",
+  "affected_files": [
+    "libavcodec/adpcm.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The decoder assumed the ADPCM_IMA_MAGIX bitstream always has two channels and derived its inner loop bound from avctx->block_align directly instead of from the sample count computed consistently with the output frame's allocation (get_nb_samples). No explicit handling/rejection of mono streams was added, despite the implementation only being correct for stereo.",
+  "findings": [
+    "The ADPCM_IMA_MAGIX decode case unconditionally decodes into two channel status structs (c->status[0] and c->status[1]) inside its inner sample-expansion loop, regardless of the actual number of channels (mono streams only have status[0] initialized/valid, and the output 'samples' buffer for mono has half the per-iteration capacity that the loop assumes). In addition, the outer loop bound `for (in"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "c15e1b75c1b24b9a67e96aae4179beeda071425dce2746dfdb17cec055b6e540",
+  "generated_artifact_sha256": {
+    "reference": "ff5b5600d17bf6671deb346cc3ff4d1aad935fef9c88e85a30502207bc32a2e8",
+    "introducing": "c7ca3d3df4438b342425a9dac21b5f3391c6a35a200aae4917b4f0943d296d57",
+    "companion": "5f4373b8f22136412689628d5923fb01b497b830dfe317b2e4a1bee7481d83c9"
+  }
+}

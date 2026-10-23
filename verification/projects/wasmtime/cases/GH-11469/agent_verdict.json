@@ -1,0 +1,175 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "logic-error",
+  "poc_summary": "A deterministic script (/poc/gen_and_run.sh) generates a wasm-GC module (via python, identical bytes every run) with 8 struct types of 10000 i64 fields each (640,000 bytes total, exceeding the default 512KiB GC heap), and 8 globals whose const-expr initializers are `struct.new_default $tN`. It then runs `wasmtime run -W gc=y -W function-references=y` on that module. The last global's allocation exceeds the fixed-capacity GC heap, so `StructRef::_new` returns `Err(\"GC heap out of memory\")` during global initialization (`initialize_vmctx_globals` in instance.rs), exercising exactly the code path named in the root cause (newly-reachable fallible GC allocation inside const-expr evaluation, hit via the pre-existing unconditional `eval(...).expect(...)` in the global initializer).",
+  "explanation": "Built pre_intro (bf06c66ddd3f), post_intro (128e6b8f57b6), and post_benign (bf06c66ddd3f + companion patch) with sanitizers in Docker. Inspected const_expr.rs and instance.rs: pre_intro's ConstOp enum has no StructNew/StructNewDefault variants at all (GC struct allocation is unreachable from const-expr); the intro commit adds these variants, routing them through the fallible StructRef::_new, while the existing global-initializer call site in instance.rs (`initialize_vmctx_globals`) still does `const_evaluator.eval(&mut context, init).expect(\"should be a valid const expr\")` unconditionally \u2014 exactly the stated root cause. No PoC/run.sh existed, so I crafted a deterministic generator script producing a WasmGC module whose defined globals use `struct.new_default` on struct types large enough in aggregate to exceed the fixed 512KiB default GC heap capacity, guaranteeing the last global's `StructRef::_new` call returns `Err`. Running the identical script via run_poc against all three builds gives: pre_intro -> graceful module-parse rejection (opcode doesn't exist pre-intro, confirming the panic isn't a generic/unrelated input-parsing artifact); post_intro -> a genuine Rust panic at the exact `.expect()` site named in meta.json; post_benign -> the same underlying GC-OOM condition surfaces as a cleanly propagated `anyhow::Error` with no panic. This satisfies the LogicError oracle: a precise, self-checking, target-exercising reproduction with exact distinguishing output lines recorded identically (same command/content) for all three revisions.",
+  "oracle": {
+    "kind": "behavioral",
+    "bug_marker": "thread 'main' panicked at crates/wasmtime/src/runtime/vm/instance.rs:1283:18: should be a valid const expr: GC heap out of memory (exit=101, Rust panic/abort)",
+    "pre_marker": "Error: failed to parse WebAssembly module / Caused by: Unsupported feature: unsupported opcode in const expression ... StructNewDefault (exit=1, no panic \u2014 struct.new in const-expr position isn't a legal opcode pre-intro, so the fallible-GC-alloc path added by the intro commit does not exist yet)",
+    "benign_marker": "Error: failed to run main module ... Caused by: 0: failed to instantiate ... 1: GC heap out of memory (exit=1, clean propagated error, no panic)",
+    "description": "Same generated module + same `bash /poc/gen_and_run.sh` (-> `wasmtime run -W gc=y -W function-references=y`) run via run_poc against pre_intro, post_intro, and post_benign builds. Distinguishing signal: presence/absence of a Rust panic (`thread 'main' panicked ...`, process exit 101) vs. a clean propagated `anyhow::Error` (process exit 1) reporting the identical underlying \"GC heap out of memory\" condition.",
+    "target_evidence": "Backtrace in post_intro: StructRef::_new -> ConstEvalContext::struct_new -> ConstExprEvaluator::eval -> Instance::new, with the panic resolving to instance.rs:1283:18, exactly the `.expect(\"should be a valid const expr\")` call on `const_evaluator.eval(&mut context, init)` inside `initialize_vmctx_globals` named in meta.json's root_cause/findings. post_benign reaches the identical GC-heap-out-of-memory condition (same backtrace frames) but returns it as a normal `Result` error instead of panicking, matching fix_commit 7941919851b8 (removing unwrap/expect on const-expr eval results in favor of `?`)."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "read_context(evidence/test_01_6b36d002732e70a7_gc.rs)",
+    "build_version(pre_intro)->True",
+    "build_version(post_intro)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(gen_and_run.sh)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(gen_and_run.sh)",
+    "docker_shell(post_intro)",
+    "build_version(post_benign)->True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "docker_shell(post_benign)",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "bash /poc/gen_and_run.sh",
+      "input": null,
+      "poc_sha256": "ab1519b03f15c0daec95561b724389e959ee241be7fea6dbcca8387c5b5b8f82",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "128e6b8f57b6b7fa92f9235bc2cd128a8145521d",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "8f585786bbc720fe8278e44e26f06879aa20c760a746dadaa600da43152a7e1c"
+        }
+      },
+      "run": {
+        "exit_code": 101,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "er::unix::fiber_start\n  13: wasmtime_fiber_start_26_0_0\n  14: wasmtime_fiber::unix::asan::fiber_switch\n  15: wasmtime_fiber::Fiber<Resume,Yield,Return>::resume\n  16: wasmtime::runtime::store::<impl wasmtime::runtime::store::context::StoreContextMut<T>>::on_fiber::{{closure}}::FiberFuture::resume\n  17: <wasmtime::runtime::store::<impl wasmtime::runtime::store::context::StoreContextMut<T>>::on_fiber::{{closure}}::FiberFuture as core::future::future::Future>::poll\n  18: wasmtime::runtime::instance::Instance::new_started_async::{{closure}}\n  19: wasmtime_cli::commands::run::RunCommand::load_main_module::{{closure}}\n  20: <tokio::time::timeout::Timeout<T> as core::future::future::Future>::poll\n  21: wasmtime_cli::commands::run::RunCommand::execute::{{closure}}\n  22: tokio::runtime::park::CachedParkThread::block_on\n  23: tokio::runtime::context::runtime::enter_runtime\n  24: tokio::runtime::runtime::Runtime::block_on\n  25: wasmtime_cli::commands::run::RunCommand::execute\n  26: wasmtime::main\n  27: std::sys::backtrace::__rust_begin_short_backtrace\n  28: std::rt::lang_start::{{closure}}\n  29: std::rt::lang_start_internal\n  30: std::rt::lang_start\n  31: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  32: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  33: _start\nstack backtrace:\n   0: rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::result::unwrap_failed\n   3: wasmtime::runtime::vm::instance::Instance::new\n   4: wasmtime::runtime::vm::instance::allocator::InstanceAllocator::allocate_module\n   5: wasmtime::runtime::instance::Instance::new_raw\n   6: wasmtime::runtime::instance::Instance::new_started_impl\n   7: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n   8: std::panicking::try::do_call\n   9: __rust_try\n  10: wasmtime_fiber::Suspend<Resume,Yield,Return>::execute\n  11: wasmtime_fiber::unix::fiber_start\n  12: wasmtime_fiber_start_26_0_0\n  13: wasmtime_fiber::unix::asan::fiber_switch\n  14: wasmtime_fiber::Fiber<Resume,Yield,Return>::resume\n  15: wasmtime::runtime::store::<impl wasmtime::runtime::store::context::StoreContextMut<T>>::on_fiber::{{closure}}::FiberFuture::resume\n  16: <wasmtime::runtime::store::<impl wasmtime::runtime::store::context::StoreContextMut<T>>::on_fiber::{{closure}}::FiberFuture as core::future::future::Future>::poll\n  17: wasmtime::runtime::instance::Instance::new_started_async::{{closure}}\n  18: wasmtime_cli::commands::run::RunCommand::load_main_module::{{closure}}\n  19: <tokio::time::timeout::Timeout<T> as core::future::future::Future>::poll\n  20: wasmtime_cli::commands::run::RunCommand::execute::{{closure}}\n  21: tokio::runtime::park::CachedParkThread::block_on\n  22: tokio::runtime::context::runtime::enter_runtime\n  23: tokio::runtime::runtime::Runtime::block_on\n  24: wasmtime_cli::commands::run::RunCommand::execute\n  25: wasmtime::main\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+      }
+    },
+    "pre_intro": {
+      "command": "bash /poc/gen_and_run.sh",
+      "input": null,
+      "poc_sha256": "ab1519b03f15c0daec95561b724389e959ee241be7fea6dbcca8387c5b5b8f82",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "bf06c66ddd3fbe0a493e0c9f0fb53a5d555feac4",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "1775f969e09ff591403f09a50820b2910f843bddb8057ee0e27b245549b56242"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=1\n\nError: failed to parse WebAssembly module\n\nCaused by:\n    Unsupported feature: unsupported opcode in const expression at offset 0x2712b: StructNewDefault { struct_type_index: 0 }\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate\n   2: wasmtime::compile::build_artifacts\n   3: core::ops::function::FnOnce::call_once\n   4: wasmtime_cache::ModuleCacheEntry::get_data_raw\n   5: wasmtime::compile::runtime::<impl wasmtime::compile::code_builder::CodeBuilder>::compile_module\n   6: wasmtime_cli::common::RunCommon::load_module\n   7: wasmtime_cli::commands::run::RunCommand::execute\n   8: wasmtime::main\n   9: std::sys::backtrace::__rust_begin_short_backtrace\n  10: std::rt::lang_start::{{closure}}\n  11: std::rt::lang_start_internal\n  12: std::rt::lang_start\n  13: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  14: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  15: _start\n"
+      }
+    },
+    "post_benign": {
+      "command": "bash /poc/gen_and_run.sh",
+      "input": null,
+      "poc_sha256": "ab1519b03f15c0daec95561b724389e959ee241be7fea6dbcca8387c5b5b8f82",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "bf06c66ddd3fbe0a493e0c9f0fb53a5d555feac4",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "ae2ec2c145cc1c49d7c8b2dbfa2f69df0eb35390b062636731f4bed20fad4f01"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=1\n\nError: failed to run main module `/tmp/poc_gc_oom.wat`\n\nCaused by:\n    0: failed to instantiate \"/tmp/poc_gc_oom.wat\"\n    1: GC heap out of memory\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime::runtime::gc::enabled::structref::StructRef::_new\n   2: wasmtime::runtime::vm::const_expr::ConstEvalContext::struct_new\n   3: wasmtime::runtime::vm::const_expr::ConstExprEvaluator::eval\n   4: wasmtime::runtime::vm::instance::Instance::initialize_vmctx_globals\n   5: wasmtime::runtime::vm::instance::allocator::initialize_instance\n   6: wasmtime::runtime::instance::Instance::new_raw\n   7: wasmtime::runtime::instance::Instance::new_started_impl\n   8: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n   9: std::panicking::try::do_call\n  10: __rust_try\n  11: wasmtime_fiber::Suspend<Resume,Yield,Return>::execute\n  12: wasmtime_fiber::unix::fiber_start\n  13: wasmtime_fiber_start_26_0_0\n  14: wasmtime_fiber::unix::asan::fiber_switch\n  15: wasmtime_fiber::Fiber<Resume,Yield,Return>::resume\n  16: wasmtime::runtime::store::<impl wasmtime::runtime::store::context::StoreContextMut<T>>::on_fiber::{{closure}}::FiberFuture::resume\n  17: <wasmtime::runtime::store::<impl wasmtime::runtime::store::context::StoreContextMut<T>>::on_fiber::{{closure}}::FiberFuture as core::future::future::Future>::poll\n  18: wasmtime::runtime::instance::Instance::new_started_async::{{closure}}\n  19: wasmtime_cli::commands::run::RunCommand::load_main_module::{{closure}}\n  20: <tokio::time::timeout::Timeout<T> as core::future::future::Future>::poll\n  21: wasmtime_cli::commands::run::RunCommand::execute::{{closure}}\n  22: tokio::runtime::park::CachedParkThread::block_on\n  23: tokio::runtime::context::runtime::enter_runtime\n  24: tokio::runtime::runtime::Runtime::block_on\n  25: wasmtime_cli::commands::run::RunCommand::execute\n  26: wasmtime::main\n  27: std::sys::backtrace::__rust_begin_short_backtrace\n  28: std::rt::lang_start::{{closure}}\n  29: std::rt::lang_start_internal\n  30: std::rt::lang_start\n  31: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  32: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  33: _start\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

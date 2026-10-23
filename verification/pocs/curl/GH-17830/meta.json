@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-17830",
+  "bug_id": "GH-17830",
+  "bug_type": "Other",
+  "intro_commit": "460ead61b6feec048a66914fe9281676fef21018",
+  "intro_parent": "e2a23d5d0d566105237acec37a2c22a6f79cee3e",
+  "fix_commit": "cbf261e2de9f349c5b1ef0a8dc980988558455c5",
+  "affected_files": [
+    "lib/vtls/rustls.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "lib/vtls/rustls.c calls Curl_base64_decode() (which allocates through curl's internal, overridable malloc) to obtain the ECHConfig buffer but frees it with the plain libc free() because the translation unit never included curl_memory.h/memdebug.h, which are what redirect malloc/free calls in a given .c file to curl's tracked/overridable allocator functions. This mismatch between the allocator used to obtain memory and the deallocator used to release it is only safe by coincidence in default (no override, no memdebug) builds; it becomes an invalid free once curl's memory function overrides or memory debugging are engaged.",
+  "findings": [
+    "In init_config_builder_ech(), when an ECHConfig is supplied via the command line, the base64-decoded buffer `ech_config` is allocated by Curl_base64_decode() (curlx_base64_decode in later refactors), which performs its allocation through curl's internal, potentially-overridden malloc (curl_malloc / memory-tracking wrappers activated via curl_memory.h / memdebug.h when included by the allocating tr"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "911732a8f1bdf07c68c6ba943483708f0de6834aaa95f5b545ffb713b1bb4550",
+  "generated_artifact_sha256": {
+    "reference": "78123926d3dcadb4b25e74c26b9e6d85776d31fcdcf8471feaea2d63b02a949d",
+    "introducing": "6034b2a1c3ee771025b001de5e6988da0c500174e7ab1618b96350ab6b856862",
+    "companion": "3a193ff4ba2afcd018caa929a6ed2be0499b20e020e6c9c64dd4085e404bb60a"
+  }
+}

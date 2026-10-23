@@ -1,0 +1,206 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-416538625",
+    "bug_id": "OSSFUZZ-416538625",
+    "bug_type": "LogicError",
+    "intro_commit": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+    "intro_parent": "f93a897afedf4a634c74d3d2871519e675ee0d83",
+    "fix_commit": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+    "affected_files": [
+      "src/truetype/ttgload.c",
+      "src/cff/cffgload.c",
+      "src/sfnt/ttsvg.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reasons": [
+      "The agent claim lacks a matching admissible three-version oracle.",
+      "Ran the identical oracle binary (built fresh against each revision's libfreetype.a per run.sh) against the identical svg-alloc.ttf input on pre_intro, post_intro, and post_benign. Results cleanly match the labelled regression: pre_intro reports large_alloc_count=0 (the glyph loader did not yet call tt_face_load_svg_doc at all prior to the intro commit, so the vulnerable path is unreached), post_intro reports large_alloc_count=1 max_large_bytes=134217728 (the newly-added call path reaches tt_face_load_svg_doc, which trusts the gzip trailer's ISIZE and requests an uncapped 128 MiB buffer via FT_QALLOC), and post_benign reports large_alloc_count=0 again (the companion fix caps the buffer size, matching upstream commit 6fa8725a4167's MAX_SVG_SIZE guard). This is a behavioral/logic oracle (no crash expected or required) measuring an unchecked oversized-allocation request, which is a faithful proxy for the documented allocation-bomb root cause. Same input/command invariant across all three builds."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-final (initial source: locally_fix_derived)",
+    "poc_dir": "/research-data/secprbench/freetype-svg-alloc-normal-import-v1/verification/cases/freetype/f4a3f154a629babbef5b/attempts/01/pocs/freetype/OSSFUZZ-416538625",
+    "input_file": "/research-data/secprbench/freetype-svg-alloc-normal-import-v1/verification/cases/freetype/f4a3f154a629babbef5b/attempts/01/pocs/freetype/OSSFUZZ-416538625/svg-alloc.ttf",
+    "input_name": "svg-alloc.ttf",
+    "size": 887645,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "f93a897afedf4a634c74d3d2871519e675ee0d83",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=0 max_large_bytes=0\nORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST\nVERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "88210bae8ec27c96599b31e24d5d01c185ba479970ce0bf363e80c048a60be3a"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=1 max_large_bytes=134217728\nORACLE_RESULT=VULNERABLE_128M_ALLOCATION_REQUEST\nVERIFY_EXIT=1\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "51ee1b9fb6f8f5e8c917310fda6296d6d8148ee04ee9a6d2c3cc653e3f3f8236"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "f93a897afedf4a634c74d3d2871519e675ee0d83",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=0 max_large_bytes=0\nORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST\nVERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "89df311fa3d5b9dfaf88324bcc4120c5461d858cc26382c19010bb906f47193a"
+      }
+    }
+  },
+  "agent_executions": {
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "svg-alloc.ttf",
+      "poc_sha256": "8d7534a1389b7839e79e6adc11826d674316760f35fc77e195a0b935f7468750",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "f93a897afedf4a634c74d3d2871519e675ee0d83",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "88210bae8ec27c96599b31e24d5d01c185ba479970ce0bf363e80c048a60be3a"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=0 max_large_bytes=0\nORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "svg-alloc.ttf",
+      "poc_sha256": "8d7534a1389b7839e79e6adc11826d674316760f35fc77e195a0b935f7468750",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "51ee1b9fb6f8f5e8c917310fda6296d6d8148ee04ee9a6d2c3cc653e3f3f8236"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=1 max_large_bytes=134217728\nORACLE_RESULT=VULNERABLE_128M_ALLOCATION_REQUEST\nVERIFY_EXIT=1\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "svg-alloc.ttf",
+      "poc_sha256": "8d7534a1389b7839e79e6adc11826d674316760f35fc77e195a0b935f7468750",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "f93a897afedf4a634c74d3d2871519e675ee0d83",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "89df311fa3d5b9dfaf88324bcc4120c5461d858cc26382c19010bb906f47193a"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=0 max_large_bytes=0\nORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=1 max_large_bytes=134217728 / ORACLE_RESULT=VULNERABLE_128M_ALLOCATION_REQUEST",
+    "pre_marker": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=0 max_large_bytes=0 / ORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST",
+    "benign_marker": "ORACLE library_error=0 face_error=0 size_error=0 glyph_error=0 face_flags=68185 glyph_format=1869968492 large_alloc_count=0 max_large_bytes=0 / ORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST",
+    "description": "Custom oracle.c harness loads the SVG glyph and instruments/intercepts the allocator to count and size-track any allocation requests at or above a large-size threshold while loading the embedded compressed OT-SVG document; run.sh classifies the oracle's printed summary line into VULNERABLE_128M_ALLOCATION_REQUEST vs NO_LARGE_ALLOCATION_REQUEST vs UNKNOWN and sets the process exit code accordingly.",
+    "target_evidence": "run_poc(pre_intro): exit=0, output contains large_alloc_count=0 max_large_bytes=0, ORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST. run_poc(post_intro): exit=1, output contains large_alloc_count=1 max_large_bytes=134217728, ORACLE_RESULT=VULNERABLE_128M_ALLOCATION_REQUEST. run_poc(post_benign): exit=0, output contains large_alloc_count=0 max_large_bytes=0, ORACLE_RESULT=NO_LARGE_ALLOCATION_REQUEST. All three builds succeeded (build_ok=true) and used the identical input svg-alloc.ttf and identical run.sh/oracle.c invocation."
+  },
+  "agent_oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

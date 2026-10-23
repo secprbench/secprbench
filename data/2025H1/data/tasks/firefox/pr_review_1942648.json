@@ -1,0 +1,157 @@
+{
+  "task_id": "pr_review_1942648",
+  "bug_id": "1942648",
+  "commit_sha": "9385dab26b9068d849e2766768d2eacf99c7dfc2",
+  "commit_message": "Bug 1941826: Don't guard for number types in emitGuardIsNumber. r=jandem\n\nThis aligns Warp transpilation with CacheIR, because in CacheIR `NumberOperandId`\ncan mean either `Double` or `Int32`. (There isn't yet an explicit\n`DoubleOperandId` to denote a value is guaranteed to be a Double.)\n\nFloat32 optimisations can be more easily applied when `MToDouble` isn't emitted\nand we also no longer need the `MToDouble::canProduceFloat32` override added in\nD215775.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D234348",
+  "commit_author": "Andr\u00e9 Bargull",
+  "commit_date": "2025-01-17T11:49:19Z",
+  "pr_title": "Bug 1941826: Don't guard for number types in emitGuardIsNumber. r=jandem",
+  "pr_description": "This aligns Warp transpilation with CacheIR, because in CacheIR `NumberOperandId`\ncan mean either `Double` or `Int32`. (There isn't yet an explicit\n`DoubleOperandId` to denote a value is guaranteed to be a Double.)\n\nFloat32 optimisations can be more easily applied when `MToDouble` isn't emitted\nand we also no longer need the `MToDouble::canProduceFloat32` override added in\nD215775.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D234348",
+  "files": [
+    {
+      "path": "js/src/jit/MIR.h",
+      "status": "modified",
+      "additions": 0,
+      "deletions": 4,
+      "diff": "diff --git a/js/src/jit/MIR.h b/js/src/jit/MIR.h\nindex 88b38e4eb865..1083356ed6ff 100644\n--- a/js/src/jit/MIR.h\n+++ b/js/src/jit/MIR.h\n@@ -3363,24 +3363,20 @@ class MToDouble : public MToFPInstruction {\n \n   void computeRange(TempAllocator& alloc) override;\n   bool canTruncate() const override;\n   void truncate(TruncateKind kind) override;\n   TruncateKind operandTruncateKind(size_t index) const override;\n \n #ifdef DEBUG\n   bool isConsistentFloat32Use(MUse* use) const override { return true; }\n #endif\n \n-  bool canProduceFloat32() const override {\n-    return input()->canProduceFloat32();\n-  }\n-\n   TruncateKind truncateKind() const { return implicitTruncate_; }\n   void setTruncateKind(TruncateKind kind) {\n     implicitTruncate_ = std::max(implicitTruncate_, kind);\n   }\n \n   [[nodiscard]] bool writeRecoverData(\n       CompactBufferWriter& writer) const override;\n   bool canRecoverOnBailout() const override {\n     if (input()->type() == MIRType::Value) {\n       return false;\n"
+    },
+    {
+      "path": "js/src/jit/WarpCacheIRTranspiler.cpp",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 6,
+      "diff": "diff --git a/js/src/jit/WarpCacheIRTranspiler.cpp b/js/src/jit/WarpCacheIRTranspiler.cpp\nindex 7842b67bf296..62b3d490d8b5 100644\n--- a/js/src/jit/WarpCacheIRTranspiler.cpp\n+++ b/js/src/jit/WarpCacheIRTranspiler.cpp\n@@ -1347,27 +1347,24 @@ bool WarpCacheIRTranspiler::emitGuardBooleanToInt32(ValOperandId inputId,\n   MDefinition* input = getOperand(inputId);\n   MOZ_ASSERT(input->type() == MIRType::Boolean);\n \n   auto* ins = MBooleanToInt32::New(alloc(), input);\n   add(ins);\n \n   return defineOperand(resultId, ins);\n }\n \n bool WarpCacheIRTranspiler::emitGuardIsNumber(ValOperandId inputId) {\n-  // Prefer MToDouble because it gets further optimizations downstream.\n   MDefinition* def = getOperand(inputId);\n-  if (def->type() == MIRType::Int32 || def->type() == MIRType::Float32) {\n-    auto* ins = MToDouble::New(alloc(), def);\n-    add(ins);\n \n-    setOperand(inputId, ins);\n+  // No guard needed when the input is already a number type.\n+  if (IsNumberType(def->type())) {\n     return true;\n   }\n \n   // MIRType::Double also implies int32 in Ion.\n   return emitGuardTo(inputId, MIRType::Double);\n }\n \n bool WarpCacheIRTranspiler::emitGuardIsNullOrUndefined(ValOperandId inputId) {\n   MDefinition* input = getOperand(inputId);\n   if (input->type() == MIRType::Null || input->type() == MIRType::Undefined) {\n@@ -1599,21 +1596,29 @@ bool WarpCacheIRTranspiler::emitStringToAtom(StringOperandId strId) {\n \n bool WarpCacheIRTranspiler::emitLoadInt32Result(Int32OperandId valId) {\n   MDefinition* val = getOperand(valId);\n   MOZ_ASSERT(val->type() == MIRType::Int32);\n   pushResult(val);\n   return true;\n }\n \n bool WarpCacheIRTranspiler::emitLoadDoubleResult(NumberOperandId valId) {\n   MDefinition* val = getOperand(valId);\n-  MOZ_ASSERT(val->type() == MIRType::Double);\n+  MOZ_ASSERT(IsNumberType(val->type()));\n+\n+  if (val->type() != MIRType::Double) {\n+    auto* ins = MToDouble::New(alloc(), val);\n+    add(ins);\n+\n+    val = ins;\n+  }\n+\n   pushResult(val);\n   return true;\n }\n \n bool WarpCacheIRTranspiler::emitLoadBigIntResult(BigIntOperandId valId) {\n   MDefinition* val = getOperand(valId);\n   MOZ_ASSERT(val->type() == MIRType::BigInt);\n   pushResult(val);\n   return true;\n }\n"
+    }
+  ],
+  "full_diff": "diff --git a/js/src/jit/MIR.h b/js/src/jit/MIR.h\nindex 88b38e4eb865..1083356ed6ff 100644\n--- a/js/src/jit/MIR.h\n+++ b/js/src/jit/MIR.h\n@@ -3363,24 +3363,20 @@ class MToDouble : public MToFPInstruction {\n \n   void computeRange(TempAllocator& alloc) override;\n   bool canTruncate() const override;\n   void truncate(TruncateKind kind) override;\n   TruncateKind operandTruncateKind(size_t index) const override;\n \n #ifdef DEBUG\n   bool isConsistentFloat32Use(MUse* use) const override { return true; }\n #endif\n \n-  bool canProduceFloat32() const override {\n-    return input()->canProduceFloat32();\n-  }\n-\n   TruncateKind truncateKind() const { return implicitTruncate_; }\n   void setTruncateKind(TruncateKind kind) {\n     implicitTruncate_ = std::max(implicitTruncate_, kind);\n   }\n \n   [[nodiscard]] bool writeRecoverData(\n       CompactBufferWriter& writer) const override;\n   bool canRecoverOnBailout() const override {\n     if (input()->type() == MIRType::Value) {\n       return false;\ndiff --git a/js/src/jit/WarpCacheIRTranspiler.cpp b/js/src/jit/WarpCacheIRTranspiler.cpp\nindex 7842b67bf296..62b3d490d8b5 100644\n--- a/js/src/jit/WarpCacheIRTranspiler.cpp\n+++ b/js/src/jit/WarpCacheIRTranspiler.cpp\n@@ -1347,27 +1347,24 @@ bool WarpCacheIRTranspiler::emitGuardBooleanToInt32(ValOperandId inputId,\n   MDefinition* input = getOperand(inputId);\n   MOZ_ASSERT(input->type() == MIRType::Boolean);\n \n   auto* ins = MBooleanToInt32::New(alloc(), input);\n   add(ins);\n \n   return defineOperand(resultId, ins);\n }\n \n bool WarpCacheIRTranspiler::emitGuardIsNumber(ValOperandId inputId) {\n-  // Prefer MToDouble because it gets further optimizations downstream.\n   MDefinition* def = getOperand(inputId);\n-  if (def->type() == MIRType::Int32 || def->type() == MIRType::Float32) {\n-    auto* ins = MToDouble::New(alloc(), def);\n-    add(ins);\n \n-    setOperand(inputId, ins);\n+  // No guard needed when the input is already a number type.\n+  if (IsNumberType(def->type())) {\n     return true;\n   }\n \n   // MIRType::Double also implies int32 in Ion.\n   return emitGuardTo(inputId, MIRType::Double);\n }\n \n bool WarpCacheIRTranspiler::emitGuardIsNullOrUndefined(ValOperandId inputId) {\n   MDefinition* input = getOperand(inputId);\n   if (input->type() == MIRType::Null || input->type() == MIRType::Undefined) {\n@@ -1599,21 +1596,29 @@ bool WarpCacheIRTranspiler::emitStringToAtom(StringOperandId strId) {\n \n bool WarpCacheIRTranspiler::emitLoadInt32Result(Int32OperandId valId) {\n   MDefinition* val = getOperand(valId);\n   MOZ_ASSERT(val->type() == MIRType::Int32);\n   pushResult(val);\n   return true;\n }\n \n bool WarpCacheIRTranspiler::emitLoadDoubleResult(NumberOperandId valId) {\n   MDefinition* val = getOperand(valId);\n-  MOZ_ASSERT(val->type() == MIRType::Double);\n+  MOZ_ASSERT(IsNumberType(val->type()));\n+\n+  if (val->type() != MIRType::Double) {\n+    auto* ins = MToDouble::New(alloc(), val);\n+    add(ins);\n+\n+    val = ins;\n+  }\n+\n   pushResult(val);\n   return true;\n }\n \n bool WarpCacheIRTranspiler::emitLoadBigIntResult(BigIntOperandId valId) {\n   MDefinition* val = getOperand(valId);\n   MOZ_ASSERT(val->type() == MIRType::BigInt);\n   pushResult(val);\n   return true;\n }\n",
+  "ground_truth": {
+    "bug_id": "1942648",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "8354ae880cf5c7999ce47e94249450148d5d0db4",
+      "short_sha": "8354ae8",
+      "message": "Bug 1942648: Support MSign with Int32 input and Double output. r=jandem",
+      "author": "Andr\u00e9 Bargull",
+      "date": "2025-01-22T10:15:06Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-jit-type-confusion-001",
+        "title": "Missing type conversion case in visitSign causes JIT type confusion",
+        "message": "The change to emitGuardIsNumber removed automatic conversion of Int32/Float32 inputs to Double. This broke an implicit assumption in visitSign that when input and output types differ, the input is always Double and output is Int32. When MSign now receives Int32 input with Double output, the else branch incorrectly asserts the opposite and uses LSignDI (Double input, Int32 output) instead of a proper LSignID (Int32 input, Double output). This causes: 1) Writing to an unrelated general purpose register instead of the allocated float output register, 2) The allocated float register retains its previous value, enabling type confusion where uninitialized/stale float data can be read as legitimate values.",
+        "location": {
+          "file": "js/src/jit/WarpCacheIRTranspiler.cpp",
+          "start_line": 1356,
+          "end_line": 1366,
+          "start_column": null,
+          "end_column": null,
+          "function": "WarpCacheIRTranspiler::emitGuardIsNumber",
+          "snippet": "bool WarpCacheIRTranspiler::emitGuardIsNumber(ValOperandId inputId) {\n  MDefinition* def = getOperand(inputId);\n\n  // No guard needed when the input is already a number type.\n  if (IsNumberType(def->type())) {\n    return true;\n  }\n\n  // MIRType::Double also implies int32 in Ion.\n  return emitGuardTo(inputId, MIRType::Double);\n}",
+          "snippet_hash": null
+        },
+        "related_locations": [
+          {
+            "file": "js/src/jit/Lowering.cpp",
+            "start_line": 2089,
+            "end_line": 2107,
+            "start_column": null,
+            "end_column": null,
+            "function": "LIRGenerator::visitSign",
+            "snippet": null,
+            "snippet_hash": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "TypeConfusion",
+        "confidence": 0.95,
+        "suggestion": "When removing the automatic type conversion in emitGuardIsNumber, all downstream consumers that rely on specific type combinations need to be audited and updated. The visitSign function in Lowering.cpp needs to handle the new case where input is Int32 and output is Double by adding a new LIR instruction (LSignID) and corresponding code generation.",
+        "suggestion_code": "// In emitGuardIsNumber, if removing conversion, ensure all MSign consumers handle Int32->Double case\n// OR add explicit conversion for operations that require specific input types:\nif (def->type() == MIRType::Int32 || def->type() == MIRType::Float32) {\n  // Check if downstream operations require Double conversion\n  auto* ins = MToDouble::New(alloc(), def);\n  add(ins);\n  setOperand(inputId, ins);\n  return true;\n}",
+        "tags": [
+          "security",
+          "jit",
+          "type-confusion",
+          "memory-safety"
+        ],
+        "cwe_ids": [
+          "CWE-843"
+        ],
+        "references": []
+      },
+      {
+        "rule_id": "sec-jit-type-confusion-002",
+        "title": "Incomplete type handling in LIRGenerator::visitSign",
+        "message": "The visitSign function only handles two cases: (1) same input/output types, and (2) Double input with Int32 output. After the change in emitGuardIsNumber, a third case became possible: Int32 input with Double output. The assertions at lines 2100-2101 assume the impossible third case cannot happen, but it now can. When this case is hit, the code incorrectly creates an LSignDI instruction (for Double->Int32) when it should create an LSignID instruction (for Int32->Double). This register type mismatch leads to writing to wrong registers and type confusion.",
+        "location": {
+          "file": "js/src/jit/Lowering.cpp",
+          "start_line": 2099,
+          "end_line": 2106,
+          "start_column": null,
+          "end_column": null,
+          "function": "LIRGenerator::visitSign",
+          "snippet": "  } else {\n    MOZ_ASSERT(ins->type() == MIRType::Int32);\n    MOZ_ASSERT(ins->input()->type() == MIRType::Double);\n\n    auto* lir = new (alloc()) LSignDI(useRegister(ins->input()), tempDouble());\n    assignSnapshot(lir, ins->bailoutKind());\n    define(lir, ins);\n  }",
+          "snippet_hash": null
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "TypeConfusion",
+        "confidence": 0.95,
+        "suggestion": "Add explicit handling for the Int32 input / Double output case by creating a new LSignID LIR instruction and corresponding CodeGenerator visitor. The fix should enumerate all four possible type combinations explicitly rather than relying on implicit assumptions.",
+        "suggestion_code": "void LIRGenerator::visitSign(MSign* ins) {\n  MOZ_ASSERT(ins->type() == MIRType::Int32 || ins->type() == MIRType::Double);\n  MOZ_ASSERT(ins->input()->type() == MIRType::Int32 ||\n             ins->input()->type() == MIRType::Double);\n\n  if (ins->type() == ins->input()->type()) {\n    if (ins->type() == MIRType::Int32) {\n      define(new (alloc()) LSignI(useRegister(ins->input())), ins);\n    } else {\n      define(new (alloc()) LSignD(useRegister(ins->input())), ins);\n    }\n  } else {\n    if (ins->type() == MIRType::Int32) {\n      auto* lir = new (alloc()) LSignDI(useRegister(ins->input()), tempDouble());\n      assignSnapshot(lir, ins->bailoutKind());\n      define(lir, ins);\n    } else {\n      define(new (alloc()) LSignID(useRegister(ins->input()), temp()), ins);\n    }\n  }\n}",
+        "tags": [
+          "security",
+          "jit",
+          "type-confusion",
+          "register-allocation"
+        ],
+        "cwe_ids": [
+          "CWE-843"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "TypeConfusion",
+    "affected_files": [
+      "js/src/jit/WarpCacheIRTranspiler.cpp",
+      "js/src/jit/Lowering.cpp",
+      "js/src/jit/MIR.h"
+    ],
+    "root_cause": "The change in emitGuardIsNumber (bug 1941826) removed automatic conversion of Int32/Float32 inputs to Double for number guards. This was intended to enable better Float32 optimizations. However, downstream code in visitSign had hardcoded assumptions that when MSign input and output types differ, the input is always Double and output is Int32. The change created a new valid case (Int32 input, Double output) that was not handled, causing assertion failures and type confusion when the wrong LIR instruction was selected.",
+    "must_cover": [
+      {
+        "file": "js/src/jit/WarpCacheIRTranspiler.cpp",
+        "function": "WarpCacheIRTranspiler::emitGuardIsNumber",
+        "start_line": 1436,
+        "end_line": 1446,
+        "role": "primary",
+        "reason": "Contains the vulnerable change that removed automatic Int32/Float32 to Double conversion. When IsNumberType(def->type()) returns true for Int32, the function now returns early without converting to Double, breaking the postcondition that downstream code expects.",
+        "snippet": "  1431 |   setOperand(indexId, ins);\n  1432 |   return true;\n  1433 | }\n  1434 | \n  1435 | bool WarpCacheIRTranspiler::emitGuardIndexIsValidUpdateOrAdd(\n  1436 |     ObjOperandId objId, Int32OperandId indexId) {\n  1437 |   MDefinition* obj = getOperand(objId);\n  1438 |   MDefinition* index = getOperand(indexId);\n  1439 | \n  1440 |   auto* ins = MGuardIndexIsValidUpdateOrAdd::New(alloc(), obj, index);\n  1441 |   add(ins);\n  1442 |   setOperand(indexId, ins);\n  1443 |   return true;\n  1444 | }\n  1445 | \n  1446 | bool WarpCacheIRTranspiler::emitCallAddOrUpdateSparseElementHelper(\n  1447 |     ObjOperandId objId, Int32OperandId idId, ValOperandId rhsId, bool strict) {\n  1448 |   MDefinition* obj = getOperand(objId);\n  1449 |   MDefinition* id = getOperand(idId);\n  1450 |   MDefinition* rhs = getOperand(rhsId);\n  1451 | ",
+        "snippet_start_line": 1431,
+        "snippet_end_line": 1451
+      },
+      {
+        "file": "js/src/jit/WarpCacheIRTranspiler.cpp",
+        "function": "WarpCacheIRTranspiler::emitMathSignNumberToInt32Result",
+        "start_line": 4157,
+        "end_line": 4166,
+        "role": "data_flow",
+        "reason": "Creates MSign instruction with NumberOperandId input and Int32 output type. This function relies on emitGuardIsNumber to ensure proper type handling, and passes the incorrectly-typed operand to the MSign constructor, propagating the type confusion to the lowering phase.",
+        "snippet": "  4152 |   return resumeAfter(ins);\n  4153 | }\n  4154 | \n  4155 | bool WarpCacheIRTranspiler::emitArgumentsSliceResult(\n  4156 |     uint32_t templateObjectOffset, ObjOperandId argsId, Int32OperandId beginId,\n  4157 |     Int32OperandId endId) {\n  4158 |   JSObject* templateObj = tenuredObjectStubField(templateObjectOffset);\n  4159 | \n  4160 |   MDefinition* args = getOperand(argsId);\n  4161 |   MDefinition* begin = getOperand(beginId);\n  4162 |   MDefinition* end = getOperand(endId);\n  4163 | \n  4164 |   // TODO: support pre-tenuring.\n  4165 |   gc::Heap heap = gc::Heap::Default;\n  4166 | \n  4167 |   auto* ins =\n  4168 |       MArgumentsSlice::New(alloc(), args, begin, end, templateObj, heap);\n  4169 |   addEffectful(ins);\n  4170 | \n  4171 |   pushResult(ins);",
+        "snippet_start_line": 4152,
+        "snippet_end_line": 4171
+      },
+      {
+        "file": "js/src/jit/Lowering.cpp",
+        "function": "LIRGenerator::visitSign",
+        "start_line": 2176,
+        "end_line": 2197,
+        "role": "primary",
+        "reason": "Contains the broken assumption at lines 2188-2192. When input type differs from output type and output is Int32, the code assumes input MUST be Double and creates LSignDI instruction. This assumption is violated when emitGuardIsNumber allows Int32 to pass through, causing wrong LIR instruction selection (LSignDI expects Double input but receives Int32), leading to wrong register writes and type confusion.",
+        "snippet": "  2171 |     if (ins->fallible()) {\n  2172 |       assignSnapshot(lir, ins->bailoutKind());\n  2173 |     }\n  2174 | \n  2175 |     lowerForALU(lir, ins, lhs, rhs);\n  2176 |     MaybeSetRecoversInput(ins, lir);\n  2177 |     return;\n  2178 |   }\n  2179 | \n  2180 |   if (ins->type() == MIRType::Int64) {\n  2181 |     MOZ_ASSERT(lhs->type() == MIRType::Int64);\n  2182 |     ReorderCommutative(&lhs, &rhs, ins);\n  2183 |     LAddI64* lir = new (alloc()) LAddI64;\n  2184 |     lowerForALUInt64(lir, ins, lhs, rhs);\n  2185 |     return;\n  2186 |   }\n  2187 | \n  2188 |   if (ins->type() == MIRType::Double) {\n  2189 |     MOZ_ASSERT(lhs->type() == MIRType::Double);\n  2190 |     ReorderCommutative(&lhs, &rhs, ins);\n  2191 |     lowerForFPU(new (alloc()) LMathD(JSOp::Add), ins, lhs, rhs);\n  2192 |     return;\n  2193 |   }\n  2194 | \n  2195 |   if (ins->type() == MIRType::Float32) {\n  2196 |     MOZ_ASSERT(lhs->type() == MIRType::Float32);\n  2197 |     ReorderCommutative(&lhs, &rhs, ins);\n  2198 |     lowerForFPU(new (alloc()) LMathF(JSOp::Add), ins, lhs, rhs);\n  2199 |     return;\n  2200 |   }\n  2201 | \n  2202 |   MOZ_CRASH(\"Unhandled number specialization\");",
+        "snippet_start_line": 2171,
+        "snippet_end_line": 2202
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "9385dab26b9068d849e2766768d2eacf99c7dfc2"
+}

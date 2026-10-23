@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-376496313",
+  "bug_id": "OSSFUZZ-376496313",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "649ac17efd96ddc3967958c6bba07bed3e779bb0",
+  "intro_parent": "e3fa469a55a09901d59c37e6977e0154a1c0ce47",
+  "fix_commit": "f7cc023f06c42fce8652b8d8f8cf981d36aeed2e",
+  "affected_files": [
+    "libavformat/mxfdec.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The refactored fast-path clamp added in the 'Speed up mxf_edit_unit_absolute_offset()' commit clamps edit_unit's upper and lower bound using index metadata read directly from the file, without validating the sign/range of the resulting edit_unit before it is used in subsequent signed integer arithmetic (including a multiplication by 2 for Avid-style indexes).",
+  "findings": [
+    "In mxf_edit_unit_absolute_offset(), after edit_unit is rescaled via av_rescale_q() it is clamped with `edit_unit = FFMAX(FFMIN(edit_unit, index_end), first_segment->index_start_position);`. This clamp does not guarantee edit_unit is non-negative: if first_segment->index_start_position itself is a huge negative value (attacker-controlled via a crafted MXF index table segment), edit_unit can remain "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "86a75ce1356ffe211583d179905f1660839147a259c4dc7cda3bd931d7ba92b5",
+  "generated_artifact_sha256": {
+    "reference": "3a7eae1994093529fd8a914d9adcb3ea79d5dc7cf40eaf7786a6fd23b2df5415",
+    "introducing": "1cd29136a66b0a3bbb09a03b6206cd730a98d6eb8942e9472a9859f5677121dc",
+    "companion": "92e15959bd0b9819fe07e84b1073ae047eafb66d5fce5cbc6d068f570a1799f0"
+  }
+}

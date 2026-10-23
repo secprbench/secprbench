@@ -1,0 +1,48 @@
+{
+  "bug_id": "421227542",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "e8293d2b878ecf639f2c55219068a8b780e01030",
+    "parent": "93df92d4d34c0ab97be5a41301deb55daf6b318e",
+    "fix": "1836961b564e977ecbc84d9954e6cc0fa545b6f3"
+  },
+  "affected_files": [
+    "BUILD.bazel",
+    "BUILD.gn",
+    "DEPS",
+    "src/builtins/builtins-definitions.h",
+    "src/builtins/builtins-typed-array.cc",
+    "src/common/message-template.h",
+    "src/flags/flag-definitions.h",
+    "src/init/bootstrapper.cc",
+    "src/init/heap-symbols.h",
+    "src/roots/static-roots.h",
+    "test/test262/local-tests/test/staging/Uint8Array/fromBase64/invalid-options.js",
+    "test/test262/test262.status",
+    "test/test262/testcfg.py",
+    "test/unittests/interpreter/bytecode_expectations/PrivateAccessorAccess.golden",
+    "test/unittests/interpreter/bytecode_expectations/PrivateMethodAccess.golden",
+    "test/unittests/interpreter/bytecode_expectations/StaticPrivateMethodAccess.golden",
+    "tools/gcmole/BUILD.gn"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "The configured ASan release build for post_intro succeeded and the exact command `out.gn/verify/d8 --js-base-64 --gc-interval=1 --stress-compaction /poc/logic_repro.js` completed with exit 0 and DECODE_OK after eight heap-backed decodes. This does not verify or refute the reported logic error: the root-cause oracle is String::FlatContent's SLOW_DCHECK checksum, but the configured build has is_debug=false, dcheck_always_on=false, and no ENABLE_SLOW_DCHECKS, so that check is not compiled. The same",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "not_reproduced",
+    "method": "debug_invariant_or_crash",
+    "intro_verified": "not_reproduced_clean",
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Intro built (is_debug) and ran the saved PoC with recorded flags but did not reproduce: not_reproduced_clean. Label is an unvalidated static hypothesis at this revision.",
+    "target_match": null,
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/421227542"
+  },
+  "final_disposition": "not_reproduced"
+}

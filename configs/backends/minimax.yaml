@@ -1,0 +1,15 @@
+# The paper reached this model through a private Anthropic-compatible
+# gateway. Set base_url and egress_hosts to your own endpoint before use.
+name: minimax
+display_name: MiniMax-M3 via an Anthropic-compatible gateway
+claude_version: 2.1.283
+base_url: https://gateway.example.com
+api_key_env: SECPRBENCH_MINIMAX_API_KEY
+model: minimax-m3
+small_model: minimax-m3
+env:
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+  API_TIMEOUT_MS: '600000'
+egress_hosts:
+- gateway.example.com
+cutoff_date: null

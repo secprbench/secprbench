@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-390565846",
+  "bug_id": "OSSFUZZ-390565846",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "8eb1d76e146a0e557d596a4039efebac746b4d83",
+  "intro_parent": "d5873be583ada9e1fb887e2fe8dcfd4b12e0efcd",
+  "fix_commit": "a50d36b5fd3914795f470abefcd37699b23bc8d4",
+  "affected_files": [
+    "libavcodec/vvc/refs.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Missing NULL check on unit->content_ref before dereferencing it as a parsed slice header structure; the code assumed that any CBS unit with a slice-like NAL unit type would always have its content_ref populated, which is not guaranteed for malformed/incompletely parsed bitstreams.",
+  "findings": [
+    "In set_pict_type(), when determining the picture type for a VVC frame, the code iterates over the CodedBitstreamUnit array of the current access unit and, for every unit whose type is <= VVC_RSV_IRAP_11 (i.e. a slice NAL unit), directly dereferences unit->content_ref as an H266RawSliceHeader* without first checking that content_ref is non-NULL. The CBS layer does not guarantee that content_ref has"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "d23b8ddf7ca7a79b3828cb3d6fe49035a3b6c400764786c7c5443be3c76fa8f4",
+  "generated_artifact_sha256": {
+    "reference": "d3f45ffbcf00a227fdc745f134e22f1162c13079b13ca1146545490862191f03",
+    "introducing": "90731eec95c465e79c068174dd9be83c47f78c34ac9f7809e099989a75f549ff",
+    "companion": "86a65fc2ba2b0390348142fb1fe75314ee644a00ac3d85a81e23cf893ef1c5b2"
+  }
+}

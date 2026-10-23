@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-764881119d63",
+  "project": "sqlite",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "97901bbd69b61f614a050dfa877ab5ac6dc598f8",
+    "parent": "532e506d18685393ac0155649fcb7d65985689b2",
+    "fix": "764881119d638c0e9390f2687b1d0865e6b8e196"
+  },
+  "affected_files": [
+    "src/backup.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the same poc.c and identical ASan compile/run command for all versions: pre_intro exited 0 with backup_step SQLITE_DONE and no sanitizer finding; post_intro aborted with exit 134 and AddressSanitizer heap-use-after-free (READ of size 8 in sqlite3_backup_step, with the old 104-byte aDb[] allocation freed by realloc in attachFunc during the second ATTACH); post_benign exited 0 with SQLITE_DONE and no sanitizer finding. This verifies that commit 97901bbd introduces the labelled memory-safety ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

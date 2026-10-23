@@ -1,0 +1,36 @@
+{
+  "task_id": "pr_review_1947640_benign",
+  "bug_id": "1947640",
+  "commit_sha": "84a9dbea3299eab32a9d140a88be7f0fba2ab080",
+  "commit_message": "[Merged] Bug 1937634 - Make txMozillaXSLTProcessor::mStylesheetDocument strong. r=peterv\n\nDifferential Revision: https://phabricator.services.mozilla.com/D232262",
+  "commit_author": "",
+  "commit_date": "2026-06-18T16:35:35.419260",
+  "pr_title": "Make txMozillaXSLTProcessor::mStylesheetDocument a strong reference",
+  "pr_description": "## Summary\n\n`txMozillaXSLTProcessor::mStylesheetDocument` was previously a raw (weak) pointer to a `Document`. This PR converts it to a `RefPtr<mozilla::dom::Document>` to ensure the processor holds a proper owning reference for the lifetime of its association with the stylesheet document.\n\nPreviously the raw pointer carried an implicit assumption that some other owner would keep the document alive for the duration of the XSLT processor's use. Using a `RefPtr` makes that ownership explicit and avoids the risk of the document being freed while the processor still holds a reference to it.\n\nThe member is intentionally not added to the cycle-collection participant list: the XSLT processor registers itself as a mutation observer on the document via `AddMutationObserver(this)` in `ImportStylesheet()` and deregisters in the corresponding cleanup paths. Participating in cycle collection for this member would require a custom unlink handler to safely deregister the observer before the reference is cleared, which is not implemented here. The `RefPtr` alone is sufficient to guarantee lifetime safety without that complexity.\n\n## Test plan\n\n- [ ] Run existing XSLT-related tests (`dom/xslt/`)\n- [ ] Verify no regressions in cycle-collector-related tests",
+  "files": [
+    {
+      "path": "dom/xslt/xslt/txMozillaXSLTProcessor.h",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/dom/xslt/xslt/txMozillaXSLTProcessor.h b/dom/xslt/xslt/txMozillaXSLTProcessor.h\nindex c8ef94aae79e..bb470d34154d 100644\n--- a/dom/xslt/xslt/txMozillaXSLTProcessor.h\n+++ b/dom/xslt/xslt/txMozillaXSLTProcessor.h\n@@ -142,21 +142,21 @@ class txMozillaXSLTProcessor final : public nsIDocumentTransformer,\n    */\n   ~txMozillaXSLTProcessor();\n \n   nsresult DoTransform();\n   void notifyError();\n   nsresult ensureStylesheet();\n \n   nsCOMPtr<nsISupports> mOwner;\n \n   RefPtr<txStylesheet> mStylesheet;\n-  mozilla::dom::Document* mStylesheetDocument;  // weak\n+  RefPtr<mozilla::dom::Document> mStylesheetDocument;\n   nsCOMPtr<nsIContent> mEmbeddedStylesheetRoot;\n \n   nsCOMPtr<nsINode> mSource;\n   nsresult mTransformResult;\n   nsresult mCompileResult;\n   nsString mErrorText, mSourceText;\n   nsCOMPtr<nsITransformObserver> mObserver;\n   txOwningExpandedNameMap<txIGlobalParameter> mVariables;\n   txNamespaceMap mParamNamespaceMap;\n   RefPtr<txResultRecycler> mRecycler;\n"
+    }
+  ],
+  "full_diff": "diff --git a/dom/xslt/xslt/txMozillaXSLTProcessor.h b/dom/xslt/xslt/txMozillaXSLTProcessor.h\nindex c8ef94aae79e..bb470d34154d 100644\n--- a/dom/xslt/xslt/txMozillaXSLTProcessor.h\n+++ b/dom/xslt/xslt/txMozillaXSLTProcessor.h\n@@ -142,21 +142,21 @@ class txMozillaXSLTProcessor final : public nsIDocumentTransformer,\n    */\n   ~txMozillaXSLTProcessor();\n \n   nsresult DoTransform();\n   void notifyError();\n   nsresult ensureStylesheet();\n \n   nsCOMPtr<nsISupports> mOwner;\n \n   RefPtr<txStylesheet> mStylesheet;\n-  mozilla::dom::Document* mStylesheetDocument;  // weak\n+  RefPtr<mozilla::dom::Document> mStylesheetDocument;\n   nsCOMPtr<nsIContent> mEmbeddedStylesheetRoot;\n \n   nsCOMPtr<nsINode> mSource;\n   nsresult mTransformResult;\n   nsresult mCompileResult;\n   nsString mErrorText, mSourceText;\n   nsCOMPtr<nsITransformObserver> mObserver;\n   txOwningExpandedNameMap<txIGlobalParameter> mVariables;\n   txNamespaceMap mParamNamespaceMap;\n   RefPtr<txResultRecycler> mRecycler;\n",
+  "ground_truth": {
+    "bug_id": "1947640",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "6e19f14c7b1b3bc5dfdb10b473683dda2ba051b0",
+    "fix_commit": "84a9dbea3299eab32a9d140a88be7f0fba2ab080"
+  },
+  "task_type": "benign",
+  "intro_commit_sha": "6e19f14c7b1b3bc5dfdb10b473683dda2ba051b0",
+  "fix_commit_sha": "84a9dbea3299eab32a9d140a88be7f0fba2ab080",
+  "intro_commit_message": "Bug 1937634 - Make txMozillaXSLTProcessor::mStylesheetDocument strong. r=peterv\n\nDifferential Revision: https://phabricator.services.mozilla.com/D232262",
+  "fix_commit_message": "Backed out changeset 80f57552c478 (bug 1937634) as requested by developer",
+  "agent_reasoning": "The bug-introducing commit (Bug 1937634) made mStylesheetDocument a RefPtr AND added it to the NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE macro. The vulnerability arises because the macro's auto-generated UNLINK handler simply nulls out the RefPtr without first calling RemoveMutationObserver(this). This leaves the document holding a dangling pointer to a freed txMozillaXSLTProcessor as a mutation observer, causing a use-after-free when the document later notifies observers. The benign version keeps the RefPtr (the useful ownership semantic) but deliberately omits mStylesheetDocument from the cycle-collection macro. Without cycle-collector UNLINK participation, the auto-generated clearing code never runs, so no dangling observer pointer is created and the UAF cannot occur.",
+  "composed_via": "agent",
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

@@ -1,0 +1,94 @@
+{
+  "task_id": "pr_review_OSSFUZZ-461519938",
+  "bug_id": "OSSFUZZ-461519938",
+  "commit_sha": "b74f89caaef2174b0bfb2791ea88e44960dba11f",
+  "commit_message": "swscale/output: Bias 16bps output calculations to improve non overflowing range for GBRP16/GBRPF32\n\nFixes: integer overflow\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "commit_author": "Michael Niedermayer",
+  "commit_date": "2022-11-02T20:00:38+01:00",
+  "pr_title": "swscale/output: Bias 16bps output calculations to improve non overflowing range for GBRP16/GBRPF32",
+  "pr_description": "Fixes: integer overflow\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "files": [
+    {
+      "path": "libswscale/output.c",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 14,
+      "diff": "diff --git a/libswscale/output.c b/libswscale/output.c\nindex df4647adde..5c85bff971 100644\n--- a/libswscale/output.c\n+++ b/libswscale/output.c\n@@ -2370,22 +2370,19 @@ yuv2gbrp16_full_X_c(SwsContext *c, const int16_t *lumFilter,\n             A += 0x20002000;\n         }\n \n         Y -= c->yuv2rgb_y_offset;\n         Y *= c->yuv2rgb_y_coeff;\n-        Y += 1 << 13;\n+        Y += (1 << 13) - (1 << 29);\n         R = V * c->yuv2rgb_v2r_coeff;\n         G = V * c->yuv2rgb_v2g_coeff + U * c->yuv2rgb_u2g_coeff;\n         B =                            U * c->yuv2rgb_u2b_coeff;\n \n-        R = av_clip_uintp2(Y + R, 30);\n-        G = av_clip_uintp2(Y + G, 30);\n-        B = av_clip_uintp2(Y + B, 30);\n+        dest16[2][i] = av_clip_uintp2(((Y + R) >> 14) + (1<<15), 16);\n+        dest16[0][i] = av_clip_uintp2(((Y + G) >> 14) + (1<<15), 16);\n+        dest16[1][i] = av_clip_uintp2(((Y + B) >> 14) + (1<<15), 16);\n \n-        dest16[0][i] = G >> 14;\n-        dest16[1][i] = B >> 14;\n-        dest16[2][i] = R >> 14;\n         if (hasAlpha)\n             dest16[3][i] = av_clip_uintp2(A, 30) >> 14;\n     }\n     if ((!isBE(c->dstFormat)) != (!HAVE_BIGENDIAN)) {\n         for (i = 0; i < dstW; i++) {\n@@ -2446,22 +2443,22 @@ yuv2gbrpf32_full_X_c(SwsContext *c, const int16_t *lumFilter,\n             A += 0x20002000;\n         }\n \n         Y -= c->yuv2rgb_y_offset;\n         Y *= c->yuv2rgb_y_coeff;\n-        Y += 1 << 13;\n+        Y += (1 << 13) - (1 << 29);\n         R = V * c->yuv2rgb_v2r_coeff;\n         G = V * c->yuv2rgb_v2g_coeff + U * c->yuv2rgb_u2g_coeff;\n         B =                            U * c->yuv2rgb_u2b_coeff;\n \n-        R = av_clip_uintp2(Y + R, 30);\n-        G = av_clip_uintp2(Y + G, 30);\n-        B = av_clip_uintp2(Y + B, 30);\n+        R = av_clip_uintp2(((Y + R) >> 14) + (1<<15), 16);\n+        G = av_clip_uintp2(((Y + G) >> 14) + (1<<15), 16);\n+        B = av_clip_uintp2(((Y + B) >> 14) + (1<<15), 16);\n \n-        dest32[0][i] = av_float2int(float_mult * (float)(G >> 14));\n-        dest32[1][i] = av_float2int(float_mult * (float)(B >> 14));\n-        dest32[2][i] = av_float2int(float_mult * (float)(R >> 14));\n+        dest32[0][i] = av_float2int(float_mult * (float)G);\n+        dest32[1][i] = av_float2int(float_mult * (float)B);\n+        dest32[2][i] = av_float2int(float_mult * (float)R);\n         if (hasAlpha)\n             dest32[3][i] = av_float2int(float_mult * (float)(av_clip_uintp2(A, 30) >> 14));\n     }\n     if ((!isBE(c->dstFormat)) != (!HAVE_BIGENDIAN)) {\n         for (i = 0; i < dstW; i++) {\n"
+    },
+    {
+      "path": "libswscale/x86/output.asm",
+      "status": "modified",
+      "additions": 15,
+      "deletions": 1,
+      "diff": "diff --git a/libswscale/x86/output.asm b/libswscale/x86/output.asm\nindex 84e94baaf6..f943a27534 100644\n--- a/libswscale/x86/output.asm\n+++ b/libswscale/x86/output.asm\n@@ -42,15 +42,17 @@ pd_65535_invf:             times 8 dd 0x37800080 ;1.0/65535.0\n pd_yuv2gbrp16_start:       times 8 dd -0x40000000\n pd_yuv2gbrp_y_start:       times 8 dd  (1 << 9)\n pd_yuv2gbrp_uv_start:      times 8 dd  ((1 << 9) - (128 << 19))\n pd_yuv2gbrp_a_start:       times 8 dd  (1 << 18)\n pd_yuv2gbrp16_offset:      times 8 dd  0x10000  ;(1 << 16)\n-pd_yuv2gbrp16_round13:     times 8 dd  0x02000  ;(1 << 13)\n+pd_yuv2gbrp16_round13:     times 8 dd  0xE0002000  ;(1 << 13) - (1 << 29)\n pd_yuv2gbrp16_a_offset:    times 8 dd  0x20002000\n pd_yuv2gbrp16_upper30:     times 8 dd  0x3FFFFFFF ;(1<<30) - 1\n pd_yuv2gbrp16_upper27:     times 8 dd  0x07FFFFFF ;(1<<27) - 1\n+pd_yuv2gbrp16_upper16:     times 8 dd  0x0000FFFF ;(1<<16) - 1\n pd_yuv2gbrp16_upperC:      times 8 dd  0xC0000000\n+pd_yuv2gbrp_debias:        times 8 dd  0x00008000 ;(1 << 29 - 14)\n pb_pack_shuffle8:       db  0,  4,  8, 12, \\\n                            -1, -1, -1, -1, \\\n                            -1, -1, -1, -1, \\\n                            -1, -1, -1, -1, \\\n                            -1, -1, -1, -1, \\\n@@ -881,18 +883,30 @@ cglobal yuv2%1_full_X, 12, 14, 16, ptr, lumFilter, lumSrcx, lumFilterSize, chrFi\n         paddd G, U, V\n         paddd R, Y\n         paddd G, Y\n         paddd B, Y\n \n+%if  DEPTH < 16\n         CLIPP2 R, 30\n         CLIPP2 G, 30\n         CLIPP2 B, 30\n+%endif\n \n         psrad R, RGB_SHIFT\n         psrad G, RGB_SHIFT\n         psrad B, RGB_SHIFT\n \n+%if  DEPTH >= 16\n+        paddd R, [pd_yuv2gbrp_debias]\n+        paddd G, [pd_yuv2gbrp_debias]\n+        paddd B, [pd_yuv2gbrp_debias]\n+\n+        CLIPP2 R, 16\n+        CLIPP2 G, 16\n+        CLIPP2 B, 16\n+%endif\n+\n %if FLOAT\n         cvtdq2ps R, R\n         cvtdq2ps G, G\n         cvtdq2ps B, B\n         mulps R, [pd_65535_invf]\n"
+    }
+  ],
+  "full_diff": "diff --git a/libswscale/output.c b/libswscale/output.c\nindex df4647adde..5c85bff971 100644\n--- a/libswscale/output.c\n+++ b/libswscale/output.c\n@@ -2370,22 +2370,19 @@ yuv2gbrp16_full_X_c(SwsContext *c, const int16_t *lumFilter,\n             A += 0x20002000;\n         }\n \n         Y -= c->yuv2rgb_y_offset;\n         Y *= c->yuv2rgb_y_coeff;\n-        Y += 1 << 13;\n+        Y += (1 << 13) - (1 << 29);\n         R = V * c->yuv2rgb_v2r_coeff;\n         G = V * c->yuv2rgb_v2g_coeff + U * c->yuv2rgb_u2g_coeff;\n         B =                            U * c->yuv2rgb_u2b_coeff;\n \n-        R = av_clip_uintp2(Y + R, 30);\n-        G = av_clip_uintp2(Y + G, 30);\n-        B = av_clip_uintp2(Y + B, 30);\n+        dest16[2][i] = av_clip_uintp2(((Y + R) >> 14) + (1<<15), 16);\n+        dest16[0][i] = av_clip_uintp2(((Y + G) >> 14) + (1<<15), 16);\n+        dest16[1][i] = av_clip_uintp2(((Y + B) >> 14) + (1<<15), 16);\n \n-        dest16[0][i] = G >> 14;\n-        dest16[1][i] = B >> 14;\n-        dest16[2][i] = R >> 14;\n         if (hasAlpha)\n             dest16[3][i] = av_clip_uintp2(A, 30) >> 14;\n     }\n     if ((!isBE(c->dstFormat)) != (!HAVE_BIGENDIAN)) {\n         for (i = 0; i < dstW; i++) {\n@@ -2446,22 +2443,22 @@ yuv2gbrpf32_full_X_c(SwsContext *c, const int16_t *lumFilter,\n             A += 0x20002000;\n         }\n \n         Y -= c->yuv2rgb_y_offset;\n         Y *= c->yuv2rgb_y_coeff;\n-        Y += 1 << 13;\n+        Y += (1 << 13) - (1 << 29);\n         R = V * c->yuv2rgb_v2r_coeff;\n         G = V * c->yuv2rgb_v2g_coeff + U * c->yuv2rgb_u2g_coeff;\n         B =                            U * c->yuv2rgb_u2b_coeff;\n \n-        R = av_clip_uintp2(Y + R, 30);\n-        G = av_clip_uintp2(Y + G, 30);\n-        B = av_clip_uintp2(Y + B, 30);\n+        R = av_clip_uintp2(((Y + R) >> 14) + (1<<15), 16);\n+        G = av_clip_uintp2(((Y + G) >> 14) + (1<<15), 16);\n+        B = av_clip_uintp2(((Y + B) >> 14) + (1<<15), 16);\n \n-        dest32[0][i] = av_float2int(float_mult * (float)(G >> 14));\n-        dest32[1][i] = av_float2int(float_mult * (float)(B >> 14));\n-        dest32[2][i] = av_float2int(float_mult * (float)(R >> 14));\n+        dest32[0][i] = av_float2int(float_mult * (float)G);\n+        dest32[1][i] = av_float2int(float_mult * (float)B);\n+        dest32[2][i] = av_float2int(float_mult * (float)R);\n         if (hasAlpha)\n             dest32[3][i] = av_float2int(float_mult * (float)(av_clip_uintp2(A, 30) >> 14));\n     }\n     if ((!isBE(c->dstFormat)) != (!HAVE_BIGENDIAN)) {\n         for (i = 0; i < dstW; i++) {\ndiff --git a/libswscale/x86/output.asm b/libswscale/x86/output.asm\nindex 84e94baaf6..f943a27534 100644\n--- a/libswscale/x86/output.asm\n+++ b/libswscale/x86/output.asm\n@@ -42,15 +42,17 @@ pd_65535_invf:             times 8 dd 0x37800080 ;1.0/65535.0\n pd_yuv2gbrp16_start:       times 8 dd -0x40000000\n pd_yuv2gbrp_y_start:       times 8 dd  (1 << 9)\n pd_yuv2gbrp_uv_start:      times 8 dd  ((1 << 9) - (128 << 19))\n pd_yuv2gbrp_a_start:       times 8 dd  (1 << 18)\n pd_yuv2gbrp16_offset:      times 8 dd  0x10000  ;(1 << 16)\n-pd_yuv2gbrp16_round13:     times 8 dd  0x02000  ;(1 << 13)\n+pd_yuv2gbrp16_round13:     times 8 dd  0xE0002000  ;(1 << 13) - (1 << 29)\n pd_yuv2gbrp16_a_offset:    times 8 dd  0x20002000\n pd_yuv2gbrp16_upper30:     times 8 dd  0x3FFFFFFF ;(1<<30) - 1\n pd_yuv2gbrp16_upper27:     times 8 dd  0x07FFFFFF ;(1<<27) - 1\n+pd_yuv2gbrp16_upper16:     times 8 dd  0x0000FFFF ;(1<<16) - 1\n pd_yuv2gbrp16_upperC:      times 8 dd  0xC0000000\n+pd_yuv2gbrp_debias:        times 8 dd  0x00008000 ;(1 << 29 - 14)\n pb_pack_shuffle8:       db  0,  4,  8, 12, \\\n                            -1, -1, -1, -1, \\\n                            -1, -1, -1, -1, \\\n                            -1, -1, -1, -1, \\\n                            -1, -1, -1, -1, \\\n@@ -881,18 +883,30 @@ cglobal yuv2%1_full_X, 12, 14, 16, ptr, lumFilter, lumSrcx, lumFilterSize, chrFi\n         paddd G, U, V\n         paddd R, Y\n         paddd G, Y\n         paddd B, Y\n \n+%if  DEPTH < 16\n         CLIPP2 R, 30\n         CLIPP2 G, 30\n         CLIPP2 B, 30\n+%endif\n \n         psrad R, RGB_SHIFT\n         psrad G, RGB_SHIFT\n         psrad B, RGB_SHIFT\n \n+%if  DEPTH >= 16\n+        paddd R, [pd_yuv2gbrp_debias]\n+        paddd G, [pd_yuv2gbrp_debias]\n+        paddd B, [pd_yuv2gbrp_debias]\n+\n+        CLIPP2 R, 16\n+        CLIPP2 G, 16\n+        CLIPP2 B, 16\n+%endif\n+\n %if FLOAT\n         cvtdq2ps R, R\n         cvtdq2ps G, G\n         cvtdq2ps B, B\n         mulps R, [pd_65535_invf]\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-461519938",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "d41b8d95a7234cf0b34fcb84e307385fb3ef30a1",
+      "short_sha": "d41b8d9",
+      "message": "swscale/output: Use 64bit in addition in  yuv2gbrp16_full_X_c() for RGB + Y",
+      "author": "Michael Niedermayer",
+      "date": "2025-12-22T23:44:54+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-integeroverflow-001",
+        "title": "Signed integer overflow when adding Y and R/G/B in yuv2gbrp16_full_X_c()",
+        "message": "In yuv2gbrp16_full_X_c(), the luma term Y (an `int`, already biased/scaled and holding values that can approach the extremes of the 32-bit signed range: Y is initialized to -0x40000000, accumulated from filter taps, shifted, and further biased by `(1<<13)-(1<<29)`) is added directly to the chroma-derived R/G/B terms (also plain `int`, computed as `V * c->yuv2rgb_v2r_coeff` etc., which themselves can be large negative or positive values) inside `av_clip_uintp2(((Y + R) >> 14) + (1<<15), 16)` (and similarly for G and B). Because both operands are 32-bit `int`, the addition `Y + R` (and `Y + G`, `Y + B`) can overflow the range representable by `int`, which is undefined behavior in C and was caught by the fuzzer/UBSan as 'signed integer overflow: -1159988356 + -1082982400 cannot be represented in type int'. This can lead to incorrect pixel output or, in principle, further UB-related miscompilation.",
+        "location": {
+          "file": "libswscale/output.c",
+          "start_line": 2380,
+          "end_line": 2382,
+          "start_column": null,
+          "end_column": null,
+          "function": "yuv2gbrp16_full_X_c",
+          "snippet": "        dest16[2][i] = av_clip_uintp2(((Y + R) >> 14) + (1<<15), 16);\n        dest16[0][i] = av_clip_uintp2(((Y + G) >> 14) + (1<<15), 16);\n        dest16[1][i] = av_clip_uintp2(((Y + B) >> 14) + (1<<15), 16);",
+          "snippet_hash": "c90eb708e079fe5c5b1899c80ae7b7c824d57b4f9b3806afa9aa69fc223616e8",
+          "description": null,
+          "snippet_start_line": 2380,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.9,
+        "suggestion": "Promote the addition to 64-bit arithmetic before clipping, e.g. cast one operand (R, G, or B) to int64_t so the sum Y + R/G/B is computed in 64-bit, avoiding undefined signed-overflow behavior while still fitting within the eventual 16-bit clip range.",
+        "suggestion_code": "dest16[2][i] = av_clip_uintp2(((Y + (int64_t)R) >> 14) + (1<<15), 16);\ndest16[0][i] = av_clip_uintp2(((Y + (int64_t)G) >> 14) + (1<<15), 16);\ndest16[1][i] = av_clip_uintp2(((Y + (int64_t)B) >> 14) + (1<<15), 16);",
+        "tags": [
+          "security",
+          "integer-overflow",
+          "undefined-behavior",
+          "fuzzing"
+        ],
+        "cwe_ids": [
+          "CWE-190"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "libswscale/output.c"
+    ],
+    "root_cause": "The addition Y + R (and Y + G, Y + B) is performed entirely in 32-bit signed integer arithmetic even though the pre-scaled/biased Y value and the chroma-derived R/G/B values can each individually be close to the 32-bit signed integer limits, so their sum can exceed INT32_MAX or go below INT32_MIN, triggering undefined signed integer overflow.",
+    "must_cover": [
+      {
+        "file": "libswscale/output.c",
+        "function": "yuv2gbrp16_full_X_c",
+        "start_line": 2380,
+        "end_line": 2382,
+        "role": "primary",
+        "reason": "Primary location of finding: Signed integer overflow when adding Y and R/G/B in yuv2gbrp16_full_X_c()"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "b74f89caaef2174b0bfb2791ea88e44960dba11f",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

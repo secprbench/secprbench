@@ -1,0 +1,72 @@
+{
+  "bug_id": "1996761",
+  "title": "Bug 1996761 - [devtools] Replace any other whitespace like characters with space r=devtools-reviewers,nchevobbe",
+  "severity": "unknown",
+  "keywords": [
+    "published_security_advisory"
+  ],
+  "product": "firefox",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public Mozilla security advisory: https://www.mozilla.org/en-US/security/advisories/mfsa2025-92/\nExplicit linked bug: https://bugzilla.mozilla.org/show_bug.cgi?id=1996761\n\nSecurity Vulnerabilities fixed in Firefox 146 — Mozilla\nHelp us improve your Mozilla experience\nIn addition to Cookies necessary for this site to function, we’d like your permission to set some additional Cookies to better understand your browsing needs and improve your experience. Rest assured — we value your privacy.\nAccept All Additional Cookies\nReject All Additional Cookies\nCookie settings\nMenu\nProducts\nClose Products menu\nFirefox browsers\nMozilla VPN\nMozilla Monitor\nFirefox Relay\nMDN Plus\nThunderbird\n0DIN\nTabstack\nOtari\nAll products\nAbout us\nClose About us menu\nOur Mission\nAbout Mozilla\nThe Mozilla Manifesto\nGet Involved\nBlog\nOur Work\nMozilla Foundation\nMozilla.ai\nMozilla Ventures\nMozilla Advertising\nMozilla Builders\nMozilla New Products\nMenu\nMozilla Security\nMozilla Security\nAdvisories\nKnown Vulnerabilities\nMozilla Security Blog\nSecurity Bug Bounty\nThird-party Injection Policy\nClient Bug Bounty\nFrequently Asked Questions\nHall of Fame\nWeb Bug Bounty\nEligible Websites\nFrequently Asked Questions\nHall of Fame\nMozilla Foundation Security Advisory 2025-92\nSecurity Vulnerabilities fixed in Firefox 146\nAnnounced\nDecember  9, 2025\nImpact\nhigh\nProducts\nFirefox\nFixed in\nFirefox 146\n#\nCVE-2025-14321: Use-after-free in the WebRTC: Signaling component\nReporter\nIgor Morgenstern\nImpact\nhigh\nReferences\nBug 1992760\n#\nCVE-2025-14322: Sandbox escape due to incorrect boundary conditions in the Graphics: CanvasWebGL component\nReporter\nOskar L\nImpact\nhigh\nReferences\nBug 1996473\n#\nCVE-2025-14323: Privilege escalation in the DOM: Notifications component\nReporter\ntiebuchen\nImpact\nhigh\nReferences\nBug 1996555\n#\nCVE-2025-14324: JIT miscompilation in the JavaScript Engine: JIT component\nReporter\nLingming Zhang\nImpact\nhigh\nReferences\nBug 1996840\n#\nCVE-2025-14325: JIT miscompilation in the JavaScript Engine: JIT component\nReporter\nzx\nImpact\nhigh\nReferences\nBug 1998050\n#\nCVE-2025-14326: Use-after-free in the Audio/Video: GMP component\nReporter\nAndrew McCreight\nImpact\nmoderate\nReferences\nBug 1840666\n#\nCVE-2025-14327: Spoofing issue in the Downloads Panel component\nReporter\nCaro Kann\nImpact\nmoderate\nReferences\nBug 1970743\n#\nCVE-2025-14328: Privilege escalation in the Netmonitor component\nReporter\nAmeen Basha M K\nImpact\nmoderate\nReferences\nBug 1996761\n#\nCVE-2025-14329: Privilege escalation in the Netmonitor component\nReporter\nsatrya wira yudha\nImpact\nmoderate\nReferences\nBug 1997018\n#\nCVE-2025-14330: JIT miscompilation in the JavaScript Engine: JIT component\nReporter\nRong Bao\nImpact\nmoderate\nReferences\nBug 1997503\n#\nCVE-2025-14331: Same-origin policy bypass in the Request Handling component\nReporter\nIgor Morgenstern\nImpact\nmoderate\nReferences\nBug 2000218\n#\nCVE-2025-14332: Memory safety bugs fixed in Firefox 146 and Thunderbird 146\nReporter\nJon Coppeard, Maurice Dauer and the Mozilla Fuzzing Team\nImpact\nmoderate\nDescription\nMemory safety bugs present in Firefox 145 and Thunderbird 145. Some of these bugs showed evidence of memory corruption and we presume that with enough effort some of these could have been exploited to run arbitrary code.\nReferences\nMemory safety bugs fixed in Firefox 146 and Thunderbird 146\n#\nCVE-2025-14333: Memory safety bugs fixed in Firefox ESR 140.6, Thunderbird ESR 140.6, Firefox 146 and Thunderbird 146\nReporter\nMaurice Dauer and the Mozilla Fuzzing Team\nImpact\nmoderate\nDescription\nMemory safety bugs present in Firefox ESR 140.5, Thunderbird ESR 140.5, Firefox 145 and Thunderbird 145. Some of these bugs showed evidence of memory corruption and we presume that with enough effort some of these could have been exploited to run arbitrary code.\nReferences\nMemory safety bugs fixed in Firefox ESR 140.6, Thunderbird ESR 140.6, Firefox 146 and Thunderbird 146\nCompany\nLeadership\nPress Center\nCareers\nMerch Store\nContact\nSupport\nProduct Help\nFile a Bug\nLocalize Mozilla\nSecurity\nDevelopers\nDeveloper Edition\nEnterprise\nTools\nMDN\nFirefox Release Notes\nFollow @Mozilla\nBluesky\n(@mozilla.org)\nInstagram\n(@mozilla)\nLinkedIn\n(@mozilla)\nTikTok\n(@mozilla)\nSpotify\n(@mozilla)\nFollow @Firefox\nBluesky\n(@firefox.com)\nInstagram\n(@firefox)\nYouTube\n(@firefoxchannel)\nTikTok\n(@firefox)\nDonate\nAll languages\nLanguage\nEnglish (Canadian)\nEnglish (British)\nEnglish\nDonate to the not-for-profit\nMozilla Foundation\n.\nPortions of this content are ©1998–2026 by individual mozilla.org contributors. Content available under a\nCreative Commons license\n.\nWebsite Privacy Notice\nCookies\nLegal\nCommunity Participation Guidelines\nAbout this site\n\nLocal mainline source change explicitly names Bug 1996761:\nBug 1996761 - [devtools] Replace any other whitespace like characters with space r=devtools-reviewers,nchevobbe\n\nCertain control characters (e.g tab or form feed) are whitespace like characters.\nThis replaces those with a simple space.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D272425\nFixing revision candidate: 5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e\nThe advisory can describe multiple cases; use only this bug's evidence. Validate fixing role and derive the introduction independently. The linked private bug details have not been fetched.",
+  "commit_ids": [
+    "5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e"
+  ],
+  "fix_commit_sha": "5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e",
+  "fix_date": "2025-11-22T19:41:49Z",
+  "mainline_verified": true,
+  "date_basis": "earliest_mainline_fix",
+  "season": "2025H2",
+  "provenance": {
+    "source_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1996761",
+    "advisories": [
+      {
+        "url": "https://www.mozilla.org/en-US/security/advisories/mfsa2025-92/",
+        "status": 200,
+        "retrieved_at": "2026-09-28T17:59:34.072401+00:00",
+        "sha256": "301a76c48eac74f61fcac5f71b83146566be8336c910aef3d8785656fa314bd9",
+        "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/firefox-advisories/raw/b424238fd2deab452cd52ba26f1e01cf83ed371fa2965c8f19312f215d2f8ec5.body"
+      },
+      {
+        "url": "https://www.mozilla.org/en-US/security/advisories/mfsa2025-94/",
+        "status": 200,
+        "retrieved_at": "2026-09-28T17:59:36.355580+00:00",
+        "sha256": "299278e87b76a674e1c3d16d91a9d453dee68c2ab07aca736d8f3c1e13fdac9e",
+        "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/firefox-advisories/raw/2cf1393ef83a9f3cbf1f52b893738d5e2e07860e6b0c58de3bd58a8aeb6c5db2.body"
+      },
+      {
+        "url": "https://www.mozilla.org/en-US/security/advisories/mfsa2025-95/",
+        "status": 200,
+        "retrieved_at": "2026-09-28T17:59:36.635350+00:00",
+        "sha256": "e9bd2dd7bef1b7e679e7446288b9b678b1e4da60e2a30a7006db5960c5082162",
+        "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/firefox-advisories/raw/49dfa0a1652d714a3eca0447b25a39a72e16cf92d79421e4aec38659cc22cf6e.body"
+      },
+      {
+        "url": "https://www.mozilla.org/en-US/security/advisories/mfsa2025-96/",
+        "status": 200,
+        "retrieved_at": "2026-09-28T17:59:36.888367+00:00",
+        "sha256": "cc8c3d74517512129f7639418269610021b7e36407e14785e8abb071c94810b8",
+        "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/firefox-advisories/raw/e7745f2175c349548cd460940b05fa746f9be10556e525a089b139c561370e99.body"
+      }
+    ],
+    "index": {
+      "url": "https://www.mozilla.org/en-US/security/advisories/",
+      "status": 200,
+      "retrieved_at": "2026-09-28T17:58:48.090953+00:00",
+      "sha256": "aa813191613472c637e483e375c30c891842c5d973e82641a18b52e9f46bd34c",
+      "raw_file": "/research-data/secprbench/campaign-100-20260928/intake/firefox-advisories/raw/d11612cf68f2ad573cf0b0cb07f205d2ec6e613e342d9a03c477991d57092c90.body"
+    },
+    "fix_role": "public_advisory_bug_link_and_mainline_bug_commit",
+    "mainline_ref": "refs/remotes/origin/main",
+    "candidate_commits": [
+      {
+        "sha": "5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e",
+        "date": "2025-11-22T19:41:49Z",
+        "message": "Bug 1996761 - [devtools] Replace any other whitespace like characters with space r=devtools-reviewers,nchevobbe\n\nCertain control characters (e.g tab or form feed) are whitespace like characters.\nThis replaces those with a simple space.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D272425"
+      }
+    ],
+    "bugzilla_details": "not_fetched"
+  },
+  "candidate_status": "documented_advisory_case_pending_reference_validation"
+}

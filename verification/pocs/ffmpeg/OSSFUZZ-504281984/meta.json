@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-504281984",
+  "bug_id": "OSSFUZZ-504281984",
+  "bug_type": "LogicError",
+  "intro_commit": "2d241202fffd32df1b5992197e622f298d3d029d",
+  "intro_parent": "6c83bcadbbdbec8e2b8cf156de3e8bcc4e6c880a",
+  "fix_commit": "054dffd13368f8d7d024dbdfdce7454e6e547c5f",
+  "affected_files": [
+    "libavcodec/bsf/dts2pts.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The code mutates the sort key of an AVTree node (DTS2PTSNode.poc, part of the (poc, gop) key used by cmp_insert) via av_tree_enumerate()'s callback while the node remains linked in the tree, instead of removing the node, updating it, and re-inserting it (with collision handling) as required by AVTree's usage contract.",
+  "findings": [
+    "hevc_queue_frame() detects that a newly decoded frame has a POC that requires renumbering ('decrementing') the POC of previously-queued nodes that belong to the same GOP. To do this it calls av_tree_enumerate() with the `same_gop` comparator to walk the tree and, for every matching node, invokes `dec_poc()` via the enumerate 'cmp' callback, which directly mutates `node->poc -= dec` while the node "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "23c5965cceccd356db9933edcf17e4f6326ade24fd798b96bb711f7435e3231e",
+  "generated_artifact_sha256": {
+    "reference": "47226ca3820fde1e74885ffded0e23685d3c85317ba2d677162bc66df750980c",
+    "introducing": "530f3637ba6b9166e2a03550c7ce91d83d2bff8523fe9935970eb3b6a51652c8",
+    "companion": "7f0cd4f9a3aa5141dbe37ae4d19e7b4b388b370eb4d935c0b7e94566c7e2fed3"
+  }
+}

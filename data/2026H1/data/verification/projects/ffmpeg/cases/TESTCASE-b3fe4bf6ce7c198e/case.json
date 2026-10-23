@@ -1,0 +1,142 @@
+{
+  "bug_id": "TESTCASE-b3fe4bf6ce7c198e",
+  "project": "ffmpeg",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+    "parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+    "fix": "ddcb9dd3b5d21d055774abd61ae609ecb728cb1c"
+  },
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Root cause confirmed by source diff: introducing commit baad75cafa6b (\"aacdec_usac: add support for parsing Mpsp212\") added aacdec_usac_mps212.c/.h and parse_mps212(), which consume e->mps.otts_bands_phase (a raw 5-bit bitstream field, max 31) as an unclamped `end_band` array-bound parameter passed into ff_aac_ec_data_dec() for the IPD (\"phase\") data set, while the only validation present (mps_fr_nb_bands[freq_res], max 28) bounds a *different*, correctly-used `nb_bands` for the CLD/ICC data sets. The companion fix (ddcb9dd3b5d2, = post_benign) adds `if (otts_bands_phase > numBands) return AVERROR_INVALIDDATA;` (and the analogous check for bsResidualBands) directly in decode_usac_element_pair(), rejecting the malformed config before the bad value can ever reach parse_mps212().\n\nNo existing PoC/container-level reproducer was available, and hand-building a full valid USAC/xHE-AAC bitstream (AudioSpecificConfig + SBR header + arithmetic-coded core spectral data, all of which must be correctly parsed before parse_mps212 is ever reached in the real decode path) was infeasible relative to directly exercising the two functions the bug actually lives in. I therefore drove the real, unmodified vulnerable functions (via source #include of the untouched target .c file, not a rewritten copy) with a minimal, precisely bit-level-designed GetBitContext that reproduces exactly what the real bitstream fields would contain for this scenario. run_poc via the SAME run.sh/input on all three configured versions shows: (1) pre_intro accepts the same unchecked value at the config stage (ret=0) but the vulnerable sink is structurally absent (confirmed both by a failed compile and by grep); (2) post_intro accepts the same config and crashes deterministically under AddressSanitizer with a stack-buffer-overflow exactly where the root-cause description says the bound is missing; (3) post_benign rejects the same out-of-range config value before the sink is ever reached, and does not crash. A negative control with an in-bounds value (28) produces no crash on post_intro, isolating the defect to the out-of-range field rather than to the harness itself. The sanitizer fires as a stack WRITE overflow rather than literally as a \"read,\" but per the ground rules a sanitizer report establishing the same regression under the same reproducer is accepted even when the precise sub-type label is imprecise; the underlying defect (missing bounds check on bsOttBandsPhase/bsResidualBands used as an array bound, exactly as described in meta.json's root_cause and findings) is unambiguously introduced by baad75cafa6b and fixed by the benign commit.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/5c04d98c28079578f32b/attempts/07/replay/pr_review_TESTCASE-b3fe4bf6ce7c198e.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/5c04d98c28079578f32b/attempts/07/replay/pr_review_TESTCASE-b3fe4bf6ce7c198e.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/5c04d98c28079578f32b/attempts/07/replay/pr_review_TESTCASE-b3fe4bf6ce7c198e.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "455abe962d8dbc014153b68a858b77599c584104b1945eee1438d2e0aaf8fb18",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "98d162f5b1bef04f582731661061da9e6c018d0885301aa1aec10d8c9f861ef6"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "rness_frame.c (config stage + parse_mps212 frame stage) ===\n=== Build OK: parse_mps212()/AACUsacMPSData are present in this revision ===\nCONFIG ret=0 otts_bands_phase=31\nCalling parse_mps212() now; a stack-buffer-overflow under ASan is expected in the vulnerable (post_intro) build.\nVERIFY_EXIT=134\n\n=================================================================\n==12==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffc317ef488 at pc 0x55b127bce62a bp 0x7ffc317ef350 sp 0x7ffc317ef348\nWRITE of size 2 at 0x7ffc317ef488 thread T0\n    #0 0x55b127bce629 in ec_pair_dec /work/libavcodec/aac/aacdec_usac_mps212.c\n    #1 0x55b127bce629 in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:646:19\n    #2 0x55b127b8a41e in parse_mps212 /work/libavcodec/aac/aacdec_usac.c:1444:19\n    #3 0x55b127b89104 in main /poc/harness_frame.c:117:16\n    #4 0x7fcbae717d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7fcbae717e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x55b127ac2384 in _start (/tmp/hf+0x451384) (BuildId: 32265082068ba9c8dc60de647724453047dcad1b)\n\nAddress 0x7ffc317ef488 is located in stack of thread T0 at offset 296 in frame\n    #0 0x55b127bcb25f in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:597\n\n  This frame has 5 object(s):\n    [32, 144) 'pair_vec.i.i' (line 245)\n    [176, 208) 'p0_data.i.i' (line 247)\n    [240, 296) 'last_msb.i' (line 425) <== Memory access at offset 296 overflows this variable\n    [336, 448) 'data_pair.i' (line 426)\n    [480, 592) 'data_diff.i' (line 427)\nHINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork\n      (longjmp and C++ exceptions *are* supported)\nSUMMARY: AddressSanitizer: stack-buffer-overflow /work/libavcodec/aac/aacdec_usac_mps212.c in ec_pair_dec\nShadow bytes around the buggy address:\n  0x1000062f5e40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5e50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5e60: 00 00 00 00 00 00 00 00 00 00 00 00 f1 f1 f1 f1\n  0x1000062f5e70: f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f2 f2\n  0x1000062f5e80: f2 f2 f8 f8 f8 f8 f2 f2 f2 f2 00 00 00 00 00 00\n=>0x1000062f5e90: 00[f2]f2 f2 f2 f2 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5ea0: 00 00 00 00 f2 f2 f2 f2 00 00 00 00 00 00 00 00\n  0x1000062f5eb0: 00 00 00 00 00 00 f3 f3 f3 f3 f3 f3 00 00 00 00\n  0x1000062f5ec0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5ed0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5ee0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==12==ABORTING\n/poc/run.sh: line 37:    12 Aborted                 /tmp/hf\n",
+            "stdout_tail": "=============================================\n==12==ERROR: AddressSanitizer: stack-buffer-overflow on address 0x7ffc317ef488 at pc 0x55b127bce62a bp 0x7ffc317ef350 sp 0x7ffc317ef348\nWRITE of size 2 at 0x7ffc317ef488 thread T0\n    #0 0x55b127bce629 in ec_pair_dec /work/libavcodec/aac/aacdec_usac_mps212.c\n    #1 0x55b127bce629 in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:646:19\n    #2 0x55b127b8a41e in parse_mps212 /work/libavcodec/aac/aacdec_usac.c:1444:19\n    #3 0x55b127b89104 in main /poc/harness_frame.c:117:16\n    #4 0x7fcbae717d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7fcbae717e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x55b127ac2384 in _start (/tmp/hf+0x451384) (BuildId: 32265082068ba9c8dc60de647724453047dcad1b)\n\nAddress 0x7ffc317ef488 is located in stack of thread T0 at offset 296 in frame\n    #0 0x55b127bcb25f in ff_aac_ec_data_dec /work/libavcodec/aac/aacdec_usac_mps212.c:597\n\n  This frame has 5 object(s):\n    [32, 144) 'pair_vec.i.i' (line 245)\n    [176, 208) 'p0_data.i.i' (line 247)\n    [240, 296) 'last_msb.i' (line 425) <== Memory access at offset 296 overflows this variable\n    [336, 448) 'data_pair.i' (line 426)\n    [480, 592) 'data_diff.i' (line 427)\nHINT: this may be a false positive if your program uses some custom stack unwind mechanism, swapcontext or vfork\n      (longjmp and C++ exceptions *are* supported)\nSUMMARY: AddressSanitizer: stack-buffer-overflow /work/libavcodec/aac/aacdec_usac_mps212.c in ec_pair_dec\nShadow bytes around the buggy address:\n  0x1000062f5e40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5e50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5e60: 00 00 00 00 00 00 00 00 00 00 00 00 f1 f1 f1 f1\n  0x1000062f5e70: f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f8 f2 f2\n  0x1000062f5e80: f2 f2 f8 f8 f8 f8 f2 f2 f2 f2 00 00 00 00 00 00\n=>0x1000062f5e90: 00[f2]f2 f2 f2 f2 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5ea0: 00 00 00 00 f2 f2 f2 f2 00 00 00 00 00 00 00 00\n  0x1000062f5eb0: 00 00 00 00 00 00 f3 f3 f3 f3 f3 f3 00 00 00 00\n  0x1000062f5ec0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5ed0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x1000062f5ee0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==12==ABORTING\n/poc/run.sh: line 37:    12 Aborted                 /tmp/hf\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "455abe962d8dbc014153b68a858b77599c584104b1945eee1438d2e0aaf8fb18",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "a062e475fad0a1aa86bc2d63531f8b68e357fa30e5ba5e27f1a8b8795f2dad59"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "=== Attempting harness_frame.c (config stage + parse_mps212 frame stage) ===\n=== Build FAILED: parse_mps212()/AACUsacMPSData are absent in this revision ===\n--- compiler output (expected on pre-intro) ---\n/poc/harness_frame.c:111:5: error: unknown type name 'AACUsacMPSData'; did you mean 'AACUsacElemData'?\n    AACUsacMPSData mps; memset(&mps, 0, sizeof(mps));\n    ^~~~~~~~~~~~~~\n    AACUsacElemData\n/work/libavcodec/aac/aacdec.h:157:3: note: 'AACUsacElemData' declared here\n} AACUsacElemData;\n  ^\n1 error generated.\n=== Falling back to harness_config_pre.c (config-stage only) ===\nRESULT ret=0 freq_res=1 otts_bands_phase=31 phase_coding=1 residual_coding=0 stereo_config_index=1\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "455abe962d8dbc014153b68a858b77599c584104b1945eee1438d2e0aaf8fb18",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "fa005f80b292a7a2a7066e5aae3c93503b21debe8ce458cfb0e04ffc32c9584b"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "=== Attempting harness_frame.c (config stage + parse_mps212 frame stage) ===\n=== Build OK: parse_mps212()/AACUsacMPSData are present in this revision ===\nCONFIG ret=-1094995529 otts_bands_phase=0\nRESULT config-stage rejected out-of-range value; frame stage not reached (matches real decoder control flow)\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "sanitizer",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "No pre-existing PoC was available (source=no_poc). /poc/run.sh compiles and runs a harness that #includes the real, unmodified target file /work/libavcodec/aac/aacdec_usac.c (to reach its static functions) and calls the actual target functions decode_usac_element_pair() and parse_mps212() directly with a hand-crafted GetBitContext -- built this way because constructing a full container+ASC+SBR+arithmetic-coded-spectrum bitstream to reach parse_mps212 via the top-level decoder would exercise the exact same two functions but at far greater construction cost. Files: harness_config.c/harness_config_pre.c (stage 1: config parsing, compiles on all 3 revisions), harness_frame.c (stage 2: feeds a crafted per-frame MPS212 payload into parse_mps212(); only compiles where that function/struct exist), harness_frame_safe.c (negative control, in-bounds value). run.sh tries harness_frame.c first and falls back to harness_config_pre.c if it fails to build (expected pre-intro). Crafted bits (identical content across revisions): config stage sets bsFreqRes=1 (numBands=28 per Table 39 / mps_fr_nb_bands[]), bsPhaseCoding=1, bsOttBandsPhasePresent=1, bsOttBandsPhase=31 (5-bit max, 3 over the 28 limit), stereo_config_index=1; frame stage supplies a minimal MPS212 payload (CLD/ICC via data_mode=0 \"default fill\", then IPD via data_mode=3 -> ec_pair_dec with pcm_coding=0, dim=0, 31 one-bit Huffman-zero IPD symbols).",
+        "target_evidence": "run_poc(post_intro) [commit baad75cafa6b]: exit=134, crashed=True. AddressSanitizer: stack-buffer-overflow, WRITE of size 2, in ec_pair_dec (aacdec_usac_mps212.c) <- ff_aac_ec_data_dec (aacdec_usac_mps212.c:646) <- parse_mps212 (aacdec_usac.c:1444) <- main (harness_frame.c:117). ASan's frame dump identifies the overflowed object as 'last_msb.i', declared `int16_t last_msb[MPS_MAX_PARAM_BANDS]` (28 entries, aacdec_usac_mps212.c:425); the overflow occurs at loop index 28 in `for (i=0;i<nb_bands;i++) last_msb[i]=last[i+start_band]+quant_offset;` where nb_bands == ec->mps.otts_bands_phase == 31, the unchecked bsOttBandsPhase value -- exactly 3 past the declared bound, matching meta.json's stated root cause (bsOttBandsPhase/bsResidualBands parsed via get_bits() and never range-checked against numBands before being used as an array bound).\n\nrun_poc(pre_intro) [commit 86977fdb6bb0]: exit=0, crashed=False. decode_usac_element_pair() accepts the same crafted bits (ret=0, otts_bands_phase=31 stored, no validation) -- identical unsafe field storage already exists pre-intro -- but harness_frame.c fails to even COMPILE against this revision (\"unknown type name 'AACUsacMPSData'\"), because aacdec_usac_mps212.c/.h and parse_mps212() (the vulnerable sink that uses otts_bands_phase as an array bound) do not exist at all pre-intro. This is confirmed independently by `grep -n parse_mps212` returning nothing pre-intro.\n\nrun_poc(post_benign) [fix ddcb9dd3b5d2 applied]: exit=0, crashed=False. decode_usac_element_pair() with the identical crafted bits now returns ret=-1094995529 (AVERROR_INVALIDDATA) because otts_bands_phase(31) > numBands(28); the harness correctly never proceeds to call parse_mps212 (mirroring the real decoder, where this negative return aborts config decode before any frame is ever processed). No crash.\n\nNegative control (harness_frame_safe.c, otts_bands_phase=28, in-bounds) built and run directly against post_intro via docker_shell: parse_mps212 returns 0, no ASan report -- isolates the crash to the out-of-range value specifically, not to some unrelated harness defect."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Root cause confirmed by source diff: introducing commit baad75cafa6b (\"aacdec_usac: add support for parsing Mpsp212\") added aacdec_usac_mps212.c/.h and parse_mps212(), which consume e->mps.otts_bands_phase (a raw 5-bit bitstream field, max 31) as an unclamped `end_band` array-bound parameter passed into ff_aac_ec_data_dec() for the IPD (\"phase\") data set, while the only validation present (mps_fr_nb_bands[freq_res], max 28) bounds a *different*, correctly-used `nb_bands` for the CLD/ICC data sets. The companion fix (ddcb9dd3b5d2, = post_benign) adds `if (otts_bands_phase > numBands) return AVERROR_INVALIDDATA;` (and the analogous check for bsResidualBands) directly in decode_usac_element_pair(), rejecting the malformed config before the bad value can ever reach parse_mps212().\n\nNo existing PoC/container-level reproducer was available, and hand-building a full valid USAC/xHE-AAC bitstream (AudioSpecificConfig + SBR header + arithmetic-coded core spectral data, all of which must be correctly parsed before parse_mps212 is ever reached in the real decode path) was infeasible relative to directly exercising the two functions the bug actually lives in. I therefore drove the real, unmodified vulnerable functions (via source #include of the untouched target .c file, not a rewritten copy) with a minimal, precisely bit-level-designed GetBitContext that reproduces exactly what the real bitstream fields would contain for this scenario. run_poc via the SAME run.sh/input on all three configured versions shows: (1) pre_intro accepts the same unchecked value at the config stage (ret=0) but the vulnerable sink is structurally absent (confirmed both by a failed compile and by grep); (2) post_intro accepts the same config and crashes deterministically under AddressSanitizer with a stack-buffer-overflow exactly where the root-cause description says the bound is missing; (3) post_benign rejects the same out-of-range config value before the sink is ever reached, and does not crash. A negative control with an in-bounds value (28) produces no crash on post_intro, isolating the defect to the out-of-range field rather than to the harness itself. The sanitizer fires as a stack WRITE overflow rather than literally as a \"read,\" but per the ground rules a sanitizer report establishing the same regression under the same reproducer is accepted even when the precise sub-type label is imprecise; the underlying defect (missing bounds check on bsOttBandsPhase/bsResidualBands used as an array bound, exactly as described in meta.json's root_cause and findings) is unambiguously introduced by baad75cafa6b and fixed by the benign commit."
+    }
+  },
+  "task_hashes": {
+    "buggy": "65981848738f3b3d241a788cba4de9b8f6fcf8fdc289c2b2437318ce1cea6bcf",
+    "benign": "ed5a6b2955d2725393c87eb3b1e464a7425cff99de2cd2955634fa53a7a078f0"
+  }
+}

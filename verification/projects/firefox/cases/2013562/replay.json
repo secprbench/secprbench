@@ -1,0 +1,204 @@
+{
+  "summary": {
+    "task_id": "pr_review_2013562",
+    "bug_id": "2013562",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "3b5eb00effebb2765c66f4120e770542f7c1a372",
+    "intro_parent": "85ed04eda9d264dd23a1be1cb02d6d119eb6c52a",
+    "fix_commit": "670eb2adbc70900fb1077437e452e698b0aaf488",
+    "affected_files": [
+      "js/src/builtin/AtomicsObject.cpp"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "The deterministic fast-path run (default command, no setpref) produced identical non-crashing exit=3 on all three revisions because Atomics.waitAsync is gated behind the javascript.options.atomics_wait_async pref (default false in this build) and the PoC never got past 'Atomics.waitAsync is not a function' \u2014 inconclusive, not evidence of absence. Adapting the command to add --setpref=atomics_wait_async=true (required to reach the affected code at all) reproduces the crash cleanly and reversibly: pre_intro and post_benign run the identical PoC and command to completion with exit=0; post_intro crashes deterministically under ASAN with a SEGV inside the exact function named in meta.json's root cause (atomics_notify_impl's same-thread fast path resolving a cross-realm/cross-compartment Promise without entering its realm first), via the same call stack the original reporter captured. This confirms the intro commit introduces the regression and the benign-companion/fix removes it, using one invariant reproducer across all three builds."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-final (initial source: poc-watch)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/firefox/d7f25cfd6589bfb631a5/attempts/01/pocs/firefox/2013562",
+    "input_file": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/firefox/d7f25cfd6589bfb631a5/attempts/01/pocs/firefox/2013562/poc.js",
+    "input_name": "poc.js",
+    "size": 1245,
+    "has_run_sh": false,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "85ed04eda9d264dd23a1be1cb02d6d119eb6c52a",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 3,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=3\n\n/poc/test.js.js:26:19 TypeError: Atomics.waitAsync is not a function\nStack:\n  @/poc/test.js.js:26:19\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "bfd0ab893feb6bf18fdd194ccc19a9a518cd0367f0f5b36525e6da6af2e92e62"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "3b5eb00effebb2765c66f4120e770542f7c1a372",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 3,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=3\n\n/poc/test.js.js:26:19 TypeError: Atomics.waitAsync is not a function\nStack:\n  @/poc/test.js.js:26:19\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "7fd43d85b111a972144a094e64ac6ba5d4b347dfe3c05ba44dd4ced011d90fad"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "85ed04eda9d264dd23a1be1cb02d6d119eb6c52a",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 3,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=3\n\n/poc/test.js.js:26:19 TypeError: Atomics.waitAsync is not a function\nStack:\n  @/poc/test.js.js:26:19\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "24011110577935fd15425db45b45c0d89f79d470d5992daf7eec38f605e9a3e9"
+      }
+    }
+  },
+  "agent_executions": {
+    "post_intro": {
+      "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --setpref=atomics_wait_async=true $INPUT",
+      "input": "poc.js",
+      "poc_sha256": "f1facfd9e015b1e034e8f57ffe8852dd24bf594fce3c9c8b96d75793375bf033",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "3b5eb00effebb2765c66f4120e770542f7c1a372",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7fd43d85b111a972144a094e64ac6ba5d4b347dfe3c05ba44dd4ced011d90fad"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "st/bin/js +0x3bf0f85]\n#21: ???[/work/obj-verify-js/dist/bin/js +0x3c11b85]\n#22: ???[/work/obj-verify-js/dist/bin/js +0x2ee6461]\n#23: ???[/work/obj-verify-js/dist/bin/js +0x46ab317]\n#24: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x564f16e3bdfc bp 0x7fff79d199a0 sp 0x7fff79d19980 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x564f16e3bdfc in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:248:3\n    #1 0x564f16e3bdfc in MOZ_Crash(char const*, int, char const*) /work/obj-verify-js/dist/include/mozilla/Assertions.h:381:3\n    #2 0x564f16e3bdfc in js::ContextChecks::fail(JS::Compartment*, JS::Compartment*, int) /work/js/src/vm/JSContext-inl.h:55:5\n    #3 0x564f16e3bdfc in js::ContextChecks::check(JS::Compartment*, int) /work/js/src/vm/JSContext-inl.h:71:7\n    #4 0x564f16e3bdfc in js::ContextChecks::check(JSObject*, int) /work/js/src/vm/JSContext-inl.h:84:7\n    #5 0x564f16fe1cf4 in void JSContext::checkImpl<JS::Handle<JSObject*>, JS::Handle<JS::Value> >(JS::Handle<JSObject*> const&, JS::Handle<JS::Value> const&) /work/js/src/vm/JSContext-inl.h:207:33\n    #6 0x564f1746eb31 in void JSContext::check<JS::Handle<JSObject*>, JS::Handle<JS::Value> >(JS::Handle<JSObject*> const&, JS::Handle<JS::Value> const&) /work/js/src/vm/JSContext-inl.h:214:5\n    #7 0x564f1746eb31 in js::ResolvePromiseInternal(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>) /work/js/src/builtin/Promise.cpp:1337:7\n    #8 0x564f17488530 in js::PromiseObject::resolve(JSContext*, JS::Handle<js::PromiseObject*>, JS::Handle<JS::Value>) /work/js/src/builtin/Promise.cpp:6617:12\n    #9 0x564f16ee1cb5 in js::atomics_notify_impl(JSContext*, js::SharedArrayRawBuffer*, unsigned long, long, long*) /work/js/src/builtin/AtomicsObject.cpp:1454:10\n    #10 0x564f16f11301 in atomics_notify(JSContext*, unsigned int, JS::Value*) /work/js/src/builtin/AtomicsObject.cpp:1527:8\n    #11 0x564f16e7e9da in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /work/js/src/vm/Interpreter.cpp:494:13\n    #12 0x564f16e41ce2 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:590:12\n    #13 0x564f16e5dcd5 in js::CallFromStack(JSContext*, JS::CallArgs const&, js::CallReason) /work/js/src/vm/Interpreter.cpp:662:10\n    #14 0x564f16e5dcd5 in js::Interpret(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:3286:16\n    #15 0x564f16e406a7 in js::RunScript(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:464:13\n    #16 0x564f16e4637b in js::ExecuteKernel(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, js::AbstractFramePtr, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:855:13\n    #17 0x564f16e46ba6 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:888:10\n    #18 0x564f170c5bf4 in ExecuteScript(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:601:10\n    #19 0x564f170c58c3 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:618:10\n    #20 0x564f16ce07b7 in Evalu",
+        "stdout_tail": "b in js::ExecuteKernel(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, js::AbstractFramePtr, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:855:13\n    #17 0x564f16e46ba6 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:888:10\n    #18 0x564f170c5bf4 in ExecuteScript(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:601:10\n    #19 0x564f170c58c3 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:618:10\n    #20 0x564f16ce07b7 in Evaluate(JSContext*, unsigned int, JS::Value*) /work/js/src/shell/js.cpp:3011:19\n    #21 0x564f16e7e9da in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /work/js/src/vm/Interpreter.cpp:494:13\n    #22 0x564f16e41ce2 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:590:12\n    #23 0x564f16e43842 in js::Call(JSContext*, JS::Handle<JS::Value>, JS::Handle<JS::Value>, js::AnyInvokeArgs const&, JS::MutableHandle<JS::Value>, js::CallReason) /work/js/src/vm/Interpreter.cpp:689:8\n    #24 0x564f17b89f7c in js::ForwardingProxyHandler::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) const /work/js/src/proxy/Wrapper.cpp:168:10\n    #25 0x564f17b4cf84 in js::CrossCompartmentWrapper::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) const /work/js/src/proxy/CrossCompartmentWrapper.cpp:229:19\n    #26 0x564f17b6db84 in js::Proxy::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) /work/js/src/proxy/Proxy.cpp:705:19\n    #27 0x564f16e42460 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:570:14\n    #28 0x564f18607316 in js::jit::DoCallFallback(JSContext*, js::jit::BaselineFrame*, js::jit::ICFallbackStub*, unsigned int, JS::Value*, JS::MutableHandle<JS::Value>) /work/js/src/jit/BaselineIC.cpp:1705:10\n    #29 0x243efd74cf7e  (<unknown module>)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x0000564f1b44bca0  rcx = 0x0000000000000038  rdx = 0x0000000000000000  \nrdi = 0x0000564f1ab079c0  rsi = 0x00007fff79d19938  rbp = 0x00007fff79d199a0  rsp = 0x00007fff79d19980  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007fff79d19a28  r13 = 0x00007bbe2b776030  r14 = 0x00007fff79d199b0  r15 = 0x000011e148d00f08  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:248:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --setpref=atomics_wait_async=true $INPUT'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --setpref=atomics_wait_async=true $INPUT",
+      "input": "poc.js",
+      "poc_sha256": "f1facfd9e015b1e034e8f57ffe8852dd24bf594fce3c9c8b96d75793375bf033",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "85ed04eda9d264dd23a1be1cb02d6d119eb6c52a",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "bfd0ab893feb6bf18fdd194ccc19a9a518cd0367f0f5b36525e6da6af2e92e62"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --setpref=atomics_wait_async=true $INPUT",
+      "input": "poc.js",
+      "poc_sha256": "f1facfd9e015b1e034e8f57ffe8852dd24bf594fce3c9c8b96d75793375bf033",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "85ed04eda9d264dd23a1be1cb02d6d119eb6c52a",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "24011110577935fd15425db45b45c0d89f79d470d5992daf7eec38f605e9a3e9"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "JS shell PoC (reporter's testcase from bug 2013562, copied verbatim as /poc/poc.js): creates a second compartment via newGlobal({newCompartment:true}), shares a SharedArrayBuffer-backed Int32Array with it, calls Atomics.waitAsync(ta,0,0,5000) 10x in the main compartment (registering same-thread async waiters whose Promise lives in the main compartment's realm), then calls Atomics.notify(ta2,0) from JS evaluated in the OTHER compartment. Run with: `/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --setpref=atomics_wait_async=true $INPUT` (the --setpref is required because javascript.options.atomics_wait_async defaults to false in this build; the deterministic fast-path run without it never reaches Atomics.waitAsync, explaining the earlier non-crashing exit=3 'Atomics.waitAsync is not a function' result).",
+    "target_evidence": "post_intro (3b5eb00effeb): exit=134, AddressSanitizer: SEGV on unknown address 0x0 (WRITE), in MOZ_CrashSequence/MOZ_Crash -> js::ContextChecks::fail -> JSContext::check -> js::ResolvePromiseInternal (Promise.cpp) -> PromiseObject::resolve -> js::atomics_notify_impl (AtomicsObject.cpp:1454) -> atomics_notify. This is the same-thread fast path in atomics_notify_impl resolving a waitAsync Promise while JSContext::realm()/compartment differs from the promise's compartment (compartment-mismatch assertion firing as a null-deref SEGV under ASAN), exactly matching meta.json's root_cause and the reporter's own backtrace (candidate_01_c001_crash_data.txt) through the identical call chain (atomics_notify_impl -> PromiseObject::resolve -> ResolvePromiseInternal -> ContextChecks::check -> fail).\npre_intro (85ed04eda9d2): same command/input, exit=0, no crash, no sanitizer report.\npost_benign (fix-paired companion): same command/input, exit=0, no crash, no sanitizer report \u2014 matching the 'Enter correct realm before resolving same-thread waitAsync promise' fix message."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

@@ -1,0 +1,122 @@
+{
+  "identity": "wasmtime/GH-11469",
+  "case_id": "67a6278c55bdb767443f",
+  "project": "wasmtime",
+  "season": "2025H2",
+  "bug_id": "GH-11469",
+  "source": "/research-data/secprbench/season100-balanced-20261001/repair-wasmtime-gh11469-true-intro-import-v1/campaign/sources/wasmtime/source.json",
+  "source_sha256": "bbf9a289b44d4bc4821b58f26bd4e27bc0e448b387c6ee12ba832259e0dea654",
+  "repo": "/research/repos/bytecodealliance__wasmtime",
+  "source_fix_date": "2025-08-28T19:50:56Z",
+  "source_fix_sha": "7941919851b80d9ae4f2c5d0d4802afbc4839bf2",
+  "status": "generated",
+  "verification_status": "not_run",
+  "reference_import": {
+    "original_reference": "/research-data/secprbench/season100-balanced-20261001/repair-wasmtime-gh11469-true-intro-v1/campaign/cases/wasmtime/67a6278c55bdb767443f/attempts/01/reference/bug_GH-11469.json",
+    "original_reference_sha256": "573a4cd64e12d5b3a3b4c56f8bf5ab234ae76b4e10ae959382bbf8478e4688da",
+    "original_audit": "/research-data/secprbench/season100-balanced-20261001/repair-wasmtime-gh11469-true-intro-v1/audit.json",
+    "original_audit_sha256": "4c6277945efc52b909321aea57fc3c4e0b361e7c3bbc24c218515b7ce9d15581",
+    "model_inference_used_in_import": false
+  },
+  "attempts": [
+    {
+      "number": 1,
+      "started_at": "2026-10-01T23:22:40.521145+00:00",
+      "status": "imported_reference_seed",
+      "directory": "attempts/01",
+      "model_inference_used": false,
+      "usage": {
+        "complete": true,
+        "cost_usd": 0.0
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.0
+      }
+    },
+    {
+      "number": 2,
+      "started_at": "2026-10-01T23:23:26.541198+00:00",
+      "status": "generated",
+      "directory": "attempts/02",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800.0,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01",
+        "auth_mode": "subscription"
+      },
+      "returncode": 0,
+      "artifact_scan": {
+        "regular_files_scanned": 13,
+        "bytes_scanned": 270401,
+        "entries_scanned": 17,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-10-01T23:28:33.372346+00:00",
+      "elapsed_seconds": 306.83,
+      "usage": {
+        "input_tokens": 78,
+        "output_tokens": 27702,
+        "cache_read_tokens": 2128478,
+        "cache_write_tokens": 58335,
+        "cost_usd": 0.9362115999999999,
+        "sessions": 1,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.9362115999999999
+      }
+    }
+  ],
+  "scheduled_at": "2026-10-01T23:23:26.539861+00:00",
+  "updated_at": "2026-10-01T23:28:33.372361+00:00",
+  "fix_proof": {
+    "fix_sha": "7941919851b80d9ae4f2c5d0d4802afbc4839bf2",
+    "fix_date": "2025-08-28T19:50:56Z",
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_verified": true,
+    "date_basis": "earliest_mainline_fix",
+    "source_date_provenance": null,
+    "season": "2025H2"
+  },
+  "artifacts": {
+    "reference": {
+      "path": "attempts/02/reference/bug_GH-11469.json",
+      "sha256": "573a4cd64e12d5b3a3b4c56f8bf5ab234ae76b4e10ae959382bbf8478e4688da"
+    },
+    "introducing": {
+      "path": "attempts/02/tasks/pr_review_GH-11469.json",
+      "sha256": "9d430b11d4bb99c656c9787bcf6c4c1b691c1ddd7d91eeb58243d727771dc1a7"
+    },
+    "companion": {
+      "path": "attempts/02/tasks/pr_review_GH-11469_benign.json",
+      "sha256": "2c3ebee008c875b912a0153321d5306d41c47aad1948265a3a0f0d277f94572c"
+    }
+  },
+  "intro_eligibility": {
+    "intro_sha": "128e6b8f57b6b7fa92f9235bc2cd128a8145521d",
+    "intro_committer_timestamp": "2024-09-19T18:05:41Z",
+    "intro_timestamp_utc": "2024-09-19T18:05:41+00:00",
+    "intro_date_utc": "2024-09-19",
+    "min_intro_date": "2021-01-01",
+    "cutoff_inclusive": true,
+    "date_basis": "git_committer_date_utc",
+    "eligible": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-499135336",
+  "bug_id": "OSSFUZZ-499135336",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "7099b09e9629d8ea39231520739b4b6d90691d0c",
+  "intro_parent": "14ac6140fcf975502e6223797c709fd3d1812e44",
+  "fix_commit": "ef54557bda3b17da1b7e42e8e207efd1842bcc05",
+  "affected_files": [
+    "src/autofit/aflatin.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "freetype",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The new af_move_contour_vertically() function, introduced along with the vertical separation adjustment feature, performs raw signed addition (`point->y += movement;`) without using FreeType's overflow-safe arithmetic helper macros (e.g. `ADD_LONG`), which are used elsewhere in the codebase precisely to avoid undefined behavior from signed integer overflow when combining glyph coordinate values with computed adjustments.",
+  "findings": [
+    "In af_move_contour_vertically(), each point's y coordinate is adjusted with a plain `point->y += movement;`. `point->y` is an `FT_Pos` (a signed integer type, typically `FT_Long`/`FT_Int32` depending on configuration) and `movement` is an `FT_Int`. This function is part of the new 'vertical separation adjustment' feature and is called with movement values derived from glyph bounding-box computatio"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "1812ca8573b65825499c80427e295fdd542efb8a186965f63c80fcc53f88d4dc",
+  "generated_artifact_sha256": {
+    "reference": "3fc2f3007398c935df1dd5516a341760a922c732acd84d41b01325a094e2d3fd",
+    "introducing": "dbb78d28a8932bfafe735c80fd158ea174149e0c5442585507a9cd85523d4126",
+    "companion": "9f81e676dba8f3073253b59d54081a28b2c1dec4b9de9330604b51584ab1a82d"
+  }
+}

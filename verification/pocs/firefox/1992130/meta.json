@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_1992130",
+  "bug_id": "1992130",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "d310bda3293de3cb63641281ee126029fe322469",
+  "intro_parent": "47788ec25e4ff34a0792b3260f87f894dcc7c564",
+  "fix_commit": "75ef3f79aae344c1d0398787cab666a6a73176c7",
+  "affected_files": [
+    "js/src/wasm/WasmGcObject.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_poc-wrong-data-24.js: https://bugzilla.mozilla.org/rest/bug/attachment/9517753",
+    "- evidence/candidate_02_c002_poc-crash-asan.js: https://bugzilla.mozilla.org/rest/bug/attachment/9517754"
+  ],
+  "input_name": "poc-crash-asan.js",
+  "root_cause": "Type confusion between a byte-granularity source iterator (uint8_t*) with a byte-count length and an element-granularity destination iterator (T*) passed to std::copy, causing the loop trip count (computed as last-first in the source's element type) to be interpreted as T-sized elements against the destination, over-writing the destination buffer by sizeof(T)x.",
+  "findings": [
+    "In StableWasmArrayObjectElements::StableWasmArrayObjectElements(), when a WasmArrayObject stores its data inline, the code copies the inline array data into a heap Vector sized to hold exactly numElements_ elements of type T. The call `std::copy(array->inlineStorage(), array->inlineStorage() + array->numElements_ * sizeof(T), ownElements_->begin())` passes a byte-typed (uint8_t*) source range whos"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "ba0530b8bff198266c21278be0021b9c92b4b6a819d5b0e9fe2ec889213cf65a",
+  "generated_artifact_sha256": {
+    "reference": "985f514fa1f3e3710c2181073f3f10e2d0e09ff682ea0d7cde7a5c1effbd0250",
+    "introducing": "ab09d3fd236eaf6382cc5c7f3b0ad6e886fef0a92765bd08c8404b702a11ad50",
+    "companion": "27cf3818529ccf3e2798a8e9f788f4112fb9be48816f346d30702e892fa9aee1"
+  }
+}

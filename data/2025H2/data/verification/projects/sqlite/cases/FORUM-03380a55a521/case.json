@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-03380a55a521",
+  "project": "sqlite",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "d05bf5aedff9b0c724177669d5831e271d81591d",
+    "parent": "5b15123fba29709ff32a0aaa13f223223989d369",
+    "fix": "03380a55a521b0eb616a31bbed6dd44ecfd0aa55"
+  },
+  "affected_files": [
+    "ext/misc/zipfile.c"
+  ],
+  "baseline": {
+    "status": "anomaly",
+    "intro_verified": false,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded and were tested with the identical payload and command. post_intro aborted with exit 134 and ASan reported a heap-buffer-overflow, READ of size 30 in memcpy called by zipfileGetEntry. But pre_intro also aborted with exit 134 with the same ASan heap-buffer-overflow at the same zipfileGetEntry memcpy, so intro commit d05bf5aedff9 did not introduce the labelled vulnerability: pre_intro had no blob bounds guard, while post_intro added an insufficient guard using ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "anomaly"
+}

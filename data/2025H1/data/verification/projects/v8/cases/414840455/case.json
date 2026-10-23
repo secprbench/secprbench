@@ -1,0 +1,38 @@
+{
+  "bug_id": "414840455",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "7556d7f16c6c1ee3b01bb176327cd30a8a8a7ae9",
+    "parent": "5c5d43f2886f714bb831cd29bbf7cc12524c6814",
+    "fix": "afb07f0823289806411c630604a77f632a5e26c3"
+  },
+  "affected_files": [
+    "src/compiler/heap-refs.cc",
+    "src/compiler/heap-refs.h",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-interpreter-frame-state.cc",
+    "src/maglev/maglev-ir.h",
+    "test/mjsunit/maglev/regress-406830022.js",
+    "test/unittests/maglev/node-type-unittest.cc"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "All configured ASan builds succeeded. There was no existing PoC. The fix commit's regress-414840455.js was recreated and run with the identical d8 command on pre_intro, post_intro, and post_benign; every run exited 0 with no crash or observable output difference. A revision-adapted variant changed the loop initializer to 0.5, and --print-maglev-graph confirmed that post_intro generated Float64ToHeapNumberForField followed by StoreTaggedFieldWithWriteBarrier, exercising the reported double-field ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "not_reproduced",
+    "method": "debug_invariant_or_crash",
+    "intro_verified": "not_reproduced_clean",
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Intro built (is_debug) and ran the saved PoC with recorded flags but did not reproduce: not_reproduced_clean. Label is an unvalidated static hypothesis at this revision.",
+    "target_match": null,
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/414840455"
+  },
+  "final_disposition": "not_reproduced"
+}

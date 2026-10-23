@@ -1,0 +1,153 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "logic-error",
+  "poc_summary": "run.sh (now the canonical /poc/run.sh, run via run_poc on all three versions) takes the repo's own Winch regression-test input tests/disas/winch/x64/load/v128_load32x2_s_oob_avx.wat (1-page memory, `v128.load32x2_s (i32.const 65529)`). It (1) runs `wasmtime explore -Ccompiler=winch -Ccranelift-has-avx=true -Omemory-reservation=0` to dump the Winch-compiled x86-64 bounds-check sequence and extracts the `add rdx, N` immediate (N = bytes added to the offset before the bounds comparison), and (2) runs `wasmtime run -Ccompiler=winch -Ccranelift-has-avx=true -Omemory-reservation=0 -Omemory-guard-size=0 --invoke 'v128.load32x2_s'` on the same input with guard pages removed, counting occurrences of the \"memory fault at wasm address ...\" diagnostic line that Wasmtime's signal handler only emits when a real hardware OOB access occurs (i.e. the software bounds check was bypassed).",
+  "explanation": "Root cause per meta.json: the Jan-2025 Winch refactor (#10012, landed as intro commit bb5e4bbaf9a6) conflated \"bits per source lane before widening\" with \"total bytes read from memory\" in LoadKind::derive_operand_size() for VectorExtend SIMD loads (v128.load8x8/16x4/32x2 _s/_u). That undersized OperandSize is reused both to emit the actual load instruction and to size the Wasm linear-memory bounds check, so the bounds check under-counts the true 8-byte access width.\n\nI verified this by building pre_intro, post_intro and post_benign and running the exact same /poc/run.sh (same input file, same flags) via run_poc on each. The script runs each revision's actual Winch backend (via `wasmtime explore -Ccompiler=winch ...`) to read off the compiled bounds-check immediate, and separately executes the module live (via `wasmtime run -Ccompiler=winch ... -Omemory-guard-size=0 --invoke ...`) to see whether the undersized check actually lets an out-of-bounds 8-byte read reach a real unmapped page.\n\nResults: pre_intro and post_benign both compile the access with the correct `add rdx, 8` and never reach the real OOB read (bounds check traps it first, memory_fault_line_count=0). post_intro compiles the access with the buggy `add rdx, 4`, which lets the check pass; the subsequent real 8-byte vector load then runs 1 byte past the end of the mapped 1-page memory and triggers a genuine hardware SIGSEGV, visible as Wasmtime's extra \"memory fault at wasm address 0x10000 ...\" diagnostic (memory_fault_line_count=1) -- something that does not occur in pre_intro or post_benign. This is an exact, mechanism-level match to the described root cause (wrong per-lane vs total-access-width size used for bounds checking) and cleanly distinguishes \"introduces the bug\" (post_intro only) from \"fixes it\" (post_benign, identical to pre_intro). The deterministic fast-path's default PoC run showed no difference on any revision because the default run command used neither the Winch backend (Cranelift is the CLI default) nor disabled guard pages, so it never reached the code path this task implicates.",
+  "oracle": {
+    "kind": "behavioral",
+    "bug_marker": "VERDICT_MARKER: BUG_PRESENT_HARDWARE_FAULT_REACHED",
+    "pre_marker": "VERDICT_MARKER: BOUNDS_CHECK_CAUGHT_IT_SOFTWARE_ONLY",
+    "benign_marker": "VERDICT_MARKER: BOUNDS_CHECK_CAUGHT_IT_SOFTWARE_ONLY",
+    "description": "The true vector-extend load instruction (vpmovsxdq/vpmovzxdq) always reads 8 bytes, so a correct Winch lowering must add 8 to the offset before the bounds comparison (`add rdx, 8`). With guard pages removed (-Omemory-guard-size=0), if the bounds check uses a too-small size, the check wrongly passes for an offset whose actual 8-byte read overruns the mapped memory by a few bytes, and the CPU raises a genuine SIGSEGV one byte past the 0x10000-byte memory; Wasmtime's signal handler reports this with an extra \"memory fault at wasm address 0x10000 in linear memory of size 0x10000\" line not present when the correctly-sized software check rejects the access up front via the `ud2` path. Both the compiled bounds-check immediate and the presence/absence of that diagnostic line are produced by actually running each revision's Winch backend and runtime, not by source inspection.",
+    "target_evidence": "run_poc(run.sh) results, identical command/input across revisions:\n- pre_intro (f09978480659): bounds-check-immediate = \"add rdx, 8\"; memory_fault_line_count = 0; VERDICT_MARKER=BOUNDS_CHECK_CAUGHT_IT_SOFTWARE_ONLY; script exit 0.\n- post_intro (bb5e4bbaf9a6): bounds-check-immediate = \"add rdx, 4\"; memory_fault_line_count = 1; VERDICT_MARKER=BUG_PRESENT_HARDWARE_FAULT_REACHED; script exit 1.\n- post_benign (mechanical revert, = intro_parent f09978480659): bounds-check-immediate = \"add rdx, 8\"; memory_fault_line_count = 0; VERDICT_MARKER=BOUNDS_CHECK_CAUGHT_IT_SOFTWARE_ONLY; script exit 0.\nOnly post_intro shows the undersized 4-byte bounds-check width and the resulting real hardware OOB fault; pre_intro and post_benign are identical to each other and both match the correct/fixed 8-byte width."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "read_context(evidence/candidate_01_c001_v128_load32x2_s_oob_avx.wat)",
+    "read_context(evidence/test_01_cea1f9dfd2c110a4_v128_load32x2_s_oob_avx.wat)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "read_context(evidence/candidate_02_c002_v128_load32x2_u_oob_avx.wat)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "build_version(post_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "v128_load32x2_s_oob_avx.wat",
+      "poc_sha256": "6c5b0c8ddd5a39cc21f515096e8eef405ad6179de604237ed2c3827d30386382",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "f099784806591a4ff6caf570c25c71f946fe2934",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "fda015f7546017fed2a8f8ed9a55d647d3f9cb816cf3fe8d7d0c624340c25380"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "##### RESULT SUMMARY #####\nbounds-check-immediate: \"mnemonic\":\"add\",\"operands\":\"rdx, 8\"\nrun_exit: 134\nmemory_fault_line_count: 0\nVERDICT_MARKER: BOUNDS_CHECK_CAUGHT_IT_SOFTWARE_ONLY\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "v128_load32x2_s_oob_avx.wat",
+      "poc_sha256": "6c5b0c8ddd5a39cc21f515096e8eef405ad6179de604237ed2c3827d30386382",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "bb5e4bbaf9a60b07213ccdd1973bc0606c22c822",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "135ba97bd7e5dd9bc8841eb778cc4b1db3949e23bb6858a1c3082078c152edf1"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "##### RESULT SUMMARY #####\nbounds-check-immediate: \"mnemonic\":\"add\",\"operands\":\"rdx, 4\"\nrun_exit: 134\nmemory_fault_line_count: 1\nVERDICT_MARKER: BUG_PRESENT_HARDWARE_FAULT_REACHED\nVERIFY_EXIT=1\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "v128_load32x2_s_oob_avx.wat",
+      "poc_sha256": "6c5b0c8ddd5a39cc21f515096e8eef405ad6179de604237ed2c3827d30386382",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "f099784806591a4ff6caf570c25c71f946fe2934",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "bfcf97f8d477922ffdef826f0c876957980856811677343d1d2bd052a7f07bb8"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "##### RESULT SUMMARY #####\nbounds-check-immediate: \"mnemonic\":\"add\",\"operands\":\"rdx, 8\"\nrun_exit: 134\nmemory_fault_line_count: 0\nVERDICT_MARKER: BOUNDS_CHECK_CAUGHT_IT_SOFTWARE_ONLY\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "behavioral",
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+  }
+}

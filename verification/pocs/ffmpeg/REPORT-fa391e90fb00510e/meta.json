@@ -1,0 +1,31 @@
+{
+  "task_id": "pr_review_REPORT-fa391e90fb00510e",
+  "bug_id": "REPORT-fa391e90fb00510e",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "b43d4a06925867fbbc0dbe21d63a3593253f672a",
+  "intro_parent": "3b84140a1bb5a5b3044915888a40a7b619921633",
+  "fix_commit": "fa391e90fb00510e926e305d6f8067cadf0f4153",
+  "affected_files": [
+    "fftools/ffmpeg_dec.c",
+    "fftools/ffmpeg.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A pointer-only copy (shallow copy) of a buffer owned by another object's lifetime (AVCodecContext) is stored in a longer-lived structure (Decoder) without duplicating the buffer or establishing correct ownership/lifetime semantics, and no corresponding free/retain mechanism exists.",
+  "findings": [
+    "In dec_open(), the newly introduced Decoder.subtitle_header field is assigned directly from ist->dec_ctx->subtitle_header (a pointer owned/managed by the decoder's AVCodecContext, i.e. by libavcodec). No copy of the underlying buffer is made; Decoder.subtitle_header is simply an alias to memory owned by the AVCodecContext. When the AVCodecContext is later closed/freed (avcodec_free_context, e.g. d"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "10a09641d8466372a366a2e59684771946cba05fd5dd902d5785ddde1da5cd99",
+  "generated_artifact_sha256": {
+    "reference": "8cce1a930112e9873fc12ba9ca15bcf56fde9b0927f77944d5dcfb00bf0315f7",
+    "introducing": "a81b887fea4e003dcd578a73d43b1e31a3acd968d88fa57c97bc78c8bdcc9c15",
+    "companion": "b941ee09bf72ba4cb167ee0f48409406f7b51e0cddd621ed41c0883b1795d21c"
+  }
+}

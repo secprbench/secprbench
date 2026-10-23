@@ -1,0 +1,32 @@
+{
+  "bug_id": "1970764",
+  "project": "firefox",
+  "bug_type": "RaceCondition",
+  "commits": {
+    "intro": "52d7d34ee0f98f050db2ce347fb537b43679b746",
+    "parent": "b667cdad37182140215df6a8592d5b5b1d459c4f",
+    "fix": "31b320354b8cec123c27ae426b673c2304e67f73"
+  },
+  "affected_files": [
+    "netwerk/protocol/http/TRRServiceChannel.cpp"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": true,
+    "benign_verified": null,
+    "reason": "Using the same /poc/run.sh, pre_intro exited 0 with crashed=False and no targeted TRRServiceChannel->GetConnInfo hit. post_intro reproducibly exited 134 with crashed=True and AddressSanitizer reported heap-use-after-free (READ of size 4) in nsHttpConnectionInfo::Clone at nsHttpConnectionInfo.cpp:325, called by TRRServiceChannel::OnStartRequest at line 1044 on the TRR Background thread. The GDB hook is gated on that exact introduced caller and deterministically models the concurrent RefPtr writer",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "inconclusive",
+    "method": "firefox-verify (era 1.76.0, agent)",
+    "intro_verified": true,
+    "benign_verified": null,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "Using the same /poc/run.sh, pre_intro exited 0 with crashed=False and no targeted TRRServiceChannel->GetConnInfo hit. post_intro reproducibly exited 134 with crashed=True and AddressSanitizer reported heap-use-after-free (READ of size 4) in nsHttpConnectionInfo::Clone at nsHttpConnectionInfo.cpp:325, called by TRRServiceChannel::OnStartRequest at line 1044 on the TRR Background thread. The GDB hook is gated on that exact introduced caller and deterministically models the concurrent RefPtr writer after the unprotected raw mConnInfo load; pre_intro never reaches the hook. post_benign was not run",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1970764.json"
+  },
+  "final_disposition": "inconclusive"
+}

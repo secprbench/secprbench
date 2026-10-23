@@ -1,0 +1,35 @@
+{
+  "bug_id": "OSSFUZZ-490433932",
+  "project": "freetype",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "0409ef32686188c1947298e0fca9fbeadd23c1c3",
+    "parent": "f33b237c961c41c8bda3fb2dfbc3bc71f9cfabc4",
+    "fix": "31401a3b2d7a9c69c1c4292c59030fdd58402661"
+  },
+  "affected_files": [
+    "src/raster/ftraster.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "no PoC available: no PoC under pocs/freetype/OSSFUZZ-490433932/ or pocs/freetype/OSSFUZZ-490433932.*; add a PoC directory (input file and/or run.sh) or a flat input file",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "ubsan",
+    "environment": "anypoc-freetype Docker image (Ubuntu 22.04, clang, cmake, git, /opt/freetype full history including intro/parent/fix commits). No custom Dockerfile needed. Build/run done in an ephemeral --rm container (--cpus=8 --memory=24g, timeout 1750s). setup_i386_toolchain.sh unpacked libc6-dev-i386 via apt inside the container to build a local i386 sysroot (clang -m32 --sysroot=...), because the target arithmetic type `Long` (C `long`) in src/raster/ftraster.c is 64-bit on x86_64 -- the overflow (~2.35e9) only leaves the signed range at 32 bits, i.e. this is inherently an i386-only reproduction (OSS-Fuzz builds FreeType for both x86_64 and i386; this is the i386 target). Pre-2013 revisions (parent/intro) have no CMakeLists.txt so amalgamation files were hand-compiled with clang -m32 -fsanitize=address,signed-integer-overflow; the two later revisions (fix/fix^) used CMake -DBUILD_SHARED_LIBS=OFF with the same sanitizer flags.",
+    "parent": "0409ef32^ (f33b237c9, 10-bit precision / precision_scale=16, hand-compiled amalgamation, -m32 ASan+UBSan): poc.ttf renders through FT_Render_Glyph with no error -- 'done (no crash)', exit 0. Genuinely clean control, not a build failure -- the same binary and font ran to completion.",
+    "intro": "0409ef32 (Increase precision for B/W rasterizer, 12-bit / precision_scale=64): UBSan fires in Line_Up, src/raster/ftraster.c:1035:28 -- 'runtime error: signed integer overflow: 4096 * 573440 cannot be represented in type long', full stack FT_Render_Glyph -> ft_raster1_render -> ft_black_render -> Render_Glyph -> Render_Single_Pass -> Convert_Glyph -> Decompose_Curve -> Line_To -> Line_Up -> main (poc.c:42). exit 1.",
+    "benign": "31401a3b2 (Set_High_Precision: Limit size, the fix -- adds `&& ras.bTop + ras.bRight < 256` guard, built via CMake on the modern tree): same poc.ttf, same load path -- 'done (no crash)', exit 0. Its direct parent 31401a3b2^ (modern tree, unfixed) was also built as an extra control and DOES crash at ftraster.c:982 with the identical overflow ('573440 * 4096 cannot be represented in type long'), confirming the defect persisted unchanged from 2009 up to the fix and that the fix commit is precisely what removes it.",
+    "evidence": "src/raster/ftraster.c:1035:28: runtime error: signed integer overflow: 4096 * 573440 cannot be represented in type 'long' (at intro 0409ef32); src/raster/ftraster.c:982:15: runtime error: signed integer overflow: 573440 * 4096 cannot be represented in type 'long' (at fix^ 31401a3b2^, same bug pre-fix). Both traces bottom out in Line_Up called from Line_To/Decompose_Curve/Convert_Glyph/Render_Single_Pass/Render_Glyph/ft_black_render/ft_raster1_render/FT_Render_Glyph -- matching the ground truth's must_cover set (Set_High_Precision as root cause location, Render_Single_Pass and Line_Up as related/triggering locations; Bezier_Up is the analogous overflow site for curved outlines, not hit by thi",
+    "poc_source": "fetched",
+    "reason": "This case had a substantial prior anypoc PoC-generation run (output/freetype/poc/OSSFUZZ-490433932/attempt_2, evidence_check: passed) that had already produced a working PoC (poc.c + poc.ttf, a 392-byte crafted TrueType font reached purely through FT_New_Face/FT_Set_Char_Size/FT_Load_Glyph/FT_Render_Glyph) and a build_and_run.sh driving a 4-way differential across parent/intro/fix-parent/fix. Rather than trust that report's text, I copied those artifacts into this workdir and independently re-ran ./build_and_run.sh --all myself inside a fresh --rm anypoc-freetype container with resource caps, from the same /opt/freetype clone the image ships (which already contains the intro, parent and fix commits locally, so no dependence on the prior run's git state). The rerun reproduced byte-for-byte the same 4/4 outcome: clean at parent, UBSan signed-integer-overflow in Line_Up at intro (line 1035)",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/freetype__OSSFUZZ-490433932/result.json"
+  },
+  "final_disposition": "verified"
+}

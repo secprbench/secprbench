@@ -1,0 +1,56 @@
+{
+  "task_id": "pr_review_OSSFUZZ-391935573_benign",
+  "bug_id": "OSSFUZZ-391935573",
+  "commit_sha": "43926e026dd80918e1387801077c58cf02b6c99d",
+  "commit_message": "avcodec/mm: decode partial palette",
+  "commit_author": "",
+  "commit_date": "2026-09-28T23:48:58.871085",
+  "pr_title": "avcodec/mm: decode partial palette",
+  "pr_description": "avcodec/mm: decode partial palette",
+  "files": [
+    {
+      "path": "libavcodec/mmvideo.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 7,
+      "diff": "diff --git a/libavcodec/mmvideo.c b/libavcodec/mmvideo.c\nindex 3038d9ea92..bbec792bc4 100644\n--- a/libavcodec/mmvideo.c\n+++ b/libavcodec/mmvideo.c\n@@ -71,27 +71,24 @@ static av_cold int mm_decode_init(AVCodecContext *avctx)\n \n     s->frame = av_frame_alloc();\n     if (!s->frame)\n         return AVERROR(ENOMEM);\n \n     return 0;\n }\n \n static void mm_decode_pal(MmContext *s)\n {\n-    int i;\n-\n-    bytestream2_skip(&s->gb, 4);\n-    for (i = 0; i < 128; i++) {\n-        s->palette[i] = 0xFFU << 24 | bytestream2_get_be24(&s->gb);\n-        s->palette[i+128] = s->palette[i]<<2;\n-    }\n+    int start = bytestream2_get_le16(&s->gb);\n+    int count = bytestream2_get_le16(&s->gb);\n+    for (int i = 0; i < count; i++)\n+        s->palette[(start+i)&0xFF] = 0xFFU << 24 | (bytestream2_get_be24(&s->gb) << 2);\n }\n \n /**\n  * @param half_horiz Half horizontal resolution (0 or 1)\n  * @param half_vert Half vertical resolution (0 or 1)\n  */\n static int mm_decode_intra(MmContext * s, int half_horiz, int half_vert)\n {\n     int x = 0, y = 0;\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/mmvideo.c b/libavcodec/mmvideo.c\nindex 3038d9ea92..bbec792bc4 100644\n--- a/libavcodec/mmvideo.c\n+++ b/libavcodec/mmvideo.c\n@@ -71,27 +71,24 @@ static av_cold int mm_decode_init(AVCodecContext *avctx)\n \n     s->frame = av_frame_alloc();\n     if (!s->frame)\n         return AVERROR(ENOMEM);\n \n     return 0;\n }\n \n static void mm_decode_pal(MmContext *s)\n {\n-    int i;\n-\n-    bytestream2_skip(&s->gb, 4);\n-    for (i = 0; i < 128; i++) {\n-        s->palette[i] = 0xFFU << 24 | bytestream2_get_be24(&s->gb);\n-        s->palette[i+128] = s->palette[i]<<2;\n-    }\n+    int start = bytestream2_get_le16(&s->gb);\n+    int count = bytestream2_get_le16(&s->gb);\n+    for (int i = 0; i < count; i++)\n+        s->palette[(start+i)&0xFF] = 0xFFU << 24 | (bytestream2_get_be24(&s->gb) << 2);\n }\n \n /**\n  * @param half_horiz Half horizontal resolution (0 or 1)\n  * @param half_vert Half vertical resolution (0 or 1)\n  */\n static int mm_decode_intra(MmContext * s, int half_horiz, int half_vert)\n {\n     int x = 0, y = 0;\n \n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-391935573",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+    "fix_commit": "43926e026dd80918e1387801077c58cf02b6c99d"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+  "fix_commit_sha": "43926e026dd80918e1387801077c58cf02b6c99d",
+  "intro_commit_message": "avcodec/mm: decode partial palette",
+  "fix_commit_message": "avcodec/mmvideo: fix palette index\n\nFixes: 391935573/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_MMVIDEO_fuzzer-4655048979709952\nFixes: out of array access\n\nReviewed-by: Peter Ross <pross@xvid.org>\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 43926e026dd8 on top of intro 63ea1660fa06 via git's 3-way merge. Vulnerability (BufferOverflow): In FFmpeg's American Laser Games MM video decoder (libavcodec/mmvideo.c), the mm_decode_pal() function reads a 16-bit 'start' offset and a 16-bit 'count' value directly from the input bitstream and uses them, unvalidated, as the base index and loop bound for writing entries into the fixed-size s->palette[AVPALETTE_COUNT] (256-entry) array. Because neither value is bounds-checked against the array size, a maliciously crafted MM video file can cause the decoder to write palette entries far outside the bounds of the palette array, resulting in an out-of-bounds write detected by OSS-Fuzz (clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_MMVIDEO_fuzzer-4655048979709952). Root cause: The refactor in commit 63ea1660fa (\"avcodec/mm: decode partial palette\") replaced a previous fixed 128-iteration loop with a stream-controlled 'start' offset and 'count' loop bound, but failed to mask/clamp the resulting array index (start+i) to the valid range of the palette array, allowing attacker-controlled values to index arbitrarily far outside the array.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+    "fix_revision": "43926e026dd80918e1387801077c58cf02b6c99d",
+    "fix_parent_revision": "aeea2defe4fb5190a3eb6cee192559d4fb5fb674",
+    "inspected_paths": [
+      "libavcodec/mmvideo.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "libavcodec/mmvideo.c",
+        "symbol": "bytestream2_get_be24",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

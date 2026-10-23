@@ -1,0 +1,96 @@
+{
+  "task_id": "pr_review_416179216",
+  "bug_id": "416179216",
+  "commit_sha": "b663e2746c1dd79529509f87ab7f817f6ec4a4d3",
+  "commit_message": "[turbofan] Guarantee speculative add safe integer\n\n... is not marked unreachable when speculation contradicts\nstatic information.\n\nIn these cases, we fallback to a default Float64Add.\n\nFixed: 408370964\nChange-Id: Iad6f15a998e1203ae92825cffaebd4800d047dbc\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6434436\nReviewed-by: Nico Hartmann <nicohartmann@chromium.org>\nCommit-Queue: Victor Gomes <victorgomes@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100097}",
+  "commit_author": "Victor Gomes",
+  "commit_date": "2025-05-06T14:39:23+02:00",
+  "pr_title": "[turbofan] Guarantee speculative add safe integer",
+  "pr_description": "... is not marked unreachable when speculation contradicts\nstatic information.\n\nIn these cases, we fallback to a default Float64Add.\n\nFixed: 408370964\nChange-Id: Iad6f15a998e1203ae92825cffaebd4800d047dbc\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6434436\nReviewed-by: Nico Hartmann <nicohartmann@chromium.org>\nCommit-Queue: Victor Gomes <victorgomes@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100097}\n",
+  "files": [
+    {
+      "path": "src/compiler/simplified-lowering.cc",
+      "status": "modified",
+      "additions": 15,
+      "deletions": 6,
+      "diff": "diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc\nindex 96e0a8d1152..687ad5ad6b1 100644\n--- a/src/compiler/simplified-lowering.cc\n+++ b/src/compiler/simplified-lowering.cc\n@@ -1797,22 +1797,31 @@ class RepresentationSelector {\n   }\n \n   template <Phase T>\n   void VisitSpeculativeAdditiveOp(Node* node, Truncation truncation,\n                                   SimplifiedLowering* lowering) {\n-    if (GetUpperBound(node).Is(Type::Signed32()) ||\n-        GetUpperBound(node).Is(Type::Unsigned32()) ||\n-        truncation.IsUsedAsWord32()) {\n-      if (BothInputsAre(node, type_cache_->kAdditiveSafeIntegerOrMinusZero)) {\n+    if (BothInputsAre(node, Type::Signed32())) {\n+      if (GetUpperBound(node).Is(Type::Signed32()) ||\n+          GetUpperBound(node).Is(Type::Unsigned32()) ||\n+          truncation.IsUsedAsWord32()) {\n         // => Int32Add/Sub\n         VisitBinop<T>(node, UseInfo::TruncatingWord32(),\n                       MachineRepresentation::kWord32);\n         if (lower<T>()) ChangeToPureOp(node, Int32Op(node));\n         return;\n       }\n \n-      if (CanSpeculateAdditiveSafeInteger(node)) {\n+      // => AdditiveSafeIntegerAdd/Sub\n+      VisitBinop<T>(node, UseInfo::CheckedSafeIntAsWord64(FeedbackSource{}),\n+                    MachineRepresentation::kWord64,\n+                    type_cache_->kAdditiveSafeInteger);\n+      if (lower<T>()) ChangeOp(node, AdditiveSafeIntegerOverflowOp(node));\n+      return;\n+    }\n+\n+    if (CanSpeculateAdditiveSafeInteger(node)) {\n+      if (!truncation.IsUnused() && truncation.IsUsedAsWord32()) {\n         // This case handles addition where the result might be truncated to\n         // word32. Even if the inputs might be larger than 2^32, we can safely\n         // perform 32-bit addition *here* if the inputs are in the additive safe\n         // range. We *must* propagate the CheckedSafeIntTruncatingWord32\n         // information. This is because we need to ensure that we deoptimize if\n@@ -1822,11 +1831,11 @@ class RepresentationSelector {\n                       UseInfo::CheckedSafeIntTruncatingWord32(FeedbackSource{}),\n                       MachineRepresentation::kWord32);\n         if (lower<T>()) ChangeToPureOp(node, Int32Op(node));\n         return;\n       }\n-    } else if (CanSpeculateAdditiveSafeInteger(node)) {\n+\n       // => AdditiveSafeIntegerAdd/Sub\n       VisitBinop<T>(node, UseInfo::CheckedSafeIntAsWord64(FeedbackSource{}),\n                     MachineRepresentation::kWord64,\n                     type_cache_->kAdditiveSafeInteger);\n       if (lower<T>()) ChangeOp(node, AdditiveSafeIntegerOverflowOp(node));\n"
+    },
+    {
+      "path": "test/mjsunit/regress-408370964.js",
+      "status": "added",
+      "additions": 26,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/regress-408370964.js b/test/mjsunit/regress-408370964.js\nnew file mode 100644\nindex 00000000000..69324492e33\n--- /dev/null\n+++ b/test/mjsunit/regress-408370964.js\n@@ -0,0 +1,26 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax\n+\n+function f0(a1) {\n+  let v10 = Math.max((a1 | 0) * (2 ** 52), 4294967297);\n+  v10--;\n+  return v10 + v10;\n+}\n+\n+%PrepareFunctionForOptimization(f0);\n+f0(0); // Addition will have AdditiveSafeInt feedback.\n+%OptimizeFunctionOnNextCall(f0);\n+f0(0); // Compile with have AdditiveSafeInt feedback.\n+\n+function f1() {\n+  f0(1);\n+  return 1;\n+}\n+%PrepareFunctionForOptimization(f1);\n+f1(); // Since f0 is optimized, feedback is not updated.\n+%OptimizeFunctionOnNextCall(f1);\n+f1(); // Addition has the AdditiveSafeInt feedback, but the\n+      // static inputs suggest otherwise.\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc\nindex 96e0a8d1152..687ad5ad6b1 100644\n--- a/src/compiler/simplified-lowering.cc\n+++ b/src/compiler/simplified-lowering.cc\n@@ -1797,22 +1797,31 @@ class RepresentationSelector {\n   }\n \n   template <Phase T>\n   void VisitSpeculativeAdditiveOp(Node* node, Truncation truncation,\n                                   SimplifiedLowering* lowering) {\n-    if (GetUpperBound(node).Is(Type::Signed32()) ||\n-        GetUpperBound(node).Is(Type::Unsigned32()) ||\n-        truncation.IsUsedAsWord32()) {\n-      if (BothInputsAre(node, type_cache_->kAdditiveSafeIntegerOrMinusZero)) {\n+    if (BothInputsAre(node, Type::Signed32())) {\n+      if (GetUpperBound(node).Is(Type::Signed32()) ||\n+          GetUpperBound(node).Is(Type::Unsigned32()) ||\n+          truncation.IsUsedAsWord32()) {\n         // => Int32Add/Sub\n         VisitBinop<T>(node, UseInfo::TruncatingWord32(),\n                       MachineRepresentation::kWord32);\n         if (lower<T>()) ChangeToPureOp(node, Int32Op(node));\n         return;\n       }\n \n-      if (CanSpeculateAdditiveSafeInteger(node)) {\n+      // => AdditiveSafeIntegerAdd/Sub\n+      VisitBinop<T>(node, UseInfo::CheckedSafeIntAsWord64(FeedbackSource{}),\n+                    MachineRepresentation::kWord64,\n+                    type_cache_->kAdditiveSafeInteger);\n+      if (lower<T>()) ChangeOp(node, AdditiveSafeIntegerOverflowOp(node));\n+      return;\n+    }\n+\n+    if (CanSpeculateAdditiveSafeInteger(node)) {\n+      if (!truncation.IsUnused() && truncation.IsUsedAsWord32()) {\n         // This case handles addition where the result might be truncated to\n         // word32. Even if the inputs might be larger than 2^32, we can safely\n         // perform 32-bit addition *here* if the inputs are in the additive safe\n         // range. We *must* propagate the CheckedSafeIntTruncatingWord32\n         // information. This is because we need to ensure that we deoptimize if\n@@ -1822,11 +1831,11 @@ class RepresentationSelector {\n                       UseInfo::CheckedSafeIntTruncatingWord32(FeedbackSource{}),\n                       MachineRepresentation::kWord32);\n         if (lower<T>()) ChangeToPureOp(node, Int32Op(node));\n         return;\n       }\n-    } else if (CanSpeculateAdditiveSafeInteger(node)) {\n+\n       // => AdditiveSafeIntegerAdd/Sub\n       VisitBinop<T>(node, UseInfo::CheckedSafeIntAsWord64(FeedbackSource{}),\n                     MachineRepresentation::kWord64,\n                     type_cache_->kAdditiveSafeInteger);\n       if (lower<T>()) ChangeOp(node, AdditiveSafeIntegerOverflowOp(node));\ndiff --git a/test/mjsunit/regress-408370964.js b/test/mjsunit/regress-408370964.js\nnew file mode 100644\nindex 00000000000..69324492e33\n--- /dev/null\n+++ b/test/mjsunit/regress-408370964.js\n@@ -0,0 +1,26 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax\n+\n+function f0(a1) {\n+  let v10 = Math.max((a1 | 0) * (2 ** 52), 4294967297);\n+  v10--;\n+  return v10 + v10;\n+}\n+\n+%PrepareFunctionForOptimization(f0);\n+f0(0); // Addition will have AdditiveSafeInt feedback.\n+%OptimizeFunctionOnNextCall(f0);\n+f0(0); // Compile with have AdditiveSafeInt feedback.\n+\n+function f1() {\n+  f0(1);\n+  return 1;\n+}\n+%PrepareFunctionForOptimization(f1);\n+f1(); // Since f0 is optimized, feedback is not updated.\n+%OptimizeFunctionOnNextCall(f1);\n+f1(); // Addition has the AdditiveSafeInt feedback, but the\n+      // static inputs suggest otherwise.\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "b663e2746c1dd79529509f87ab7f817f6ec4a4d3",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "416179216",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Overly restrictive type check in VisitSpeculativeAdditiveOp excludes Unsigned32 inputs",
+        "message": "In `VisitSpeculativeAdditiveOp`, the refactored condition `BothInputsAre(node, Type::Signed32())` is too narrow: it does not cover inputs whose type is `Unsigned32` (but not `Signed32`). The original code handled both signed and unsigned 32-bit integer inputs through the `kAdditiveSafeIntegerOrMinusZero` check (which includes the full integral32 range). With the narrowed guard, a node whose inputs are `Unsigned32` no longer enters the fast Int32Add/Sub path. Instead it falls through to a different lowering path. This produces a mismatch in `UseInfo` between the PROPAGATE and LOWER phases: the two phases assign different `UseInfo` values for the same input edge, violating the monotonicity invariant checked by `DCHECK(IsUseLessGeneral(input_use_infos_[index], use_info))` in simplified-lowering.cc, causing a crash (a DCHECK failure that in a non-debug build could silently produce incorrect code).",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-670"
+        ],
+        "location": {
+          "file": "src/compiler/simplified-lowering.cc",
+          "function": "VisitSpeculativeAdditiveOp",
+          "start_line": 1801,
+          "end_line": 1821,
+          "snippet": "  void VisitSpeculativeAdditiveOp(Node* node, Truncation truncation,\n                                  SimplifiedLowering* lowering) {\n    if (BothInputsAre(node, Type::Signed32())) {   // <-- too narrow, misses Unsigned32\n      if (GetUpperBound(node).Is(Type::Signed32()) ||\n          GetUpperBound(node).Is(Type::Unsigned32()) ||\n          truncation.IsUsedAsWord32()) {\n        // => Int32Add/Sub\n        VisitBinop<T>(node, UseInfo::TruncatingWord32(),\n                      MachineRepresentation::kWord32);\n        if (lower<T>()) ChangeToPureOp(node, Int32Op(node));\n        return;\n      }"
+        },
+        "related_locations": [
+          {
+            "file": "src/compiler/simplified-lowering.cc",
+            "start_line": 1802,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "VisitSpeculativeAdditiveOp (fix location)",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Replace `BothInputsAre(node, Type::Signed32())` with `BothInputsAre(node, Type::Integral32OrMinusZero())` so that both `Signed32` and `Unsigned32` inputs enter the Int32Add/Sub fast path, preserving the pre-existing monotonic UseInfo invariant across compiler phases.",
+        "rule_id": "sec-logicerror-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/compiler/simplified-lowering.cc",
+      "test/mjsunit/regress-408370964.js"
+    ],
+    "root_cause": "The restructuring in commit b663e27 narrowed the type guard from the inclusive `kAdditiveSafeIntegerOrMinusZero` (which includes Unsigned32) to the exclusive `Type::Signed32()` (which does not). This silently broke the UseInfo monotonicity contract between the compiler's PROPAGATE and LOWER phases for nodes with Unsigned32 inputs.",
+    "must_cover": [
+      {
+        "file": "src/compiler/simplified-lowering.cc",
+        "function": "VisitSpeculativeAdditiveOp",
+        "reason": "Primary location of finding: Overly restrictive type check in VisitSpeculativeAdditiveOp excludes Unsigned32 inputs"
+      },
+      {
+        "file": "src/compiler/simplified-lowering.cc",
+        "function": "VisitSpeculativeAdditiveOp (fix location)",
+        "reason": "Related location for: Overly restrictive type check in VisitSpeculativeAdditiveOp excludes Unsigned32 inputs"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__416179216__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "41649069b03ceb44fbaf2e2496ca330c81372cc6",
+    "diff_stats": {
+      "files_changed": 2,
+      "lines_changed": 47
+    }
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "bug_id": "GH-16823",
+  "title": "mqtt: convert sendleftovers to dynbuf",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "use_after_free"
+  ],
+  "product": "curl",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public identifiers in the upstream fixing commit:\n- GH-16823: https://github.com/curl/curl/issues/16823\n\nExact upstream commit message:\nmqtt: convert sendleftovers to dynbuf\n\nAvoid frequent strdups/free calls, including the double-free risk.\n\nReported-by: Ronald Crane\nCloses #16823\n\u0000\n\nMainline fixing revision candidate: b2078c0e1c756b75b1e13b42800acf0c7ef5290b\nDerive the introducing revision independently. No issue content was fetched and no bug replay was run.",
+  "commit_ids": [
+    "b2078c0e1c756b75b1e13b42800acf0c7ef5290b"
+  ],
+  "fix_commit_sha": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+  "fix_date": "2025-03-25T07:22:05Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H1",
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "GH-16823",
+      "url": "https://github.com/curl/curl/issues/16823",
+      "kind": "explicit_closing_clause",
+      "evidence": "Closes #16823"
+    }
+  ],
+  "defect_evidence": [
+    {
+      "kind": "use_after_free",
+      "text": "double-free",
+      "start": 88,
+      "end": 99
+    }
+  ],
+  "fix_role_evidence": [
+    {
+      "kind": "prevent_or_correct",
+      "text": "Avoid",
+      "start": 39,
+      "end": 44
+    },
+    {
+      "kind": "repair_state",
+      "text": "free",
+      "start": 62,
+      "end": 66
+    }
+  ],
+  "affected_files": [
+    "lib/dynbuf.h",
+    "lib/mqtt.c",
+    "lib/mqtt.h"
+  ],
+  "changed_lines": 45,
+  "candidate_status": "documented_fix_pending_task_construction_and_verification",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "documented_fixes_2025h1_v1",
+    "selection": "commit_message_public_identity_and_concrete_defect",
+    "source_url": "https://github.com/curl/curl/commit/b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+    "issue_contents": "not_fetched",
+    "introducing_commit": "not_inferred",
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "dfa444f1e59c52b56fb0d16152e610e4c29c7115",
+    "mainline_ancestry_verified": true,
+    "original_committer_date": "2025-03-25T08:22:05+01:00",
+    "commit_object": {
+      "git_sha": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/curl/raw/commits/b2078c0e1c756b75b1e13b42800acf0c7ef5290b.commit",
+      "sha256": "a090eadc066587efca5cee022e3300c6878c9afc934456942e206a6911d9379b"
+    },
+    "patch": {
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/curl/raw/commits/b2078c0e1c756b75b1e13b42800acf0c7ef5290b.patch",
+      "sha256": "a90541ec9aacee0e768132627eeda50035151d147166e179692e44d0e7e9ea1f"
+    },
+    "history": {
+      "repository": "/research/repos/curl__curl",
+      "upstream_url": "https://github.com/curl/curl",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_tip": "dfa444f1e59c52b56fb0d16152e610e4c29c7115",
+      "window_start_utc_inclusive": "2025-01-01T00:00:00Z",
+      "window_end_utc_exclusive": "2025-07-01T00:00:00Z",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/curl/raw/git_history.e5e2c3afda98d4611f68c399d46e57dca9e9632a1ba88dac24968023f46477c4.raw",
+      "sha256": "e5e2c3afda98d4611f68c399d46e57dca9e9632a1ba88dac24968023f46477c4"
+    }
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "task_id": "pr_review_GH-18902",
+  "bug_id": "GH-18902",
+  "commit_sha": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+  "commit_message": "openssl: when a session-ID is reused, skip OCSP stapling\n\nFixes #12399\nReported-by: Alexey Larikov\nCloses #12418",
+  "commit_author": "Daniel Stenberg",
+  "commit_date": "2023-11-27T23:50:45+01:00",
+  "pr_title": "openssl: when a session-ID is reused, skip OCSP stapling",
+  "pr_description": "Fixes #12399\nReported-by: Alexey Larikov\nCloses #12418\n",
+  "files": [
+    {
+      "path": "lib/vtls/openssl.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 1,
+      "diff": "diff --git a/lib/vtls/openssl.c b/lib/vtls/openssl.c\nindex f788c50cf7..8c8f43e836 100644\n--- a/lib/vtls/openssl.c\n+++ b/lib/vtls/openssl.c\n@@ -3794,10 +3794,11 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,\n   }\n #endif\n \n   SSL_set_app_data(backend->handle, cf);\n \n+  connssl->reused_session = FALSE;\n   if(ssl_config->primary.sessionid) {\n     Curl_ssl_sessionid_lock(data);\n     if(!Curl_ssl_getsessionid(cf, data, &ssl_sessionid, NULL)) {\n       /* we got a session id, use it! */\n       if(!SSL_set_session(backend->handle, ssl_sessionid)) {\n@@ -3807,10 +3808,11 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,\n                             sizeof(error_buffer)));\n         return CURLE_SSL_CONNECT_ERROR;\n       }\n       /* Informational message */\n       infof(data, \"SSL reusing session ID\");\n+      connssl->reused_session = TRUE;\n     }\n     Curl_ssl_sessionid_unlock(data);\n   }\n \n   backend->bio_method = ossl_bio_cf_method_create();\n@@ -4338,11 +4340,12 @@ static CURLcode servercert(struct Curl_cfilter *cf,\n \n   infof_certstack(data, backend->handle);\n \n #if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \\\n   !defined(OPENSSL_NO_OCSP)\n-  if(conn_config->verifystatus) {\n+  if(conn_config->verifystatus && !connssl->reused_session) {\n+    /* don't do this after Session ID reuse */\n     result = verifystatus(cf, data);\n     if(result) {\n       X509_free(backend->server_cert);\n       backend->server_cert = NULL;\n       return result;\n"
+    },
+    {
+      "path": "lib/vtls/vtls_int.h",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/lib/vtls/vtls_int.h b/lib/vtls/vtls_int.h\nindex cc5a357180..af7ae552ed 100644\n--- a/lib/vtls/vtls_int.h\n+++ b/lib/vtls/vtls_int.h\n@@ -73,10 +73,11 @@ struct ssl_connect_data {\n   void *backend;                    /* vtls backend specific props */\n   struct cf_call_data call_data;    /* data handle used in current call */\n   struct curltime handshake_done;   /* time when handshake finished */\n   int port;                         /* remote port at origin */\n   BIT(use_alpn);                    /* if ALPN shall be used in handshake */\n+  BIT(reused_session);              /* session-ID was reused for this */\n };\n \n \n #undef CF_CTX_CALL_DATA\n #define CF_CTX_CALL_DATA(cf)  \\\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/vtls/openssl.c b/lib/vtls/openssl.c\nindex f788c50cf7..8c8f43e836 100644\n--- a/lib/vtls/openssl.c\n+++ b/lib/vtls/openssl.c\n@@ -3794,10 +3794,11 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,\n   }\n #endif\n \n   SSL_set_app_data(backend->handle, cf);\n \n+  connssl->reused_session = FALSE;\n   if(ssl_config->primary.sessionid) {\n     Curl_ssl_sessionid_lock(data);\n     if(!Curl_ssl_getsessionid(cf, data, &ssl_sessionid, NULL)) {\n       /* we got a session id, use it! */\n       if(!SSL_set_session(backend->handle, ssl_sessionid)) {\n@@ -3807,10 +3808,11 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,\n                             sizeof(error_buffer)));\n         return CURLE_SSL_CONNECT_ERROR;\n       }\n       /* Informational message */\n       infof(data, \"SSL reusing session ID\");\n+      connssl->reused_session = TRUE;\n     }\n     Curl_ssl_sessionid_unlock(data);\n   }\n \n   backend->bio_method = ossl_bio_cf_method_create();\n@@ -4338,11 +4340,12 @@ static CURLcode servercert(struct Curl_cfilter *cf,\n \n   infof_certstack(data, backend->handle);\n \n #if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \\\n   !defined(OPENSSL_NO_OCSP)\n-  if(conn_config->verifystatus) {\n+  if(conn_config->verifystatus && !connssl->reused_session) {\n+    /* don't do this after Session ID reuse */\n     result = verifystatus(cf, data);\n     if(result) {\n       X509_free(backend->server_cert);\n       backend->server_cert = NULL;\n       return result;\ndiff --git a/lib/vtls/vtls_int.h b/lib/vtls/vtls_int.h\nindex cc5a357180..af7ae552ed 100644\n--- a/lib/vtls/vtls_int.h\n+++ b/lib/vtls/vtls_int.h\n@@ -73,10 +73,11 @@ struct ssl_connect_data {\n   void *backend;                    /* vtls backend specific props */\n   struct cf_call_data call_data;    /* data handle used in current call */\n   struct curltime handshake_done;   /* time when handshake finished */\n   int port;                         /* remote port at origin */\n   BIT(use_alpn);                    /* if ALPN shall be used in handshake */\n+  BIT(reused_session);              /* session-ID was reused for this */\n };\n \n \n #undef CF_CTX_CALL_DATA\n #define CF_CTX_CALL_DATA(cf)  \\\n",
+  "ground_truth": {
+    "bug_id": "GH-18902",
+    "expected_finding": true,
+    "fix_commit": {
+      "author": "Joshua Rogers",
+      "date": "2025-10-07T23:56:25+02:00",
+      "message": "openssl: skip session resumption when verifystatus is set",
+      "sha": "4bfd7a961521e1fd6aab7610e931d82a342781a8",
+      "short_sha": "4bfd7a9"
+    },
+    "findings": [
+      {
+        "bug_type": "LogicError",
+        "confidence": 0.97,
+        "cwe_ids": [
+          "CWE-295"
+        ],
+        "location": {
+          "description": "New guard at the exact 2023 introducing revision.",
+          "end_column": null,
+          "end_line": 4345,
+          "file": "lib/vtls/openssl.c",
+          "function": "servercert",
+          "revision_validated": true,
+          "snippet": "  if(conn_config->verifystatus && !connssl->reused_session) {",
+          "snippet_hash": "e4a59c42b93b33716bd30e8631fbcc8b5f267ea9bc8b1cc833add1276dcaa7ac",
+          "snippet_start_line": 4345,
+          "start_column": null,
+          "start_line": 4345
+        },
+        "message": "The new reused_session condition suppresses verifystatus, while the existing cache lookup can still offer a session when status verification is requested.",
+        "references": [
+          "https://github.com/curl/curl/issues/12399",
+          "https://github.com/curl/curl/pull/18902",
+          "https://github.com/curl/curl/commit/4bfd7a961521e1fd6aab7610e931d82a342781a8"
+        ],
+        "related_locations": [
+          {
+            "description": "Preexisting intro-era session-cache lookup must be disabled when verifystatus is set.",
+            "end_column": null,
+            "end_line": 3800,
+            "file": "lib/vtls/openssl.c",
+            "function": "ossl_connect_step1",
+            "revision_validated": true,
+            "snippet": "  if(ssl_config->primary.sessionid) {",
+            "snippet_hash": "8d3a651f466ad37e6b6168f22a5b36157d6cb9c7406fb9ad0db908cb88f16661",
+            "snippet_start_line": 3800,
+            "start_column": null,
+            "start_line": 3800
+          }
+        ],
+        "rule_id": "curl-ocsp-resumption-bypass",
+        "severity": "medium",
+        "suggestion": "At this 2023 snapshot, add && !conn_config->verifystatus to the sessionid cache lookup so a full handshake and OCSP validation occur.",
+        "suggestion_code": null,
+        "tags": [
+          "TLS",
+          "OCSP",
+          "certificate-validation",
+          "session-resumption"
+        ],
+        "title": "Resumed OpenSSL session bypasses requested OCSP status check"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "lib/vtls/openssl.c",
+      "lib/vtls/vtls_int.h"
+    ],
+    "root_cause": "In the introducing tree, servercert skips verifystatus() when connssl->reused_session is true, but ossl_connect_step1 still loads a cached session under if(ssl_config->primary.sessionid). The 2025 fix gates a later cache_session API. The equivalent repair for the 2023 tree is the one-line intro-era guard if(ssl_config->primary.sessionid && !conn_config->verifystatus), forcing a full handshake and status check.",
+    "must_cover": [
+      {
+        "file": "lib/vtls/openssl.c",
+        "function": "servercert",
+        "start_line": 4345,
+        "end_line": 4345,
+        "role": "primary",
+        "reason": "Primary location of finding: Resumed OpenSSL session bypasses requested OCSP status check"
+      },
+      {
+        "file": "lib/vtls/openssl.c",
+        "function": "ossl_connect_step1",
+        "start_line": 3800,
+        "end_line": 3800,
+        "role": "related",
+        "reason": "Related location for: Resumed OpenSSL session bypasses requested OCSP status check"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

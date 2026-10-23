@@ -1,0 +1,145 @@
+{
+  "summary": {
+    "task_id": "pr_review_482345688",
+    "bug_id": "482345688",
+    "bug_type": "DataRace",
+    "intro_commit": "b9068d13bb1c33f67708cdb207a892994389941f",
+    "intro_parent": "1973b12d6241a7e7a82965447dc40fb6a8fb7bd5",
+    "fix_commit": "e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9",
+    "affected_files": [
+      "src/wasm/wasm-module.cc",
+      "src/wasm/wasm-module.h",
+      "src/wasm/wasm-code-manager.cc"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Root cause confirmed exactly as described in meta.json/discussion.md (public V8 fix commit e194d3a40d8e \"[wasm] Fix data race on WasmModuleSignatureStorage\"): intro commit b9068d13bb1c replaced the Zone-based `signature_zone` with `WasmModuleSignatureStorage signature_storage`, a mutable field written during wasm instantiation (fast-API-call signature caching) under NativeModule::allocation_mutex_, but read by WasmModule::EstimateStoredSize()/EstimateCurrentMemoryConsumption() (called from NativeModule::EstimateCurrentMemoryConsumption(), reachable via GC sampling and the %EstimateCurrentMemoryConsumption() test intrinsic) without that lock. Because the new storage class keeps its data in a std::vector<std::vector<uint8_t>> whose backing array is reallocated (and the old array freed) as it grows, the lock-free reader can dereference memory that a concurrent, lock-holding writer is in the middle of freeing -- a real, ASan-catchable heap-use-after-free, not just a benign/unobservable race. This reproduced reliably under a stress PoC designed specifically to maximize the overlap window (many imports per instantiate to force repeated reallocations; many racing writer/reader Workers; the cheap %EstimateCurrentMemoryConsumption() intrinsic for high-frequency lock-free reads). pre_intro has an analogous, textually-acknowledged-but-weaker race on the old Zone-based signature_zone (the fix commit's own message: \"The same race existed before on the signature_zone_, but looks like it was less likely to trigger\") -- Zone allocation is append-only/non-relocating, so it does not produce the same reallocation-induced UAF, consistent with pre_intro running clean across repeated identical-reproducer runs. post_benign restores the missing lock exactly where the root cause says it belongs (verified by diffing wasm-code-manager.cc across all three revisions) and also ran clean across repeated runs. This satisfies the invariance requirement: identical PoC/command reproduces the sanitizer report only in post_intro, and is clean in both pre_intro and post_benign."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification/cases/v8/1244bf4088d50a8eea8c/attempts/01/pocs/v8/482345688",
+    "input_file": "/research-data/secprbench/season100-balanced-20261001/verification/cases/v8/1244bf4088d50a8eea8c/attempts/01/pocs/v8/482345688/poc_debug.js",
+    "input_name": "poc_debug.js",
+    "size": 840,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ae5be87dba4869784972875e5f55b4714276cacb1ef0280d0aab66c1de4a3461",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "b9068d13bb1c33f67708cdb207a892994389941f",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3f0b47306b62654071cc76e90fbe59a6ce5ca89b9cf9e545a122dd7c6521c62d"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": " in 136.66199999999935 ms\nVERIFY_EXIT=134\n\nV8 is running with experimental features enabled. Stability and security will suffer.\n=================================================================\n==8==ERROR: AddressSanitizer: heap-use-after-free on address 0x7e63c9868810 at pc 0x559963b6f09a bp 0x7a51ab5ca160 sp 0x7a51ab5ca158\nREAD of size 8 at 0x7e63c9868810 thread T64 (WorkerThread)\n    #0 0x559963b6f099 in capacity gen/third_party/libc++/src/include/__vector/vector.h:396:41\n    #1 0x559963b6f099 in TotalReservedSize src/wasm/wasm-module.h:742:33\n    #2 0x559963b6f099 in v8::internal::wasm::WasmModule::EstimateStoredSize() const src/wasm/wasm-module.cc:733:28\n    #3 0x559963b6f515 in v8::internal::wasm::WasmModule::EstimateCurrentMemoryConsumption() const src/wasm/wasm-module.cc:813:19\n    #4 0x559963a8cb6d in v8::internal::wasm::NativeModule::EstimateCurrentMemoryConsumption() const src/wasm/wasm-code-manager.cc:2908:22\n    #5 0x559963af2015 in v8::internal::wasm::WasmEngine::EstimateCurrentMemoryConsumption() const src/wasm/wasm-engine.cc:2057:32\n    #6 0x5599637b70ff in __RT_impl_Runtime_EstimateCurrentMemoryConsumption src/runtime/runtime-test-wasm.cc:1041:42\n    #7 0x5599637b70ff in v8::internal::Runtime_EstimateCurrentMemoryConsumption(int, unsigned long*, v8::internal::Isolate*) src/runtime/runtime-test-wasm.cc:1040:1\n    #8 0x5599660a9e35 in Builtins_CEntry_Return1_ArgvOnStack_NoBuiltinExit setup-isolate-deserialize.cc\n    #9 0x5599c64c0804  (<unknown module>)\n    #10 0x559965ff55db in Builtins_JSEntryTrampoline setup-isolate-deserialize.cc\n    #11 0x559965ff532a in Builtins_JSEntry setup-isolate-deserialize.cc\n    #12 0x559961abda96 in Call src/execution/simulator.h:216:12\n    #13 0x559961abda96 in v8::internal::(anonymous namespace)::Invoke(v8::internal::Isolate*, v8::internal::(anonymous namespace)::InvokeParams const&) src/execution/execution.cc:442:22\n    #14 0x559961abb676 in v8::internal::Execution::Call(v8::internal::Isolate*, v8::internal::DirectHandle<v8::internal::Object>, v8::internal::DirectHandle<v8::internal::Object>, v8::base::Vector<v8::internal::DirectHandle<v8::internal::Object> const>) src/execution/execution.cc:532:10\n    #15 0x5599616eeb7b in v8::Function::Call(v8::Isolate*, v8::Local<v8::Context>, v8::Local<v8::Value>, int, v8::Local<v8::Value>*) src/api/api.cc:5512:27\n    #16 0x55996144b3db in v8::Worker::ProcessMessage(std::__Cr::unique_ptr<v8::SerializationData, std::__Cr::default_delete<v8::SerializationData>>) src/d8/d8.cc:5889:47\n    #17 0x55996627f3b2 in v8::platform::DefaultPlatform::PumpMessageLoop(v8::Isolate*, v8::platform::MessageLoopBehavior) src/libplatform/default-platform.cc:173:9\n    #18 0x559961452c9c in v8::(anonymous namespace)::ProcessMessages(v8::Isolate*, std::__Cr::function<v8::platform::MessageLoopBehavior ()> const&) src/d8/d8.cc:6668:9\n    #19 0x55996144589f in CompleteMessageLoop src/d8/d8.cc:6724:10\n    #20 0x55996144589f in v8::Shell::FinishExecuting(v8::Isolate*, v8::Global<v8::Context> const&) src/d8/d8.cc:6728:8\n    #21 0x559961449c86 in v8::Worker::ExecuteInThread() src/d8/d8.cc:6037:14\n    #22 0x559961448d70 in v8::Worker::WorkerThread::Run() src/d8/d8.cc:5762:11\n    #23 0x55996627aceb in v8::base::ThreadEntry(void*) src/base/platform/platform-posix.cc:1307:11\n    #24 0x5599613a2c36 in asan_thread_start(void*) asan_interceptors.cpp\n\n0x7e63c9868810 is located 13840 bytes inside of 24576-byte region [0x7e63c9865200,0x7e63c986b200)\nfreed by thread T55 (WorkerThread) here:\n ",
+        "stdout_tail": "1:18\n    #21 0x559961454ff7 in v8::Shell::Main(int, char**) src/d8/d8.cc:7452:18\n    #22 0x7fb3ca33a1c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #23 0x7fb3ca33a28a in __libc_start_main csu/../csu/libc-start.c:360:3\n    #24 0x559961303029 in _start (/work/out.gn/x64.release/d8+0x1396029) (BuildId: 13a5c193f8e17969)\n\nSUMMARY: AddressSanitizer: heap-use-after-free gen/third_party/libc++/src/include/__vector/vector.h:396:41 in capacity\nShadow bytes around the buggy address:\n  0x7e63c9868580: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868600: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868680: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868700: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868780: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n=>0x7e63c9868800: fd fd[fd]fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868880: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868900: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868980: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868a00: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\n  0x7e63c9868a80: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\nReceived signal 6\n\n==== C stack trace ===============================\n\n/work/out.gn/verify/d8(__interceptor_backtrace+0x46)[0x55996134ab36]\n/work/out.gn/verify/d8(+0x6315ee0)[0x559966282ee0]\n/lib/x86_64-linux-gnu/libc.so.6(+0x45330)[0x7fb3ca355330]\n/lib/x86_64-linux-gnu/libc.so.6(pthread_kill+0x11c)[0x7fb3ca3aeb2c]\n/lib/x86_64-linux-gnu/libc.so.6(gsignal+0x1e)[0x7fb3ca35527e]\n/lib/x86_64-linux-gnu/libc.so.6(abort+0xdf)[0x7fb3ca3388ff]\n/work/out.gn/verify/d8(+0x1458c5c)[0x5599613c5c5c]\n/work/out.gn/verify/d8(+0x145744e)[0x5599613c444e]\n/work/out.gn/verify/d8(+0x143e88b)[0x5599613ab88b]\n/work/out.gn/verify/d8(+0x144066d)[0x5599613ad66d]\n/work/out.gn/verify/d8(__asan_report_load8+0x36)[0x5599613ae456]\n/work/out.gn/verify/d8(+0x3c0209a)[0x559963b6f09a]\n/work/out.gn/verify/d8(+0x3c02516)[0x559963b6f516]\n/work/out.gn/verify/d8(+0x3b1fb6e)[0x559963a8cb6e]\n/work/out.gn/verify/d8(+0x3b85016)[0x559963af2016]\n/work/out.gn/verify/d8(+0x384a100)[0x5599637b7100]\n/work/out.gn/verify/d8(+0x613ce36)[0x5599660a9e36]\n[end of stack trace]\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ae5be87dba4869784972875e5f55b4714276cacb1ef0280d0aab66c1de4a3461",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "1973b12d6241a7e7a82965447dc40fb6a8fb7bd5",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "791b48a0732e054cd0d120807e0f9263c2e94bc5c9fddf949b2d1c40f47e1f47"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "          82\nt:V8.WasmEngineMetadataSizeKiB                                          88320\nc:V8.WasmFunctionsPerModule.wasm                                           80\nt:V8.WasmFunctionsPerModule.wasm                                           80\nc:V8.WasmModuleCodeSizeKiB                                                159\nt:V8.WasmModuleCodeSizeKiB                                                636\nc:V8.WasmModuleCodeSizeMiB                                                159\nt:V8.WasmModuleCodeSizeMiB                                                  0\nc:V8.WasmModuleMetadataSizeKiB                                            159\nt:V8.WasmModuleMetadataSizeKiB                                          82839\nc:V8.WasmModuleSizeBytes.wasm                                              80\nt:V8.WasmModuleSizeBytes.wasm                                         3266560\nc:V8.WasmModulesPerEngine                                                  80\nt:V8.WasmModulesPerEngine                                                 159\nc:V8.WasmModulesPerIsolate                                                 80\nt:V8.WasmModulesPerIsolate                                                159\nc:V8.AliveAfterLastGC                                                  556256\nc:V8.CompilationCacheMisses                                                 2\nc:V8.Deopts                                                                17\nc:V8.EnumCacheMisses                                                        1\nc:V8.GCCompactorCausedByRequest                                            82\nc:V8.GlobalHandles                                                         27\nc:V8.MapsCreated                                                         2998\nc:V8.MemoryCodeSpaceBytesAvailable                                          0\nc:V8.MemoryCodeSpaceBytesCommitted                                     262144\nc:V8.MemoryCodeSpaceBytesUsed                                           63360\nc:V8.MemoryLoSpaceBytesAvailable                                            0\nc:V8.MemoryLoSpaceBytesCommitted                                            0\nc:V8.MemoryLoSpaceBytesUsed                                                 0\nc:V8.MemoryNewSpaceBytesAvailable                                     1048512\nc:V8.MemoryNewSpaceBytesCommitted                                     2097152\nc:V8.MemoryNewSpaceBytesUsed                                                0\nc:V8.MemoryOldSpaceBytesAvailable                                      259380\nc:V8.MemoryOldSpaceBytesCommitted                                      786432\nc:V8.MemoryOldSpaceBytesUsed                                           455176\nc:V8.ObjsSinceLastFull                                                      0\nc:V8.ObjsSinceLastYoung                                                     0\nc:V8.StackInterrupts                                                      507\nVERIFY_EXIT=0\n\nV8 is running with experimental features enabled. Stability and security will suffer.\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ae5be87dba4869784972875e5f55b4714276cacb1ef0280d0aab66c1de4a3461",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "1973b12d6241a7e7a82965447dc40fb6a8fb7bd5",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a474f30ae8a9e0156ca4b1eee322c3731e6f681876f660c150d313fc7e5f6a98"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "          82\nt:V8.WasmEngineMetadataSizeKiB                                          82857\nc:V8.WasmFunctionsPerModule.wasm                                           80\nt:V8.WasmFunctionsPerModule.wasm                                           80\nc:V8.WasmModuleCodeSizeKiB                                                159\nt:V8.WasmModuleCodeSizeKiB                                                636\nc:V8.WasmModuleCodeSizeMiB                                                159\nt:V8.WasmModuleCodeSizeMiB                                                  0\nc:V8.WasmModuleMetadataSizeKiB                                            159\nt:V8.WasmModuleMetadataSizeKiB                                          77449\nc:V8.WasmModuleSizeBytes.wasm                                              80\nt:V8.WasmModuleSizeBytes.wasm                                         3266560\nc:V8.WasmModulesPerEngine                                                  80\nt:V8.WasmModulesPerEngine                                                 159\nc:V8.WasmModulesPerIsolate                                                 80\nt:V8.WasmModulesPerIsolate                                                159\nc:V8.AliveAfterLastGC                                                  554648\nc:V8.CompilationCacheMisses                                                 2\nc:V8.Deopts                                                                13\nc:V8.EnumCacheMisses                                                        1\nc:V8.GCCompactorCausedByRequest                                            82\nc:V8.GlobalHandles                                                         27\nc:V8.MapsCreated                                                         3094\nc:V8.MemoryCodeSpaceBytesAvailable                                          0\nc:V8.MemoryCodeSpaceBytesCommitted                                     262144\nc:V8.MemoryCodeSpaceBytesUsed                                           63360\nc:V8.MemoryLoSpaceBytesAvailable                                            0\nc:V8.MemoryLoSpaceBytesCommitted                                            0\nc:V8.MemoryLoSpaceBytesUsed                                                 0\nc:V8.MemoryNewSpaceBytesAvailable                                     1048512\nc:V8.MemoryNewSpaceBytesCommitted                                     2097152\nc:V8.MemoryNewSpaceBytesUsed                                                0\nc:V8.MemoryOldSpaceBytesAvailable                                      177200\nc:V8.MemoryOldSpaceBytesCommitted                                      786432\nc:V8.MemoryOldSpaceBytesUsed                                           454080\nc:V8.ObjsSinceLastFull                                                      0\nc:V8.ObjsSinceLastYoung                                                     0\nc:V8.StackInterrupts                                                      495\nVERIFY_EXIT=0\n\nV8 is running with experimental features enabled. Stability and security will suffer.\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/poc.js (run via /poc/run.sh with d8 flags --turbo-fast-api-calls --expose-fast-api --no-liftoff --wasm-fast-api --wasm-lazy-compilation --no-wasm-native-module-cache --expose-gc --dump-counters --allow-natives-syntax) spawns many \"writer\" Workers that race to instantiate a freshly-built WebAssembly.Module with thousands of imports bound to a V8 fast-API-callable C++ function (d8.test.FastCAPI().is_fast_c_api_object). Each import forces a signature_storage.Allocate() call during instantiation (locked via NativeModule::allocation_mutex_), repeatedly growing/reallocating the module's WasmModuleSignatureStorage backing vector-of-vectors. Concurrently, many \"reader\" Workers hammer the test-only intrinsic %EstimateCurrentMemoryConsumption() (wasm::GetWasmEngine()->EstimateCurrentMemoryConsumption(), which walks every live NativeModule and calls NativeModule::EstimateCurrentMemoryConsumption() on each) in a tight time-bounded loop. Rounds repeat (building a fresh module and GC'ing stale ones) to maximize the chance that a writer's vector reallocation overlaps with a reader's lock-free read.",
+    "target_evidence": "post_intro (b9068d13bb1c) reproducibly (2/2 explicit attempts plus earlier manual runs) aborts with: \"AddressSanitizer: heap-use-after-free ... READ of size 8 ... thread Tn (WorkerThread)\" with stack:\n  #0 capacity gen/third_party/libc++/.../vector.h:396\n  #1 TotalReservedSize src/wasm/wasm-module.h:742\n  #2 WasmModule::EstimateStoredSize() src/wasm/wasm-module.cc:733\n  #3 WasmModule::EstimateCurrentMemoryConsumption() src/wasm/wasm-module.cc:813\n  #4 NativeModule::EstimateCurrentMemoryConsumption() src/wasm/wasm-code-manager.cc:2908\n  #5 WasmEngine::EstimateCurrentMemoryConsumption() src/wasm/wasm-engine.cc:2057\n  #6 Runtime_EstimateCurrentMemoryConsumption src/runtime/runtime-test-wasm.cc:1041\nThis is exactly the unlocked read site the fix commit (e194d3a40d8e) moves the NativeModule::allocation_mutex_ lock in front of; source inspection confirms post_intro/pre_intro call module_->EstimateCurrentMemoryConsumption() (wasm-code-manager.cc:2908) BEFORE acquiring allocation_mutex_ (the lock guard appears later, around line 2938, only covering debug_info/code iteration), whereas post_benign wraps the whole body (including this call) in `std::optional<base::RecursiveMutexGuard> lock(&allocation_mutex_);` right at line 2908-2911, with an explicit comment \"The WasmModule::signature_storage is protected by the NativeModule::allocation_mutex_.\" A second crash variant was also observed with the faulting READ inside a writer's own Allocate_more_storage()/push_back() path (src/wasm/wasm-module.h:754), i.e. the same storage_ vector being concurrently freed/reallocated while another thread accesses it \u2014 both are manifestations of the same unsynchronized access to WasmModuleSignatureStorage::storage_. Under the identical reproducer, pre_intro (1973b12d6241) ran clean 3/3 times and post_benign ran clean 3/3 times (no sanitizer report, normal exit 0)."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

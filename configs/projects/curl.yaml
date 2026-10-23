@@ -1,0 +1,121 @@
+name: curl
+repo_url: https://github.com/curl/curl.git
+project:
+  name: curl
+  display_name: curl / libcurl
+  repo: curl/curl
+  language: C
+context:
+  description: 'curl is a widely-deployed URL transfer library (libcurl) and command-line
+
+    tool that speaks HTTP/1, HTTP/2, HTTP/3 (QUIC), FTP, SMTP, IMAP, POP3,
+
+    SMB, LDAP/LDAPS, SFTP/SCP, WebSocket, and more. The library is written in
+
+    C and pluggably links against multiple TLS backends (OpenSSL/BoringSSL,
+
+    GnuTLS, wolfSSL, Rustls, mbedTLS, Schannel, SecureTransport) and SSH
+
+    backends (libssh2, libssh, wolfSSH). Two lifetime scopes dominate the
+
+    codebase and drive most bugs: the per-transfer `Curl_easy` handle and the
+
+    long-lived `connectdata` structure that is reused across transfers via
+
+    the connection cache. Any state that lives on `connectdata` (credentials,
+
+    TLS options, negotiated auth, cookies, HSTS entries) can survive to a
+
+    later, unrelated transfer if the reuse policy is wrong.
+
+    '
+  input_sources: 'URLs supplied by callers (schemeless, redirected, IDN-encoded),
+    HTTP/2
+
+    and HTTP/3 server responses, TLS handshake messages and certificates
+
+    from every supported backend, LDAP and LDAPS server data, SMB/SFTP/SSH
+
+    server data, DNS answers, netrc credential files, cookie files (Netscape
+
+    format), HSTS store files, .curlrc configuration, environment variables
+
+    (CURL_HOME, HTTP_PROXY, ...), and the CURLOPT_* setopt arguments passed
+
+    by the embedding application. WebSocket frames, QUIC datagrams, and
+
+    proxied CONNECT responses are also attacker-influenced.
+
+    '
+  assertion_macros: "DEBUGASSERT(x) \u2014 active only in debug builds (compiles to\
+    \ `assert(x)`\nwhen CURLDEBUG is defined, otherwise `do {} while(0)`). Do NOT\
+    \ treat a\nreachable DEBUGASSERT as a hard guard: in release builds it is\ncompletely\
+    \ erased, so any invariant it \"protects\" is unenforced against\nattacker input.\
+    \ Plain C `assert()` and `abort()` do abort in release\nbut are rare in libcurl.\
+    \ `Curl_safefree(p)` frees and clears the\npointer; missing calls to it are a\
+    \ common source of double-free and\nstale-pointer bugs. `CURLE_OK` (=0) is the\
+    \ success return; any other\nCURLcode is an error path \u2014 cleanup on error\
+    \ paths is a frequent bug\nsource.\n"
+  common_bug_types:
+  - "LogicError (connection reuse policy skips \u2014 TLS options, mTLS config, SASL/Negotiate/Digest\
+    \ state, STARTTLS, protocol, cross-proxy credential handoff)"
+  - LogicError (credential and token leaks via netrc / redirect / proxy reuse, cookie
+    super-domain, cookie trailing dot)
+  - LogicError (certificate / OCSP / hostname validation bypass, especially on QUIC
+    + wolfSSL / GnuTLS / Apple SecTrust, and per-backend TLS wrapper divergences)
+  - "DataRace (multi-threaded transfers mutating shared state \u2014 LDAPS TLS options,\
+    \ global known_hosts overrides, HSTS store)"
+  - UseAfterFree (non-owning pointers on connectdata into per-transfer buffers, HTTP/2
+    stream-dependency tree, pause / socket callback edges, SMB and SFTP request path
+    aliasing)
+  - DoubleFree (SASL / GSASL context teardown, error-path cleanup running twice via
+    easy handle share)
+  - IntegerOverflow (gzip / brotli / zstd content-encoding length arithmetic, HTTP
+    header size fields, cookie path length)
+  - BufferOverflow (percent decoding, punycode / IDN conversion, ASN.1 date parser,
+    WebSocket masking, SASL AUTH steps)
+  - OutOfBoundsRead (cookie path parsing, HSTS entry lookup, HTTP/2 header decoding,
+    ASN.1 overread on certificate parsing)
+  - NullPointerDereference (missing checks after Curl_dyn_ensure_bytes, str allocation,
+    TLS backend accessors)
+  file_patterns:
+  - lib/*.c
+  - lib/*.h
+  - lib/vtls/*.c
+  - lib/vtls/*.h
+  - lib/vauth/*.c
+  - lib/vquic/*.c
+  - lib/vssh/*.c
+  - include/curl/*.h
+  - src/*.c
+  - src/*.h
+verify:
+  name: curl
+  image: anypoc-common:latest
+  repo_url: https://github.com/curl/curl.git
+  build_script: 'set -e
+
+    cd /work
+
+    autoreconf -fi > build_configure.log 2>&1 || true
+
+    ./configure --with-openssl --without-libpsl --disable-shared CFLAGS="-g -O1 -fsanitize=address,undefined
+    -fno-sanitize-recover=all -fno-omit-frame-pointer" >> build_configure.log 2>&1
+
+    make -j"${CGSA_BUILD_JOBS:-8}" > build_compile.log 2>&1
+
+    '
+  harness_source: null
+  harness_build: ''
+  run_cmd: ./src/curl --version >/dev/null; bash "$INPUT"
+  build_artifacts:
+  - src/curl
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 1800
+  run_timeout: 180
+  build_network: none
+  build_cache: false
+  build_git_mounts: false
+  build_support_files: []

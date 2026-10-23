@@ -1,0 +1,27 @@
+{
+  "bug_id": "408242499",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "5e09e2aaf1dfde09364ac5126bef778ec6a31d3e",
+    "parent": "68210d500a82c84db83000654be83904e93bdba4",
+    "fix": "050587ff95334d3d495db783085a07b7dd0a5ba5"
+  },
+  "affected_files": [
+    "src/compiler/wasm-compiler.cc",
+    "src/execution/isolate.cc",
+    "src/wasm/turboshaft-graph-interface.cc",
+    "src/wasm/turboshaft-graph-interface.h",
+    "src/wasm/wrappers.cc",
+    "test/mjsunit/compiler/fast-api-calls-wasm.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built all three revisions in Docker as ASan-enabled ARM64-simulator d8 binaries (target_cpu=x64, v8_target_cpu=arm64) without modifying tracked target sources. The exact same poc.js and d8 flags were then used for every revision. pre_intro (68210d500a82) exited 0 and printed POC_OK; post_intro (5e09e2aaf1df) exited 133 with V8 Fatal error: Pointer authentication failure; post_benign exited 0 and printed POC_OK. The PoC makes a regular TurboFan Wasm function keep enough i32 values live across a w",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

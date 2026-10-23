@@ -1,0 +1,105 @@
+{
+  "task_id": "pr_review_OSSFUZZ-505900175",
+  "bug_id": "OSSFUZZ-505900175",
+  "commit_sha": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+  "commit_message": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.\n\nFixes #1419 and #1420, as well as\n    https://issues.oss-fuzz.com/issues/499455833",
+  "commit_author": "Alexei Podtelezhnikov",
+  "commit_date": "2026-04-22T20:49:51-04:00",
+  "pr_title": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.",
+  "pr_description": "Fixes #1419 and #1420, as well as\n    https://issues.oss-fuzz.com/issues/499455833",
+  "files": [
+    {
+      "path": "src/truetype/ttinterp.c",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 4,
+      "diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex fc7fccdf3..abb8f13aa 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -5130,17 +5130,15 @@\n       return;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */\n     /*      Twilight zone has no real contours, so use `n_points'. */\n     /*      Normal zone's `n_points' includes phantoms, so must    */\n-    /*      use end of last contour.                               */\n+    /*      subtract them.                                         */\n     if ( exc->GS.gep2 == 0 )\n       limit = exc->zp2.n_points;\n-    else if ( exc->GS.gep2 == 1 && exc->zp2.n_contours > 0 )\n-      limit = exc->zp2.contours[exc->zp2.n_contours - 1] + 1;\n     else\n-      limit = 0;\n+      limit = exc->zp2.n_points - 4U;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n     for ( i = 0; i < limit; i++ )\n     {\n       if ( zp.cur != exc->zp2.cur || refp != i )\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex fc7fccdf3..abb8f13aa 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -5130,17 +5130,15 @@\n       return;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */\n     /*      Twilight zone has no real contours, so use `n_points'. */\n     /*      Normal zone's `n_points' includes phantoms, so must    */\n-    /*      use end of last contour.                               */\n+    /*      subtract them.                                         */\n     if ( exc->GS.gep2 == 0 )\n       limit = exc->zp2.n_points;\n-    else if ( exc->GS.gep2 == 1 && exc->zp2.n_contours > 0 )\n-      limit = exc->zp2.contours[exc->zp2.n_contours - 1] + 1;\n     else\n-      limit = 0;\n+      limit = exc->zp2.n_points - 4U;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n     for ( i = 0; i < limit; i++ )\n     {\n       if ( zp.cur != exc->zp2.cur || refp != i )\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-505900175",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "7d600a022e1d813e85a8c94ffd395f6135872267",
+      "short_sha": "7d600a0",
+      "message": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit (cont'd).",
+      "author": "Alexei Podtelezhnikov",
+      "date": "2026-04-23T21:54:58-04:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-integeroverflow-1",
+        "title": "Unsigned integer underflow in Ins_SHZ limit calculation",
+        "message": "In Ins_SHZ, when the zone pointer gep2 selects zone 1 (the glyph zone), the loop limit is computed as `exc->zp2.n_points - 4U` to exclude phantom points. Because both operands are unsigned, if `exc->zp2.n_points` is less than 4 (i.e., 0, 1, 2, or 3), the subtraction wraps around to a very large unsigned value. The subsequent loop `for (i = 0; i < limit; i++)` then iterates far beyond the actual array boundary of `exc->zp2.cur`, causing out-of-bounds memory reads and writes via `Move_Zp2_Point`.",
+        "location": {
+          "file": "src/truetype/ttinterp.c",
+          "start_line": 5136,
+          "end_line": 5147,
+          "start_column": null,
+          "end_column": null,
+          "function": "Ins_SHZ",
+          "snippet": "    if ( exc->GS.gep2 == 0 )\n      limit = exc->zp2.n_points;\n    else\n      limit = exc->zp2.n_points - 4U;\n\n    /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n    for ( i = 0; i < limit; i++ )\n    {\n      if ( zp.cur != exc->zp2.cur || refp != i )\n        Move_Zp2_Point( exc, i, dx, dy, FALSE );\n    }",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/truetype/ttinterp.c",
+            "start_line": 5139,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Ins_SHZ",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "medium",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.97,
+        "suggestion": "Before subtracting 4 from `exc->zp2.n_points`, guard the operation with a check that `n_points > 4U`. If the count is 4 or fewer there are no real points to shift and the function should return early.",
+        "suggestion_code": "    if ( exc->GS.gep2 == 0 )\n      limit = exc->zp2.n_points;\n    else if ( exc->zp2.n_points > 4U )\n      limit = exc->zp2.n_points - 4U;\n    else\n      return;",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "memory-safety",
+          "integer-underflow"
+        ],
+        "cwe_ids": [
+          "CWE-191",
+          "CWE-787"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "src/truetype/ttinterp.c"
+    ],
+    "root_cause": "The introducing commit (1803559c) replaced a prior bounds check (`exc->zp2.n_contours > 0` + contours array lookup) with a simpler but unchecked unsigned subtraction `exc->zp2.n_points - 4U`. Because `n_points` is an unsigned type, no negative result is possible; instead, underflow silently produces a huge positive limit.",
+    "must_cover": [
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_SHZ",
+        "start_line": 5136,
+        "end_line": 5147,
+        "role": "primary",
+        "reason": "Primary location of finding: Unsigned integer underflow in Ins_SHZ limit calculation"
+      },
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_SHZ",
+        "start_line": 5139,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Unsigned integer underflow in Ins_SHZ limit calculation"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+  "fix_commit_sha": null
+}

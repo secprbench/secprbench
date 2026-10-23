@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-18457",
+  "bug_id": "GH-18457",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "be39ed19a5124a900626ab377e2afe5f41839830",
+  "intro_parent": "91d451b48809f20415ba8627786f5d4f5aaf8bfe",
+  "fix_commit": "c278c508e2acfad5f2603febfdba80a30427cd3f",
+  "affected_files": [
+    "lib/http.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "curl",
+  "source": "locally_fix_derived",
+  "attachments": [],
+  "input_name": "remote-cookie.poc",
+  "root_cause": "The 2024 refactor switched to a list of live jar pointers. The share lock still ended immediately after Curl_cookie_getlist, leaving the new traversal unprotected. The 2025 fix keeps the lock through traversal, but its surrounding http_cookies API postdates the 2024 tree; the intro-era companion must express the equivalent lock scope in Curl_http_cookies.",
+  "findings": [
+    "The October 2024 cookie refactor returns live Cookie pointers. Curl_http_cookies releases CURL_LOCK_DATA_COOKIE after retrieving the list, before dereferencing its nodes. A concurrent HTTP Set-Cookie update on a shared handle can free a node during traversal."
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "81310823783f077785206ecdf24c7b491af89b6e85f54b01aeaefa2cc3604f94",
+  "generated_artifact_sha256": {
+    "reference": "4ca3ec88957b938bbc8d521af89f305c6b5ccb0e5324b90e8e1adbe6eacf6174",
+    "introducing": "92d9581dd4a0148735ea8172b2dc2a70331a35dbf59a7b9ecc36c203075c7151",
+    "companion": "2d44dd9e61836947d9ccefebae6d9b92ef59cf83489406c7eaf610fd3fc4fc9a"
+  }
+}

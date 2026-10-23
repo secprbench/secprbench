@@ -1,0 +1,35 @@
+{
+  "task_id": "pr_review_500880819",
+  "bug_id": "500880819",
+  "bug_type": "TypeConfusion",
+  "intro_commit": "6469250a124acef52bceabae77ed887f5c8f29ac",
+  "intro_parent": "d1a6089b861336cf4b3887edfd3fdd280b23b5dd",
+  "fix_commit": "b9be4febd638434a37a4215b8ea9ae1f8fab4df6",
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "v8",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_regress-500880819.js: git:b9be4febd638434a37a4215b8ea9ae1f8fab4df6:test/mjsunit/maglev/regress/regress-500880819.js",
+    "- evidence/candidate_02_c002_regress-501789186.js: git:b9be4febd638434a37a4215b8ea9ae1f8fab4df6:test/mjsunit/maglev/regress/regress-501789186.js",
+    "- evidence/test_01_2332cede987708bc_regress-500880819.js: test/mjsunit/maglev/regress/regress-500880819.js",
+    "- evidence/test_02_c9e156cf579d3592_regress-501789186.js: test/mjsunit/maglev/regress/regress-501789186.js"
+  ],
+  "input_name": "regress-500880819.js",
+  "root_cause": "The elision logic conflated numeric value-equivalence (proven by TryGetInt32Constant/Smi::IsValid) with Smi tagging. For non-tagged representations the two are equivalent because the fallback switch performs an explicit value-range check; but for kTagged inputs the fallback check (CheckSmi) verifies the pointer's tag bits, a distinct property not implied by numeric equivalence, especially since the 'checked_value' alternative can be populated with a HeapNumber constant purely from a same-value float comparison.",
+  "findings": [
+    "MaglevGraphBuilder::BuildCheckSmi() added an optimization that skips emitting the runtime Smi check whenever TryGetInt32Constant(object) returns a value that lies within the Smi range (Smi::IsValid). This is only sound when the emitted check would have been a value-range check (e.g. for kInt32/kUint32/kFloat64/kHoleyFloat64/kIntPtr inputs, where the subsequently-emitted CheckInt32IsSmi/CheckUint32"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "b7f9bb6f53373a5ea2eb9e7ffbe62a71d914fb026da49d395f9c95a0b33f7cfe",
+  "generated_artifact_sha256": {
+    "reference": "e77a2dcc16d07170c4c4b35f8f96970beb7956d5cf93437ca9ac9204b0243486",
+    "introducing": "cb80f31f372a8e458e73e6b67df95f51ce0389f414b3b516c59652ec6723262c",
+    "companion": "ec8d6cd99947a8905dc58d4b9b3619f8eb60b55596a7e9e3ab875a7801cbdf27"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-20958",
+  "bug_id": "GH-20958",
+  "bug_type": "LogicError",
+  "intro_commit": "769ccb4d4261a75c8a4236fbe7dc3e27956db1c9",
+  "intro_parent": "990a23bb97915567415d5857ee6d862a1528f1af",
+  "fix_commit": "ae09e5bf0d1f868f7094be8f640ec46d66e668bf",
+  "affected_files": [
+    "lib/curl_get_line.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The loop exit logic in Curl_get_line only checks feof(input) (via `*eof`) to decide when to stop retrying fgets(); it never checks ferror(input), so a persistent I/O error (which makes fgets() keep returning NULL while feof() stays false) is indistinguishable from 'just keep reading' and the loop never terminates.",
+  "findings": [
+    "Curl_get_line() reads a config/cache/cookie/hsts/netrc file line by line using fgets() in a 'while(1)' loop. The rewritten loop sets `*eof = feof(input);` right after the fgets() call and only breaks out of the loop (returning) when `*eof` becomes true (real EOF) or a full line terminated by '\\n' has been accumulated. It never calls ferror(input) to detect a genuine I/O read error. If fgets() fail"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "9ef1d3b5fd8a6ed60dc67241b1bbe7ad0077335a029612486401055dcc589433",
+  "generated_artifact_sha256": {
+    "reference": "e2bc23fac7397fa94668bfd51b48554b777a52c5efc2d29d3e0911ea6e219f53",
+    "introducing": "aaf264a2d27e61aa98f3057c342c8af15232c28eff8f07caf4739af04fc1f5f4",
+    "companion": "4296fc4718b56c405da89f1b39bb483b1f181b1e988a03236e59ecc8a666497d"
+  }
+}

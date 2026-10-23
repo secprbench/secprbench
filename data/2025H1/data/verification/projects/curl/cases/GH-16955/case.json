@@ -1,0 +1,203 @@
+{
+  "bug_id": "GH-16955",
+  "project": "curl",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "f78700814d702c523a7a2c3766a1ca60f3db7edc",
+    "parent": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+    "fix": "5fbd78eb2dc4afbd8884e8eed27147fc3d4318f6"
+  },
+  "affected_files": [
+    "lib/http2.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay.; Same run.sh / same client+server/classify oracle executed unmodified against all three builds. pre_intro (279a4772ae67) and post_benign (fix 5fbd78eb2dc4 applied) both complete the full 16MiB transfer with peer window restored to 4194304 and 3 stream WINDOW_UPDATEs (ORACLE_RESULT=FULL_16M_RESPONSE, exit 0). post_intro (f78700814d70) stalls permanently after only 10485760 of 16777216 bytes with peer window stuck at 0 and only 1 WINDOW_UPDATE ever sent (ORACLE_RESULT=WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE, exit 1), i.e. the HTTP/2 receive-window deadlock after pause/unpause described in GH-16955 and meta.json's root cause (write_paused bridge shrinks the local window to zero; on unpause the window-update submission omits the nghttp2 internal local-window setter call, so the stream never recovers). This is a clean behavioral reproduction: identical invocation, divergent outcome only in post_intro, restored in post_benign.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/curl-gh16955-normal-v1/verification/cases/curl/c8e24dc45292c8d993f8/attempts/01/replay/pr_review_GH-16955.result.json",
+    "report": "/research-data/secprbench/curl-gh16955-normal-v1/verification/cases/curl/c8e24dc45292c8d993f8/attempts/01/replay/pr_review_GH-16955.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "ORACLE_TARGET_SLOW_BYTES=16777216\nORACLE_PEER_WINDOW=9437184\nORACLE_STREAM_WINDOW_UPDATES=4\nORACLE_RESULT=FULL_16M_RESPONSE\nVERIFY_EXIT=0\n\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:565:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  565 |             recvd1 += a->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:571:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  571 |             recvd2 += b->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "fcf55f54dbca8b9822a94a0e1782abb4ca6bbdca71f05061695e29340d584f04"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "f78700814d702c523a7a2c3766a1ca60f3db7edc",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 1,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "ORACLE_TARGET_SLOW_BYTES=10485760\nORACLE_PEER_WINDOW=0\nORACLE_STREAM_WINDOW_UPDATES=1\nORACLE_RESULT=WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE\nVERIFY_EXIT=1\n\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:565:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  565 |             recvd1 += a->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:571:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  571 |             recvd2 += b->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d93d2ca003cf932c11fb76dcb79c25bf59b00aec00d0c4d831745fb9bd8fe97a"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "ORACLE_TARGET_SLOW_BYTES=16777216\nORACLE_PEER_WINDOW=4194304\nORACLE_STREAM_WINDOW_UPDATES=3\nORACLE_RESULT=FULL_16M_RESPONSE\nVERIFY_EXIT=0\n\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:565:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  565 |             recvd1 += a->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:571:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  571 |             recvd2 += b->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "04486ad5b673860cc0c317f4997138c0ec36613c9c2e9b26d71caf8104d5f9d0"
+        }
+      }
+    },
+    "agent": {
+      "verdict": "/research-data/secprbench/curl-gh16955-normal-v1/verification/cases/curl/c8e24dc45292c8d993f8/attempts/01/replay/pr_review_GH-16955.agent_verdict.json",
+      "executions": {
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": "input.poc",
+          "poc_sha256": "79fb24fe8b38977b46685b94077fe01845a9aa5755d6e0d6efaf061cce94e536",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "fcf55f54dbca8b9822a94a0e1782abb4ca6bbdca71f05061695e29340d584f04"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ORACLE_TARGET_SLOW_BYTES=16777216\nORACLE_PEER_WINDOW=4194304\nORACLE_STREAM_WINDOW_UPDATES=3\nORACLE_RESULT=FULL_16M_RESPONSE\nVERIFY_EXIT=0\n\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:565:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  565 |             recvd1 += a->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:571:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  571 |             recvd2 += b->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n"
+          }
+        },
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": "input.poc",
+          "poc_sha256": "79fb24fe8b38977b46685b94077fe01845a9aa5755d6e0d6efaf061cce94e536",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "f78700814d702c523a7a2c3766a1ca60f3db7edc",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "d93d2ca003cf932c11fb76dcb79c25bf59b00aec00d0c4d831745fb9bd8fe97a"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ORACLE_TARGET_SLOW_BYTES=10485760\nORACLE_PEER_WINDOW=0\nORACLE_STREAM_WINDOW_UPDATES=1\nORACLE_RESULT=WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE\nVERIFY_EXIT=1\n\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:565:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  565 |             recvd1 += a->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:571:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  571 |             recvd2 += b->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": "input.poc",
+          "poc_sha256": "79fb24fe8b38977b46685b94077fe01845a9aa5755d6e0d6efaf061cce94e536",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "04486ad5b673860cc0c317f4997138c0ec36613c9c2e9b26d71caf8104d5f9d0"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ORACLE_TARGET_SLOW_BYTES=16777216\nORACLE_PEER_WINDOW=4194304\nORACLE_STREAM_WINDOW_UPDATES=3\nORACLE_RESULT=FULL_16M_RESPONSE\nVERIFY_EXIT=0\n\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:565:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  565 |             recvd1 += a->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n/poc/reporter_adapted.cc: In lambda function:\n/poc/reporter_adapted.cc:571:20: warning: compound assignment with 'volatile'-qualified left operand is deprecated [-Wvolatile]\n  571 |             recvd2 += b->read(c, sizeof(c));\n      |             ~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "ORACLE_RESULT=WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE",
+        "pre_marker": "ORACLE_RESULT=FULL_16M_RESPONSE",
+        "benign_marker": "ORACLE_RESULT=FULL_16M_RESPONSE",
+        "description": "classify.py compares the HTTP/2 stream's delivered byte count against the configured slow-stream target (16MiB), the final client-observed peer flow-control window, and the number of WINDOW_UPDATE frames issued for that stream, then emits one of two outcome lines: FULL_16M_RESPONSE (transfer completed, window replenished) or WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE (transfer permanently stuck at the first 10MiB chunk boundary with a zero window and no further update) — directly reflecting whether the local HTTP/2 receive window was correctly re-opened after pause/resume.",
+        "target_evidence": "pre_intro: ORACLE_TARGET_SLOW_BYTES=16777216 ORACLE_PEER_WINDOW=4194304 ORACLE_STREAM_WINDOW_UPDATES=3 ORACLE_RESULT=FULL_16M_RESPONSE VERIFY_EXIT=0 | post_intro: ORACLE_TARGET_SLOW_BYTES=10485760 ORACLE_PEER_WINDOW=0 ORACLE_STREAM_WINDOW_UPDATES=1 ORACLE_RESULT=WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE VERIFY_EXIT=1 | post_benign: ORACLE_TARGET_SLOW_BYTES=16777216 ORACLE_PEER_WINDOW=4194304 ORACLE_STREAM_WINDOW_UPDATES=3 ORACLE_RESULT=FULL_16M_RESPONSE VERIFY_EXIT=0"
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "behavioral",
+        "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+      },
+      "explanation": "Same run.sh / same client+server/classify oracle executed unmodified against all three builds. pre_intro (279a4772ae67) and post_benign (fix 5fbd78eb2dc4 applied) both complete the full 16MiB transfer with peer window restored to 4194304 and 3 stream WINDOW_UPDATEs (ORACLE_RESULT=FULL_16M_RESPONSE, exit 0). post_intro (f78700814d70) stalls permanently after only 10485760 of 16777216 bytes with peer window stuck at 0 and only 1 WINDOW_UPDATE ever sent (ORACLE_RESULT=WINDOW_STALL_10M_ZERO_WINDOW_NO_UPDATE, exit 1), i.e. the HTTP/2 receive-window deadlock after pause/unpause described in GH-16955 and meta.json's root cause (write_paused bridge shrinks the local window to zero; on unpause the window-update submission omits the nghttp2 internal local-window setter call, so the stream never recovers). This is a clean behavioral reproduction: identical invocation, divergent outcome only in post_intro, restored in post_benign."
+    }
+  },
+  "task_hashes": {
+    "buggy": "f106751d65c3aed889e48693861f9db2d71b2b886570fa7e8acd9699ac584999",
+    "benign": "433598999eebca7c7851eeda939c4d3c9e743cb595649446ab3958ad2a534c5a"
+  }
+}

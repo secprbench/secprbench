@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-408304111",
+    "bug_id": "OSSFUZZ-408304111",
+    "bug_type": "IntegerOverflow",
+    "intro_commit": "095f8038fa9180842cd38d4d61c7c47a02aad9ed",
+    "intro_parent": "6b31e42c47c00817f6249f43391873a15b1c00a4",
+    "fix_commit": "23592f942db93776dab65a5e92400bb2f037390e",
+    "affected_files": [
+      "libswscale/output.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Root cause per meta.json: commit 095f8038fa91 rewrote the bilinear vertical chroma interpolation in yuv2rgba64_full_1_c_template() (libswscale/output.c) from a simple sum (`ubuf0[i]+ubuf1[i]`) to a true weighted average (`ubuf0[i]*uvalpha1+ubuf1[i]*uvalpha`) but left U/V declared as plain `int` (fixed only later by 23592f942db9, which changes them to the project's overflow-tolerant `SUINT`). I confirmed this structurally: pre_intro's else-branch (uvalpha>=2048) always does a flat 50/50 sum of the two adjacent chroma rows regardless of the actual weight, while post_intro's else-branch (uvalpha>0) does a true proportional weighted sum that can put nearly 100% of the weight on one row. By placing an all-zero chroma row so it is structurally guaranteed to only ever be the second (\"ubuf1\") operand of a vertical pair (last source row, so it can never be picked as the lone/solo row used when uvalpha<2048), and by using sws_setColorspaceDetails (a legitimate public libswscale API, not a source edit) to raise c->yuv2rgb_u2b_coeff via saturation, I found a saturation value where the new weighted formula's more concentrated U value overflows 32-bit int arithmetic while the old formula's always-diluted 50/50 average does not. The same PoC and command were rebuilt/run unmodified against pre_intro, post_intro and post_benign (all with the same added -fsanitize=undefined instrumentation on output.c, since the project's default build only carries ASan which does not catch this UB): only post_intro crashes, both pre_intro and post_benign complete cleanly, and post_intro's crash backtrace lands exactly in the introduced weighted-average branch of yuv2rgba64_full_1_c_template, called via packed_vscale/ff_swscale/sws_scale exactly matching the original OSS-Fuzz crash state. This confirms the intro commit introduces the overflow and the paired fix commit (applied on top of intro, i.e. post_benign) removes it."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: incomplete)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/17e5df9c5df9f3442171/attempts/03/pocs/ffmpeg/OSSFUZZ-408304111",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ba6e8793fc5db767febcff658848f377c79de560c8cc7a004a35437740dd3278",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "095f8038fa9180842cd38d4d61c7c47a02aad9ed",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3d713f77264c2481ff76a67dff53352185e58b08bae93e8dcbd1c5d38aef3bad"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "'... [-Wswitch]\n    switch (dstFormat) {\n            ^~~~~~~~~\n8 warnings generated.\nsetColorspaceDetails ret=0 sat_mult=9.000000 con_mult=1.000000\nscaling 32x32 -> 32x32\nlibswscale/output.c:1488:42: runtime error: signed integer overflow: 1610612736 + 1419706368 cannot be represented in type 'int'\n    #0 0x55ad13f14c13 in yuv2rgba64_full_1_c_template /work/libswscale/output.c:1488:42\n    #1 0x55ad13f14c13 in yuv2bgrx64be_full_1_c /work/libswscale/output.c:1581:1\n    #2 0x55ad13e41f17 in packed_vscale /work/libswscale/vscale.c\n    #3 0x55ad13e2e8d7 in ff_swscale /work/libswscale/swscale.c:531:13\n    #4 0x55ad13e33851 in scale_internal /work/libswscale/swscale.c:1157:15\n    #5 0x55ad13e35f46 in sws_scale /work/libswscale/swscale.c:1519:12\n    #6 0x55ad13e2cb44 in main /poc/poc.c:138:5\n    #7 0x7f4478a64d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #8 0x7f4478a64e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #9 0x55ad13d6df34 in _start (/tmp/poc_408304111+0x79f34) (BuildId: e3b3534d0d37c536d406cfae1bf74414b39dd366)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libswscale/output.c:1488:42 in \n",
+        "stdout_tail": "o 'output_pixel'\n    } else { \\\n      ^\nlibswscale/output.c:1834:45: warning: operator '>>' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]\n                A1 = abuf0[i * 2    ] * 255 + 16384 >> 15;\n                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~ ~~\nlibswscale/output.c:1834:45: note: place parentheses around the '+' expression to silence this warning\n                A1 = abuf0[i * 2    ] * 255 + 16384 >> 15;\n                                            ^\n                     (                             )\nlibswscale/output.c:1835:45: warning: operator '>>' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]\n                A2 = abuf0[i * 2 + 1] * 255 + 16384 >> 15;\n                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~ ~~\nlibswscale/output.c:1835:45: note: place parentheses around the '+' expression to silence this warning\n                A2 = abuf0[i * 2 + 1] * 255 + 16384 >> 15;\n                                            ^\n                     (                             )\nlibswscale/output.c:1947:12: warning: 233 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n    switch(target) {\n           ^~~~~~\nlibswscale/output.c:3239:17: warning: 201 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n        switch (dstFormat) {\n                ^~~~~~~~~\nlibswscale/output.c:3472:17: warning: 209 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n        switch (dstFormat) {\n                ^~~~~~~~~\nlibswscale/output.c:3657:13: warning: 221 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_RGB24'... [-Wswitch]\n    switch (dstFormat) {\n            ^~~~~~~~~\n8 warnings generated.\nsetColorspaceDetails ret=0 sat_mult=9.000000 con_mult=1.000000\nscaling 32x32 -> 32x32\nlibswscale/output.c:1488:42: runtime error: signed integer overflow: 1610612736 + 1419706368 cannot be represented in type 'int'\n    #0 0x55ad13f14c13 in yuv2rgba64_full_1_c_template /work/libswscale/output.c:1488:42\n    #1 0x55ad13f14c13 in yuv2bgrx64be_full_1_c /work/libswscale/output.c:1581:1\n    #2 0x55ad13e41f17 in packed_vscale /work/libswscale/vscale.c\n    #3 0x55ad13e2e8d7 in ff_swscale /work/libswscale/swscale.c:531:13\n    #4 0x55ad13e33851 in scale_internal /work/libswscale/swscale.c:1157:15\n    #5 0x55ad13e35f46 in sws_scale /work/libswscale/swscale.c:1519:12\n    #6 0x55ad13e2cb44 in main /poc/poc.c:138:5\n    #7 0x7f4478a64d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #8 0x7f4478a64e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #9 0x55ad13d6df34 in _start (/tmp/poc_408304111+0x79f34) (BuildId: e3b3534d0d37c536d406cfae1bf74414b39dd366)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libswscale/output.c:1488:42 in \n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ba6e8793fc5db767febcff658848f377c79de560c8cc7a004a35437740dd3278",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "6b31e42c47c00817f6249f43391873a15b1c00a4",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "5cb2a55261127e60d7e3243ec31a341f110ccdeab3795462485dc19630aa2c65"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nlibswscale/output.c:684:17: warning: add explicit braces to avoid dangling else [-Wdangling-else]\n                output_pixel(*dest++, acc);\n                ^\nlibswscale/output.c:595:7: note: expanded from macro 'output_pixel'\n    } else { \\\n      ^\nlibswscale/output.c:742:17: warning: add explicit braces to avoid dangling else [-Wdangling-else]\n                output_pixel(*dest++, acc);\n                ^\nlibswscale/output.c:595:7: note: expanded from macro 'output_pixel'\n    } else { \\\n      ^\nlibswscale/output.c:1828:45: warning: operator '>>' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]\n                A1 = abuf0[i * 2    ] * 255 + 16384 >> 15;\n                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~ ~~\nlibswscale/output.c:1828:45: note: place parentheses around the '+' expression to silence this warning\n                A1 = abuf0[i * 2    ] * 255 + 16384 >> 15;\n                                            ^\n                     (                             )\nlibswscale/output.c:1829:45: warning: operator '>>' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]\n                A2 = abuf0[i * 2 + 1] * 255 + 16384 >> 15;\n                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~ ~~\nlibswscale/output.c:1829:45: note: place parentheses around the '+' expression to silence this warning\n                A2 = abuf0[i * 2 + 1] * 255 + 16384 >> 15;\n                                            ^\n                     (                             )\nlibswscale/output.c:1938:12: warning: 233 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n    switch(target) {\n           ^~~~~~\nlibswscale/output.c:3227:17: warning: 201 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n        switch (dstFormat) {\n                ^~~~~~~~~\nlibswscale/output.c:3460:17: warning: 209 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n        switch (dstFormat) {\n                ^~~~~~~~~\nlibswscale/output.c:3645:13: warning: 221 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_RGB24'... [-Wswitch]\n    switch (dstFormat) {\n            ^~~~~~~~~\n8 warnings generated.\nsetColorspaceDetails ret=0 sat_mult=9.000000 con_mult=1.000000\nscaling 32x32 -> 32x32\ndone, no crash\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "ba6e8793fc5db767febcff658848f377c79de560c8cc7a004a35437740dd3278",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "6b31e42c47c00817f6249f43391873a15b1c00a4",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6a5f7cc531a0209a8a2984093fbe6253fb597035f936a2bde764a5831cae8680"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nlibswscale/output.c:684:17: warning: add explicit braces to avoid dangling else [-Wdangling-else]\n                output_pixel(*dest++, acc);\n                ^\nlibswscale/output.c:595:7: note: expanded from macro 'output_pixel'\n    } else { \\\n      ^\nlibswscale/output.c:742:17: warning: add explicit braces to avoid dangling else [-Wdangling-else]\n                output_pixel(*dest++, acc);\n                ^\nlibswscale/output.c:595:7: note: expanded from macro 'output_pixel'\n    } else { \\\n      ^\nlibswscale/output.c:1834:45: warning: operator '>>' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]\n                A1 = abuf0[i * 2    ] * 255 + 16384 >> 15;\n                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~ ~~\nlibswscale/output.c:1834:45: note: place parentheses around the '+' expression to silence this warning\n                A1 = abuf0[i * 2    ] * 255 + 16384 >> 15;\n                                            ^\n                     (                             )\nlibswscale/output.c:1835:45: warning: operator '>>' has lower precedence than '+'; '+' will be evaluated first [-Wshift-op-parentheses]\n                A2 = abuf0[i * 2 + 1] * 255 + 16384 >> 15;\n                     ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~ ~~\nlibswscale/output.c:1835:45: note: place parentheses around the '+' expression to silence this warning\n                A2 = abuf0[i * 2 + 1] * 255 + 16384 >> 15;\n                                            ^\n                     (                             )\nlibswscale/output.c:1947:12: warning: 233 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n    switch(target) {\n           ^~~~~~\nlibswscale/output.c:3239:17: warning: 201 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n        switch (dstFormat) {\n                ^~~~~~~~~\nlibswscale/output.c:3472:17: warning: 209 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_YUYV422'... [-Wswitch]\n        switch (dstFormat) {\n                ^~~~~~~~~\nlibswscale/output.c:3657:13: warning: 221 enumeration values not handled in switch: 'AV_PIX_FMT_NONE', 'AV_PIX_FMT_YUV420P', 'AV_PIX_FMT_RGB24'... [-Wswitch]\n    switch (dstFormat) {\n            ^~~~~~~~~\n8 warnings generated.\nsetColorspaceDetails ret=0 sat_mult=9.000000 con_mult=1.000000\nscaling 32x32 -> 32x32\ndone, no crash\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom libswscale-API PoC (poc.c) that converts a 32x32 YUV420P16LE image to BGRA64BE with SWS_BILINEAR|SWS_FULL_CHR_H_INT (all chroma rows neutral except the last source row = 0, so that row is only ever the second/\"ubuf1\" operand of the vertical chroma interpolation, never used solo), then calls sws_setColorspaceDetails() with saturation=9x default to raise c->yuv2rgb_u2b_coeff. Built with the project's ASan flags plus an added -fsanitize=undefined on libswscale/output.c (the default build only carries ASan, which does not catch plain signed-overflow UB). Run via: poc.c args `2 32 32 32 32 1 9 1` (see run.sh).",
+    "target_evidence": "post_intro: UBSan trips deterministically: \"libswscale/output.c:1488:42: runtime error: signed integer overflow: 1610612736 + 1419706368 cannot be represented in type 'int'\" with backtrace yuv2rgba64_full_1_c_template -> yuv2bgrx64be_full_1_c -> packed_vscale -> ff_swscale -> sws_scale, matching the OSS-Fuzz crash state (yuv2bgra64be_full_1_c <- packed_vscale <- ff_swscale) and the exact function/branch (the uvalpha>0 weighted-average branch of yuv2rgba64_full_1_c_template) named in meta.json's root cause. pre_intro and post_benign, built and run with the identical UBSan-instrumented output.o and identical PoC/command, both complete with \"done, no crash\" (verified over multiple repeated runs, and over a small sweep of the saturation parameter showing pre_intro only starts crashing at a distinctly higher saturation value than post_intro, consistent with the weighted formula reaching a larger-magnitude U value from the same input than the old simple-average formula)."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

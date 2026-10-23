@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_439758498",
+  "bug_id": "439758498",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+  "intro_parent": "109a22dfaf1e080fd4c86e71e0b4a213a8ea1d9d",
+  "fix_commit": "5666bca708c0a2f888b78e34281b00ed20356cb2",
+  "affected_files": [
+    "src/runtime/runtime-regexp.cc"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "v8",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The scalar cleanup loop's for-statement puts a pointer dereference in the initializer clause, which is unconditionally evaluated once before the loop's controlling condition is checked. This violates the invariant that `block` must be checked against `end` before every dereference, allowing a read exactly at (one past) the end of the subject string's backing buffer when there are no trailing characters left to scan.",
+  "findings": [
+    "In the scalar 'remaining characters' tail loop of RegExpMatchGlobalAtom_OneCharPattern, the loop is written as a C-style for loop where the initializer unconditionally dereferences `*block` before the loop condition `block < end` is evaluated: `for (SChar c = *block; block < end; c = *(++block))`. Because the initializer executes exactly once regardless of the loop condition, when the preceding SI"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "a65d35448eb9ec0e5bb88e54a0c64228d5915b1535d314792bc272cf595ab614",
+  "generated_artifact_sha256": {
+    "reference": "a3c96d96fd772920c78b7e215fef2c4953e24cc2139b5dcb85e9c5423dc51003",
+    "introducing": "bd4505fe495ca5872b17a434d29802da37eff9af6fbf26cbe6be98f62277f733",
+    "companion": "2f2c0496a77f594586482873e7eedbff08397250fccbad3ef6fef1fcb730b5f0"
+  }
+}

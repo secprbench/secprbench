@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-437528618",
+  "bug_id": "OSSFUZZ-437528618",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "d9fed9df2a9e70c9375d3b2591db35c09303d369",
+  "intro_parent": "202a35ecdb44849953c61dc1fba9643c69b3d5e5",
+  "fix_commit": "a28e01a6c16430da689340d0af6eec094020b719",
+  "affected_files": [
+    "libavformat/mov.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A single-valued property (the size of the one sample making up a still HEIF/AVIF image) was modeled as a dynamically allocated array sized for the general multi-sample track case, instead of as a scalar. The invariant that this array always has exactly one valid element was not (and, given the surrounding generic box-parsing code, could not reliably be) enforced at every point where the array was later indexed by the shared mov_build_index() logic, leading to out-of-bounds/NULL-like access when the invariant was violated by crafted input.",
+  "findings": [
+    "For HEIF still images, heif_add_stream() synthesizes a MOVStreamContext for the item and allocates sc->sample_sizes (and sc->chunk_offsets/sc->stsc_data/sc->stts_data) as a heap array with exactly one element, unconditionally setting sc->sample_count = 1. Later, in the HEIF item finalization loop (introduced here inline in mov_read_header, later split out as mov_parse_heif_items()), the code write"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "b63218e5dd2a8b7b9356de73b459cf5ceb1bf3866b589d930872fcf669a6f5af",
+  "generated_artifact_sha256": {
+    "reference": "04c154ef33f00efeef0825ff3f172e1f26f075639c5379da62a8939dbfcedbdc",
+    "introducing": "7f7e8921ee1a124051dbc8798b5645f0fb103cff802dae78e9761610789903b1",
+    "companion": "f4d26ca33de6eb9829a38a6e15eca010e7774c56955ea2624b0c583dbd55a61f"
+  }
+}

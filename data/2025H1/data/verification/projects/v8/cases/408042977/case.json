@@ -1,0 +1,31 @@
+{
+  "bug_id": "408042977",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "744a6d6b2377601ae830a38f88309cea062facb8",
+    "parent": "63cfb1fe57a87bd8e2b8afcfff5d8238b87c2592",
+    "fix": "ab2ba7b2d797cc48d6983bd760ef19e5fc729ccf"
+  },
+  "affected_files": [
+    "src/heap/mark-compact.cc",
+    "src/heap/minor-mark-sweep.cc",
+    "src/heap/new-spaces-inl.h",
+    "src/heap/new-spaces.cc",
+    "src/heap/new-spaces.h",
+    "src/heap/scavenger.cc",
+    "test/cctest/heap/heap-utils.cc",
+    "test/cctest/heap/test-spaces.cc",
+    "test/unittests/heap/heap-unittest.cc",
+    "test/unittests/heap/heap-utils.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same /poc/run.sh and logic_oracle.cc were run against all three exact revisions. The outputs were: pre_intro current_capacity=262144 reported_capacity=1048512 ensured=1 allocate_calls=0; post_intro current_capacity=0 reported_capacity=1048512 ensured=0 allocate_calls=4; post_benign current_capacity=0 reported_capacity=1048512 ensured=0 allocate_calls=2. V8 makes two low-level AllocatePages attempts per logical page request, so the introduced revision made two logical page requests after the ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,165 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "logic-error",
+  "poc_summary": "PoC = /poc/handle_noset.wat (hand-authored wasi:http/proxy component-text-format component) + /poc/run.sh. The component imports only the `incoming-request`/`response-outparam` resource types from wasi:http/types@0.2.0 and exports `wasi:http/incoming-handler@0.2.0#handle` as a trivial core function `(func (param i32 i32))` that returns immediately without ever calling `response-outparam::set`. run.sh starts `wasmtime serve --addr 127.0.0.1:18123 /poc/handle_noset.wat` in the background, waits for it to come up, sends one `curl` GET request, greps the server's stderr log for the specific panic text, and reports PANIC_OBSERVED/NO_PANIC. Run identically via run_poc on pre_intro, post_intro, post_benign.",
+  "explanation": "Root cause per meta.json: in `handle_request` (src/commands/serve.rs), when the oneshot `receiver` errors (meaning the guest never called `response-outparam::set`), the code assumed this implies the spawned task's `Result` must be `Err`, and called `.expect_err(\"if the receiver has an error, the task must have failed\")` on the task's join result \u2014 panicking whenever the guest's `handle` export returns `Ok(())` normally without invoking `set` (a legal guest behavior per the WIT contract, just one the host must tolerate rather than crash on).\n\nrun_poc results, same component/command across all three builds:\n- pre_intro (480fb0e1a87b): POC_RESULT: NO_PANIC \u2014 clean hyper service error `guest never invoked response-outparam::set method`.\n- post_intro (5e1adfb627d1): POC_RESULT: PANIC_OBSERVED \u2014 stderr contains `thread 'tokio-runtime-worker' panicked at src/commands/serve.rs:461:28: if the receiver has an error, the task must have failed: ()` with backtrace through `ServeCommand::serve`, exactly the labelled logic bug.\n- post_benign (fix applied): POC_RESULT: NO_PANIC \u2014 identical clean error as pre_intro, confirming the companion patch removes the introduced panic.\n\nSource was also directly diffed across the three revisions: pre_intro/post_benign's `Err(_) => bail!(\"guest never invoked ... method\")` arm matches verbatim, while post_intro alone adds the `task.await` + `.expect_err(...)` logic that panics on this input. The behavioral oracle (presence/absence of the specific panic message) is fully reproducible and isolates the regression to the intro commit.",
+  "oracle": {
+    "kind": "behavioral",
+    "bug_marker": "thread 'tokio-runtime-worker' panicked at src/commands/serve.rs:461:28:\nif the receiver has an error, the task must have failed: ()",
+    "pre_marker": "error: hyper::Error(User(Service), guest never invoked `response-outparam::set` method",
+    "benign_marker": "error: hyper::Error(User(Service), guest never invoked `response-outparam::set` method",
+    "description": "Start `wasmtime serve --addr 127.0.0.1:18123 /poc/handle_noset.wat` (component whose incoming-handler.handle returns without calling response-outparam::set), issue one HTTP GET via curl, and inspect the server's stderr for the Rust panic message versus a clean hyper service error.",
+    "target_evidence": "run_poc post_intro output: \"...panicked at src/commands/serve.rs:461:28...if the receiver has an error, the task must have failed: ()\" / \"POC_RESULT: PANIC_OBSERVED\". run_poc pre_intro and post_benign output: no panic text, \"POC_RESULT: NO_PANIC\" in both."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "read_context(evidence/test_01_3fd87ed84c674ea6_cli_tests.rs)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(handle_noset.wat)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "write_file(run.sh)",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "7ff016b5b27262a941e9e6ed4257536e6653c4a33db0a2d2d07ae8d075c2d00d",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "78d9233a6b11b356ce444a05dabb3da05147e85196981890104039913b5f9704"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "HTTP_CODE:000\n=== serve log ===\nServing HTTP on http://127.0.0.1:18123/\nthread 'tokio-runtime-worker' panicked at src/commands/serve.rs:461:28:\nif the receiver has an error, the task must have failed: ()\nstack backtrace:\n   0: rust_begin_unwind\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/std/src/panicking.rs:648:5\n   1: core::panicking::panic_fmt\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/core/src/panicking.rs:72:14\n   2: core::result::unwrap_failed\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/core/src/result.rs:1653:5\n   3: hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_catch\n   4: wasmtime_cli::commands::serve::ServeCommand::serve::{{closure}}::{{closure}}\n   5: tokio::runtime::task::core::Core<T,S>::poll\n   6: std::panicking::try::do_call\n   7: __rust_try.llvm.12125680348085878329\n   8: std::panicking::try\n   9: tokio::runtime::task::harness::Harness<T,S>::poll\n  10: tokio::runtime::scheduler::multi_thread::worker::Context::run_task\n  11: tokio::runtime::scheduler::multi_thread::worker::Context::run\n  12: tokio::runtime::context::scoped::Scoped<T>::set\n  13: tokio::runtime::context::runtime::enter_runtime\n  14: tokio::runtime::scheduler::multi_thread::worker::run\n  15: <tokio::runtime::blocking::task::BlockingTask<T> as core::future::future::Future>::poll\n  16: tokio::runtime::task::core::Core<T,S>::poll\n  17: std::panicking::try::do_call\n  18: __rust_try.llvm.8451119671326065310\n  19: std::panicking::try\n  20: tokio::runtime::task::harness::Harness<T,S>::poll\n  21: tokio::runtime::task::UnownedTask<S>::run\n  22: tokio::runtime::blocking::pool::Inner::run\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\nPOC_RESULT: PANIC_OBSERVED\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "7ff016b5b27262a941e9e6ed4257536e6653c4a33db0a2d2d07ae8d075c2d00d",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "480fb0e1a87bc4b4e72a85135c9ff4341bf78e8a",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "dad6aebeb9669a557677801bc554a9b86babcd3c055a3c448ced13356e1dae66"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "HTTP_CODE:000\n=== serve log ===\nServing HTTP on http://127.0.0.1:18123/\nerror: hyper::Error(User(Service), guest never invoked `response-outparam::set` method\n\nStack backtrace:\n   0: anyhow::error::<impl anyhow::Error>::msg\n   1: anyhow::__private::format_err\n   2: hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_catch\n   3: wasmtime_cli::commands::serve::ServeCommand::serve::{{closure}}::{{closure}}\n   4: tokio::runtime::task::core::Core<T,S>::poll\n   5: std::panicking::try::do_call\n   6: __rust_try.llvm.1131731740566867809\n   7: std::panicking::try\n   8: tokio::runtime::task::harness::Harness<T,S>::poll\n   9: tokio::runtime::scheduler::multi_thread::worker::Context::run_task\n  10: tokio::runtime::scheduler::multi_thread::worker::Context::run\n  11: tokio::runtime::context::scoped::Scoped<T>::set\n  12: tokio::runtime::context::runtime::enter_runtime\n  13: tokio::runtime::scheduler::multi_thread::worker::run\n  14: <tokio::runtime::blocking::task::BlockingTask<T> as core::future::future::Future>::poll\n  15: tokio::runtime::task::core::Core<T,S>::poll\n  16: std::panicking::try::do_call\n  17: __rust_try.llvm.8451119671326065310\n  18: std::panicking::try\n  19: tokio::runtime::task::harness::Harness<T,S>::poll\n  20: tokio::runtime::task::UnownedTask<S>::run\n  21: tokio::runtime::blocking::pool::Inner::run\n  22: std::sys_common::backtrace::__rust_begin_short_backtrace\n  23: std::panicking::try::do_call\n  24: __rust_try.llvm.8451119671326065310\n  25: std::panicking::try\n  26: core::ops::function::FnOnce::call_once{{vtable.shim}}\n  27: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/alloc/src/boxed.rs:2016:9\n  28: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/alloc/src/boxed.rs:2016:9\n  29: std::sys::pal::unix::thread::Thread::new::thread_start\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/std/src/sys/pal/unix/thread.rs:108:17\n  30: asan_thread_start\n             at /rustc/llvm/src/llvm-project/compiler-rt/lib/asan/asan_interceptors.cpp:239:28\n  31: start_thread\n             at ./nptl/pthread_create.c:442:8\n  32: clone\n             at ./misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100)\nPOC_RESULT: NO_PANIC\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "7ff016b5b27262a941e9e6ed4257536e6653c4a33db0a2d2d07ae8d075c2d00d",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "480fb0e1a87bc4b4e72a85135c9ff4341bf78e8a",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6f0a7e639fe2425f9a94066b09bd29bfe00bd8a8875ae38bb6b7e0017ff3d286"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "HTTP_CODE:000\n=== serve log ===\nServing HTTP on http://127.0.0.1:18123/\nerror: hyper::Error(User(Service), guest never invoked `response-outparam::set` method\n\nStack backtrace:\n   0: anyhow::error::<impl anyhow::Error>::msg\n   1: anyhow::__private::format_err\n   2: hyper::proto::h1::dispatch::Dispatcher<D,Bs,I,T>::poll_catch\n   3: wasmtime_cli::commands::serve::ServeCommand::serve::{{closure}}::{{closure}}\n   4: tokio::runtime::task::core::Core<T,S>::poll\n   5: std::panicking::try::do_call\n   6: __rust_try.llvm.9846640867821770605\n   7: std::panicking::try\n   8: tokio::runtime::task::harness::Harness<T,S>::poll\n   9: tokio::runtime::scheduler::multi_thread::worker::Context::run_task\n  10: tokio::runtime::scheduler::multi_thread::worker::Context::run\n  11: tokio::runtime::context::scoped::Scoped<T>::set\n  12: tokio::runtime::context::runtime::enter_runtime\n  13: tokio::runtime::scheduler::multi_thread::worker::run\n  14: <tokio::runtime::blocking::task::BlockingTask<T> as core::future::future::Future>::poll\n  15: tokio::runtime::task::core::Core<T,S>::poll\n  16: std::panicking::try::do_call\n  17: __rust_try.llvm.8451119671326065310\n  18: std::panicking::try\n  19: tokio::runtime::task::harness::Harness<T,S>::poll\n  20: tokio::runtime::task::UnownedTask<S>::run\n  21: tokio::runtime::blocking::pool::Inner::run\n  22: std::sys_common::backtrace::__rust_begin_short_backtrace\n  23: std::panicking::try::do_call\n  24: __rust_try.llvm.8451119671326065310\n  25: std::panicking::try\n  26: core::ops::function::FnOnce::call_once{{vtable.shim}}\n  27: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/alloc/src/boxed.rs:2016:9\n  28: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/alloc/src/boxed.rs:2016:9\n  29: std::sys::pal::unix::thread::Thread::new::thread_start\n             at /rustc/3406ada96f8e16e49e947a91db3eba0db45245fa/library/std/src/sys/pal/unix/thread.rs:108:17\n  30: asan_thread_start\n             at /rustc/llvm/src/llvm-project/compiler-rt/lib/asan/asan_interceptors.cpp:239:28\n  31: start_thread\n             at ./nptl/pthread_create.c:442:8\n  32: clone\n             at ./misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100)\nPOC_RESULT: NO_PANIC\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

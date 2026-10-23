@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-9a341c1edbde",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "4bec44bdfa1fea3374a8e262b6a8da6fc79f08b8",
+    "parent": "6d7f18d60cef4bcae013aa8bc57f153f69693b7c",
+    "fix": "9a341c1edbde5c3b9637a5775721ebd7fcae8959"
+  },
+  "affected_files": [
+    "ext/misc/fossildelta.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using one identical ASan/UBSan build-and-run command across all revisions, pre_intro exited 0 without a sanitizer finding because fossildelta.c is absent. post_intro parsed two attacker-controlled copy counts: after the first set total to 0x80000000, adding 0x80000001 wrapped the 32-bit accumulator to 1, bypassed total<=limit, and reached memcpy; ASan reported heap-buffer-overflow in delta_apply at ext/misc/fossildelta.c:556 and the process aborted with exit 134. post_benign ran the same 37-byte",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

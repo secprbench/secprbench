@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_GH-14143",
+  "bug_id": "GH-14143",
+  "bug_type": "LogicError",
+  "intro_commit": "dcf02298110fabb3c8f0c73c096adfafb64d9134",
+  "intro_parent": "58edea7385785368e0f7503fdb6f985932933c96",
+  "fix_commit": "03816c15f75962b8e4662cee22be6f7ba6d5d9dd",
+  "affected_files": [
+    "src/rdb.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_f44890249be2bf05_replication.tcl: tests/integration/replication.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "The HFE min-expire-time RDB loading code added in commit dcf02298110 (#13391) reused rdbReportCorruptRDB() for a read-error check that can legitimately fire on a benign short read over a replication socket, instead of using rdbReportReadError() which is the designated helper for exactly this short-read/connection-drop scenario elsewhere in rdb.c. This mixes up the 'corrupted on-disk file' failure class with the 'broken network stream' failure class, both of which flow through the shared rdbReportError()/corruption_error parameter.",
+  "findings": [
+    "When loading RDB_TYPE_HASH_METADATA (and similarly RDB_TYPE_HASH_LISTPACK_EX) objects, rdbLoadObject() reads a serialized 'min expiration time' field via rdbLoadMillisecondTime() and then checks rioGetReadError(rdb) to detect a failed read. On failure it calls rdbReportCorruptRDB(), which invokes rdbReportError() with corruption_error=1. During diskless replication full sync, a transient/broken ne"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "a73097ad80deafe913649683cd9548f56adf345f4f63419c3b1bc8c5d83f1ade",
+  "generated_artifact_sha256": {
+    "reference": "d5c9401215f6a9729a00602b1166e78e4b2a63411181ddaaa7bc0a0cd00f654e",
+    "introducing": "17fd67f8fd3b289a761de048d57dbfc96ad65525ab90375b551495c320fd8fa3",
+    "companion": "319c2920a1f1d8183aa664c05943f4b5617e14bc415bad05aafe5f13faaf0dd1"
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "task_id": "pr_review_GH-13512",
+  "bug_id": "GH-13512",
+  "commit_sha": "610eb26c112aaffa434fb978cbd62786c43a1155",
+  "commit_message": "RED-129256, Fix TOUCH command from script in no-touch mode (#13512)\n\nWhen a client in no-touch mode issues a TOUCH command on a key, the\nkey’s access time should be updated, but in scripts, and module's\nRM_Call, it isn’t updated.\nCommand proc should be matched to the executing client, not the current\nclient.\n\nCo-authored-by: Udi Ron <udi@speedb.io>",
+  "commit_author": "Oran Agra",
+  "commit_date": "2024-09-12T11:33:26+03:00",
+  "pr_title": "RED-129256, Fix TOUCH command from script in no-touch mode (#13512)",
+  "pr_description": "When a client in no-touch mode issues a TOUCH command on a key, the\nkey’s access time should be updated, but in scripts, and module's\nRM_Call, it isn’t updated.\nCommand proc should be matched to the executing client, not the current\nclient.\n\nCo-authored-by: Udi Ron <udi@speedb.io>",
+  "files": [
+    {
+      "path": "src/db.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/src/db.c b/src/db.c\nindex a09fce790..e20ff5dcf 100644\n--- a/src/db.c\n+++ b/src/db.c\n@@ -103,11 +103,11 @@ robj *lookupKey(redisDb *db, robj *key, int flags, dictEntry **deref) {\n     if (val) {\n         /* Update the access time for the ageing algorithm.\n          * Don't do it if we have a saving child, as this will trigger\n          * a copy on write madness. */\n         if (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH &&\n-            server.current_client->cmd->proc != touchCommand)\n+            server.executing_client->cmd->proc != touchCommand)\n             flags |= LOOKUP_NOTOUCH;\n         if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){\n             if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {\n                 updateLFU(val);\n             } else {\n"
+    },
+    {
+      "path": "tests/unit/introspection-2.tcl",
+      "status": "modified",
+      "additions": 20,
+      "deletions": 0,
+      "diff": "diff --git a/tests/unit/introspection-2.tcl b/tests/unit/introspection-2.tcl\nindex f9885c023..a2156fa3b 100644\n--- a/tests/unit/introspection-2.tcl\n+++ b/tests/unit/introspection-2.tcl\n@@ -49,10 +49,30 @@ start_server {tags {\"introspection\"}} {\n         r get foo\n         set newlru [getlru foo]\n         assert_morethan $newlru $oldlru\n     } {} {needs:debug}\n \n+    test {Operations in no-touch mode TOUCH alters the last access time of a key} {\n+        r set foo bar\n+        r client no-touch on\n+        set oldlru [getlru foo]\n+        after 1100\n+        r touch foo\n+        set newlru [getlru foo]\n+        assert_morethan $newlru $oldlru\n+    } {} {needs:debug}\n+\n+    test {Operations in no-touch mode TOUCH from script alters the last access time of a key} {\n+        r set foo bar\n+        r client no-touch on\n+        set oldlru [getlru foo]\n+        after 1100\n+        assert_equal {1} [r eval \"return redis.call('touch', 'foo')\" 0]\n+        set newlru [getlru foo]\n+        assert_morethan $newlru $oldlru\n+    } {} {needs:debug}\n+\n     test {TOUCH returns the number of existing keys specified} {\n         r flushdb\n         r set key1{t} 1\n         r set key2{t} 2\n         r touch key0{t} key1{t} key2{t} key3{t}\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/db.c b/src/db.c\nindex a09fce790..e20ff5dcf 100644\n--- a/src/db.c\n+++ b/src/db.c\n@@ -103,11 +103,11 @@ robj *lookupKey(redisDb *db, robj *key, int flags, dictEntry **deref) {\n     if (val) {\n         /* Update the access time for the ageing algorithm.\n          * Don't do it if we have a saving child, as this will trigger\n          * a copy on write madness. */\n         if (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH &&\n-            server.current_client->cmd->proc != touchCommand)\n+            server.executing_client->cmd->proc != touchCommand)\n             flags |= LOOKUP_NOTOUCH;\n         if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){\n             if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {\n                 updateLFU(val);\n             } else {\ndiff --git a/tests/unit/introspection-2.tcl b/tests/unit/introspection-2.tcl\nindex f9885c023..a2156fa3b 100644\n--- a/tests/unit/introspection-2.tcl\n+++ b/tests/unit/introspection-2.tcl\n@@ -49,10 +49,30 @@ start_server {tags {\"introspection\"}} {\n         r get foo\n         set newlru [getlru foo]\n         assert_morethan $newlru $oldlru\n     } {} {needs:debug}\n \n+    test {Operations in no-touch mode TOUCH alters the last access time of a key} {\n+        r set foo bar\n+        r client no-touch on\n+        set oldlru [getlru foo]\n+        after 1100\n+        r touch foo\n+        set newlru [getlru foo]\n+        assert_morethan $newlru $oldlru\n+    } {} {needs:debug}\n+\n+    test {Operations in no-touch mode TOUCH from script alters the last access time of a key} {\n+        r set foo bar\n+        r client no-touch on\n+        set oldlru [getlru foo]\n+        after 1100\n+        assert_equal {1} [r eval \"return redis.call('touch', 'foo')\" 0]\n+        set newlru [getlru foo]\n+        assert_morethan $newlru $oldlru\n+    } {} {needs:debug}\n+\n     test {TOUCH returns the number of existing keys specified} {\n         r flushdb\n         r set key1{t} 1\n         r set key2{t} 2\n         r touch key0{t} key1{t} key2{t} key3{t}\n",
+  "ground_truth": {
+    "bug_id": "GH-13512",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "5b49119236b51f52030b1a3ed4891fa4854ab1cf",
+      "short_sha": "5b4911923",
+      "message": "Fix crash in lookupKey() when `executing_client` is NULL (#14415)",
+      "author": "Moti Cohen",
+      "date": "2025-10-13T12:12:38+03:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullptr-01",
+        "title": "NULL pointer dereference of server.executing_client in lookupKey()",
+        "message": "In lookupKey(), the CLIENT NO-TOUCH check was changed to use server.executing_client->cmd->proc instead of server.current_client->cmd->proc, in order to correctly detect the TOUCH command when it is invoked via scripts/RM_Call. However, the code only null-checks server.current_client before entering the branch; it never checks whether server.executing_client itself is NULL before dereferencing it. server.executing_client is NULL in several legitimate contexts, most notably when handleClientsBlockedOnKey() runs after a key-modifying command (e.g. RPUSH) unblocks a client blocked on BRPOP: the lookupKey() call performed while serving the unblocked client's read happens outside of any executing client context. If the client that owns/triggered this lookup path has CLIENT_NO_TOUCH set (server.current_client non-NULL and flagged), the code proceeds to dereference server.executing_client->cmd->proc while server.executing_client is NULL, producing a NULL pointer dereference and crashing the server.",
+        "location": {
+          "file": "src/db.c",
+          "start_line": 107,
+          "end_line": 109,
+          "start_column": null,
+          "end_column": null,
+          "function": "lookupKey",
+          "snippet": "        if (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH &&\n            server.executing_client->cmd->proc != touchCommand)\n            flags |= LOOKUP_NOTOUCH;",
+          "snippet_hash": "62e4bf35a49e2b704da878e2d760a164e3b57e40cd0ee1f9d6a01e29f349c54f",
+          "description": null,
+          "snippet_start_line": 107,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.95,
+        "suggestion": "Guard the dereference of server.executing_client with an explicit NULL check before accessing its cmd field, and skip re-evaluating/altering the LOOKUP_NOTOUCH flag if it is already set. Only dereference server.executing_client when it is non-NULL, e.g.:\n\nif (((flags & LOOKUP_NOTOUCH) == 0) &&\n    (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH) &&\n    (server.executing_client && server.executing_client->cmd->proc != touchCommand))\n    flags |= LOOKUP_NOTOUCH;",
+        "suggestion_code": "if (((flags & LOOKUP_NOTOUCH) == 0) &&\n    (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH) &&\n    (server.executing_client && server.executing_client->cmd->proc != touchCommand))\n    flags |= LOOKUP_NOTOUCH;",
+        "tags": [
+          "security",
+          "crash",
+          "null-pointer-dereference"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "src/db.c"
+    ],
+    "root_cause": "The fix for the TOUCH-from-script bug swapped current_client for executing_client in a dereference chain without adding the same NULL-guard that was already present for current_client. server.executing_client is not guaranteed to be set in all code paths that reach lookupKey() (notably the blocked-client unblocking path), so the missing null check leads to a NULL pointer dereference.",
+    "must_cover": [
+      {
+        "file": "src/db.c",
+        "function": "lookupKey",
+        "start_line": 107,
+        "end_line": 109,
+        "role": "primary",
+        "reason": "Primary location of finding: NULL pointer dereference of server.executing_client in lookupKey()"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "610eb26c112aaffa434fb978cbd62786c43a1155",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

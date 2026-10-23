@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-13875",
+  "bug_id": "GH-13875",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "05aed4cab97659f748db309ae5edf79e91366634",
+  "intro_parent": "de7f2f87f74c95857ae91ee77be5a6cda18d2dea",
+  "fix_commit": "2a189709e098139b3158575ee6cb6d7ff266ed45",
+  "affected_files": [
+    "src/t_string.c",
+    "tests/unit/moduleapi/keyspace_events.tcl"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_7d5fe288224c9bc4_keyspace_events.tcl: tests/unit/moduleapi/keyspace_events.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "PR #13505 optimized INCR/DECR (and related commands) to avoid re-serializing the integer to a string for the reply, by replying directly from the heap-allocated robj ('new') that was just stored into the keyspace, rather than from a stack-local integer copy. However the reply-generation call was left positioned after signalModifiedKey()/notifyKeyspaceEvent(), which can re-enter into module keyspace-notification subscriber callbacks. Those callbacks run with full API access (including RM_StringDMA) to the key that now holds 'new', so they can free/reallocate the buffer 'new' points to before the deferred reply call reads it. Previously, replies used a stack copy of the integer value (or values were small/shared integer objects that aren't actually freed by dict replacement), so no live reference into freed heap memory was retained across the notification call.",
+  "findings": [
+    "incrDecrCommand() was changed (in PR #13505) to reply to the client with addReplyLongLongFromStr(c,new) -- reading the string value directly from the 'new' robj that now represents the key's value -- instead of replying with the integer value that had been copied onto the stack (addReplyLongLong(c, value)). This reply call was placed AFTER signalModifiedKey() and notifyKeyspaceEvent() are invoked."
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "c8a19eeb597a0fbb668c241565bdd3b0ef0e4441f0e3e7f09f5fea42cb0d47df",
+  "generated_artifact_sha256": {
+    "reference": "0f65cae8774f19df0b29b9ef51dd544a15ac0be0c2b3d2a3fc97f1002b299681",
+    "introducing": "64a191594cd11083911c43e66c252e0de1a8672f67e88556ef6c7b8048c9af08",
+    "companion": "00fb9b1926686f0bb369abc598df2f1f89a07d3afbcba2acb5f5b9b7b22fa1b6"
+  }
+}

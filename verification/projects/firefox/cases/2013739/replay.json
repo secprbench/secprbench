@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_2013739",
+    "bug_id": "2013739",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "fcc2f20e35ec811fd0d3c82286a00e68ffb265be",
+    "intro_parent": "8b0694b5c8a24b1f0b8944ccefc4a5ef79503e0c",
+    "fix_commit": "05ffcde977dfaf75399cbcccf0cf966e46065a76",
+    "affected_files": [
+      "js/src/wasm/WasmGcObject.cpp"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "post_intro (commit fcc2f20e35ec) crashes deterministically with an AddressSanitizer SEGV inside js::gc::HeaderWord::getAtomic() reached via Cell::isForwarded -> IsForwarded<WasmArrayObject> -> MaybeForwarded<WasmArrayObject*> -> Instance::updateFrameForMovingGC -> UpdateJitActivationsForMinorGC -> Nursery minor GC path -- exactly the consumer code path discussion.md identifies as misled by the destroyed forwarding pointer (oolHeaderNew & 1 instead of | 1, always zero, misclassifying OOL data as inline so the stale wasm stack data pointer is never updated). pre_intro (parent 8b0694b5c8a2) runs the identical command to completion (exit 0, 'Done.') with no crash or sanitizer report, showing the bug is absent before the intro commit. post_benign (fix applied on top of parent) also completes cleanly (exit 0, 'Done.') with the identical command, confirming the fix removes the regression. All three builds used the same PoC bytes and same invocation, satisfying the invariance requirement. This is a genuine use-after-free: the wasm frame retains a stale pointer into freed/relocated nursery memory after the OOL array data block is promoted/moved during a minor GC, and subsequent array accesses through that pointer read from the freed region (observed here as SIGSEGV reading unmapped/clobbered memory, consistent with ASan poisoning catching the invalid access)."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/f3d7a65a56c2027a7200/attempts/09/pocs/firefox/2013739",
+    "input_file": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/f3d7a65a56c2027a7200/attempts/09/pocs/firefox/2013739/poc.js",
+    "input_name": "poc.js",
+    "size": 2077,
+    "has_run_sh": false,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "/work/obj-verify-js/dist/bin/js --wasm-compiler=optimizing /poc/poc.js",
+      "input": null,
+      "poc_sha256": "e967ee059f1b0e1a8eeaaf90412b2e1b327ecd8948ca29f3255fc0452b267496",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "fcc2f20e35ec811fd0d3c82286a00e68ffb265be",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "5b28cf059af784295e4b3457d3500839511e9faf8d5c8117c359cd6c7394b25e"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "Phase 1: warmup for Ion tier-up...\nVERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000485a525a5 (pc 0x5568100d803f bp 0x7ffca043cbf0 sp 0x7ffca043cb70 T0)\n==8==The signal is caused by a READ memory access.\n    #0 0x5568100d803f in js::gc::HeaderWord::getAtomic() const /work/js/src/gc/Cell.h:101:12\n    #1 0x5568100d803f in js::gc::HeaderWord::flags() const /work/js/src/gc/Cell.h:117:36\n    #2 0x5568100d803f in js::gc::HeaderWord::isForwarded() const /work/js/src/gc/Cell.h:118:37\n    #3 0x5568100d803f in js::gc::Cell::isForwarded() const /work/js/src/gc/Cell.h:154:45\n    #4 0x5568100d803f in bool js::gc::IsForwarded<js::WasmArrayObject>(js::WasmArrayObject const*) /work/js/src/gc/Marking-inl.h:97:13\n    #5 0x5568100d803f in js::WasmArrayObject* js::gc::MaybeForwarded<js::WasmArrayObject*>(js::WasmArrayObject* const&) /work/js/src/gc/Marking-inl.h:129:15\n    #6 0x5568100d803f in js::wasm::Instance::updateFrameForMovingGC(js::wasm::WasmFrameIter const&, unsigned char*, js::Nursery&) /work/js/src/wasm/WasmInstance.cpp:3297:33\n    #7 0x55680f30a017 in js::jit::UpdateJitActivationsForMinorGC(JSRuntime*) /work/js/src/jit/JitFrames.cpp:1524:27\n    #8 0x55680e3511f8 in js::Nursery::doCollection(js::gc::AutoGCSession&, JS::GCOptions, JS::GCReason) /work/js/src/gc/Nursery.cpp:1592:3\n    #9 0x55680e30adef in js::Nursery::collect(JS::GCOptions, JS::GCReason) /work/js/src/gc/Nursery.cpp:1417:31\n    #10 0x55680e2fed02 in js::gc::GCRuntime::collectNursery(JS::GCOptions, JS::GCReason, js::gcstats::PhaseKind) /work/js/src/gc/GC.cpp:5075:13\n    #11 0x55680e2d2fef in js::gc::GCRuntime::minorGC(JS::GCReason, js::gcstats::PhaseKind) /work/js/src/gc/GC.cpp:5046:3\n    #12 0x55680e2887fd in void* js::gc::CellAllocator::RetryNurseryAlloc<(js::AllowGC)1>(JSContext*, JS::TraceKind, js::gc::AllocKind, unsigned long, js::gc::AllocSite*) /work/js/src/gc/Allocator.cpp:106:23\n    #13 0x55680d7dedcc in void* js::gc::CellAllocator::AllocNurseryOrTenuredCell<(JS::TraceKind)0, (js::AllowGC)1>(JSContext*, js::gc::AllocKind, unsigned long, js::gc::Heap, js::gc::AllocSite*) /work/js/src/gc/Allocator-inl.h:217:12\n    #14 0x55680d8759b7 in js::ArrayObject* js::gc::CellAllocator::NewObject<js::ArrayObject, (js::AllowGC)1>(JSContext*, js::gc::AllocKind, js::gc::Heap, JSClass const*, js::gc::AllocSite*) /work/js/src/gc/Allocator-inl.h:112:16\n    #15 0x55680d85f5de in js::ArrayObject* js::gc::CellAllocator::NewCell<js::ArrayObject, (js::AllowGC)1, js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&>(JSContext*, js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&) /work/js/src/gc/Allocator-inl.h:35:12\n    #16 0x55680d85f5de in js::ArrayObject* JSContext::newCell<js::ArrayObject, (js::AllowGC)1, js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&>(js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&) /work/js/src/vm/JSContext-inl.h:379:10\n    #17 0x55680d85f5de in js::ArrayObject::create(JSContext*, js::gc::AllocKind, js::gc::Heap, JS::Handle<js::SharedShape*>, unsigned int, unsigned int, js::AutoSetNewObjectMetadata&, js::gc::AllocSite*) /work/js/src/vm/ArrayObject-inl.h:42:27\n    #18 0x55680d85641f in js::ArrayObject* NewArrayWithShape<4294967295u>(JSContext*, JS::Handle<js::SharedShape*>, unsigned int, js::NewObjectKind, js::gc::AllocSite*) /work/js/src/builtin/Array.cpp:5310:22\n    #1",
+        "stdout_tail": " js::gcstats::PhaseKind) /work/js/src/gc/GC.cpp:5075:13\n    #11 0x55680e2d2fef in js::gc::GCRuntime::minorGC(JS::GCReason, js::gcstats::PhaseKind) /work/js/src/gc/GC.cpp:5046:3\n    #12 0x55680e2887fd in void* js::gc::CellAllocator::RetryNurseryAlloc<(js::AllowGC)1>(JSContext*, JS::TraceKind, js::gc::AllocKind, unsigned long, js::gc::AllocSite*) /work/js/src/gc/Allocator.cpp:106:23\n    #13 0x55680d7dedcc in void* js::gc::CellAllocator::AllocNurseryOrTenuredCell<(JS::TraceKind)0, (js::AllowGC)1>(JSContext*, js::gc::AllocKind, unsigned long, js::gc::Heap, js::gc::AllocSite*) /work/js/src/gc/Allocator-inl.h:217:12\n    #14 0x55680d8759b7 in js::ArrayObject* js::gc::CellAllocator::NewObject<js::ArrayObject, (js::AllowGC)1>(JSContext*, js::gc::AllocKind, js::gc::Heap, JSClass const*, js::gc::AllocSite*) /work/js/src/gc/Allocator-inl.h:112:16\n    #15 0x55680d85f5de in js::ArrayObject* js::gc::CellAllocator::NewCell<js::ArrayObject, (js::AllowGC)1, js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&>(JSContext*, js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&) /work/js/src/gc/Allocator-inl.h:35:12\n    #16 0x55680d85f5de in js::ArrayObject* JSContext::newCell<js::ArrayObject, (js::AllowGC)1, js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&>(js::gc::AllocKind&, js::gc::Heap&, JSClass const*&, js::gc::AllocSite*&) /work/js/src/vm/JSContext-inl.h:379:10\n    #17 0x55680d85f5de in js::ArrayObject::create(JSContext*, js::gc::AllocKind, js::gc::Heap, JS::Handle<js::SharedShape*>, unsigned int, unsigned int, js::AutoSetNewObjectMetadata&, js::gc::AllocSite*) /work/js/src/vm/ArrayObject-inl.h:42:27\n    #18 0x55680d85641f in js::ArrayObject* NewArrayWithShape<4294967295u>(JSContext*, JS::Handle<js::SharedShape*>, unsigned int, js::NewObjectKind, js::gc::AllocSite*) /work/js/src/builtin/Array.cpp:5310:22\n    #19 0x55680d815144 in js::ArrayObject* NewArray<4294967295u>(JSContext*, unsigned int, js::NewObjectKind, js::gc::AllocSite*) /work/js/src/builtin/Array.cpp:5380:10\n    #20 0x55680f606a92 in js::NewArrayObjectBaselineFallback(JSContext*, unsigned int, js::gc::AllocKind, js::gc::AllocSite*) /work/js/src/vm/Interpreter.cpp:5214:24\n    #21 0x7b5fe2dda4dd  (<unknown module>)\n\n==8==Register values:\nrax = 0x000000202d2d2d28  rbx = 0x00007ffca043f8c0  rcx = 0x0000000405a5a5a5  rdx = 0x00007e3064ced0a8  \nrdi = 0x000033e314e00ce0  rsi = 0x00007d7064d0e560  rbp = 0x00007ffca043cbf0  rsp = 0x00007ffca043cb70  \n r8 = 0x0000000000000030   r9 = 0x0000000000000004  r10 = 0x00000000000001ed  r11 = 0x0000000000000000  \nr12 = 0x000033e314e00ce0  r13 = 0x00000fff94087f18  r14 = 0x00007d7064d0e560  r15 = 0x0000000000000000  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/js/src/gc/Cell.h:101:12 in js::gc::HeaderWord::getAtomic() const\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/obj-verify-js/dist/bin/js --wasm-compiler=optimizing /poc/poc.js'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "/work/obj-verify-js/dist/bin/js --wasm-compiler=optimizing /poc/poc.js",
+      "input": null,
+      "poc_sha256": "e967ee059f1b0e1a8eeaaf90412b2e1b327ecd8948ca29f3255fc0452b267496",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "8b0694b5c8a24b1f0b8944ccefc4a5ef79503e0c",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "72db7d68ddb0526ede1bbe7569349517b4cd4a96a0eb6e9a0fb995e344f2eb76"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "Phase 1: warmup for Ion tier-up...\nPhase 2: GC pressure after Ion tier-up...\nDone.\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "/work/obj-verify-js/dist/bin/js --wasm-compiler=optimizing /poc/poc.js",
+      "input": null,
+      "poc_sha256": "e967ee059f1b0e1a8eeaaf90412b2e1b327ecd8948ca29f3255fc0452b267496",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "8b0694b5c8a24b1f0b8944ccefc4a5ef79503e0c",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "88d4e5c377b4f81f8fde21e2e2702decc02991691876a668d72ffa70e6bf00bd"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "Phase 1: warmup for Ion tier-up...\nPhase 2: GC pressure after Ion tier-up...\nDone.\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "WasmGC PoC (poc.js) creates a 32-element i32 array (forcing out-of-line/OOL data storage), writes canary values, then calls an imported JS function that allocates heavily to trigger a nursery minor GC while the OOL-backed array is live and Ion has cached its data pointer across the call (wasmCallAliasSet excludes WasmArrayDataPointer from call-clobbered aliases). Warmup loop (2000 iters) forces Ion tier-up, then 50 further calls exercise the post-GC path. Run with: /work/obj-verify-js/dist/bin/js --wasm-compiler=optimizing /poc/poc.js, identical across all three builds.",
+    "target_evidence": ""
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

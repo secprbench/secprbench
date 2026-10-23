@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_REPORT-e90c2ff4b5a5922d",
+  "bug_id": "REPORT-e90c2ff4b5a5922d",
+  "commit_sha": "fe1ffd63fb09fc8655487046f3ad2b372fef5497",
+  "commit_message": "avcodec/libdav1d: refactor parsing ITU-T35 metadata\n\nUse a switch case. Will be useful in the following commit.\n\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "commit_author": "James Almer",
+  "commit_date": "2026-03-26T17:23:59-03:00",
+  "pr_title": "avcodec/libdav1d: refactor parsing ITU-T35 metadata",
+  "pr_description": "Use a switch case. Will be useful in the following commit.\n\nSigned-off-by: James Almer <jamrial@gmail.com>\n",
+  "files": [
+    {
+      "path": "libavcodec/libdav1d.c",
+      "status": "modified",
+      "additions": 62,
+      "deletions": 47,
+      "diff": "diff --git a/libavcodec/libdav1d.c b/libavcodec/libdav1d.c\nindex 14ec9842a0..77520744cd 100644\n--- a/libavcodec/libdav1d.c\n+++ b/libavcodec/libdav1d.c\n@@ -368,71 +368,86 @@ static int parse_itut_t35_metadata(Libdav1dContext *dav1d, Dav1dPicture *p,\n     int provider_code, country_code;\n     int res;\n \n     bytestream2_init(&gb, itut_t35->payload, itut_t35->payload_size);\n \n-    provider_code = bytestream2_get_be16(&gb);\n     country_code = itut_t35->country_code;\n-    if (country_code == ITU_T_T35_COUNTRY_CODE_US && provider_code == ITU_T_T35_PROVIDER_CODE_ATSC) {\n-        uint32_t user_identifier = bytestream2_get_be32(&gb);\n-        switch (user_identifier) {\n-        case MKBETAG('G', 'A', '9', '4'): { // closed captions\n-            AVBufferRef *buf = NULL;\n-\n-            res = ff_parse_a53_cc(&buf, gb.buffer, bytestream2_get_bytes_left(&gb));\n-            if (res < 0)\n-                return res;\n-            if (!res)\n-                return 0;  // no cc found, ignore\n-\n-            res = ff_frame_new_side_data_from_buf(c, frame, AV_FRAME_DATA_A53_CC, &buf);\n-            if (res < 0)\n-                return res;\n+    switch (country_code) {\n+    case ITU_T_T35_COUNTRY_CODE_US:\n+        provider_code = bytestream2_get_be16u(&gb);\n+\n+        switch (provider_code) {\n+        case ITU_T_T35_PROVIDER_CODE_ATSC: {\n+            uint32_t user_identifier = bytestream2_get_be32(&gb);\n+            switch (user_identifier) {\n+            case MKBETAG('G', 'A', '9', '4'): { // closed captions\n+                AVBufferRef *buf = NULL;\n+\n+                res = ff_parse_a53_cc(&buf, gb.buffer, bytestream2_get_bytes_left(&gb));\n+                if (res < 0)\n+                    return res;\n+                if (!res)\n+                    return 0;  // no cc found, ignore\n+\n+                res = ff_frame_new_side_data_from_buf(c, frame, AV_FRAME_DATA_A53_CC, &buf);\n+                if (res < 0)\n+                    return res;\n \n #if FF_API_CODEC_PROPS\n FF_DISABLE_DEPRECATION_WARNINGS\n-            c->properties |= FF_CODEC_PROPERTY_CLOSED_CAPTIONS;\n+                c->properties |= FF_CODEC_PROPERTY_CLOSED_CAPTIONS;\n FF_ENABLE_DEPRECATION_WARNINGS\n #endif\n+                break;\n+            }\n+            default: // ignore unsupported identifiers\n+                break;\n+            }\n             break;\n         }\n-        default: // ignore unsupported identifiers\n-            break;\n-        }\n-    } else if (country_code == ITU_T_T35_COUNTRY_CODE_US && provider_code == ITU_T_T35_PROVIDER_CODE_SAMSUNG) {\n-        AVDynamicHDRPlus *hdrplus;\n-        int provider_oriented_code = bytestream2_get_be16(&gb);\n-        int application_identifier = bytestream2_get_byte(&gb);\n+        case ITU_T_T35_PROVIDER_CODE_SAMSUNG: {\n+            AVDynamicHDRPlus *hdrplus;\n+            int provider_oriented_code = bytestream2_get_be16(&gb);\n+            int application_identifier = bytestream2_get_byte(&gb);\n \n-        if (provider_oriented_code != 1 || application_identifier != 4)\n-            return 0; // ignore\n+            if (provider_oriented_code != 1 || application_identifier != 4)\n+                return 0; // ignore\n \n-        hdrplus = av_dynamic_hdr_plus_create_side_data(frame);\n-        if (!hdrplus)\n-            return AVERROR(ENOMEM);\n+            hdrplus = av_dynamic_hdr_plus_create_side_data(frame);\n+            if (!hdrplus)\n+                return AVERROR(ENOMEM);\n \n-        res = av_dynamic_hdr_plus_from_t35(hdrplus, gb.buffer,\n-                                            bytestream2_get_bytes_left(&gb));\n-        if (res < 0)\n-            return res;\n-    } else if (country_code == ITU_T_T35_COUNTRY_CODE_US && provider_code == ITU_T_T35_PROVIDER_CODE_DOLBY) {\n-        int provider_oriented_code = bytestream2_get_be32(&gb);\n-        if (provider_oriented_code != 0x800)\n-            return 0; // ignore\n-\n-        res = ff_dovi_rpu_parse(&dav1d->dovi, gb.buffer, bytestream2_get_bytes_left(&gb),\n-                                c->err_recognition);\n-        if (res < 0) {\n-            av_log(c, AV_LOG_WARNING, \"Error parsing DOVI OBU.\\n\");\n-            return 0; // ignore\n+            res = av_dynamic_hdr_plus_from_t35(hdrplus, gb.buffer,\n+                                                bytestream2_get_bytes_left(&gb));\n+            if (res < 0)\n+                return res;\n+            break;\n         }\n+        case ITU_T_T35_PROVIDER_CODE_DOLBY: {\n+            int provider_oriented_code = bytestream2_get_be32(&gb);\n+            if (provider_oriented_code != 0x800)\n+                return 0; // ignore\n \n-        res = ff_dovi_attach_side_data(&dav1d->dovi, frame);\n-        if (res < 0)\n-            return res;\n-    } else {\n+            res = ff_dovi_rpu_parse(&dav1d->dovi, gb.buffer, bytestream2_get_bytes_left(&gb),\n+                                    c->err_recognition);\n+            if (res < 0) {\n+                av_log(c, AV_LOG_WARNING, \"Error parsing DOVI OBU.\\n\");\n+                return 0; // ignore\n+            }\n+\n+            res = ff_dovi_attach_side_data(&dav1d->dovi, frame);\n+            if (res < 0)\n+                return res;\n+            break;\n+        }\n+        default:\n+            break;\n+        }\n+        break;\n+    default:\n         // ignore unsupported provider codes\n+        break;\n     }\n     return 0;\n }\n \n static int libdav1d_receive_frame(AVCodecContext *c, AVFrame *frame)\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/libdav1d.c b/libavcodec/libdav1d.c\nindex 14ec9842a0..77520744cd 100644\n--- a/libavcodec/libdav1d.c\n+++ b/libavcodec/libdav1d.c\n@@ -368,71 +368,86 @@ static int parse_itut_t35_metadata(Libdav1dContext *dav1d, Dav1dPicture *p,\n     int provider_code, country_code;\n     int res;\n \n     bytestream2_init(&gb, itut_t35->payload, itut_t35->payload_size);\n \n-    provider_code = bytestream2_get_be16(&gb);\n     country_code = itut_t35->country_code;\n-    if (country_code == ITU_T_T35_COUNTRY_CODE_US && provider_code == ITU_T_T35_PROVIDER_CODE_ATSC) {\n-        uint32_t user_identifier = bytestream2_get_be32(&gb);\n-        switch (user_identifier) {\n-        case MKBETAG('G', 'A', '9', '4'): { // closed captions\n-            AVBufferRef *buf = NULL;\n-\n-            res = ff_parse_a53_cc(&buf, gb.buffer, bytestream2_get_bytes_left(&gb));\n-            if (res < 0)\n-                return res;\n-            if (!res)\n-                return 0;  // no cc found, ignore\n-\n-            res = ff_frame_new_side_data_from_buf(c, frame, AV_FRAME_DATA_A53_CC, &buf);\n-            if (res < 0)\n-                return res;\n+    switch (country_code) {\n+    case ITU_T_T35_COUNTRY_CODE_US:\n+        provider_code = bytestream2_get_be16u(&gb);\n+\n+        switch (provider_code) {\n+        case ITU_T_T35_PROVIDER_CODE_ATSC: {\n+            uint32_t user_identifier = bytestream2_get_be32(&gb);\n+            switch (user_identifier) {\n+            case MKBETAG('G', 'A', '9', '4'): { // closed captions\n+                AVBufferRef *buf = NULL;\n+\n+                res = ff_parse_a53_cc(&buf, gb.buffer, bytestream2_get_bytes_left(&gb));\n+                if (res < 0)\n+                    return res;\n+                if (!res)\n+                    return 0;  // no cc found, ignore\n+\n+                res = ff_frame_new_side_data_from_buf(c, frame, AV_FRAME_DATA_A53_CC, &buf);\n+                if (res < 0)\n+                    return res;\n \n #if FF_API_CODEC_PROPS\n FF_DISABLE_DEPRECATION_WARNINGS\n-            c->properties |= FF_CODEC_PROPERTY_CLOSED_CAPTIONS;\n+                c->properties |= FF_CODEC_PROPERTY_CLOSED_CAPTIONS;\n FF_ENABLE_DEPRECATION_WARNINGS\n #endif\n+                break;\n+            }\n+            default: // ignore unsupported identifiers\n+                break;\n+            }\n             break;\n         }\n-        default: // ignore unsupported identifiers\n-            break;\n-        }\n-    } else if (country_code == ITU_T_T35_COUNTRY_CODE_US && provider_code == ITU_T_T35_PROVIDER_CODE_SAMSUNG) {\n-        AVDynamicHDRPlus *hdrplus;\n-        int provider_oriented_code = bytestream2_get_be16(&gb);\n-        int application_identifier = bytestream2_get_byte(&gb);\n+        case ITU_T_T35_PROVIDER_CODE_SAMSUNG: {\n+            AVDynamicHDRPlus *hdrplus;\n+            int provider_oriented_code = bytestream2_get_be16(&gb);\n+            int application_identifier = bytestream2_get_byte(&gb);\n \n-        if (provider_oriented_code != 1 || application_identifier != 4)\n-            return 0; // ignore\n+            if (provider_oriented_code != 1 || application_identifier != 4)\n+                return 0; // ignore\n \n-        hdrplus = av_dynamic_hdr_plus_create_side_data(frame);\n-        if (!hdrplus)\n-            return AVERROR(ENOMEM);\n+            hdrplus = av_dynamic_hdr_plus_create_side_data(frame);\n+            if (!hdrplus)\n+                return AVERROR(ENOMEM);\n \n-        res = av_dynamic_hdr_plus_from_t35(hdrplus, gb.buffer,\n-                                            bytestream2_get_bytes_left(&gb));\n-        if (res < 0)\n-            return res;\n-    } else if (country_code == ITU_T_T35_COUNTRY_CODE_US && provider_code == ITU_T_T35_PROVIDER_CODE_DOLBY) {\n-        int provider_oriented_code = bytestream2_get_be32(&gb);\n-        if (provider_oriented_code != 0x800)\n-            return 0; // ignore\n-\n-        res = ff_dovi_rpu_parse(&dav1d->dovi, gb.buffer, bytestream2_get_bytes_left(&gb),\n-                                c->err_recognition);\n-        if (res < 0) {\n-            av_log(c, AV_LOG_WARNING, \"Error parsing DOVI OBU.\\n\");\n-            return 0; // ignore\n+            res = av_dynamic_hdr_plus_from_t35(hdrplus, gb.buffer,\n+                                                bytestream2_get_bytes_left(&gb));\n+            if (res < 0)\n+                return res;\n+            break;\n         }\n+        case ITU_T_T35_PROVIDER_CODE_DOLBY: {\n+            int provider_oriented_code = bytestream2_get_be32(&gb);\n+            if (provider_oriented_code != 0x800)\n+                return 0; // ignore\n \n-        res = ff_dovi_attach_side_data(&dav1d->dovi, frame);\n-        if (res < 0)\n-            return res;\n-    } else {\n+            res = ff_dovi_rpu_parse(&dav1d->dovi, gb.buffer, bytestream2_get_bytes_left(&gb),\n+                                    c->err_recognition);\n+            if (res < 0) {\n+                av_log(c, AV_LOG_WARNING, \"Error parsing DOVI OBU.\\n\");\n+                return 0; // ignore\n+            }\n+\n+            res = ff_dovi_attach_side_data(&dav1d->dovi, frame);\n+            if (res < 0)\n+                return res;\n+            break;\n+        }\n+        default:\n+            break;\n+        }\n+        break;\n+    default:\n         // ignore unsupported provider codes\n+        break;\n     }\n     return 0;\n }\n \n static int libdav1d_receive_frame(AVCodecContext *c, AVFrame *frame)\n",
+  "ground_truth": {
+    "bug_id": "REPORT-e90c2ff4b5a5922d",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "e90c2ff4b5a5922d2cad1acd41595084f71d74a8",
+      "short_sha": "e90c2ff4b",
+      "message": "avcodec/libdav1d: fix heap overflow in US ITU-T T.35 metadata parsing",
+      "author": "Ruikai Peng",
+      "date": "2026-04-06T19:11:33-04:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-read-001",
+        "title": "Unchecked 16-bit read of provider_code in US ITU-T T.35 branch causes heap-buffer-overflow",
+        "message": "In parse_itut_t35_metadata(), when refactoring the country_code/provider_code dispatch into a switch statement, the read of provider_code for the US (ITU_T_T35_COUNTRY_CODE_US) branch was changed from the bounds-checked bytestream2_get_be16() to the unchecked bytestream2_get_be16u() variant, with no prior validation that at least 2 bytes remain in the GetByteContext (gb). bytestream2_get_be16u() (see libavcodec/bytestream.h) does not verify bytestream2_get_bytes_left(&gb) before reading, so if the ITU-T T.35 payload has country_code == 0xB5 (US) and a payload shorter than 2 bytes (e.g. 1 byte), the read overruns the end of the payload buffer by up to 2 bytes, producing a heap-buffer-overflow read. The analogous UK country_code path elsewhere in the function already guards this with an explicit bytestream2_get_bytes_left() check before the unchecked read, but the equivalent guard was omitted for the US path in this refactor.",
+        "location": {
+          "file": "libavcodec/libdav1d.c",
+          "start_line": 375,
+          "end_line": 376,
+          "start_column": null,
+          "end_column": null,
+          "function": "parse_itut_t35_metadata",
+          "snippet": "    case ITU_T_T35_COUNTRY_CODE_US:\n        provider_code = bytestream2_get_be16u(&gb);\n\n        switch (provider_code) {\n        case ITU_T_T35_PROVIDER_CODE_ATSC: {",
+          "snippet_hash": "b018d049c5452957eb3f6605112a84807d21f0d97b1ab8ce4e31f5655366428a",
+          "description": null,
+          "snippet_start_line": 375,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.92,
+        "suggestion": "Validate the remaining bytes in the GetByteContext before performing the unchecked 16-bit read, matching the pattern already used for the UK country_code branch: check bytestream2_get_bytes_left(&gb) < 2 and return AVERROR_INVALIDDATA (or otherwise bail out) before calling bytestream2_get_be16u(). Alternatively, use the bounds-checked bytestream2_get_be16() variant instead of the 'u' (unchecked) variant.",
+        "suggestion_code": "case ITU_T_T35_COUNTRY_CODE_US:\n    if (bytestream2_get_bytes_left(&gb) < 2)\n        return AVERROR_INVALIDDATA;\n    provider_code = bytestream2_get_be16u(&gb);",
+        "tags": [
+          "security",
+          "memory-safety",
+          "parsing",
+          "heap-overflow"
+        ],
+        "cwe_ids": [
+          "CWE-125",
+          "CWE-20"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "libavcodec/libdav1d.c"
+    ],
+    "root_cause": "During a refactor that converted the country_code/provider_code dispatch logic in parse_itut_t35_metadata() into nested switch statements, the previously bounds-checked bytestream2_get_be16() call used to read provider_code was replaced by the unchecked bytestream2_get_be16u() variant for the US country_code case, without adding an explicit length check (bytestream2_get_bytes_left(&gb) < 2) beforehand. The analogous branch for the UK country code does include such a guard, but it was inconsistently omitted for the US branch, leaving a gap where attacker-controlled short payloads are read out of bounds.",
+    "must_cover": [
+      {
+        "file": "libavcodec/libdav1d.c",
+        "function": "parse_itut_t35_metadata",
+        "start_line": 375,
+        "end_line": 376,
+        "role": "primary",
+        "reason": "Primary location of finding: Unchecked 16-bit read of provider_code in US ITU-T T.35 branch causes heap-buffer-overflow"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "fe1ffd63fb09fc8655487046f3ad2b372fef5497",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

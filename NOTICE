@@ -1,0 +1,19 @@
+SecPRBench public benchmark release, 2026-10-22.
+
+Dataset and frozen-result provenance are recorded under provenance/.
+
+The earlier CGSA-Bench license and attribution are preserved at
+licenses/cgsa-bench-LICENSE.txt. This notice does not expand their scope.
+Current license limitations are described in LICENSE_SCOPE.md.
+
+The vendored defending-code-reference-harness skill retains its Apache-2.0
+license at secprbench/harnesses/defending/skill/LICENSE.txt and its source
+attribution in the harness documentation.
+
+Referenced upstream projects, third-party source fragments, advisories, and
+reproducers retain their respective ownership, attribution, and licenses.
+
+Some PoCs and upstream task diffs contain intentional generated or public TLS
+test-fixture keys and certificates. These are reproduction/test inputs, not
+operational account credentials. Preserve their provenance and do not replace
+them with live credentials.

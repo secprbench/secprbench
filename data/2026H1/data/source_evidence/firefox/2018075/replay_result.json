@@ -1,0 +1,17 @@
+{
+  "status": "verified",
+  "outcome": {
+    "task_id": "pr_review_2018075",
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "via": "fast-path",
+    "report": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01/replay/pr_review_2018075.report.md"
+  },
+  "agent_used": false,
+  "case_record": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/verification/projects/firefox/cases/2018075/case.json",
+  "recipe_sha256": "402b808220c82766e43b",
+  "cache_root": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cache/firefox/402b808220c82766e43b/worktrees",
+  "cache_lane": 0,
+  "final_poc_sha256": "5a0c4fa036f2c81c31774b88f8aab6d4212e82fd7275e86cf24df1d771c5ec2e"
+}

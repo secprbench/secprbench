@@ -1,0 +1,162 @@
+{
+  "bug_id": "2018075",
+  "title": "AddressSanitizer: SEGV on unknown address or Assertion failure: isAllocated(alloc), at gc/BufferAllocatorInternals.h:260",
+  "severity": "sec-high",
+  "keywords": [
+    "csectype-uaf",
+    "regression",
+    "reporter-external",
+    "sec-high",
+    "testcase"
+  ],
+  "product": "firefox",
+  "component": "JavaScript: GC",
+  "creation_time": "2026-02-19T23:39:47Z",
+  "resolution_time": "2026-02-21T12:51:05Z",
+  "bug_discussion": "Public Bugzilla report: https://bugzilla.mozilla.org/show_bug.cgi?id=2018075\n\nCreated attachment 9546644\ndebug stack\n\n```js\ngczeal(8, 1);\nfunction f() {\n  let a = [\n    {\n      g: function () {},\n    },\n  ];\n  \"12345678\" + undefined;\n}\nf();\n```\n\n```\n(gdb) bt\n#0  0x00005555578fe6ee in MOZ_CrashSequence (aAddress=0x0, aLine=260)\n    at /home/msf2/shell-cache/js-dbg-64-linux-x86_64-8ce9d585aca5-609457/objdir-js/dist/include/mozilla/Assertions.h:237\n#1  js::gc::AllocSpace<js::gc::SmallBufferRegion, 16384ul, 16ul>::isNurseryOwned (this=0x5cfe610c000, alloc=0x5cfe610cf10)\n    at /home/msf2/trees/firefox/js/src/gc/BufferAllocatorInternals.h:260\n#2  0x00005555578d858a in js::gc::BufferAllocator::isNurseryOwned (this=this@entry=0x7ffff5b0c7b0, alloc=0x0, alloc@entry=0x5cfe610cf10)\n    at /home/msf2/trees/firefox/js/src/gc/BufferAllocator.cpp:809\n#3  0x00005555578db55f in js::gc::BufferAllocator::traceEdge (this=0x7ffff5b0c7b0, trc=0x7ffff5e256d0, owner=0x0, bufferp=0x7ffffffface8, name=<optimized out>)\n    at /home/msf2/trees/firefox/js/src/gc/BufferAllocator.cpp:967\n#4  0x00005555586624f6 in js::gc::TraceBufferEdgeInternal (trc=0x7ffff5e256d0, maybeOwner=0x0, bufferp=0x104, name=0x0, zone=<optimized out>)\n    at /home/msf2/trees/firefox/js/src/gc/BufferAllocator-inl.h:136\n#5  js::TraceBufferRoot<js::PrivateScriptData> (trc=0x7ffff5e256d0, bufferp=0x104, name=0x0, zone=<optimized out>) at /home/msf2/trees/firefox/js/src/gc/Tracer.h:237\n/snip\n```\n\n```\n398a31295dff-608240\n398a31295dffbb51630b93f70e196e94f2728daa is the first interesting commit\ncommit 398a31295dffbb51630b93f70e196e94f2728daa\nAuthor: Jon Coppeard <jcoppeard@mozilla.com>\nDate:   Thu Feb 12 15:26:29 2026 +0000\n\n    Bug 2002790 - Migrate to using the buffer allocator for PrivateScriptData r=jandem\n\n    Differential Revision: https://phabricator.services.mozilla.com/D282829\n```\n\nRun with `--fuzzing-safe --no-threads --ion-eager`, compile with `AR=ar sh ~/trees/firefox/js/src/configure --enable-debug --enable-debug-symbols --with-ccache --enable-nspr-build --enable-ctypes --enable-gczeal --enable-rust-simd --disable-tests`, tested on gh rev 8ce9d585aca55919997d1a05506c69e309369167.\n\nAn ASan build crashes at `js::gc::detail::ChunkPtrHasStoreBuffer` at the top of the stack.\n\nJon, is bug 2002790 a likely regressor?\n\nCreated attachment 9546645\nASan stack\n\n```\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==2308864==ERROR: AddressSanitizer: SEGV on unknown address (pc 0x5a07c7972f90 bp 0x7ffc3047cb90 sp 0x7ffc3047c780 T0)\n==2308864==The signal is caused by a READ memory access.\n==2308864==Hint: this fault was caused by a dereference of a high value address (see register values below).  Disassemble the provided pc to learn which register was us\ned.\n/usr/bin/llvm-symbolizer: error: '[anon:js-executable-memory]': No such file or directory\n    #0 0x5a07c7972f90 in js::gc::detail::ChunkPtrHasStoreBuffer(void const*) /home/msf2/shell-cache/js-64-asan-linux-x86_64-8ce9d585aca5-609457/objdir-js/dist/include/j\ns/HeapAPI.h:719:38\n    #1 0x5a07c7972f90 in js::gc::IsInsideNursery(js::gc::Cell const*) /home/msf2/shell-cache/js-64-asan-linux-x86_64-8ce9d585aca5-609457/objdir-js/dist/include/js/HeapA\nPI.h:726:10\n    #2 0x5a07c7972f90 in js::gc::Cell::isTenured() const /home/msf2/trees/firefox/js/src/gc/Cell.h:162:54\n    #3 0x5a07c7972f90 in js::gc::Cell::getTraceKind() const /home/msf2/trees/firefox/js/src/gc/Cell.h:405:7\n    #4 0x5a07c7972f90 in js::TraceManuallyBarrieredGCCellPtr(JSTracer*, JS::GCCellPtr*, char const*) /home/msf2/trees/firefox/js/src/gc/Marking.cpp:680:48\n    #5 0x5a07c8fed0ac in js::PrivateScriptData::trace(JSTracer*) /home/msf2/trees/firefox/js/src/vm/JSScript.cpp:2509:5\n/snip\n```\n\nSet release status flags based on info from the regressing bug 2002790\n\nI compiled the ASan build with:\n\n```\nAR=ar sh ~/trees/firefox/js/src/configure --enable-fuzzing --without-sysroot --enable-address-sanitizer --disable-jemalloc --disable-stdcxx-compat --enable-undefined-sanitizer --with-ccache --enable-nspr-build --enable-ctypes --enable-gczeal --enable-rust-simd --disable-tests\n```\n\nand also ran with `--fuzzing-safe --no-threads --ion-eager`.\n\nYes this is due to bug 2002790.\n\nCreated attachment 9546749\n(secure)\n\n\nThe problem here is the we have a write barrier for the data contained in the\nscript private data buffer allocation, but not the buffer allocation itself. We\nneed a better abstraction to avoid problems like in the future but for now the\npatch fixes the immediate problem.\n\nCreated attachment 9546750\n(secure)\n\nPushed by jcoppeard@mozilla.com:\nhttps://github.com/mozilla-firefox/firefox/commit/e055cf04d23f\nhttps://hg.mozilla.org/integration/autoland/rev/27b531d6ddb8\nAdd missing write barrier in BaseScript::swapData r=jandem\nhttps://github.com/mozilla-firefox/firefox/commit/39f2b3424437\nhttps://hg.mozilla.org/integration/autoland/rev/f21fdfbf2d79\nAdd testcase r=jandem\n\nA high value address doesn't seem like the scariest thing necessarily, but it looks like the patch adds a write barrier, so I'll call this sec-high.\n\nThis looks fixed:\n\nhttps://hg-edge.mozilla.org/mozilla-central/rev/27b531d6ddb8\n\nhttps://hg-edge.mozilla.org/mozilla-central/rev/f21fdfbf2d79\n\n*** Bug 2019145 has been marked as a duplicate of this bug. ***",
+  "commit_ids": [
+    "e055cf04d23f6a08845e2532a27bbaaa47881676"
+  ],
+  "fix_commit_sha": "e055cf04d23f6a08845e2532a27bbaaa47881676",
+  "fix_date": "2026-02-20T17:05:03Z",
+  "season": "2026H1",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "affected_files": [
+    "js/src/vm/JSScript.cpp",
+    "js/src/vm/JSScript.h"
+  ],
+  "changed_lines": 25,
+  "aliases": [
+    "Bug 2018075"
+  ],
+  "target_type": "spidermonkey_js_shell",
+  "report_references": [
+    {
+      "id": "2018075",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2018075",
+      "kind": "public_bugzilla_security_report"
+    },
+    {
+      "id": "poc-2018075",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2018075#c0",
+      "kind": "public_reporter_reproducer"
+    }
+  ],
+  "candidate_status": "attributed_upstream_fix_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_private_script_data_gc_use_after_free",
+    "preliminary_boundary": "JavaScript compilation and incremental GC; the reporter's shell reproducer uses gczeal and eager Ion settings",
+    "untrusted_input_boundary_proven": false,
+    "qualification_caveat": "Confirm the same failure on an ordinary script path or a justified shell configuration during security review",
+    "earliest_fix_review_required": true,
+    "three_version_replay_status": "not_run"
+  },
+  "provenance": {
+    "collector": "project_balance_firefox_2026h1_public_security_reports_v2",
+    "source_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2018075",
+    "regressed_by_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2002790",
+    "report_details": "fetched",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/bugzilla/2018075.json",
+      "sha256": "14a5e85ec2d2344af3460c19ce69a850b888c659dda7c2ee7193b253ef32f509",
+      "bytes": 3522,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2018075"
+    },
+    "raw_comments": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/bugzilla/2018075-comments.json",
+      "sha256": "c6765643d2bebed985e04f4e494d721536fc3d46fd7505a7c40c3ccd5cca4d99",
+      "bytes": 13570,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2018075/comment"
+    },
+    "raw_attachment_index": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/bugzilla/2018075-attachments.json",
+      "sha256": "1194e96735c9ce7f0206119925d56a897c526a09f88ea89cc67008237c831348",
+      "bytes": 2123,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2018075/attachment?exclude_fields=data"
+    },
+    "raw_poc": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/poc/2018075-inline.js",
+      "sha256": "80ba46e7a7c36ef9b3505eef7ac1440c26348ae954cd6684ab68baf4889dd9de",
+      "bytes": 117,
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2018075#c0"
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/poc/2018075-inline.js",
+      "sha256": "80ba46e7a7c36ef9b3505eef7ac1440c26348ae954cd6684ab68baf4889dd9de",
+      "bytes": 117,
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2018075#c0"
+    },
+    "reporter_auxiliary": null,
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/e055cf04d23f6a08845e2532a27bbaaa47881676.commit",
+      "sha256": "7376397a8cef3f2ce5d2a4b29e237af7f82bd4cffa20072387c688aeaf8349b7",
+      "bytes": 648
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/e055cf04d23f6a08845e2532a27bbaaa47881676.patch",
+      "sha256": "ce33654d5e696618b7f023160beb410c358a3a7e4a2e2cfc0f509252d8b5c716",
+      "bytes": 2757
+    },
+    "raw_git": {
+      "fix": {
+        "sha": "e055cf04d23f6a08845e2532a27bbaaa47881676",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/e055cf04d23f6a08845e2532a27bbaaa47881676.commit",
+          "sha256": "7376397a8cef3f2ce5d2a4b29e237af7f82bd4cffa20072387c688aeaf8349b7",
+          "bytes": 648
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/e055cf04d23f6a08845e2532a27bbaaa47881676.patch",
+          "sha256": "ce33654d5e696618b7f023160beb410c358a3a7e4a2e2cfc0f509252d8b5c716",
+          "bytes": 2757
+        }
+      },
+      "introduction": {
+        "sha": "398a31295dffbb51630b93f70e196e94f2728daa",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/398a31295dffbb51630b93f70e196e94f2728daa.commit",
+          "sha256": "0f1c381772c89a3efc32a37bd1a1047b02296f08af5e160d37808caf9d9d8f97",
+          "bytes": 385
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/398a31295dffbb51630b93f70e196e94f2728daa.patch",
+          "sha256": "3a4f0de28e14ce10df06d7af4f9c26d038fa3fac197fb40d8aebdec0cc3d18fe",
+          "bytes": 12278
+        }
+      }
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "1b0c8fac6e93715898d0c6b74ebbf18e4b8b0fe3",
+    "dedup_snapshot": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/dedup/2018075.json",
+      "sha256": "fe09d5523edfde4a8200bc95bfecfe4c882c6ee90bfae5fdc474ea9dafcda52d",
+      "bytes": 46310
+    },
+    "introduction_candidate": {
+      "sha": "398a31295dffbb51630b93f70e196e94f2728daa",
+      "committer_date": "2026-02-12T15:54:22Z",
+      "files": 7,
+      "changed_lines": 107,
+      "repository_path": "js/src/vm/JSScript.cpp",
+      "blame_lines": "176,179",
+      "basis": "Bugzilla regressed_by 2002790, reporter bisection, and the missing buffer write barrier in swapData blame to the February 2026 migration",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/398a31295dffbb51630b93f70e196e94f2728daa.commit",
+        "sha256": "0f1c381772c89a3efc32a37bd1a1047b02296f08af5e160d37808caf9d9d8f97",
+        "bytes": 385
+      },
+      "patch": {
+        "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/398a31295dffbb51630b93f70e196e94f2728daa.patch",
+        "sha256": "3a4f0de28e14ce10df06d7af4f9c26d038fa3fac197fb40d8aebdec0cc3d18fe",
+        "bytes": 12278
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/2018075-fix-parent-blame.txt",
+        "sha256": "005655775b969867be9b9447e1b06424688eca15eaae424b56ab36cd4e05dc51",
+        "bytes": 1240
+      }
+    }
+  }
+}

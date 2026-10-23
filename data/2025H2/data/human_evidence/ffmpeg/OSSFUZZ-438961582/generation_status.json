@@ -1,0 +1,99 @@
+{
+  "identity": "ffmpeg/OSSFUZZ-438961582",
+  "case_id": "eb729c84c1b2ae7e802f",
+  "project": "ffmpeg",
+  "season": "2025H2",
+  "bug_id": "OSSFUZZ-438961582",
+  "source": "/research-data/secprbench/campaign-100-20260928/normalizedsources/ffmpeg/2025H2/source_eb729c84c1b2ae7e802f.json",
+  "source_sha256": "39fad76647d7b275ed84565a9839bdf6f7866e77d6e2897fd951a73809e11fdd",
+  "repo": "/research-data/secprbench/campaign-100-20260928/hydrated-repos/ffmpeg.git",
+  "source_fix_date": "2025-08-19T11:25:39-03:00",
+  "source_fix_sha": "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+  "status": "generated",
+  "attempts": [
+    {
+      "number": 1,
+      "started_at": "2026-09-29T02:52:28.089996+00:00",
+      "status": "generated",
+      "directory": "attempts/01",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800.0,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01"
+      },
+      "returncode": 0,
+      "artifact_scan": {
+        "regular_files_scanned": 20,
+        "bytes_scanned": 333796,
+        "entries_scanned": 30,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-09-29T02:53:44.246936+00:00",
+      "elapsed_seconds": 76.156,
+      "usage": {
+        "input_tokens": 22,
+        "output_tokens": 6176,
+        "cache_read_tokens": 122828,
+        "cache_write_tokens": 21535,
+        "cost_usd": 0.1402071,
+        "sessions": 1,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.140212
+      }
+    }
+  ],
+  "verification_status": "not_run",
+  "scheduled_at": "2026-09-29T02:52:28.087975+00:00",
+  "updated_at": "2026-09-29T02:53:44.246953+00:00",
+  "fix_proof": {
+    "fix_sha": "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+    "fix_date": "2025-08-19T11:25:39-03:00",
+    "mainline_ref": "refs/heads/master",
+    "mainline_verified": true,
+    "date_basis": "earliest_mainline_fix",
+    "source_date_provenance": "local_git_committer_date",
+    "season": "2025H2"
+  },
+  "artifacts": {
+    "reference": {
+      "path": "attempts/01/reference/bug_OSSFUZZ-438961582.json",
+      "sha256": "68cc73d04a1c0886f6cad37525e43053acab7a30213d4f6bfa2feebac620aefc"
+    },
+    "introducing": {
+      "path": "attempts/01/tasks/pr_review_OSSFUZZ-438961582.json",
+      "sha256": "01c32005849cfb45328a47ab8fc63e098350ff71901a2505835c7b38203247e4"
+    },
+    "companion": {
+      "path": "attempts/01/tasks/pr_review_OSSFUZZ-438961582_benign.json",
+      "sha256": "6a50d8f1f1aadbad6b30e26d8a54a1d30a27b501339de043e812d62ca077a3ca"
+    }
+  },
+  "intro_eligibility": {
+    "intro_sha": "2f9936e446d56f6e8da9f179143d3ac5a4546afc",
+    "intro_committer_timestamp": "2024-02-11T00:40:06+01:00",
+    "intro_timestamp_utc": "2024-02-10T23:40:06+00:00",
+    "intro_date_utc": "2024-02-10",
+    "min_intro_date": "2021-01-01",
+    "cutoff_inclusive": true,
+    "date_basis": "git_committer_date_utc",
+    "eligible": true
+  }
+}

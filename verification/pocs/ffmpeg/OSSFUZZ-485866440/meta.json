@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-485866440",
+  "bug_id": "OSSFUZZ-485866440",
+  "bug_type": "LogicError",
+  "intro_commit": "6e8cf0377fee75de9ad2cc87385ab3e8f2c87143",
+  "intro_parent": "dd092f7fd966c62598c05555667144ca91642340",
+  "fix_commit": "7e10579f499200c464eabf7077bc35fd1206b515",
+  "affected_files": [
+    "libavcodec/exr.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A newly written error-handling branch mistakenly wrapped an already-negative AVERROR_* constant in the AVERROR() negation macro, flipping its sign to positive and thereby defeating the standard `ret < 0` failure-detection convention used elsewhere in the codebase.",
+  "findings": [
+    "In decode_header(), when an 'uncommon' EXR channel combination is detected, the code sets `ret = AVERROR(AVERROR_PATCHWELCOME);` before jumping to the `fail:` label. `AVERROR_PATCHWELCOME` is already defined via `FFERRTAG(...)` as a negative value (like all other FFmpeg AVERROR_* constants). The `AVERROR()` macro negates its argument (`#define AVERROR(e) (-(e))`), so wrapping an already-negative A"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "f530c067297c5b3812b56e6abe47f9075d5c49c146e896631b7d180e642d5b2f",
+  "generated_artifact_sha256": {
+    "reference": "3e0b941590acc019f814d846af4794f9773174823a069371afc8aabccfad2529",
+    "introducing": "4b237ff10563ae86edf01b34d63b0cab14d6a4f9f5767c05e18d7148fa247cd3",
+    "companion": "e0ae38860be9d7540f2a1c486a52b1dd8f66cd0d75d8ccf329cc7ab880a59081"
+  }
+}

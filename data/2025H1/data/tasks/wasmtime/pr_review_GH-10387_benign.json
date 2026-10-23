@@ -1,0 +1,94 @@
+{
+  "task_id": "pr_review_GH-10387_benign",
+  "bug_id": "GH-10387",
+  "commit_sha": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+  "commit_message": "Show true error reason in `wasmtime serve` (#8026)\n\n* Show true error reason in `wasmtime serve`\n\nThe `wasmtime serve` command prints failed HTTP handling to `stderr`\nbut, when the reason was due to failure inside the HTTP handler itself,\nthe printed error message is not descriptive enough. After looking at\nlong dumps of `guest never invoked `response-outparam::set` method`, I\nrealized that errors inside the Tokio `task` are never propagated\noutwards. This change captures those errors and appends them to the\nprinted error message.\n\n* review: remove TODO comment\n\n* review: improve doc comment\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>\n\n* review: add comment about immediate resolution\n\n---------\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>",
+  "commit_author": "",
+  "commit_date": "2026-10-01T16:50:25.763599",
+  "pr_title": "Show true error reason in `wasmtime serve` (#8026)",
+  "pr_description": "Show true error reason in `wasmtime serve` (#8026)\n\n* Show true error reason in `wasmtime serve`\n\nThe `wasmtime serve` command prints failed HTTP handling to `stderr`\nbut, when the reason was due to failure inside the HTTP handler itself,\nthe printed error message is not descriptive enough. After looking at\nlong dumps of `guest never invoked `response-outparam::set` method`, I\nrealized that errors inside the Tokio `task` are never propagated\noutwards. This change captures those errors and appends them to the\nprinted error message.\n\n* review: remove TODO comment\n\n* review: improve doc comment\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>\n\n* review: add comment about immediate resolution\n\n---------\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>",
+  "files": [
+    {
+      "path": "src/commands/serve.rs",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 3,
+      "diff": "diff --git a/src/commands/serve.rs b/src/commands/serve.rs\nindex f11f6bc734..abee707689 100644\n--- a/src/commands/serve.rs\n+++ b/src/commands/serve.rs\n@@ -378,22 +378,21 @@ impl ProxyHandler {\n type Request = hyper::Request<hyper::body::Incoming>;\n \n async fn handle_request(\n     ProxyHandler(inner): ProxyHandler,\n     req: Request,\n ) -> Result<hyper::Response<HyperOutgoingBody>> {\n     use http_body_util::BodyExt;\n \n     let (sender, receiver) = tokio::sync::oneshot::channel();\n \n-    // TODO: need to track the join handle, but don't want to block the response on it\n-    tokio::task::spawn(async move {\n+    let task = tokio::task::spawn(async move {\n         let req_id = inner.next_req_id();\n         let (mut parts, body) = req.into_parts();\n \n         parts.uri = {\n             let uri_parts = parts.uri.into_parts();\n \n             let scheme = uri_parts.scheme.unwrap_or(http::uri::Scheme::HTTP);\n \n             let host = if let Some(val) = parts.headers.get(hyper::header::HOST) {\n                 std::str::from_utf8(val.as_bytes())\n@@ -443,21 +442,37 @@ async fn handle_request(\n             log::error!(\"[{req_id}] :: {:#?}\", e);\n             return Err(e);\n         }\n \n         Ok(())\n     });\n \n     match receiver.await {\n         Ok(Ok(resp)) => Ok(resp),\n         Ok(Err(e)) => Err(e.into()),\n-        Err(_) => bail!(\"guest never invoked `response-outparam::set` method\"),\n+        Err(_) => {\n+            // An error in the receiver (`RecvError`) only indicates that the\n+            // task exited before a response was sent (i.e., the sender was\n+            // dropped); it does not describe the underlying cause of failure.\n+            // Instead we retrieve and propagate the error from inside the task\n+            // which should more clearly tell the user what went wrong. Note\n+            // that we assume the task has already exited at this point so the\n+            // `await` should resolve immediately.\n+            let e = match task.await {\n+                Ok(Ok(())) => {\n+                    bail!(\"guest never invoked `response-outparam::set` method\")\n+                }\n+                Ok(Err(e)) => e,\n+                Err(e) => e.into(),\n+            };\n+            return Err(e.context(\"guest never invoked `response-outparam::set` method\"));\n+        }\n     }\n }\n \n #[derive(Clone)]\n enum Output {\n     Stdout,\n     Stderr,\n }\n \n impl Output {\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/commands/serve.rs b/src/commands/serve.rs\nindex f11f6bc734..abee707689 100644\n--- a/src/commands/serve.rs\n+++ b/src/commands/serve.rs\n@@ -378,22 +378,21 @@ impl ProxyHandler {\n type Request = hyper::Request<hyper::body::Incoming>;\n \n async fn handle_request(\n     ProxyHandler(inner): ProxyHandler,\n     req: Request,\n ) -> Result<hyper::Response<HyperOutgoingBody>> {\n     use http_body_util::BodyExt;\n \n     let (sender, receiver) = tokio::sync::oneshot::channel();\n \n-    // TODO: need to track the join handle, but don't want to block the response on it\n-    tokio::task::spawn(async move {\n+    let task = tokio::task::spawn(async move {\n         let req_id = inner.next_req_id();\n         let (mut parts, body) = req.into_parts();\n \n         parts.uri = {\n             let uri_parts = parts.uri.into_parts();\n \n             let scheme = uri_parts.scheme.unwrap_or(http::uri::Scheme::HTTP);\n \n             let host = if let Some(val) = parts.headers.get(hyper::header::HOST) {\n                 std::str::from_utf8(val.as_bytes())\n@@ -443,21 +442,37 @@ async fn handle_request(\n             log::error!(\"[{req_id}] :: {:#?}\", e);\n             return Err(e);\n         }\n \n         Ok(())\n     });\n \n     match receiver.await {\n         Ok(Ok(resp)) => Ok(resp),\n         Ok(Err(e)) => Err(e.into()),\n-        Err(_) => bail!(\"guest never invoked `response-outparam::set` method\"),\n+        Err(_) => {\n+            // An error in the receiver (`RecvError`) only indicates that the\n+            // task exited before a response was sent (i.e., the sender was\n+            // dropped); it does not describe the underlying cause of failure.\n+            // Instead we retrieve and propagate the error from inside the task\n+            // which should more clearly tell the user what went wrong. Note\n+            // that we assume the task has already exited at this point so the\n+            // `await` should resolve immediately.\n+            let e = match task.await {\n+                Ok(Ok(())) => {\n+                    bail!(\"guest never invoked `response-outparam::set` method\")\n+                }\n+                Ok(Err(e)) => e,\n+                Err(e) => e.into(),\n+            };\n+            return Err(e.context(\"guest never invoked `response-outparam::set` method\"));\n+        }\n     }\n }\n \n #[derive(Clone)]\n enum Output {\n     Stdout,\n     Stderr,\n }\n \n impl Output {\n",
+  "ground_truth": {
+    "bug_id": "GH-10387",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+    "fix_commit": "ad21d9581d6631da809ac0a2cbb2fc908bde1978"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+  "fix_commit_sha": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+  "intro_commit_message": "Show true error reason in `wasmtime serve` (#8026)\n\n* Show true error reason in `wasmtime serve`\n\nThe `wasmtime serve` command prints failed HTTP handling to `stderr`\nbut, when the reason was due to failure inside the HTTP handler itself,\nthe printed error message is not descriptive enough. After looking at\nlong dumps of `guest never invoked `response-outparam::set` method`, I\nrealized that errors inside the Tokio `task` are never propagated\noutwards. This change captures those errors and appends them to the\nprinted error message.\n\n* review: remove TODO comment\n\n* review: improve doc comment\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>\n\n* review: add comment about immediate resolution\n\n---------\n\nCo-authored-by: Trevor Elliott <telliott@fastly.com>",
+  "fix_commit_message": "Don’t panic when http `handle` function returns before invoking `set` (#10387)\n\n* handle return before `set` call\n\n* move wasm32 gate\n\n* unify error messages",
+  "agent_reasoning": "The intro commit added logic to capture the spawned task's error when the oneshot receiver signals a disconnect, using `task.await` and `.expect_err(\"if the receiver has an error, the task must have failed\")`. This conflates two independent signals: the receiver erroring (sender dropped) and the task's own result being an `Err`. A guest component whose `handle` export returns `Ok(())` without ever calling `response-outparam::set` causes the sender to be dropped (so the receiver errors) while the task itself resolves to `Ok(())` — violating the assumption and causing `.expect_err` to panic, crashing the `wasmtime serve` process (a remotely triggerable DoS via a malicious or buggy guest component). The fix replaces the panicking `expect_err` with an explicit three-way match on the task's `Result` (`Ok(Ok(()))`, `Ok(Err(e))`, `Err(e)`), handling the \"never called set but didn't error\" case gracefully by reporting an error instead of panicking, and returns the error with added context instead of panicking.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+    "fix_revision": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+    "fix_parent_revision": "4e8dc9d051615e22f5444c8d767eb7b13339956b",
+    "inspected_paths": [
+      "crates/test-programs/src/bin/cli_serve_return_before_set.rs",
+      "crates/test-programs/src/bin/cli_serve_trap_before_set.rs",
+      "crates/wasi-http/src/lib.rs",
+      "src/commands/serve.rs"
+    ],
+    "call_candidates": [
+      {
+        "path": "crates/test-programs/src/bin/cli_serve_return_before_set.rs",
+        "symbol": "handle",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "crates/test-programs/src/bin/cli_serve_return_before_set.rs",
+        "symbol": "main",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "crates/test-programs/src/bin/cli_serve_trap_before_set.rs",
+        "symbol": "cfg",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "crates/test-programs/src/bin/cli_serve_trap_before_set.rs",
+        "symbol": "handle",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "crates/test-programs/src/bin/cli_serve_trap_before_set.rs",
+        "symbol": "main",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "crates/test-programs/src/bin/cli_serve_trap_before_set.rs",
+        "symbol": "unreachable",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "src/commands/serve.rs",
+        "symbol": "Err",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "src/commands/serve.rs",
+        "symbol": "Ok",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

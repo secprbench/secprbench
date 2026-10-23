@@ -1,0 +1,89 @@
+{
+  "task_id": "pr_review_500880819",
+  "bug_id": "500880819",
+  "commit_sha": "6469250a124acef52bceabae77ed887f5c8f29ac",
+  "commit_message": "[maglev] Improve constant handling for BuildCheckSmi and the Array ctor\n\nThis patch improves the handling of constants in two places in the\nMaglev graph builder:\n\n1. In `BuildCheckSmi`: We can now often avoid emitting a runtime smi\ncheck if the input is a constant that is known to be a smi at compile\ntime.\n2. In `TryReduceConstructArrayConstructor`: When determining the\nelements kind for a newly constructed array, we can now extract type\ninformation from constant arguments even if they don't have a precise\nNodeType set. This allows for more accurate elements kind selection.\n\nThese changes should lead to slightly better code generation in cases\ninvolving constants.\n\nChange-Id: I88a80cb90dbb1b1354d557794eb53d82cd0bd5c0\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6988172\nReviewed-by: Victor Gomes <victorgomes@chromium.org>\nCommit-Queue: Jakob Linke <jgruber@chromium.org>\nCr-Commit-Position: refs/heads/main@{#102805}",
+  "commit_author": "Jakob Linke",
+  "commit_date": "2025-09-26T12:44:53+02:00",
+  "pr_title": "[maglev] Improve constant handling for BuildCheckSmi and the Array ctor",
+  "pr_description": "This patch improves the handling of constants in two places in the\nMaglev graph builder:\n\n1. In `BuildCheckSmi`: We can now often avoid emitting a runtime smi\ncheck if the input is a constant that is known to be a smi at compile\ntime.\n2. In `TryReduceConstructArrayConstructor`: When determining the\nelements kind for a newly constructed array, we can now extract type\ninformation from constant arguments even if they don't have a precise\nNodeType set. This allows for more accurate elements kind selection.\n\nThese changes should lead to slightly better code generation in cases\ninvolving constants.\n\nChange-Id: I88a80cb90dbb1b1354d557794eb53d82cd0bd5c0\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6988172\nReviewed-by: Victor Gomes <victorgomes@chromium.org>\nCommit-Queue: Jakob Linke <jgruber@chromium.org>\nCr-Commit-Position: refs/heads/main@{#102805}\n",
+  "files": [
+    {
+      "path": "src/maglev/maglev-graph-builder.cc",
+      "status": "modified",
+      "additions": 23,
+      "deletions": 2,
+      "diff": "diff --git a/src/maglev/maglev-graph-builder.cc b/src/maglev/maglev-graph-builder.cc\nindex 182ba58903f..3c0bc5830cc 100644\n--- a/src/maglev/maglev-graph-builder.cc\n+++ b/src/maglev/maglev-graph-builder.cc\n@@ -4131,10 +4131,14 @@ ReduceResult MaglevGraphBuilder::BuildCheckSmi(ValueNode* object,\n   // GetType(object) is already empty.\n   if (IsEmptyNodeType(IntersectType(GetType(object), NodeType::kSmi))) {\n     return EmitUnconditionalDeopt(DeoptimizeReason::kSmi);\n   }\n   if (EnsureType(object, NodeType::kSmi) && elidable) return object;\n+  // For constants, we may be able to skip the runtime check.\n+  if (std::optional<int32_t> constant_value = TryGetInt32Constant(object)) {\n+    if (Smi::IsValid(constant_value.value())) return object;\n+  }\n   switch (object->value_representation()) {\n     case ValueRepresentation::kInt32:\n       if (!SmiValuesAre32Bits()) {\n         AddNewNodeNoInputConversion<CheckInt32IsSmi>({object});\n       }\n@@ -12282,23 +12286,40 @@ MaybeReduceResult MaglevGraphBuilder::TryReduceConstructArrayConstructor(\n   if (arity > JSArray::kInitialMaxFastElementArray) return {};\n \n   // Arity > 1, `new Array(x0, x1, ...)`.\n   DCHECK_GT(arity, 1);\n \n+  auto node_type_of = [=, this](ValueNode* v) {\n+    DCHECK(IsConstantNode(v->opcode()));\n+    if (std::optional<int32_t> constant_int32 = TryGetInt32Constant(v)) {\n+      return Smi::IsValid(constant_int32.value()) ? NodeType::kSmi\n+                                                  : NodeType::kHeapNumber;\n+    }\n+    return TryGetFloat64Constant(v, TaggedToFloat64ConversionType::kOnlyNumber)\n+               ? NodeType::kHeapNumber\n+               : NodeType::kAnyHeapObject;\n+  };\n+\n   // Gather the values to store into the newly created array, and remember\n   // sufficient information about node types so we can select a suitable\n   // elements_kind below.\n   base::SmallVector<ValueNode*, 16> values;\n   values.reserve(arity);\n   NodeType combined_type = NodeType::kNone;\n   bool any_value_has_unknown_type = false;\n   for (ValueNode* v : args) {\n     NodeType node_type = GetType(v);\n     if (NodeTypeIs(node_type, NodeType::kUnknown)) {\n+      if (IsConstantNode(v->opcode())) {\n+        // Even without NodeType, we can extract some information from\n+        // constants. This is used to generalize elements_kind in case we see\n+        // constants that require doing so.\n+        combined_type = UnionType(combined_type, node_type_of(v));\n+      }\n       // No static type info available; this is tracked separately from static\n-      // types, since we may still speculate on present static types from other\n-      // value nodes below.\n+      // types, since we may still speculate on present static types from\n+      // other value nodes below.\n       any_value_has_unknown_type = true;\n     } else {\n       combined_type = UnionType(combined_type, node_type);\n     }\n     values.push_back(v);\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/maglev/maglev-graph-builder.cc b/src/maglev/maglev-graph-builder.cc\nindex 182ba58903f..3c0bc5830cc 100644\n--- a/src/maglev/maglev-graph-builder.cc\n+++ b/src/maglev/maglev-graph-builder.cc\n@@ -4131,10 +4131,14 @@ ReduceResult MaglevGraphBuilder::BuildCheckSmi(ValueNode* object,\n   // GetType(object) is already empty.\n   if (IsEmptyNodeType(IntersectType(GetType(object), NodeType::kSmi))) {\n     return EmitUnconditionalDeopt(DeoptimizeReason::kSmi);\n   }\n   if (EnsureType(object, NodeType::kSmi) && elidable) return object;\n+  // For constants, we may be able to skip the runtime check.\n+  if (std::optional<int32_t> constant_value = TryGetInt32Constant(object)) {\n+    if (Smi::IsValid(constant_value.value())) return object;\n+  }\n   switch (object->value_representation()) {\n     case ValueRepresentation::kInt32:\n       if (!SmiValuesAre32Bits()) {\n         AddNewNodeNoInputConversion<CheckInt32IsSmi>({object});\n       }\n@@ -12282,23 +12286,40 @@ MaybeReduceResult MaglevGraphBuilder::TryReduceConstructArrayConstructor(\n   if (arity > JSArray::kInitialMaxFastElementArray) return {};\n \n   // Arity > 1, `new Array(x0, x1, ...)`.\n   DCHECK_GT(arity, 1);\n \n+  auto node_type_of = [=, this](ValueNode* v) {\n+    DCHECK(IsConstantNode(v->opcode()));\n+    if (std::optional<int32_t> constant_int32 = TryGetInt32Constant(v)) {\n+      return Smi::IsValid(constant_int32.value()) ? NodeType::kSmi\n+                                                  : NodeType::kHeapNumber;\n+    }\n+    return TryGetFloat64Constant(v, TaggedToFloat64ConversionType::kOnlyNumber)\n+               ? NodeType::kHeapNumber\n+               : NodeType::kAnyHeapObject;\n+  };\n+\n   // Gather the values to store into the newly created array, and remember\n   // sufficient information about node types so we can select a suitable\n   // elements_kind below.\n   base::SmallVector<ValueNode*, 16> values;\n   values.reserve(arity);\n   NodeType combined_type = NodeType::kNone;\n   bool any_value_has_unknown_type = false;\n   for (ValueNode* v : args) {\n     NodeType node_type = GetType(v);\n     if (NodeTypeIs(node_type, NodeType::kUnknown)) {\n+      if (IsConstantNode(v->opcode())) {\n+        // Even without NodeType, we can extract some information from\n+        // constants. This is used to generalize elements_kind in case we see\n+        // constants that require doing so.\n+        combined_type = UnionType(combined_type, node_type_of(v));\n+      }\n       // No static type info available; this is tracked separately from static\n-      // types, since we may still speculate on present static types from other\n-      // value nodes below.\n+      // types, since we may still speculate on present static types from\n+      // other value nodes below.\n       any_value_has_unknown_type = true;\n     } else {\n       combined_type = UnionType(combined_type, node_type);\n     }\n     values.push_back(v);\n",
+  "ground_truth": {
+    "bug_id": "500880819",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "b9be4febd638434a37a4215b8ea9ae1f8fab4df6",
+      "short_sha": "b9be4feb",
+      "message": "[maglev] Restrict BuildCheckSmi constant elision to non-tagged inputs",
+      "author": "Jakob Linke",
+      "date": "2026-04-14T08:46:10+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-typeconfusion-001",
+        "title": "BuildCheckSmi constant elision unsound for tagged inputs, allowing HeapNumber to bypass Smi check",
+        "message": "MaglevGraphBuilder::BuildCheckSmi() added an optimization that skips emitting the runtime Smi check whenever TryGetInt32Constant(object) returns a value that lies within the Smi range (Smi::IsValid). This is only sound when the emitted check would have been a value-range check (e.g. for kInt32/kUint32/kFloat64/kHoleyFloat64/kIntPtr inputs, where the subsequently-emitted CheckInt32IsSmi/CheckUint32IsSmi/CheckFloat64IsSmi/CheckHoleyFloat64IsSmi/CheckIntPtrIsSmi checks are exactly what Smi::IsValid proves).\n\nHowever, for kTagged inputs the runtime check that would otherwise be emitted is CheckSmi, which is a tag-bit check, not a value-range check. TryGetInt32Constant() can recurse through a node's 'checked_value' alternative, which BuildCheckNumericalValue's HeapNumber branch can populate with a Constant(HeapNumber N) after only a CheckFloat64SameValue (a numeric-equality check that both a Smi(N) and a HeapNumber(N) satisfy). Consequently, for a kTagged node whose alternative records a HeapNumber constant with a value in Smi range, BuildCheckSmi incorrectly elides the CheckSmi tag check and returns the object as though it were proven to be a Smi.\n\nThis allows a HeapNumber pointer to flow into code paths that assume a Smi (e.g. field stores using StoreTaggedFieldNoWriteBarrier because the field is believed to hold only Smis), producing a type confusion and a missing write barrier - a serious, exploitable memory-safety bug reachable from JavaScript via Maglev-compiled code.",
+        "location": {
+          "file": "src/maglev/maglev-graph-builder.cc",
+          "start_line": 4136,
+          "end_line": 4139,
+          "start_column": null,
+          "end_column": null,
+          "function": "MaglevGraphBuilder::BuildCheckSmi",
+          "snippet": "  if (EnsureType(object, NodeType::kSmi) && elidable) return object;\n  // For constants, we may be able to skip the runtime check.\n  if (std::optional<int32_t> constant_value = TryGetInt32Constant(object)) {\n    if (Smi::IsValid(constant_value.value())) return object;\n  }\n  switch (object->value_representation()) {",
+          "snippet_hash": "3d465662f02a73ff3ce979d244ba6f3b90ce34fe636a1e803e7ff97fca97a6bc",
+          "description": null,
+          "snippet_start_line": 4135,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "TypeConfusion",
+        "confidence": 0.92,
+        "suggestion": "Restrict the constant-value-based elision to non-tagged input representations, since only those cases have the following switch emit an equivalent value-range check. For kTagged inputs, rely only on the earlier type-system checks (StaticTypeIs(kSmi) / EnsureType(kSmi)) which correctly carry the tag guarantee; do not elide the CheckSmi tag check based on value-equivalence alone.",
+        "suggestion_code": "if (object->value_representation() != ValueRepresentation::kTagged) {\n  if (std::optional<int32_t> constant_value = TryGetInt32Constant(object)) {\n    if (Smi::IsValid(constant_value.value())) return object;\n  }\n}",
+        "tags": [
+          "security",
+          "type-confusion",
+          "jit",
+          "maglev",
+          "v8"
+        ],
+        "cwe_ids": [
+          "CWE-843",
+          "CWE-704"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "TypeConfusion",
+    "affected_files": [
+      "src/maglev/maglev-graph-builder.cc"
+    ],
+    "root_cause": "The elision logic conflated numeric value-equivalence (proven by TryGetInt32Constant/Smi::IsValid) with Smi tagging. For non-tagged representations the two are equivalent because the fallback switch performs an explicit value-range check; but for kTagged inputs the fallback check (CheckSmi) verifies the pointer's tag bits, a distinct property not implied by numeric equivalence, especially since the 'checked_value' alternative can be populated with a HeapNumber constant purely from a same-value float comparison.",
+    "must_cover": [
+      {
+        "file": "src/maglev/maglev-graph-builder.cc",
+        "function": "MaglevGraphBuilder::BuildCheckSmi",
+        "start_line": 4136,
+        "end_line": 4139,
+        "role": "primary",
+        "reason": "Primary location of finding: BuildCheckSmi constant elision unsound for tagged inputs, allowing HeapNumber to bypass Smi check"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "6469250a124acef52bceabae77ed887f5c8f29ac",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

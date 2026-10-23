@@ -1,0 +1,74 @@
+{
+  "bug_id": "GH-14323",
+  "title": "Fix defrag issues for stream defrag and HFE (#14323)",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "redis",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public fixing commit: https://github.com/redis/redis/commit/d649637ebd1b7b7792a4224a42e1ef8824743378\n\nFix defrag issues for stream defrag and HFE (#14323)\n\nThis PR fixes three defrag issues.\n\n1. Fix the issue that forget to update cgroup_ref_node when the consume\ngroup was reallocated.\nThis crash was introduced by https://github.com/redis/redis/issues/14130\nIn this PR, when performing defragmentation on `s->cgroups` using\n`defragRadixTree()`, we no longer rely on the automatic data\ndefragmentation of `defragRadixTree()`. Instead, we manually defragment\nthe consumer group and then update its reference in `s->cgroups`.\n\n2. Fix a use-after-free issue caused by updating dictionary keys after\nHFE key is reallocated.\nThis issue was introduced by https://github.com/redis/redis/issues/13842\n\n3. Fix the issue that forgot to be updated NextSegHdr->firstSeg when the\nfirst segment was reallocated.\nThis issue was introduced by https://github.com/redis/redis/issues/13842\n\n---------\n\nCo-authored-by: Copilot <175728472+Copilot@users.noreply.github.com>\n\nLinked public report/discussion: https://github.com/redis/redis/pull/14323\nFix defrag issues for stream defrag and HFE\nThis PR fixes three defrag issues.\r\n\r\n1. Fix the issue that forget to update cgroup_ref_node when the consume group was reallocated.\r\n    This crash was introduced by https://github.com/redis/redis/issues/14130\r\n    In this PR, when performing defragmentation on `s->cgroups` using `defragRadixTree()`, we no longer rely on the automatic data defragmentation of `defragRadixTree()`. Instead, we manually defragment the consumer group and then update its reference in `s->cgroups`.\r\n\r\n2. Fix a use-after-free issue caused by updating dictionary keys after HFE key is reallocated.\r\n    This issue was introduced by https://github.com/redis/redis/issues/13842\r\n\r\n3. Fix the issue that forgot to be updated NextSegHdr->firstSeg when the first segment was reallocated.\r\n    This issue was introduced by https://github.com/redis/redis/issues/13842\r\n\r\nNote that both of these issues were introduced since 8.2, so we can fix them together.\n\nPreliminary source observation: The PR fixes three defrag faults, including a freed HFE dictionary key and stale stream consumer-group pointer. Isolate one coherent defect and its triggering configuration during review.\nSecurity impact, real input reachability, earliest effective fix, and the introduction must be reviewed before task construction.",
+  "commit_ids": [
+    "d649637ebd1b7b7792a4224a42e1ef8824743378"
+  ],
+  "fix_commit_sha": "d649637ebd1b7b7792a4224a42e1ef8824743378",
+  "fix_date": "2025-09-08T17:52:30+08:00",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "season": "2025H2",
+  "affected_files": [
+    "src/defrag.c",
+    "src/ebuckets.c"
+  ],
+  "changed_lines": 51,
+  "report_references": [
+    {
+      "id": "GH-14323",
+      "url": "https://github.com/redis/redis/pull/14323",
+      "kind": "public_fix_or_report",
+      "evidence": "Fix defrag issues for stream defrag and HFE (#14323)"
+    }
+  ],
+  "aliases": [],
+  "candidate_status": "targeted_public_fix_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_hfe_use_after_free_and_stream_crash",
+    "preliminary_source_observation": "The PR fixes three defrag faults, including a freed HFE dictionary key and stale stream consumer-group pointer. Isolate one coherent defect and its triggering configuration during review.",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_security_linked_supplement_v1",
+    "source_url": "https://github.com/redis/redis/pull/14323",
+    "public_commit_url": "https://github.com/redis/redis/commit/d649637ebd1b7b7792a4224a42e1ef8824743378",
+    "report_details": "fetched",
+    "raw_report": {
+      "url": "https://api.github.com/repos/redis/redis/pulls/14323",
+      "final_url": "https://api.github.com/repos/redis/redis/pulls/14323",
+      "path": "/research-data/secprbench/season100-20261001-v5-targeted/security-linked-supplement-v2/raw/reports/redis-GH-14323.json",
+      "sha256": "849e9deaa215057b88e05a6140a0218a2e7b735be0d83873e7d3880a1b889fe3",
+      "content_type": "application/json; charset=utf-8"
+    },
+    "related_references_not_aliases": [
+      "redis/redis#14130",
+      "redis/redis#13842"
+    ],
+    "related_pull_not_case_alias": null,
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v5-targeted/security-linked-supplement-v2/raw/git/d649637ebd1b7b7792a4224a42e1ef8824743378.commit",
+      "sha256": "fa964ff8b11eb91b527e587a395a1b5086330d3ec4293338fbbaf3a0fc81c1d8"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v5-targeted/security-linked-supplement-v2/raw/git/d649637ebd1b7b7792a4224a42e1ef8824743378.patch",
+      "sha256": "20b82d948010ce56201562a18a6f1f0ee7fed9ed139e311c7c39c90840869878"
+    },
+    "mainline_ref": "refs/remotes/origin/unstable",
+    "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+    "fix_sha": "d649637ebd1b7b7792a4224a42e1ef8824743378",
+    "preliminary_boundary": "client-created hash field expiry / streams when active defrag is enabled",
+    "fossil_origin": null,
+    "fossil_bridge": null,
+    "test_evidence": null
+  }
+}

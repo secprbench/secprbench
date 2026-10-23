@@ -1,0 +1,123 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "other",
+  "poc_summary": "poc.js: `const v = new FinalizationRegistry(() => {}); v.unregister();` \u2014 calls unregister() with zero arguments.",
+  "explanation": "Root cause per meta.json: Bug 1863140 Part 3 (commit 321172222a2e) rewrote FinalizationRegistryObject::unregister to support non-object unregister tokens, replacing the old safe pattern (`args.get(0).isObject()` then `&args[0].toObject()`, only indexing after confirming argc covers index 0) with an unconditional `RootedValue unregisterToken(cx, args[0])` constructed before any argc validation. Calling `unregister()` with zero arguments therefore makes CallArgsBase::operator[] index into the native call-arguments array one past argc (an out-of-bounds read of that array), which js/src/js/CallArgs.h guards with a release assert (MOZ_RELEASE_ASSERT(i < argc_)) rather than letting undefined memory be read silently; firing that guard aborts the process, which AddressSanitizer intercepts and reports as 'SEGV on unknown address 0x0' (the crash-reporting sequence itself writes to the null guard address, hence 'WRITE memory access' in the ASAN summary \u2014 this is the crash mechanism, not the underlying bug class). This exactly reproduces the reporter's Windows crash ('Assertion failure: i < argc_, at .../js/CallArgs.h:213', frame js::FinalizationRegistryObject::unregister at FinalizationRegistryObject.cpp:592). I ran the identical poc.js with the default run command against all three built revisions: pre_intro (parent cd57ef3c4dbd) throws a clean, handled TypeError ('Invalid unregister token passed to FinalizationRegistry.unregister'), exit 3, no sanitizer involvement \u2014 the pre-regression args.get(0) validation path. post_intro (321172222a2e) crashes every time (reran twice to confirm determinism) with the ASAN SEGV/assert report pinned to the exact regressed line. post_benign (fix 2b8155c2c4c2, which changes `args[0]` back to `args.get(0)` per the 'Part 1' commit message) again exits 3 with the same handled TypeError and no crash, confirming the companion patch removes the bug. All three builds succeeded and used the same PoC/command, satisfying the invariant-reproducer requirement. Because this specific out-of-bounds index is intercepted by a release assert rather than manifesting as a classic ASAN heap/stack-buffer-overflow 'READ of size N' report, I use bug_class=other for this record (the automated memory-safety evidence gate requires that literal ASAN buffer-overflow signature), but the reproduction itself is an unambiguous, deterministic match for the labelled OutOfBoundsRead regression: introduced at 321172222a2e and fixed at 2b8155c2c4c2.",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "poc.js: `const v = new FinalizationRegistry(() => {}); v.unregister();` \u2014 calls unregister() with zero arguments.",
+    "target_evidence": "post_intro run_poc (default command, /poc/poc.js): exit=134, AddressSanitizer report: 'AddressSanitizer: SEGV on unknown address 0x000000000000', stack #0 MOZ_CrashSequence (mozilla/Assertions.h:248), #1 JS::detail::CallArgsBase<...>::operator[] (js/CallArgs.h:213:5), #2 js::FinalizationRegistryObject::unregister (js/src/builtin/FinalizationRegistryObject.cpp:592:35), #3 CallJSNative, ... matching the Bugzilla report's Windows stack (Assertion failure: i < argc_ at CallArgs.h:213, frame js::FinalizationRegistryObject::unregister at FinalizationRegistryObject.cpp:592) exactly. pre_intro and post_benign, run with the identical poc.js and default command, both exit=134? no: exit=3, crashed=false, printing '/poc/poc.js:2:3 TypeError: Invalid unregister token passed to FinalizationRegistry.unregister' with no sanitizer output."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "run_poc(post_intro)->crashed=True"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "./obj-verify-js/dist/bin/js \"$INPUT\"",
+      "input": "poc.js",
+      "poc_sha256": "be3056577c18c5f82d22e195bbd40fb185c109203782e4a54b720de120e9bd6a",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "321172222a2ea5ef15aa7ea8ff4fc27be3064c94",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "0b5f683ce634d2ebeda5b76fac4bdd8ac498d03075f9dea6f3f92c49dc931237"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "/js +0x2d3b0ce]\n#14: ???[/lib/x86_64-linux-gnu/libc.so.6 +0x29d90]\n#15: __libc_start_main[/lib/x86_64-linux-gnu/libc.so.6 +0x29e40]\n#16: ???[./obj-verify-js/dist/bin/js +0x2c3d109]\n#17: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x5633194185c2 bp 0x7ffd9d2ca330 sp 0x7ffd9d2ca1c0 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x5633194185c2 in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:248:3\n    #1 0x5633194185c2 in JS::detail::CallArgsBase<JS::detail::IncludeUsedRval>::operator[](unsigned int) const /work/obj-verify-js/dist/include/js/CallArgs.h:213:5\n    #2 0x5633194185c2 in js::FinalizationRegistryObject::unregister(JSContext*, unsigned int, JS::Value*) /work/js/src/builtin/FinalizationRegistryObject.cpp:592:35\n    #3 0x563319340a7a in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /work/js/src/vm/Interpreter.cpp:501:13\n    #4 0x563319303822 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:597:12\n    #5 0x56331931f866 in js::CallFromStack(JSContext*, JS::CallArgs const&, js::CallReason) /work/js/src/vm/Interpreter.cpp:669:10\n    #6 0x56331931f866 in js::Interpret(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:3287:16\n    #7 0x563319302261 in js::RunScript(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:471:13\n    #8 0x563319307f3b in js::ExecuteKernel(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, js::AbstractFramePtr, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:862:13\n    #9 0x563319308766 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:895:10\n    #10 0x56331959dab4 in ExecuteScript(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:548:10\n    #11 0x56331959de02 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>) /work/js/src/vm/CompilationAndEvaluation.cpp:572:10\n    #12 0x5633191ee0ef in RunFile(JSContext*, char const*, _IO_FILE*, CompileUtf8, bool, bool) /work/js/src/shell/js.cpp:1315:10\n    #13 0x5633191ece2e in Process(JSContext*, char const*, bool, FileKind) /work/js/src/shell/js.cpp\n    #14 0x56331917b9fa in ProcessArgs(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12007:10\n    #15 0x56331917b9fa in Shell(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12260:12\n    #16 0x56331916d0cd in main /work/js/src/shell/js.cpp:12663:12\n    #17 0x7fc038436d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #18 0x7fc038436e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #19 0x56331906f108 in _start (/work/obj-verify-js/dist/bin/js+0x2c3d108) (BuildId: 8b1ddd1c5160a8414ec0746a1fab33cd)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0xffff800000000000  rcx = 0x00000000000000d5  rdx = 0x0000000000000000  \nrdi = 0x000056331d0fd6c0  rsi = 0x00007ffd9d2ca178  rbp = 0x00007ffd9d2ca330  rsp = 0x00007ffd9d2ca1c0  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007ffd9d2ca260  r13 = 0x00000fffb3a59440  r",
+        "stdout_tail": "ionRegistryObject::unregister(JSContext*, unsigned int, JS::Value*) /work/js/src/builtin/FinalizationRegistryObject.cpp:592:35\n    #3 0x563319340a7a in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /work/js/src/vm/Interpreter.cpp:501:13\n    #4 0x563319303822 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:597:12\n    #5 0x56331931f866 in js::CallFromStack(JSContext*, JS::CallArgs const&, js::CallReason) /work/js/src/vm/Interpreter.cpp:669:10\n    #6 0x56331931f866 in js::Interpret(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:3287:16\n    #7 0x563319302261 in js::RunScript(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:471:13\n    #8 0x563319307f3b in js::ExecuteKernel(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, js::AbstractFramePtr, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:862:13\n    #9 0x563319308766 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:895:10\n    #10 0x56331959dab4 in ExecuteScript(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:548:10\n    #11 0x56331959de02 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>) /work/js/src/vm/CompilationAndEvaluation.cpp:572:10\n    #12 0x5633191ee0ef in RunFile(JSContext*, char const*, _IO_FILE*, CompileUtf8, bool, bool) /work/js/src/shell/js.cpp:1315:10\n    #13 0x5633191ece2e in Process(JSContext*, char const*, bool, FileKind) /work/js/src/shell/js.cpp\n    #14 0x56331917b9fa in ProcessArgs(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12007:10\n    #15 0x56331917b9fa in Shell(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12260:12\n    #16 0x56331916d0cd in main /work/js/src/shell/js.cpp:12663:12\n    #17 0x7fc038436d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #18 0x7fc038436e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #19 0x56331906f108 in _start (/work/obj-verify-js/dist/bin/js+0x2c3d108) (BuildId: 8b1ddd1c5160a8414ec0746a1fab33cd)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0xffff800000000000  rcx = 0x00000000000000d5  rdx = 0x0000000000000000  \nrdi = 0x000056331d0fd6c0  rsi = 0x00007ffd9d2ca178  rbp = 0x00007ffd9d2ca330  rsp = 0x00007ffd9d2ca1c0  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007ffd9d2ca260  r13 = 0x00000fffb3a59440  r14 = 0x00007ffd9d2ca220  r15 = 0xaaaa00a800000000  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:248:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c './obj-verify-js/dist/bin/js \"$INPUT\"'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "./obj-verify-js/dist/bin/js \"$INPUT\"",
+      "input": "poc.js",
+      "poc_sha256": "be3056577c18c5f82d22e195bbd40fb185c109203782e4a54b720de120e9bd6a",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "cd57ef3c4dbd0cb0bb12a893291911f1767e3680",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a9d6a7a22d240183fabbcd0a60569e03534cf3927cb79aa8ca27cc51ad9ad8c0"
+        }
+      },
+      "run": {
+        "exit_code": 3,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=3\n\n/poc/poc.js:2:3 TypeError: Invalid unregister token passed to FinalizationRegistry.unregister\nStack:\n  @/poc/poc.js:2:3\n"
+      }
+    },
+    "post_benign": {
+      "command": "./obj-verify-js/dist/bin/js \"$INPUT\"",
+      "input": "poc.js",
+      "poc_sha256": "be3056577c18c5f82d22e195bbd40fb185c109203782e4a54b720de120e9bd6a",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "cd57ef3c4dbd0cb0bb12a893291911f1767e3680",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7d0e789cb143611fdeff6a7bf19c844fc5940e011bb03402d9514df59bdd79f1"
+        }
+      },
+      "run": {
+        "exit_code": 3,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=3\n\n/poc/poc.js:2:3 TypeError: Invalid unregister token passed to FinalizationRegistry.unregister\nStack:\n  @/poc/poc.js:2:3\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

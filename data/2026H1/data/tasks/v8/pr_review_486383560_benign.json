@@ -1,0 +1,50 @@
+{
+  "task_id": "pr_review_486383560_benign",
+  "bug_id": "486383560",
+  "commit_sha": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1",
+  "commit_message": "[d8] Add missing call to {ResetOnProfileEndListener}\n\nR=clemensb@chromium.org\n\nBug: chromium:1405157\nChange-Id: I01d7b1f85034501cdf0441103f4308dcd6f7234d\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/4138252\nCommit-Queue: Andreas Haas <ahaas@chromium.org>\nReviewed-by: Clemens Backes <clemensb@chromium.org>\nCr-Commit-Position: refs/heads/main@{#85132}",
+  "commit_author": "",
+  "commit_date": "2026-09-28T17:49:48.569472",
+  "pr_title": "[d8] Add missing call to {ResetOnProfileEndListener}",
+  "pr_description": "[d8] Add missing call to {ResetOnProfileEndListener}\n\nR=clemensb@chromium.org\n\nBug: chromium:1405157\nChange-Id: I01d7b1f85034501cdf0441103f4308dcd6f7234d\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/4138252\nCommit-Queue: Andreas Haas <ahaas@chromium.org>\nReviewed-by: Clemens Backes <clemensb@chromium.org>\nCr-Commit-Position: refs/heads/main@{#85132}",
+  "files": [
+    {
+      "path": "src/d8/d8.cc",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "diff": "diff --git a/src/d8/d8.cc b/src/d8/d8.cc\nindex 70e6473d6d9..2573befc860 100644\n--- a/src/d8/d8.cc\n+++ b/src/d8/d8.cc\n@@ -2528,20 +2528,24 @@ void Shell::ProfilerSetOnProfileEndListener(\n                      Global<Context>(isolate, isolate->GetCurrentContext()));\n }\n \n bool Shell::HasOnProfileEndListener(Isolate* isolate) {\n   return profiler_end_callback_.find(isolate) != profiler_end_callback_.end();\n }\n \n void Shell::ResetOnProfileEndListener(Isolate* isolate) {\n   profiler_end_callback_.erase(isolate);\n \n+  // If the inspector is enabled, then the installed console is not the\n+  // D8Console.\n+  if (options.enable_inspector) return;\n+\n   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n   D8Console* console =\n       reinterpret_cast<D8Console*>(i_isolate->console_delegate());\n   if (console) {\n     console->DisposeProfiler();\n   }\n }\n \n void Shell::ProfilerTriggerSample(\n     const v8::FunctionCallbackInfo<v8::Value>& args) {\n@@ -2963,20 +2967,21 @@ void Shell::WorkerTerminateAndWait(\n   i::ParkedScope parked(\n       reinterpret_cast<i::Isolate*>(isolate)->main_thread_local_isolate());\n   worker->TerminateAndWaitForThread(parked);\n }\n \n void Shell::QuitOnce(v8::FunctionCallbackInfo<v8::Value>* args) {\n   int exit_code = (*args)[0]\n                       ->Int32Value(args->GetIsolate()->GetCurrentContext())\n                       .FromMaybe(0);\n   Isolate* isolate = args->GetIsolate();\n+  ResetOnProfileEndListener(isolate);\n   isolate->Exit();\n \n   // As we exit the process anyway, we do not dispose the platform and other\n   // global data and manually unlock to quell DCHECKs. Other isolates might\n   // still be running, so disposing here can cause them to crash.\n   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n   if (i_isolate->thread_manager()->IsLockedByCurrentThread()) {\n     i_isolate->thread_manager()->Unlock();\n   }\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/src/d8/d8.cc b/src/d8/d8.cc\nindex 70e6473d6d9..2573befc860 100644\n--- a/src/d8/d8.cc\n+++ b/src/d8/d8.cc\n@@ -2528,20 +2528,24 @@ void Shell::ProfilerSetOnProfileEndListener(\n                      Global<Context>(isolate, isolate->GetCurrentContext()));\n }\n \n bool Shell::HasOnProfileEndListener(Isolate* isolate) {\n   return profiler_end_callback_.find(isolate) != profiler_end_callback_.end();\n }\n \n void Shell::ResetOnProfileEndListener(Isolate* isolate) {\n   profiler_end_callback_.erase(isolate);\n \n+  // If the inspector is enabled, then the installed console is not the\n+  // D8Console.\n+  if (options.enable_inspector) return;\n+\n   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n   D8Console* console =\n       reinterpret_cast<D8Console*>(i_isolate->console_delegate());\n   if (console) {\n     console->DisposeProfiler();\n   }\n }\n \n void Shell::ProfilerTriggerSample(\n     const v8::FunctionCallbackInfo<v8::Value>& args) {\n@@ -2963,20 +2967,21 @@ void Shell::WorkerTerminateAndWait(\n   i::ParkedScope parked(\n       reinterpret_cast<i::Isolate*>(isolate)->main_thread_local_isolate());\n   worker->TerminateAndWaitForThread(parked);\n }\n \n void Shell::QuitOnce(v8::FunctionCallbackInfo<v8::Value>* args) {\n   int exit_code = (*args)[0]\n                       ->Int32Value(args->GetIsolate()->GetCurrentContext())\n                       .FromMaybe(0);\n   Isolate* isolate = args->GetIsolate();\n+  ResetOnProfileEndListener(isolate);\n   isolate->Exit();\n \n   // As we exit the process anyway, we do not dispose the platform and other\n   // global data and manually unlock to quell DCHECKs. Other isolates might\n   // still be running, so disposing here can cause them to crash.\n   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);\n   if (i_isolate->thread_manager()->IsLockedByCurrentThread()) {\n     i_isolate->thread_manager()->Unlock();\n   }\n \n",
+  "ground_truth": {
+    "bug_id": "486383560",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "b2123b6a6014b2a961192815be50f8b071845250",
+    "fix_commit": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "b2123b6a6014b2a961192815be50f8b071845250",
+  "fix_commit_sha": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1",
+  "intro_commit_message": "[d8] Add missing call to {ResetOnProfileEndListener}\n\nR=clemensb@chromium.org\n\nBug: chromium:1405157\nChange-Id: I01d7b1f85034501cdf0441103f4308dcd6f7234d\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/4138252\nCommit-Queue: Andreas Haas <ahaas@chromium.org>\nReviewed-by: Clemens Backes <clemensb@chromium.org>\nCr-Commit-Position: refs/heads/main@{#85132}",
+  "fix_commit_message": "[d8] Fix use-after-free in Shell::ResetOnProfileEndListener(..)\n\nFixed: 486383560\nChange-Id: I1e6bc7bb1a18687a93b6a6bbdbd0f1f4800d5b63\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/7594689\nCommit-Queue: Igor Sheludko <ishell@chromium.org>\nCommit-Queue: Patrick Thier <pthier@chromium.org>\nReviewed-by: Patrick Thier <pthier@chromium.org>\nAuto-Submit: Igor Sheludko <ishell@chromium.org>\nCr-Commit-Position: refs/heads/main@{#105372}",
+  "agent_reasoning": "The bug-introducing commit added an early return in Shell::ResetOnProfileEndListener for the inspector-enabled case, but placed it before the unconditional profiler_end_callback_.erase(isolate) call. This caused the map entry (keyed by raw Isolate* and holding v8::Global handles tied to that isolate) to never be erased when the inspector was enabled, leading to a stale entry referencing a soon-to-be-destroyed isolate - a use-after-free. The fix simply reorders the code: erase the map entry unconditionally first, then perform the inspector-enabled early return check before the D8Console-specific teardown. I applied this exact reordering to src/d8/d8.cc (the only affected file), matching the fix commit's logic while adapting to the fact that this snapshot doesn't yet have the mutex guard around the map access.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "b2123b6a6014b2a961192815be50f8b071845250",
+    "fix_revision": "d747340f097ee16ddadb5cdf05c410fcfa8ef2b1",
+    "fix_parent_revision": "ce4bc856e02c06fd7d7854d2cf625630191d0043",
+    "inspected_paths": [
+      "src/d8/d8.cc"
+    ],
+    "call_candidates": [],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

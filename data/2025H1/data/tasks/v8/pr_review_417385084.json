@@ -1,0 +1,152 @@
+{
+  "task_id": "pr_review_417385084",
+  "bug_id": "417385084",
+  "commit_sha": "22f006269616767856e586d820fc329514af0f4f",
+  "commit_message": "[turbofan] Propagate safe int check via truncation\n\nConvertTaggedHoleToUndefined bypass the use_info check when the\ninput is a number and we are truncating to word32.\n\nHere, we propagate that we shouldn't do that if we speculate\nthat the input is in the safe integer range.\n\nFixed: 414738826\nChange-Id: Iafed74f00ce6af19e599cf2264b79c6d7179beac\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6494802\nReviewed-by: Nico Hartmann <nicohartmann@chromium.org>\nCommit-Queue: Victor Gomes <victorgomes@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100217}",
+  "commit_author": "Victor Gomes",
+  "commit_date": "2025-05-12T15:53:00+02:00",
+  "pr_title": "[turbofan] Propagate safe int check via truncation",
+  "pr_description": "ConvertTaggedHoleToUndefined bypass the use_info check when the\ninput is a number and we are truncating to word32.\n\nHere, we propagate that we shouldn't do that if we speculate\nthat the input is in the safe integer range.\n\nFixed: 414738826\nChange-Id: Iafed74f00ce6af19e599cf2264b79c6d7179beac\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6494802\nReviewed-by: Nico Hartmann <nicohartmann@chromium.org>\nCommit-Queue: Victor Gomes <victorgomes@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100217}\n",
+  "files": [
+    {
+      "path": "src/compiler/representation-change.cc",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 4,
+      "diff": "diff --git a/src/compiler/representation-change.cc b/src/compiler/representation-change.cc\nindex 49e38d2562f..1259bbf0bbd 100644\n--- a/src/compiler/representation-change.cc\n+++ b/src/compiler/representation-change.cc\n@@ -1061,15 +1061,15 @@ Node* RepresentationChanger::GetWord32RepresentationFor(\n           use_info.feedback());\n     } else if (use_info.type_check() == TypeCheckKind::kArrayIndex) {\n       op = simplified()->CheckedTaggedToArrayIndex(use_info.feedback());\n     } else if (output_type.Is(Type::Unsigned32())) {\n       op = simplified()->ChangeTaggedToUint32();\n+    } else if (use_info.type_check() == TypeCheckKind::kAdditiveSafeInteger) {\n+      op = simplified()->CheckedTruncateTaggedToWord32(\n+          CheckTaggedInputMode::kAdditiveSafeInteger, use_info.feedback());\n     } else if (use_info.truncation().IsUsedAsWord32()) {\n-      if (use_info.type_check() == TypeCheckKind::kAdditiveSafeInteger) {\n-        op = simplified()->CheckedTruncateTaggedToWord32(\n-            CheckTaggedInputMode::kAdditiveSafeInteger, use_info.feedback());\n-      } else if (output_type.Is(Type::NumberOrOddballOrHole())) {\n+      if (output_type.Is(Type::NumberOrOddballOrHole())) {\n         op = simplified()->TruncateTaggedToWord32();\n       } else if (use_info.type_check() == TypeCheckKind::kNumber) {\n         op = simplified()->CheckedTruncateTaggedToWord32(\n             CheckTaggedInputMode::kNumber, use_info.feedback());\n       } else if (use_info.type_check() == TypeCheckKind::kNumberOrOddball) {\n"
+    },
+    {
+      "path": "src/compiler/simplified-lowering.cc",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc\nindex a8f805c115f..39531e4e27e 100644\n--- a/src/compiler/simplified-lowering.cc\n+++ b/src/compiler/simplified-lowering.cc\n@@ -4628,11 +4628,11 @@ class RepresentationSelector {\n             MachineRepresentation::kTaggedPointer);\n         return;\n       }\n       case IrOpcode::kConvertTaggedHoleToUndefined: {\n         if (InputIs(node, Type::NumberOrHole()) &&\n-            truncation.IsUsedAsWord32()) {\n+            truncation.IsUsedAsWord32() && !truncation.check_safe_integer()) {\n           // Propagate the Word32 truncation.\n           VisitUnop<T>(node, UseInfo::TruncatingWord32(),\n                        MachineRepresentation::kWord32);\n           if (lower<T>()) DeferReplacement(node, node->InputAt(0));\n         } else if (InputIs(node, Type::NumberOrHole()) &&\n"
+    },
+    {
+      "path": "src/compiler/use-info.h",
+      "status": "modified",
+      "additions": 20,
+      "deletions": 6,
+      "diff": "diff --git a/src/compiler/use-info.h b/src/compiler/use-info.h\nindex 064220af990..c8bc9569628 100644\n--- a/src/compiler/use-info.h\n+++ b/src/compiler/use-info.h\n@@ -33,10 +33,13 @@ class Truncation final {\n     return Truncation(TruncationKind::kBool, kIdentifyZeros);\n   }\n   static Truncation Word32() {\n     return Truncation(TruncationKind::kWord32, kIdentifyZeros);\n   }\n+  static Truncation Word32WithSafeIntCheck() {\n+    return Truncation(TruncationKind::kWord32, kIdentifyZeros, true);\n+  }\n   static Truncation Word64() {\n     return Truncation(TruncationKind::kWord64, kIdentifyZeros);\n   }\n   static Truncation BooleanAndNullAndBigIntToNumber(\n       IdentifyZeros identify_zeros = kDistinguishZeros) {\n@@ -53,11 +56,12 @@ class Truncation final {\n   }\n \n   static Truncation Generalize(Truncation t1, Truncation t2) {\n     return Truncation(\n         Generalize(t1.kind(), t2.kind()),\n-        GeneralizeIdentifyZeros(t1.identify_zeros(), t2.identify_zeros()));\n+        GeneralizeIdentifyZeros(t1.identify_zeros(), t2.identify_zeros()),\n+        t1.check_safe_integer() || t2.check_safe_integer());\n   }\n \n   // Queries.\n   bool IsUnused() const { return kind_ == TruncationKind::kNone; }\n   bool IsUsedAsBool() const {\n@@ -84,23 +88,28 @@ class Truncation final {\n     return identify_zeros() == kIdentifyZeros;\n   }\n \n   // Operators.\n   bool operator==(Truncation other) const {\n-    return kind() == other.kind() && identify_zeros() == other.identify_zeros();\n+    return kind() == other.kind() &&\n+           identify_zeros() == other.identify_zeros() &&\n+           check_safe_integer() == other.check_safe_integer();\n   }\n   bool operator!=(Truncation other) const { return !(*this == other); }\n \n   // Debug utilities.\n   const char* description() const;\n   bool IsLessGeneralThan(Truncation other) const {\n     return LessGeneral(kind(), other.kind()) &&\n-           LessGeneralIdentifyZeros(identify_zeros(), other.identify_zeros());\n+           LessGeneralIdentifyZeros(identify_zeros(), other.identify_zeros()) &&\n+           (check_safe_integer() <= other.check_safe_integer());\n   }\n \n   IdentifyZeros identify_zeros() const { return identify_zeros_; }\n \n+  bool check_safe_integer() const { return check_safe_integer_; }\n+\n  private:\n   enum class TruncationKind : uint8_t {\n     kNone,\n     kBool,\n     kWord32,\n@@ -108,19 +117,23 @@ class Truncation final {\n     kOddballAndBigIntToNumber,\n     kBooleanAndNullAndBigIntToNumber,\n     kAny\n   };\n \n-  explicit Truncation(TruncationKind kind, IdentifyZeros identify_zeros)\n-      : kind_(kind), identify_zeros_(identify_zeros) {}\n+  explicit Truncation(TruncationKind kind, IdentifyZeros identify_zeros,\n+                      bool check_safe_integer = false)\n+      : kind_(kind),\n+        identify_zeros_(identify_zeros),\n+        check_safe_integer_(check_safe_integer) {}\n \n   TruncationKind kind() const { return kind_; }\n \n   friend class SimplifiedLoweringVerifier;\n   friend size_t hash_value(const Truncation&);\n   TruncationKind kind_;\n   IdentifyZeros identify_zeros_;\n+  bool check_safe_integer_;\n \n   static TruncationKind Generalize(TruncationKind rep1, TruncationKind rep2);\n   static IdentifyZeros GeneralizeIdentifyZeros(IdentifyZeros i1,\n                                                IdentifyZeros i2);\n   static bool LessGeneral(TruncationKind rep1, TruncationKind rep2);\n@@ -256,11 +269,12 @@ class UseInfo {\n                    Truncation::OddballAndBigIntToNumber(identify_zeros));\n   }\n   static UseInfo CheckedSafeIntTruncatingWord32(\n       const FeedbackSource& feedback) {\n     DCHECK(Is64());\n-    return UseInfo(MachineRepresentation::kWord32, Truncation::Word32(),\n+    return UseInfo(MachineRepresentation::kWord32,\n+                   Truncation::Word32WithSafeIntCheck(),\n                    TypeCheckKind::kAdditiveSafeInteger, feedback);\n   }\n   static UseInfo CheckedSafeIntAsWord64(const FeedbackSource& feedback) {\n     DCHECK(Is64());\n     return UseInfo(MachineRepresentation::kWord64, Truncation::Any(),\n"
+    },
+    {
+      "path": "test/mjsunit/mjsunit.status",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/mjsunit.status b/test/mjsunit/mjsunit.status\nindex db8d25eadc2..d8efaf6cf0f 100644\n--- a/test/mjsunit/mjsunit.status\n+++ b/test/mjsunit/mjsunit.status\n@@ -1017,10 +1017,11 @@\n \n   # Needs 64-bit integer add.\n   'additive-safe-int-feedback': [SKIP],\n   'regress-398879933': [SKIP],\n   'regress-399698534': [SKIP],\n+  'regress-414738826': [SKIP],\n \n   # Needs 64-bit number register support\n   'compiler/fast-api-calls-64-bit-integer-values': [SKIP],\n   'wasm/fast-api-calls-with-wellknown-imports-i64': [SKIP],\n   'wasm/fast-api-calls-with-wellknown-imports-conflict': [SKIP],\n@@ -2076,10 +2077,11 @@\n   'compiler/number-abs': [SKIP],\n   'compiler/number-toboolean': [SKIP],\n   'additive-safe-int-feedback': [SKIP],\n   'regress-398879933': [SKIP],\n   'regress-399698534': [SKIP],\n+  'regress-414738826': [SKIP],\n   # Type assertions block the propagation of word64 truncation useinfo,\n   # leading to differences in representation selection.\n   'compiler/bigint-multiply-truncate': [SKIP],\n   'compiler/bigint-shift-left': [SKIP],\n   'wasm/bigint-opt': [SKIP]\n@@ -2629,10 +2631,11 @@\n   'turboshaft/extras-cped': [SKIP],\n   # Maglev does not support additive safe ints.\n   'additive-safe-int-feedback': [SKIP],\n   'regress-398879933': [SKIP],\n   'regress-399698534': [SKIP],\n+  'regress-414738826': [SKIP],\n }], # variant in (stress_maglev, stress_maglev_non_eager_inlining, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan, turbolev)\n \n ##############################################################################\n ['(variant in (stress_maglev, stress_maglev_non_eager_inlining, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan, turbolev)) and (arch != arm)', {\n   # Maglev doesn't suppress BigInt size errors on truncation.\n"
+    },
+    {
+      "path": "test/mjsunit/regress-414738826.js",
+      "status": "added",
+      "additions": 19,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/regress-414738826.js b/test/mjsunit/regress-414738826.js\nnew file mode 100644\nindex 00000000000..f55a3e8fbaa\n--- /dev/null\n+++ b/test/mjsunit/regress-414738826.js\n@@ -0,0 +1,19 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax --additive-safe-int-feedback\n+\n+let a = [0, 1, , 2];\n+function foo(i) {\n+  return (a[i] + 4294967295) | 0;\n+}\n+\n+%PrepareFunctionForOptimization(foo);\n+foo(1);\n+foo(1);\n+%OptimizeFunctionOnNextCall(foo);\n+foo(1);\n+assertTrue(isOptimized(foo));\n+assertEquals(0, foo(2));\n+assertFalse(isOptimized(foo));\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/compiler/representation-change.cc b/src/compiler/representation-change.cc\nindex 49e38d2562f..1259bbf0bbd 100644\n--- a/src/compiler/representation-change.cc\n+++ b/src/compiler/representation-change.cc\n@@ -1061,15 +1061,15 @@ Node* RepresentationChanger::GetWord32RepresentationFor(\n           use_info.feedback());\n     } else if (use_info.type_check() == TypeCheckKind::kArrayIndex) {\n       op = simplified()->CheckedTaggedToArrayIndex(use_info.feedback());\n     } else if (output_type.Is(Type::Unsigned32())) {\n       op = simplified()->ChangeTaggedToUint32();\n+    } else if (use_info.type_check() == TypeCheckKind::kAdditiveSafeInteger) {\n+      op = simplified()->CheckedTruncateTaggedToWord32(\n+          CheckTaggedInputMode::kAdditiveSafeInteger, use_info.feedback());\n     } else if (use_info.truncation().IsUsedAsWord32()) {\n-      if (use_info.type_check() == TypeCheckKind::kAdditiveSafeInteger) {\n-        op = simplified()->CheckedTruncateTaggedToWord32(\n-            CheckTaggedInputMode::kAdditiveSafeInteger, use_info.feedback());\n-      } else if (output_type.Is(Type::NumberOrOddballOrHole())) {\n+      if (output_type.Is(Type::NumberOrOddballOrHole())) {\n         op = simplified()->TruncateTaggedToWord32();\n       } else if (use_info.type_check() == TypeCheckKind::kNumber) {\n         op = simplified()->CheckedTruncateTaggedToWord32(\n             CheckTaggedInputMode::kNumber, use_info.feedback());\n       } else if (use_info.type_check() == TypeCheckKind::kNumberOrOddball) {\ndiff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc\nindex a8f805c115f..39531e4e27e 100644\n--- a/src/compiler/simplified-lowering.cc\n+++ b/src/compiler/simplified-lowering.cc\n@@ -4628,11 +4628,11 @@ class RepresentationSelector {\n             MachineRepresentation::kTaggedPointer);\n         return;\n       }\n       case IrOpcode::kConvertTaggedHoleToUndefined: {\n         if (InputIs(node, Type::NumberOrHole()) &&\n-            truncation.IsUsedAsWord32()) {\n+            truncation.IsUsedAsWord32() && !truncation.check_safe_integer()) {\n           // Propagate the Word32 truncation.\n           VisitUnop<T>(node, UseInfo::TruncatingWord32(),\n                        MachineRepresentation::kWord32);\n           if (lower<T>()) DeferReplacement(node, node->InputAt(0));\n         } else if (InputIs(node, Type::NumberOrHole()) &&\ndiff --git a/src/compiler/use-info.h b/src/compiler/use-info.h\nindex 064220af990..c8bc9569628 100644\n--- a/src/compiler/use-info.h\n+++ b/src/compiler/use-info.h\n@@ -33,10 +33,13 @@ class Truncation final {\n     return Truncation(TruncationKind::kBool, kIdentifyZeros);\n   }\n   static Truncation Word32() {\n     return Truncation(TruncationKind::kWord32, kIdentifyZeros);\n   }\n+  static Truncation Word32WithSafeIntCheck() {\n+    return Truncation(TruncationKind::kWord32, kIdentifyZeros, true);\n+  }\n   static Truncation Word64() {\n     return Truncation(TruncationKind::kWord64, kIdentifyZeros);\n   }\n   static Truncation BooleanAndNullAndBigIntToNumber(\n       IdentifyZeros identify_zeros = kDistinguishZeros) {\n@@ -53,11 +56,12 @@ class Truncation final {\n   }\n \n   static Truncation Generalize(Truncation t1, Truncation t2) {\n     return Truncation(\n         Generalize(t1.kind(), t2.kind()),\n-        GeneralizeIdentifyZeros(t1.identify_zeros(), t2.identify_zeros()));\n+        GeneralizeIdentifyZeros(t1.identify_zeros(), t2.identify_zeros()),\n+        t1.check_safe_integer() || t2.check_safe_integer());\n   }\n \n   // Queries.\n   bool IsUnused() const { return kind_ == TruncationKind::kNone; }\n   bool IsUsedAsBool() const {\n@@ -84,23 +88,28 @@ class Truncation final {\n     return identify_zeros() == kIdentifyZeros;\n   }\n \n   // Operators.\n   bool operator==(Truncation other) const {\n-    return kind() == other.kind() && identify_zeros() == other.identify_zeros();\n+    return kind() == other.kind() &&\n+           identify_zeros() == other.identify_zeros() &&\n+           check_safe_integer() == other.check_safe_integer();\n   }\n   bool operator!=(Truncation other) const { return !(*this == other); }\n \n   // Debug utilities.\n   const char* description() const;\n   bool IsLessGeneralThan(Truncation other) const {\n     return LessGeneral(kind(), other.kind()) &&\n-           LessGeneralIdentifyZeros(identify_zeros(), other.identify_zeros());\n+           LessGeneralIdentifyZeros(identify_zeros(), other.identify_zeros()) &&\n+           (check_safe_integer() <= other.check_safe_integer());\n   }\n \n   IdentifyZeros identify_zeros() const { return identify_zeros_; }\n \n+  bool check_safe_integer() const { return check_safe_integer_; }\n+\n  private:\n   enum class TruncationKind : uint8_t {\n     kNone,\n     kBool,\n     kWord32,\n@@ -108,19 +117,23 @@ class Truncation final {\n     kOddballAndBigIntToNumber,\n     kBooleanAndNullAndBigIntToNumber,\n     kAny\n   };\n \n-  explicit Truncation(TruncationKind kind, IdentifyZeros identify_zeros)\n-      : kind_(kind), identify_zeros_(identify_zeros) {}\n+  explicit Truncation(TruncationKind kind, IdentifyZeros identify_zeros,\n+                      bool check_safe_integer = false)\n+      : kind_(kind),\n+        identify_zeros_(identify_zeros),\n+        check_safe_integer_(check_safe_integer) {}\n \n   TruncationKind kind() const { return kind_; }\n \n   friend class SimplifiedLoweringVerifier;\n   friend size_t hash_value(const Truncation&);\n   TruncationKind kind_;\n   IdentifyZeros identify_zeros_;\n+  bool check_safe_integer_;\n \n   static TruncationKind Generalize(TruncationKind rep1, TruncationKind rep2);\n   static IdentifyZeros GeneralizeIdentifyZeros(IdentifyZeros i1,\n                                                IdentifyZeros i2);\n   static bool LessGeneral(TruncationKind rep1, TruncationKind rep2);\n@@ -256,11 +269,12 @@ class UseInfo {\n                    Truncation::OddballAndBigIntToNumber(identify_zeros));\n   }\n   static UseInfo CheckedSafeIntTruncatingWord32(\n       const FeedbackSource& feedback) {\n     DCHECK(Is64());\n-    return UseInfo(MachineRepresentation::kWord32, Truncation::Word32(),\n+    return UseInfo(MachineRepresentation::kWord32,\n+                   Truncation::Word32WithSafeIntCheck(),\n                    TypeCheckKind::kAdditiveSafeInteger, feedback);\n   }\n   static UseInfo CheckedSafeIntAsWord64(const FeedbackSource& feedback) {\n     DCHECK(Is64());\n     return UseInfo(MachineRepresentation::kWord64, Truncation::Any(),\ndiff --git a/test/mjsunit/mjsunit.status b/test/mjsunit/mjsunit.status\nindex db8d25eadc2..d8efaf6cf0f 100644\n--- a/test/mjsunit/mjsunit.status\n+++ b/test/mjsunit/mjsunit.status\n@@ -1017,10 +1017,11 @@\n \n   # Needs 64-bit integer add.\n   'additive-safe-int-feedback': [SKIP],\n   'regress-398879933': [SKIP],\n   'regress-399698534': [SKIP],\n+  'regress-414738826': [SKIP],\n \n   # Needs 64-bit number register support\n   'compiler/fast-api-calls-64-bit-integer-values': [SKIP],\n   'wasm/fast-api-calls-with-wellknown-imports-i64': [SKIP],\n   'wasm/fast-api-calls-with-wellknown-imports-conflict': [SKIP],\n@@ -2076,10 +2077,11 @@\n   'compiler/number-abs': [SKIP],\n   'compiler/number-toboolean': [SKIP],\n   'additive-safe-int-feedback': [SKIP],\n   'regress-398879933': [SKIP],\n   'regress-399698534': [SKIP],\n+  'regress-414738826': [SKIP],\n   # Type assertions block the propagation of word64 truncation useinfo,\n   # leading to differences in representation selection.\n   'compiler/bigint-multiply-truncate': [SKIP],\n   'compiler/bigint-shift-left': [SKIP],\n   'wasm/bigint-opt': [SKIP]\n@@ -2629,10 +2631,11 @@\n   'turboshaft/extras-cped': [SKIP],\n   # Maglev does not support additive safe ints.\n   'additive-safe-int-feedback': [SKIP],\n   'regress-398879933': [SKIP],\n   'regress-399698534': [SKIP],\n+  'regress-414738826': [SKIP],\n }], # variant in (stress_maglev, stress_maglev_non_eager_inlining, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan, turbolev)\n \n ##############################################################################\n ['(variant in (stress_maglev, stress_maglev_non_eager_inlining, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan, turbolev)) and (arch != arm)', {\n   # Maglev doesn't suppress BigInt size errors on truncation.\ndiff --git a/test/mjsunit/regress-414738826.js b/test/mjsunit/regress-414738826.js\nnew file mode 100644\nindex 00000000000..f55a3e8fbaa\n--- /dev/null\n+++ b/test/mjsunit/regress-414738826.js\n@@ -0,0 +1,19 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax --additive-safe-int-feedback\n+\n+let a = [0, 1, , 2];\n+function foo(i) {\n+  return (a[i] + 4294967295) | 0;\n+}\n+\n+%PrepareFunctionForOptimization(foo);\n+foo(1);\n+foo(1);\n+%OptimizeFunctionOnNextCall(foo);\n+foo(1);\n+assertTrue(isOptimized(foo));\n+assertEquals(0, foo(2));\n+assertFalse(isOptimized(foo));\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "22f006269616767856e586d820fc329514af0f4f",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "417385084",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "CheckedSafeIntAsWord64 missing check_safe_integer flag in Truncation",
+        "message": "The introducing commit `22f006269` added a `check_safe_integer_` field to the `Truncation` class and updated `IsLessGeneralThan()` to enforce `(check_safe_integer() <= other.check_safe_integer())` as part of the monotonicity check in Turbofan's simplified lowering pass. It correctly marked `CheckedSafeIntTruncatingWord32` with `Truncation::Word32WithSafeIntCheck()` (check_safe_integer=true), but left `CheckedSafeIntAsWord64` using the plain `Truncation::Any()` (check_safe_integer=false). When a JIT-compiled node is first visited with a use_info whose truncation carries check_safe_integer=true (e.g., via Generalize of a Word32WithSafeIntCheck truncation), and then revisited with `CheckedSafeIntAsWord64`'s `Truncation::Any()` (check_safe_integer=false), the monotonicity DCHECK `IsLessGeneralThan(true, false)` evaluates to false and fires: `DCHECK(IsUseLessGeneral(input_use_infos_[index], use_info))` in simplified-lowering.cc.",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-670"
+        ],
+        "location": {
+          "file": "src/compiler/use-info.h",
+          "function": "CheckedSafeIntAsWord64",
+          "start_line": 278,
+          "end_line": 282,
+          "snippet": "  static UseInfo CheckedSafeIntAsWord64(const FeedbackSource& feedback) {\n    DCHECK(Is64());\n    return UseInfo(MachineRepresentation::kWord64, Truncation::Any(),\n                   TypeCheckKind::kAdditiveSafeInteger, feedback);\n  }"
+        },
+        "related_locations": [
+          {
+            "file": "src/compiler/use-info.h",
+            "start_line": 271,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "CheckedSafeIntTruncatingWord32",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/compiler/use-info.h",
+            "start_line": 100,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "IsLessGeneralThan",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/compiler/simplified-lowering.cc",
+            "start_line": 290,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "SetAndCheckInput",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Use `Truncation::Any(kDistinguishZeros, true)` instead of `Truncation::Any()` in `CheckedSafeIntAsWord64` to set `check_safe_integer = true`, consistent with `CheckedSafeIntTruncatingWord32` using `Truncation::Word32WithSafeIntCheck()`. This ensures the monotonicity invariant holds when both UseInfo types are mixed during Turbofan's iterative re-processing of nodes.",
+        "rule_id": "sec-logicerror-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/compiler/representation-change.cc",
+      "src/compiler/simplified-lowering.cc",
+      "src/compiler/use-info.h",
+      "test/mjsunit/mjsunit.status",
+      "test/mjsunit/regress-414738826.js"
+    ],
+    "root_cause": "The `check_safe_integer_` field was added to `Truncation` and used in `IsLessGeneralThan()` to require that `check_safe_integer` values only increase (false→true) across successive visits. `CheckedSafeIntTruncatingWord32` was updated to emit a truncation with `check_safe_integer=true`, but `CheckedSafeIntAsWord64` was missed and still emits `Truncation::Any()` with `check_safe_integer=false`. When nodes are visited with a mix of these two use infos, the monotonicity check `(true <= false)` fails.",
+    "must_cover": [
+      {
+        "file": "src/compiler/use-info.h",
+        "function": "CheckedSafeIntAsWord64",
+        "reason": "Primary location of finding: CheckedSafeIntAsWord64 missing check_safe_integer flag in Truncation"
+      },
+      {
+        "file": "src/compiler/use-info.h",
+        "function": "CheckedSafeIntTruncatingWord32",
+        "reason": "Related location for: CheckedSafeIntAsWord64 missing check_safe_integer flag in Truncation"
+      },
+      {
+        "file": "src/compiler/use-info.h",
+        "function": "IsLessGeneralThan",
+        "reason": "Related location for: CheckedSafeIntAsWord64 missing check_safe_integer flag in Truncation"
+      },
+      {
+        "file": "src/compiler/simplified-lowering.cc",
+        "function": "SetAndCheckInput",
+        "reason": "Related location for: CheckedSafeIntAsWord64 missing check_safe_integer flag in Truncation"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__417385084__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "0d6a02b5b0339ef40395dc71cf8b4d7e73559740",
+    "diff_stats": {
+      "files_changed": 5,
+      "lines_changed": 58
+    }
+  }
+}

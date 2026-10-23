@@ -1,0 +1,33 @@
+{
+  "bug_id": "1947640",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "6e19f14c7b1b3bc5dfdb10b473683dda2ba051b0",
+    "parent": "55f7d3d0bf91292c9e5151d2bcf93c3e992eef4b",
+    "fix": "84a9dbea3299eab32a9d140a88be7f0fba2ab080"
+  },
+  "affected_files": [
+    "dom/xslt/xslt/txMozillaXSLTProcessor.cpp",
+    "dom/xslt/xslt/txMozillaXSLTProcessor.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer browser builds succeeded and were run with the same /poc/crashtests.list, poc_crash.html, and run.sh command. pre_intro exited 0 with POC_WEAK_ALIVE_AFTER_CC=false and POC_MUTATION_COMPLETE, with no sanitizer report. post_intro cleared the WeakRef, then the first stylesheet attribute mutation produced an AddressSanitizer heap-use-after-free in mozilla::dom::MutationObservers::NotifyAttributeWillChange / DoublyLinkedList iteration; the content process aborted on signal 6 and t",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three sanitizer browser builds succeeded and were run with the same /poc/crashtests.list, poc_crash.html, and run.sh command. pre_intro exited 0 with POC_WEAK_ALIVE_AFTER_CC=false and POC_MUTATION_COMPLETE, with no sanitizer report. post_intro cleared the WeakRef, then the first stylesheet attribute mutation produced an AddressSanitizer heap-use-after-free in mozilla::dom::MutationObservers::NotifyAttributeWillChange / DoublyLinkedList iteration; the content process aborted on signal 6 and the harness exited 245. post_benign again cleared the WeakRef, completed all mutations, and exited 0 ",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1947640.json"
+  },
+  "final_disposition": "verified"
+}

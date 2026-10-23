@@ -1,0 +1,60 @@
+{
+  "bug_id": "439986081",
+  "title": "[module] Fix bug with uninitialized CycleRoot property",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "v8",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public V8 fixing commit https://github.com/v8/v8/commit/aea6f2fc95c69e2a9932a6384b6d52b8f79c9718\nNumeric Bug footer: 439986081\n\n[module] Fix bug with uninitialized CycleRoot property\n\nThis CL prevents a type confusion (hole leak) arising when an async\nparent module depends on an async child but also fails synchronously.\n\nIt also contains a tiny polishing in d8.cc.\n\nBug: 439986081\nChange-Id: I5c05e94d6944dab150c075407eeb19cdbdb0af79\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6895977\nCommit-Queue: Nikolaos Papaspyrou <nikolaos@chromium.org>\nReviewed-by: Leszek Swirski <leszeks@chromium.org>\nCr-Commit-Position: refs/heads/main@{#102127}\n\n\nThe issue page has not been fetched; its public accessibility and case-level security impact require review before task construction.",
+  "commit_ids": [
+    "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718"
+  ],
+  "fix_commit_sha": "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+  "fix_date": "2025-08-29T03:54:10-07:00",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "season": "2025H2",
+  "affected_files": [
+    "src/d8/d8.cc",
+    "src/objects/source-text-module.cc"
+  ],
+  "changed_lines": 15,
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "439986081",
+      "url": "https://issues.chromium.org/issues/439986081",
+      "kind": "numeric_bug_footer",
+      "evidence": "Bug: 439986081"
+    }
+  ],
+  "candidate_status": "numeric_bug_footer_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_commit_note": "async module error path can leak the hole through type confusion",
+    "untrusted_input_boundary_proven": false,
+    "issue_public_access_checked": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_v8_numeric_bug_footer_v1",
+    "source_url": "https://github.com/v8/v8/commit/aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+    "linked_issue_url": "https://issues.chromium.org/issues/439986081",
+    "report_details": "not_fetched",
+    "public_commit_url": "https://github.com/v8/v8/commit/aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v4-targeted/v8-numeric-bug-footer-v1/raw/git/aea6f2fc95c69e2a9932a6384b6d52b8f79c9718.commit",
+      "sha256": "7e5c3df7317a9509003f45be3af731fadee14ce8182c6db56c8eb2feed76bbaf"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v4-targeted/v8-numeric-bug-footer-v1/raw/git/aea6f2fc95c69e2a9932a6384b6d52b8f79c9718.patch",
+      "sha256": "1da5fde54e2514cd0ff2212c1414019fa7cf2768a9bc4dd7c343b09f21a57f0f"
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "f1d2db6bb88aa249853e11bc2a654d37aa6bdac1",
+    "fix_sha": "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+    "manual_review_note": "async module error path can leak the hole through type confusion"
+  }
+}

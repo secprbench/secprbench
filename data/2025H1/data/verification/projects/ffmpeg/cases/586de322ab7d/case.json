@@ -1,0 +1,36 @@
+{
+  "bug_id": "586de322ab7d",
+  "project": "ffmpeg",
+  "bug_type": "DataRace",
+  "commits": {
+    "intro": "89828417b0629400cf66ba6dec333281dbdbdca8",
+    "parent": "0fb0946de7d35e4d0c1455b82a04f8833106260e",
+    "fix": null
+  },
+  "affected_files": [
+    "libavcodec/threadprogress.c",
+    "libavcodec/threadprogress.h"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "The intro commit introduces threadprogress.c with ff_thread_progress_report() performing atomic_store_explicit(..., memory_order_release) OUTSIDE ff_mutex_lock(), while ff_thread_progress_await()'s slow path reads progress with memory_order_relaxed INSIDE the mutex. This breaks the synchronization guarantee for non-atomic shared data gated by progress \u2014 no mutex-based happens-before covers the store. post_benign moves the store inside the mutex, restoring correctness. However, since both accesse",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "tsan",
+    "environment": "anypoc-ffmpeg Docker image (has /opt/ffmpeg full-history checkout, clang 14 with libtsan, config.h already generated). No custom Dockerfile needed. All builds run via `docker run --rm --cpus 8 --memory 16g`.",
+    "parent": "0fb0946de7d35e4d0c1455b82a04f8833106260e: libavcodec/threadprogress.c and threadprogress.h do not exist yet (git checkout confirms ls fails). Feature-absent, not a clean-vs-buggy control -- correctly not scored as 'clean'.",
+    "intro": "89828417b0629400cf66ba6dec333281dbdbdca8: threadprogress.c/.h added with ZERO callers anywhere in the tree at this commit (confirmed via git grep across the whole checkout) -- so no ffmpeg-CLI-reachable bitstream (VP9 or otherwise) triggers this code at the exact intro revision; the decoder wiring described in the ground truth's VP9 narrative lands in later commits. Compiled the unmodified libavcodec/threadprogress.c with clang -fsanitize=thread -O1 and drove it directly with a 16-pair writer/reader harness calling the real ff_thread_progress_report()/await() API (bypassing the not-yet-existent decoder wiring, since the race lives entirely inside these two functions regardless of caller). TSan reported the data race in all 3 repeated runs.",
+    "benign": "Applied the real upstream fix commit 586de322ab7da5e689aedb2013fd8d36f4155141 ('threadprogress: reorder instructions to fix race. Fixes #11456.') via `git checkout 586de322ab7d... -- libavcodec/threadprogress.c` on top of the intro tree (incremental, single-file rebuild). This is the SAME commit hash as the dataset's own bug_id -- the dataset's fix_commit_sha field is recorded as null, but the true fix exists upstream and its diff matches the ground_truth root_cause/suggestion verbatim (moves atomic_store_explicit inside ff_mutex_lock). 0 TSan warnings in all 3 repeated runs.",
+    "evidence": "Intro (representative run, harness.c line numbers as built): 'WARNING: ThreadSanitizer: data race ... Read of size 8 ... by thread T3: #0 reader_thread /work/harness.c:119:17 ... Previous write of size 8 ... by thread T4: #0 writer_thread /work/harness.c:100:34 ... SUMMARY: ThreadSanitizer: data race /work/harness.c:119:17 in reader_thread'. harness.c:100 is the writer's non-atomic payload write immediately preceding ff_thread_progress_report(); harness.c:119 is the reader's read of that same payload immediately after ff_thread_progress_await() returns. This is precisely the missing happens-before edge the ground truth's finding describes (release-store outside the mutex + relaxed re-check i",
+    "poc_source": "constructed",
+    "reason": "The dataset's bug_id (586de322ab7d) is literally the short hash of the real upstream fix commit for this defect, and its fix_commit_sha field is null even though the true fix is findable and matches the ground truth's root_cause/suggestion exactly -- almost certainly a dataset bookkeeping error (fix commit hash reused as bug_id, true fix_commit_sha left unpopulated) rather than an attribution error in WHICH defect or WHICH intro commit is implicated. Separately, and more consequentially for reproduction method: at the labelled intro commit, threadprogress.c/.h are dead code with zero callers, so no decoding of any file via the ffmpeg CLI can reach ff_thread_progress_report/await at that exact revision -- the VP9 frame-threading scenario in the ground truth describes how the bug eventually manifests in later history, not something reachable at 89828417b itself. Rather than treat this as a",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/ffmpeg__586de322ab7d/result.json"
+  },
+  "final_disposition": "verified"
+}

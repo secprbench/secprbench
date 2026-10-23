@@ -1,0 +1,32 @@
+{
+  "bug_id": "1974596",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "a1c509458615929e73a8548860d9c40428c15d96",
+    "parent": "a7fed60e37fc1c99f55a29111c43f8d6d1739811",
+    "fix": "94bca7f8515fa1b68abf50ad89520bdf650837b3"
+  },
+  "affected_files": [
+    "gfx/webrender_bindings/RendererOGL.cpp"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "All three configured sanitizer browser builds were available and their target revisions/paired patch were preserved. With no packaged PoC, I added a harness under /poc that enables WebRender and View Transitions, repeatedly calls document.startViewTransition(), plays a local looping video, renders WebGL, and opens/closes six popup windows to stress offscreen rendering and GL-context switching on an NVIDIA RTX A6000 using proprietary driver 565.57.01 under isolated X11/EGL. The exact same /poc/ru",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "inconclusive",
+    "method": "firefox-verify (era 1.82.0, agent)",
+    "intro_verified": null,
+    "benign_verified": null,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three configured sanitizer browser builds were available and their target revisions/paired patch were preserved. With no packaged PoC, I added a harness under /poc that enables WebRender and View Transitions, repeatedly calls document.startViewTransition(), plays a local looping video, renders WebGL, and opens/closes six popup windows to stress offscreen rendering and GL-context switching on an NVIDIA RTX A6000 using proprietary driver 565.57.01 under isolated X11/EGL. The exact same /poc/run.sh and assets were run for 180 seconds on pre_intro, post_intro, and post_benign; every run ended ",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1974596.json"
+  },
+  "final_disposition": "inconclusive"
+}

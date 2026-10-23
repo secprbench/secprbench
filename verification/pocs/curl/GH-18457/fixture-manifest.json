@@ -1,0 +1,11 @@
+{
+  "identity": "curl/GH-18457",
+  "input_sha256": {
+    "cookie-race-remote.cpp": "5d2f2cfa8a13177d4ab752816d060ca6c914eec4f4483cd547bf4e81319e433d",
+    "remote-cookie.poc": "ef6cb4303ac89c0ba3be7031cee2d87ec646199c8535a09085b97a9d60386a32"
+  },
+  "original_reporter_poc_sha256": "0594d59b2c2f24bd82ef362d47e2ca32628bcd9ac2ff34375d1f5a974a4f887d",
+  "same_input_all_versions": true,
+  "schema_version": 1,
+  "source_record_sha256": "81310823783f077785206ecdf24c7b491af89b6e85f54b01aeaefa2cc3604f94"
+}

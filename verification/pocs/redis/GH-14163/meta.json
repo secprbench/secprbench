@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_GH-14163",
+  "bug_id": "GH-14163",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "aa856b39f2ca65dbcc0eaae2d2c52f7a35291bbf",
+  "intro_parent": "9f30dd03cd136eda00f5eb82f28f503452fdd11a",
+  "fix_commit": "4322cebc1764d433b3fce3b3a108252648bf59e7",
+  "affected_files": [
+    "src/script_lua.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_a436586224a8b4ca_scripting.tcl: tests/unit/scripting.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "Missing else/default-value handling for the 'err' table field in luaExtractErrorInformation(): the code only assigns err_info->msg inside the `if (lua_isstring(lua, -1))` branch, with no fallback for the case where the error table lacks an 'err' field or the field's type is not a string, so the caller's zero-initialized NULL msg pointer propagates downstream unchecked.",
+  "findings": [
+    "luaExtractErrorInformation() is invoked whenever a Lua script (EVAL/EVALSHA/FCALL) raises an error whose Lua error object is a table (as opposed to a plain string). The function reads the table's 'err' field and, only if it is a Lua string, sets err_info->msg. If the 'err' field is absent or is not a string (e.g. the script returns an empty table such as `error{}`, or `err` is a number/boolean/tab"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "658ee50600aef1f8b8ede70ca9933f306e3aa4bcb8d63e48a56ab7cbda205f06",
+  "generated_artifact_sha256": {
+    "reference": "7373f2a6e6f6583c4808bb1c7649b7fc1995d2fa6e68398ccba60aa95605f545",
+    "introducing": "ba4402d17d894d1d37476e37d4baf7882e407c044f62535db7bd5df08bef94e6",
+    "companion": "371858f909a191829030fe2b5491ebf47b8252392b8e1aa835e490105d27fa45"
+  }
+}

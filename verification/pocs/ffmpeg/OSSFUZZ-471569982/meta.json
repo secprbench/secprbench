@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-471569982",
+  "bug_id": "OSSFUZZ-471569982",
+  "bug_type": "LogicError",
+  "intro_commit": "589b3ed943d46ba163cea383634d67319af11cba",
+  "intro_parent": "5674879db5ea411b42e55c3906fa586f540bf637",
+  "fix_commit": "be1fd6d9d4b1e6371c1e0852168d728aaecb71b2",
+  "affected_files": [
+    "libavcodec/prores_raw.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The initial ProRes RAW decoder implementation (decode_comp) assumed that every tile, including the rightmost/edge tiles, has a visible width of at least 16 pixels (enough to produce at least one 8x-wide block for the clz-based log2 computation), but no validation enforces this assumption on attacker-controlled width/tile values, allowing nb_blocks to become 0 and reach an invalid __builtin_clz(0) call.",
+  "findings": [
+    "In decode_comp(), the local visible tile width is computed as `w = FFMIN(s->tw, avctx->width - tile->x) / 2`, and then `nb_blocks = w / 8` is derived from it. `nb_blocks` is subsequently passed to `ff_clz()` (which wraps `__builtin_clz`) via `log2_nb_blocks = 31 - ff_clz(nb_blocks)`. `__builtin_clz(0)` is undefined behavior per the GCC/Clang documentation because it does not have a well-defined re"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "068fc6137ee1bf42ba1e09c40f9e31a6c4822c3e5da3e488aaae51606cc2f233",
+  "generated_artifact_sha256": {
+    "reference": "f6c36a2c72505c1b31d6d31c661bbb73fafd72279df13d871776988e96e37a39",
+    "introducing": "eca9a8d5c1ea12417fda135b640d31a28cab5e654163907b9b88e00bc7f4b99a",
+    "companion": "4bb49c6cc12ce91367861fa03506bf90af6d3b168debd880deb87d66a297fe9a"
+  }
+}

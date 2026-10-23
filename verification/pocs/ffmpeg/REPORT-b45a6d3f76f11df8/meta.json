@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-b45a6d3f76f11df8",
+  "bug_id": "REPORT-b45a6d3f76f11df8",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "5fc9c79f53d799f76a8f69e5821ad0a5867512b0",
+  "intro_parent": "648b5d017d0478a0cd30f3753ab556b7721ff2b6",
+  "fix_commit": "b45a6d3f76f11df8adaf167b291102b899f125f8",
+  "affected_files": [
+    "libavcodec/adpcm.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The ADPCM_N64 decoder trusts filter coefficient values loaded from codec extradata (attacker-controlled) and multiplies them with decoded sample codes using plain signed 'int' arithmetic without any range validation or use of unsigned/wider arithmetic, allowing the product to exceed INT_MAX/underflow INT_MIN, which is undefined behavior in C.",
+  "findings": [
+    "In the ADPCM_N64 decoder's sample reconstruction loop, the predictor 'delta' accumulates a running sum from multiplying decoded sample codes (sf_codes[]) with signed filter coefficients (coefs[]) taken directly from untrusted extradata. The multiplication 'sf_codes[(i-1) - k] * coefs[(o*8) + k]' is performed entirely in 'int' (signed) arithmetic. Because coefs[] values are attacker-controlled 16-b"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "2004a8a3a01039d2396645e529fac8b5d720e0db11eb84356071d5ddfd4a4fdc",
+  "generated_artifact_sha256": {
+    "reference": "693ae95af3a402dcc7fe2790ee6ab20fbaaf1cc814890e70434fcd9d7830792c",
+    "introducing": "bb003f8754f6ab80b651893e94a6ca5e74924e9d0533c4fd56445c6afbb4f841",
+    "companion": "7f62b05a2ca7c7f0f8c44bb1f9046054c7aed458cdb4dc896377ca568f301f98"
+  }
+}

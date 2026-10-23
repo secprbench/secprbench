@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-504281984",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "2d241202fffd32df1b5992197e622f298d3d029d",
+    "parent": "6c83bcadbbdbec8e2b8cf156de3e8bcc4e6c880a",
+    "fix": "054dffd13368f8d7d024dbdfdce7454e6e547c5f"
+  },
+  "affected_files": [
+    "libavcodec/bsf/dts2pts.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Ground truth per meta.json: intro commit 2d241202fffd adds the HEVC branch of the dts2pts BSF, whose hevc_queue_frame() detects a POC that requires \"decrementing\" previously queued AVTree nodes in the same GOP and does so by calling av_tree_enumerate() with a comparator (same_gop) that only compares the `gop` field while the tree is actually ordered by (poc, gop) via cmp_insert. Because av_tree_enumerate's traversal pruning trusts the comparator to be consistent with the tree's real order, and directly mutates node->poc in dec_poc() while the node remains linked at its stale sort position, repeated/interleaved decrement events (achievable by feeding many NAL units whose slice_pic_order_cnt_lsb repeatedly forces poc < s->nb_frame within the same GOP) desynchronize the tree from its cmp_insert invariant. A later av_tree_insert() (called from dts2pts_filter's receive-side restore loop) then walks the corrupted structure and dereferences a wild pointer inside cmp_insert, exactly matching the original OSS-Fuzz report's crash state (cmp_insert <- av_tree_insert <- av_tree_insert, heap-buffer-overflow READ 4).\n\nI verified this by building a harness that talks to the real ff_dts2pts_bsf filter through the public AVBSFContext API (same interface as tools/target_bsf_fuzzer.c), synthesizing a minimal valid HEVC bitstream via FFmpeg's own CBS writer (so no bit-level hand-crafting of NAL headers was needed), and randomized-searching over (nal_unit_type, slice_pic_order_cnt_lsb) sequences until the exact cmp_insert/av_tree_insert crash signature appeared; the sequence was then delta-debug-minimized to 108 NAL units. Running the identical reproducer (/poc/run.sh, using /poc/crash_seq.txt) against the three builds:\n- pre_intro: dts2pts at that revision has no HEVC support at all (codec_ids={H264}), so av_bsf_init fails immediately and cleanly; the harness treats this as the expected non-crashing outcome and exits 0 -- the bug and the feature it lives in are both absent, confirming the regression was introduced together with the HEVC path.\n- post_intro: reliably reproduces the exact OSS-Fuzz crash signature (SEGV/heap-buffer-overflow read in cmp_insert via nested av_tree_insert).\n- post_benign: completes cleanly with the same input, no crash, no sanitizer report, exit 0 -- the fix (which replaces the enumerate+in-place-mutate with a bounded collect_same_gop() pass followed by proper remove/reinsert of each node) eliminates the tree corruption for this exact reproducer.\n\nNote found during exploration (not part of the recorded reproducer): larger/more chaotic variants of the same search approach also crash post_benign, but via a completely different, non-memory-safety failure: an explicit av_assert0(c.count <= c.max) in the fix's own collect_same_gop() bounded-buffer safety check (dts2pts.c:462), a distinct, intentional defensive bound (HEVC_MAX_DPB_SIZE*2) unrelated to the labelled AVTree-invariant defect. The final, minimized 108-NAL reproducer recorded here does not trigger that assertion at all on post_benign (clean exit 0), so it cleanly isolates just the originally-labelled defect without ambiguity.\n\nAlthough the task labels this LogicError, the actual, reproducible regression is a memory-safety violation (an AVTree invariant violation causing a wild-pointer read), which is exactly how the original OSS-Fuzz issue itself was classified (Heap-buffer-overflow READ 4) and exactly the crash signature reproduced here, so intro_verified=yes and benign_verified=yes with bug_class=memory-safety.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/c769cbefa1b2ad529a31/attempts/03/replay/pr_review_OSSFUZZ-504281984.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/c769cbefa1b2ad529a31/attempts/03/replay/pr_review_OSSFUZZ-504281984.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/c769cbefa1b2ad529a31/attempts/03/replay/pr_review_OSSFUZZ-504281984.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "844ade659cd2fbc9604b5fe43e111095d85ae1e4a8108936ed1614219e776df0",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "2d241202fffd32df1b5992197e622f298d3d029d",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "912aae0ea597aa530ac4663f102088a11f3a376cadce7f8f94053dd38f750b65"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==13==ERROR: AddressSanitizer: SEGV on unknown address 0x01817fff80fe (pc 0x55e1cac5a6e6 bp 0x7ffc8fabe7d0 sp 0x7ffc8fabe7d0 T0)\n==13==The signal is caused by a READ memory access.\n    #0 0x55e1cac5a6e6 in cmp_insert /work/libavcodec/bsf/dts2pts.c:99:78\n    #1 0x55e1cc3bfa56 in av_tree_insert /work/libavutil/tree.c:64:26\n    #2 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #3 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #4 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #5 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #6 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #7 0x55e1cac55e33 in dts2pts_filter /work/libavcodec/bsf/dts2pts.c:652:17\n    #8 0x55e1cac53510 in av_bsf_receive_packet /work/libavcodec/bsf.c:232:12\n    #9 0x55e1cac52317 in send_au /poc/poc.c:261:19\n    #10 0x55e1cac5181d in main /poc/poc.c:343:15\n    #11 0x7f93a7cd2d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7f93a7cd2e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x55e1cab933d4 in _start (/tmp/dts2pts_poc+0x4573d4) (BuildId: d679578e88384d9b284cfd39f3113570cbc009d9)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/bsf/dts2pts.c:99:78 in cmp_insert\n==13==ABORTING\n/poc/run.sh: line 27:    13 Aborted                 ASAN_OPTIONS=\"${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}\" POC_LOGLEVEL=\"${POC_LOGLEVEL:-16}\" /tmp/dts2pts_poc \"$SEQ\"\n",
+            "stdout_tail": "VERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==13==ERROR: AddressSanitizer: SEGV on unknown address 0x01817fff80fe (pc 0x55e1cac5a6e6 bp 0x7ffc8fabe7d0 sp 0x7ffc8fabe7d0 T0)\n==13==The signal is caused by a READ memory access.\n    #0 0x55e1cac5a6e6 in cmp_insert /work/libavcodec/bsf/dts2pts.c:99:78\n    #1 0x55e1cc3bfa56 in av_tree_insert /work/libavutil/tree.c:64:26\n    #2 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #3 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #4 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #5 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #6 0x55e1cc3bfa85 in av_tree_insert /work/libavutil/tree.c:81:15\n    #7 0x55e1cac55e33 in dts2pts_filter /work/libavcodec/bsf/dts2pts.c:652:17\n    #8 0x55e1cac53510 in av_bsf_receive_packet /work/libavcodec/bsf.c:232:12\n    #9 0x55e1cac52317 in send_au /poc/poc.c:261:19\n    #10 0x55e1cac5181d in main /poc/poc.c:343:15\n    #11 0x7f93a7cd2d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7f93a7cd2e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x55e1cab933d4 in _start (/tmp/dts2pts_poc+0x4573d4) (BuildId: d679578e88384d9b284cfd39f3113570cbc009d9)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavcodec/bsf/dts2pts.c:99:78 in cmp_insert\n==13==ABORTING\n/poc/run.sh: line 27:    13 Aborted                 ASAN_OPTIONS=\"${ASAN_OPTIONS:-detect_leaks=0:abort_on_error=1}\" POC_LOGLEVEL=\"${POC_LOGLEVEL:-16}\" /tmp/dts2pts_poc \"$SEQ\"\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "844ade659cd2fbc9604b5fe43e111095d85ae1e4a8108936ed1614219e776df0",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "6c83bcadbbdbec8e2b8cf156de3e8bcc4e6c880a",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "55744fa80a6fe6f95b9601970313afae7bdf6127d84a69a6fcb3f6a75e5ba12d"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n[dts2pts @ 0x608000000020] Codec 'hevc' (173) is not supported by the bitstream filter 'dts2pts'. Supported codecs are: h264 (27) \nav_bsf_init failed: -22 (dts2pts does not accept HEVC on this revision -- expected pre-introduction behavior)\n[poc] done, no crash\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "844ade659cd2fbc9604b5fe43e111095d85ae1e4a8108936ed1614219e776df0",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "6c83bcadbbdbec8e2b8cf156de3e8bcc4e6c880a",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "3d509aee841c49febd2523c76e3dd62ef32f06c8fe51ffee72dc10c7bcfd20bb"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n[poc] done, no crash\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "AddressSanitizer/DEADLYSIGNAL report: SEGV (READ) in cmp_insert at libavcodec/bsf/dts2pts.c:99, reached through a 5-deep recursive av_tree_insert call chain from dts2pts_filter (dts2pts.c:652), itself called from av_bsf_receive_packet. This matches the original OSS-Fuzz crash state exactly (cmp_insert <- av_tree_insert <- av_tree_insert, heap-buffer-overflow READ 4), confirming the AVTree invariant violation from mutating DTS2PTSNode.poc in place during av_tree_enumerate (the same_gop/dec_poc pattern) while the node stays linked in the tree.",
+        "target_evidence": "post_intro (commit 2d241202fffd, which newly adds the HEVC path to dts2pts.c including hevc_queue_frame()'s buggy same_gop/dec_poc enumerate-and-mutate pattern): run.sh -> ASan SEGV in cmp_insert via nested av_tree_insert, process aborts (SIGABRT under ASan), identical call-chain to the OSS-Fuzz report.\npre_intro (commit 6c83bcadbbdb, parent): dts2pts.c at this revision only supports H264 (dts2pts_codec_ids = {H264}); av_bsf_init cleanly fails with 'Codec hevc (173) is not supported by the bitstream filter dts2pts', harness reports this expected outcome and exits 0, no crash -- the HEVC feature (and its bug) does not exist yet, so the same reproducer cannot reach any bug.\npost_benign (fix applied): run.sh completes cleanly with '[poc] done, no crash', exit 0 -- the fix's collect_same_gop()+remove/reinsert approach (replacing the raw enumerate+in-place-mutate) no longer corrupts the tree for this exact input."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Ground truth per meta.json: intro commit 2d241202fffd adds the HEVC branch of the dts2pts BSF, whose hevc_queue_frame() detects a POC that requires \"decrementing\" previously queued AVTree nodes in the same GOP and does so by calling av_tree_enumerate() with a comparator (same_gop) that only compares the `gop` field while the tree is actually ordered by (poc, gop) via cmp_insert. Because av_tree_enumerate's traversal pruning trusts the comparator to be consistent with the tree's real order, and directly mutates node->poc in dec_poc() while the node remains linked at its stale sort position, repeated/interleaved decrement events (achievable by feeding many NAL units whose slice_pic_order_cnt_lsb repeatedly forces poc < s->nb_frame within the same GOP) desynchronize the tree from its cmp_insert invariant. A later av_tree_insert() (called from dts2pts_filter's receive-side restore loop) then walks the corrupted structure and dereferences a wild pointer inside cmp_insert, exactly matching the original OSS-Fuzz report's crash state (cmp_insert <- av_tree_insert <- av_tree_insert, heap-buffer-overflow READ 4).\n\nI verified this by building a harness that talks to the real ff_dts2pts_bsf filter through the public AVBSFContext API (same interface as tools/target_bsf_fuzzer.c), synthesizing a minimal valid HEVC bitstream via FFmpeg's own CBS writer (so no bit-level hand-crafting of NAL headers was needed), and randomized-searching over (nal_unit_type, slice_pic_order_cnt_lsb) sequences until the exact cmp_insert/av_tree_insert crash signature appeared; the sequence was then delta-debug-minimized to 108 NAL units. Running the identical reproducer (/poc/run.sh, using /poc/crash_seq.txt) against the three builds:\n- pre_intro: dts2pts at that revision has no HEVC support at all (codec_ids={H264}), so av_bsf_init fails immediately and cleanly; the harness treats this as the expected non-crashing outcome and exits 0 -- the bug and the feature it lives in are both absent, confirming the regression was introduced together with the HEVC path.\n- post_intro: reliably reproduces the exact OSS-Fuzz crash signature (SEGV/heap-buffer-overflow read in cmp_insert via nested av_tree_insert).\n- post_benign: completes cleanly with the same input, no crash, no sanitizer report, exit 0 -- the fix (which replaces the enumerate+in-place-mutate with a bounded collect_same_gop() pass followed by proper remove/reinsert of each node) eliminates the tree corruption for this exact reproducer.\n\nNote found during exploration (not part of the recorded reproducer): larger/more chaotic variants of the same search approach also crash post_benign, but via a completely different, non-memory-safety failure: an explicit av_assert0(c.count <= c.max) in the fix's own collect_same_gop() bounded-buffer safety check (dts2pts.c:462), a distinct, intentional defensive bound (HEVC_MAX_DPB_SIZE*2) unrelated to the labelled AVTree-invariant defect. The final, minimized 108-NAL reproducer recorded here does not trigger that assertion at all on post_benign (clean exit 0), so it cleanly isolates just the originally-labelled defect without ambiguity.\n\nAlthough the task labels this LogicError, the actual, reproducible regression is a memory-safety violation (an AVTree invariant violation causing a wild-pointer read), which is exactly how the original OSS-Fuzz issue itself was classified (Heap-buffer-overflow READ 4) and exactly the crash signature reproduced here, so intro_verified=yes and benign_verified=yes with bug_class=memory-safety."
+    }
+  },
+  "task_hashes": {
+    "buggy": "530f3637ba6b9166e2a03550c7ce91d83d2bff8523fe9935970eb3b6a51652c8",
+    "benign": "7f0cd4f9a3aa5141dbe37ae4d19e7b4b388b370eb4d935c0b7e94566c7e2fed3"
+  }
+}

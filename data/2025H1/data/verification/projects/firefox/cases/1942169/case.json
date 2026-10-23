@@ -1,0 +1,32 @@
+{
+  "bug_id": "1942169",
+  "project": "firefox",
+  "bug_type": "RaceCondition",
+  "commits": {
+    "intro": "a0f1dba96115ff498f0ecfc882b1bd96d273b186",
+    "parent": "5abed69e0fdaa932ee7c95f4bf23c7ff5e0173bd",
+    "fix": "c0937884a03699e60bf4c96fa63431576913dd6b"
+  },
+  "affected_files": [
+    "dom/serviceworkers/ServiceWorkerContainer.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured ASan browser builds succeeded. With the identical PoC and command, pre_intro completed all 20x8 dedicated-worker waves and reached the finite 35s timeout with crashed=False and no sanitizer report. post_intro reproducibly returned exit=139, crashed=True with AddressSanitizer: SEGV reading address 0x10 on T0; the stack entered JS baseline execution and EventHandlerNonNull::Call while service-worker messages were being sent to dedicated-worker clients, matching the wrong-main-",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three configured ASan browser builds succeeded. With the identical PoC and command, pre_intro completed all 20x8 dedicated-worker waves and reached the finite 35s timeout with crashed=False and no sanitizer report. post_intro reproducibly returned exit=139, crashed=True with AddressSanitizer: SEGV reading address 0x10 on T0; the stack entered JS baseline execution and EventHandlerNonNull::Call while service-worker messages were being sent to dedicated-worker clients, matching the wrong-main-thread dispatch root cause. post_benign completed the same full workload to the finite timeout with ",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1942169.json"
+  },
+  "final_disposition": "verified"
+}

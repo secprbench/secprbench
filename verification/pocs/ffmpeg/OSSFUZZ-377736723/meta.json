@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-377736723",
+  "bug_id": "OSSFUZZ-377736723",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "9cfc7a244052dced520776ff0ecc6f0a9390f62b",
+  "intro_parent": "6b7e4de0dbc78a630bfea27e917798b4d5b61abf",
+  "fix_commit": "02958ab7156b4e14f1918f2b72c6d3678852698f",
+  "affected_files": [
+    "libavformat/mov.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The max_stts_delta feature (added in commit 9cfc7a2440) introduced accumulation of two independently-growing int64_t DTS trackers (current_dts, corrected_dts) driven directly by untrusted 32-bit file fields, and then performed unchecked signed subtraction between them to derive a 'drift' correction value without validating that the operands stay within a range where the subtraction cannot overflow int64_t.",
+  "findings": [
+    "In mov_read_stts(), when processing the 'stts' (sample-to-time) atom, the code accumulates current_dts and corrected_dts as int64_t values based on attacker/file-controlled sample_duration and sample_count fields. When current_dts exceeds corrected_dts, the code computes 'drift = (current_dts - corrected_dts) / FFMAX(sample_count, 1)' using plain signed subtraction. Because corrected_dts can be ad"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "661fb2e932f6dddc835074ca8b7c94e49f8f6493e26c76cbb132a7661d780f9f",
+  "generated_artifact_sha256": {
+    "reference": "bf280eba57c8d73ef51f818c2f70907d83691c6e0684c81f7311ab1f8a534aae",
+    "introducing": "23c18983bd856888272fe354804b0203fcf5bfa29b112484429088146e5de05e",
+    "companion": "de652bf86a511a6d154c15308e94d363ddd7ac7cb86fae3fbaf1f0c4f36d94c5"
+  }
+}

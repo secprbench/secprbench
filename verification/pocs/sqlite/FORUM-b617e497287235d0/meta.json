@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_FORUM-b617e497287235d0",
+  "bug_id": "FORUM-b617e497287235d0",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "9dcf3d08c9edc0c30e07a6a06f9d0dd73bfad529",
+  "intro_parent": "0424f255efb2aaa89e29a265683fd260da2b94c7",
+  "fix_commit": "66cd200ede04bbe2c44729c3a4c55433430c4214",
+  "affected_files": [
+    "src/vdbeapi.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "sqlite",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_48134fa4970b7ce6_hook.test: test/hook.test"
+  ],
+  "input_name": null,
+  "root_cause": "A refactor introduced a call to sqlite3TableColumnToStorage(), a helper whose safety contract requires the caller to pre-validate the column index against pTab->nCol (enforced only via a debug assert), without adding that validation at the call site in the public preupdate API. The caller (sqlite3_preupdate_old) incorrectly assumed the callee would perform range checking, while the callee assumed the caller already had.",
+  "findings": [
+    "sqlite3_preupdate_old() takes a caller-supplied column index `iIdx` and, when the table has no rowid alias handled via pPk, passes it directly to sqlite3TableColumnToStorage(p->pTab, iIdx) without first verifying that `iIdx` is within `[0, p->pTab->nCol)`. sqlite3TableColumnToStorage() only guards this precondition with `assert(iCol<pTab->nCol)`, which is compiled out in release (NDEBUG) builds. I"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "5cca188add4ba0513c61f4e65b836224754767f972e7e7e744daddfb91acdf06",
+  "generated_artifact_sha256": {
+    "reference": "f0e07d4fd2e665b205eadfa598607be8dc08e7ebb590a765619381afbe3a86f1",
+    "introducing": "f6597a1a593b91a14b4e7a4e4c5e342781a4c82e7642e3edc38ddfd3f7ae0a6b",
+    "companion": "8c00798d1d2ef9e67914e2f4d43ae6fe1bc6aade667eab21afaddb29ac488235"
+  }
+}

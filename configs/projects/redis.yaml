@@ -1,0 +1,85 @@
+name: redis
+repo_url: https://github.com/redis/redis.git
+project:
+  name: redis
+  display_name: Redis
+  repo: redis/redis
+  language: C
+context:
+  description: 'Redis is an in-memory key-value data store that speaks the RESP protocol
+
+    over TCP. The core server is written in C with custom allocators
+
+    (zmalloc/zfree/zrealloc), embedded Lua scripting (EVAL/EVALSHA), a stream
+
+    engine (XADD/XREAD/XACKDEL), a modules API, replication, and a redis-cli
+
+    plus supporting tools (redis-check-aof, redis-check-rdb, redis-sentinel).
+
+    '
+  input_sources: 'RESP-protocol commands from network clients (many via multi-bulk
+    framing),
+
+    RDB and AOF persistence files parsed at startup or restore time, RESTORE
+
+    command payloads with serialized values, Lua scripts submitted through
+
+    EVAL/EVALSHA, ACL rule strings, cluster-bus messages between nodes,
+
+    replication streams from a master, and configuration files (redis.conf).
+
+    '
+  assertion_macros: "serverAssert(), serverAssertWithInfo(), serverPanic(), redisAssert()\
+    \ \u2014\nthese abort the server process in production builds. They are hard\n\
+    guards: reaching one is already a denial-of-service and MUST be treated\nas a\
+    \ bug, not as a safety net. debugCommand() paths are only reachable\nwhen the\
+    \ DEBUG command is enabled.\n"
+  common_bug_types:
+  - UseAfterFree (Lua GC interactions, client eviction while re-executing blocked
+    commands, replica flows)
+  - BufferOverflow (RESTORE deserialization, hyperloglog encoding, XAUTOCLAIM/XACKDEL
+    argument handling)
+  - IntegerOverflow (length prefixes in RESP framing, STREAM entry counts, intset/ziplist
+    sizing)
+  - OutOfBoundsRead (Lua library helpers, RDB record parsing, listpack traversal)
+  - NullPointerDereference (missing NULL checks after dict lookups or client->argv
+    access)
+  - LogicError (ACL/rule bypasses, permission checks skipped on subcommands, SORT/SORT_RO
+    variance)
+  - StackOverflow (redis-check-aof recursion, deeply nested command parsing, XACKDEL
+    edge cases)
+  - DenialOfService (unbounded output buffers, pattern matching, connection error
+    handling)
+  file_patterns:
+  - src/**/*.c
+  - src/**/*.h
+  - deps/lua/src/*.c
+  - deps/hiredis/*.c
+verify:
+  name: redis
+  image: anypoc-common:latest
+  repo_url: https://github.com/redis/redis.git
+  build_script: 'set -e
+
+    cd /work
+
+    make -j"${CGSA_BUILD_JOBS:-8}" CC=clang MALLOC=libc OPTIMIZATION="-O1" DISABLE_WERRORS=yes
+    CFLAGS="-g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
+    -fcommon" LDFLAGS="-fsanitize=address,undefined" > build_compile.log 2>&1
+
+    '
+  harness_source: null
+  harness_build: ''
+  run_cmd: echo "Redis verification requires a per-task /poc/run.sh" >&2; exit 2
+  build_artifacts:
+  - src/redis-server
+  - src/redis-cli
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 1800
+  run_timeout: 180
+  build_network: none
+  build_cache: false
+  build_git_mounts: false
+  build_support_files: []

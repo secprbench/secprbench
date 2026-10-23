@@ -1,0 +1,33 @@
+{
+  "bug_id": "1954042",
+  "project": "firefox",
+  "bug_type": "OutOfBoundsWrite",
+  "commits": {
+    "intro": "48288b4c786e49f58d240cfeeff781eb3de56830",
+    "parent": "7e11809d503b1f6e901cf48c3551b89cf10d2b9f",
+    "fix": "6b603bdec9df0ca11d5e46203aeb2c33605b3cc4"
+  },
+  "affected_files": [
+    "js/src/wasm/WasmBaselineCompile.cpp",
+    "js/src/wasm/WasmBCClass.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.82.0, None)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": null,
+    "poc_source": "saved/era-harness",
+    "reason": "",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1954042.json"
+  },
+  "final_disposition": "verified"
+}

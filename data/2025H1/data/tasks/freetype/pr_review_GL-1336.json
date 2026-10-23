@@ -1,0 +1,163 @@
+{
+  "task_id": "pr_review_GL-1336",
+  "bug_id": "GL-1336",
+  "commit_sha": "c3a5513508d71c0635da9431e88e3d8adb5d91f5",
+  "commit_message": "[truetype] Modify stack handling.\n\n* src/truetype/ttinterp.c (Ins_GETVARIATION): Increment stack.\n(Ins_NPUSHB,NPUSHW,PUSHB,PUSHW): Handle the code stack here, ...\n(TT_RunIns): ... instead of here. Consolidate error handling.\n(SkipCode): Remove preemptive check.",
+  "commit_author": "Alexei Podtelezhnikov",
+  "commit_date": "2025-05-02T20:15:50-04:00",
+  "pr_title": "[truetype] Modify stack handling.",
+  "pr_description": "* src/truetype/ttinterp.c (Ins_GETVARIATION): Increment stack.\n(Ins_NPUSHB,NPUSHW,PUSHB,PUSHW): Handle the code stack here, ...\n(TT_RunIns): ... instead of here. Consolidate error handling.\n(SkipCode): Remove preemptive check.\n",
+  "files": [
+    {
+      "path": "src/truetype/ttinterp.c",
+      "status": "modified",
+      "additions": 79,
+      "deletions": 102,
+      "diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex 744cc8529..bfb2f0fc6 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -1517,35 +1517,10 @@\n     exc->cvt[idx] = ADD_LONG( exc->cvt[idx],\n                               FT_DivFix( value, Current_Ratio( exc ) ) );\n   }\n \n \n-  /**************************************************************************\n-   *\n-   * @Function:\n-   *   GetShortIns\n-   *\n-   * @Description:\n-   *   Returns a short integer taken from the instruction stream at\n-   *   address IP.\n-   *\n-   * @Return:\n-   *   Short read at code[IP].\n-   *\n-   * @Note:\n-   *   This one could become a macro.\n-   */\n-  static FT_Short\n-  GetShortIns( TT_ExecContext  exc )\n-  {\n-    /* Reading a byte stream so there is no endianness (DaveP) */\n-    exc->IP += 2;\n-    return (FT_Short)( ( exc->code[exc->IP - 2] << 8 ) +\n-                         exc->code[exc->IP - 1]      );\n-  }\n-\n-\n   /**************************************************************************\n    *\n    * @Function:\n    *   Ins_Goto_CodeRange\n    *\n@@ -3301,12 +3276,11 @@\n         if ( exc->IP + 1 >= exc->codeSize )\n           goto Fail_Overflow;\n         exc->length = 2 - exc->length * exc->code[exc->IP + 1];\n       }\n \n-      if ( exc->IP + exc->length <= exc->codeSize )\n-        return SUCCESS;\n+      return SUCCESS;\n     }\n \n   Fail_Overflow:\n     exc->error = FT_THROW( Code_Overflow );\n     return FAILURE;\n@@ -3852,25 +3826,39 @@\n    */\n   static void\n   Ins_NPUSHB( TT_ExecContext  exc,\n               FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n \n \n-    L = (FT_UShort)exc->code[exc->IP + 1];\n+    if ( ++IP > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n+\n+    L = exc->code[IP];\n+\n+    if ( IP + L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    for ( K = 1; K <= L; K++ )\n-      args[K - 1] = exc->code[exc->IP + K + 1];\n+    for ( K = 0; K < L; K++ )\n+      args[K] = exc->code[++IP];\n \n     exc->new_top += L;\n+    exc->IP       = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -3880,28 +3868,40 @@\n    */\n   static void\n   Ins_NPUSHW( TT_ExecContext  exc,\n               FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n+\n+\n+    if ( ++IP > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n+    L = exc->code[IP];\n \n-    L = (FT_UShort)exc->code[exc->IP + 1];\n+    if ( IP + 2 * L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    exc->IP += 2;\n+    /* note casting for sign-extension */\n+    for ( K = 0; K < L; K++, IP += 2 )\n+      args[K] = (FT_Short)( exc->code[IP + 1] << 8 ) | exc->code[IP + 2];\n \n-    for ( K = 0; K < L; K++ )\n-      args[K] = GetShortIns( exc );\n-\n-    exc->length   = 0;\n     exc->new_top += L;\n+    exc->IP       = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -3911,23 +3911,32 @@\n    */\n   static void\n   Ins_PUSHB( TT_ExecContext  exc,\n              FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n \n \n-    L = (FT_UShort)( exc->opcode - 0xB0 + 1 );\n+    L = exc->opcode - 0xB0 + 1;\n+\n+    if ( IP + L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    for ( K = 1; K <= L; K++ )\n-      args[K - 1] = exc->code[exc->IP + K];\n+    for ( K = 0; K < L; K++ )\n+      args[K] = exc->code[++IP];\n+\n+    exc->IP = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -3937,27 +3946,33 @@\n    */\n   static void\n   Ins_PUSHW( TT_ExecContext  exc,\n              FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n \n \n-    L = (FT_UShort)( exc->opcode - 0xB8 + 1 );\n+    L = exc->opcode - 0xB8 + 1;\n+\n+    if ( IP + 2 * L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    exc->IP++;\n-\n-    for ( K = 0; K < L; K++ )\n-      args[K] = GetShortIns( exc );\n+    /* note casting for sign-extension */\n+    for ( K = 0; K < L; K++, IP += 2 )\n+      args[K] = (FT_Short)( exc->code[IP + 1] << 8 ) | exc->code[IP + 2];\n \n-    exc->length = 0;\n+    exc->IP = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -6815,10 +6830,12 @@\n     else\n     {\n       for ( i = 0; i < num_axes; i++ )\n         args[i] = 0;\n     }\n+\n+    exc->new_top += num_axes;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -6998,11 +7015,21 @@\n     exc->iupy_called = FALSE;\n #endif\n \n     do\n     {\n+      /* increment instruction counter and check if we didn't */\n+      /* run this program for too long (e.g. infinite loops). */\n+      if ( ++ins_counter > TT_CONFIG_OPTION_MAX_RUNNABLE_OPCODES )\n+      {\n+        exc->error = FT_THROW( Execution_Too_Long );\n+        goto LErrorLabel_;\n+      }\n+\n+      exc->error  = FT_Err_Ok;\n       exc->opcode = exc->code[exc->IP];\n+      exc->length = 1;\n \n #ifdef FT_DEBUG_LEVEL_TRACE\n       if ( ft_trace_levels[trace_ttinterp] >= 6 )\n       {\n         FT_Long  cnt = FT_MIN( 8, exc->top );\n@@ -7022,21 +7049,10 @@\n           FT_TRACE7(( \" %ld\", exc->stack[exc->top - n] ));\n         FT_TRACE6(( \"\\n\" ));\n       }\n #endif /* FT_DEBUG_LEVEL_TRACE */\n \n-      if ( ( exc->length = opcode_length[exc->opcode] ) < 0 )\n-      {\n-        if ( exc->IP + 1 >= exc->codeSize )\n-          goto LErrorCodeOverflow_;\n-\n-        exc->length = 2 - exc->length * exc->code[exc->IP + 1];\n-      }\n-\n-      if ( exc->IP + exc->length > exc->codeSize )\n-        goto LErrorCodeOverflow_;\n-\n       /* First, let's check for empty stack and overflow */\n       exc->args = exc->top - ( Pop_Push_Count[exc->opcode] >> 4 );\n \n       /* `args' is the top of the stack once arguments have been popped. */\n       /* One can also interpret it as the index of the last argument.    */\n@@ -7052,37 +7068,21 @@\n         for ( i = 0; i < Pop_Push_Count[exc->opcode] >> 4; i++ )\n           exc->stack[i] = 0;\n         exc->args = 0;\n       }\n \n-#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT\n-      if ( exc->opcode == 0x91 )\n-      {\n-        /* this is very special: GETVARIATION returns */\n-        /* a variable number of arguments             */\n-\n-        /* it is the job of the application to `activate' GX handling, */\n-        /* that is, calling any of the GX API functions on the current */\n-        /* font to select a variation instance                         */\n-        if ( exc->face->blend )\n-          exc->new_top = exc->args + exc->face->blend->num_axis;\n-      }\n-      else\n-#endif\n-        exc->new_top = exc->args + ( Pop_Push_Count[exc->opcode] & 15 );\n+      exc->new_top = exc->args + ( Pop_Push_Count[exc->opcode] & 15 );\n \n       /* `new_top' is the new top of the stack, after the instruction's */\n       /* execution.  `top' will be set to `new_top' after the `switch'  */\n       /* statement.                                                     */\n       if ( exc->new_top > exc->stackSize )\n       {\n         exc->error = FT_THROW( Stack_Overflow );\n         goto LErrorLabel_;\n       }\n \n-      exc->error = FT_Err_Ok;\n-\n       {\n         FT_Long*  args   = exc->stack + exc->args;\n         FT_Byte   opcode = exc->opcode;\n \n \n@@ -7622,17 +7622,17 @@\n \n       if ( exc->error )\n       {\n         switch ( exc->error )\n         {\n-          /* looking for redefined instructions */\n         case FT_ERR( Invalid_Opcode ):\n           {\n             TT_DefRecord*  def   = exc->IDefs;\n             TT_DefRecord*  limit = FT_OFFSET( def, exc->numIDefs );\n \n \n+            /* looking for redefined instructions */\n             for ( ; def < limit; def++ )\n             {\n               if ( def->active && exc->opcode == (FT_Byte)def->opc )\n               {\n                 TT_CallRec*  callrec;\n@@ -7658,40 +7658,20 @@\n \n                 goto LSuiteLabel_;\n               }\n             }\n           }\n-\n-          exc->error = FT_THROW( Invalid_Opcode );\n-          goto LErrorLabel_;\n-\n-#if 0\n-          break;   /* Unreachable code warning suppression.             */\n-                   /* Leave to remind in case a later change the editor */\n-                   /* to consider break;                                */\n-#endif\n+          FALL_THROUGH;\n \n         default:\n           goto LErrorLabel_;\n-\n-#if 0\n-        break;\n-#endif\n         }\n       }\n \n       exc->top = exc->new_top;\n       exc->IP += exc->length;\n \n-      /* increment instruction counter and check if we didn't */\n-      /* run this program for too long (e.g. infinite loops). */\n-      if ( ++ins_counter > TT_CONFIG_OPTION_MAX_RUNNABLE_OPCODES )\n-      {\n-        exc->error = FT_THROW( Execution_Too_Long );\n-        goto LErrorLabel_;\n-      }\n-\n     LSuiteLabel_:\n       if ( exc->IP >= exc->codeSize )\n       {\n         if ( exc->callTop > 0 )\n         {\n@@ -7708,13 +7688,10 @@\n                 ins_counter,\n                 ins_counter == 1 ? \"\" : \"s\" ));\n \n     return FT_Err_Ok;\n \n-  LErrorCodeOverflow_:\n-    exc->error = FT_THROW( Code_Overflow );\n-\n   LErrorLabel_:\n     if ( exc->error && !exc->instruction_trap )\n       FT_TRACE1(( \"  The interpreter returned error 0x%x\\n\", exc->error ));\n \n     return exc->error;\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex 744cc8529..bfb2f0fc6 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -1517,35 +1517,10 @@\n     exc->cvt[idx] = ADD_LONG( exc->cvt[idx],\n                               FT_DivFix( value, Current_Ratio( exc ) ) );\n   }\n \n \n-  /**************************************************************************\n-   *\n-   * @Function:\n-   *   GetShortIns\n-   *\n-   * @Description:\n-   *   Returns a short integer taken from the instruction stream at\n-   *   address IP.\n-   *\n-   * @Return:\n-   *   Short read at code[IP].\n-   *\n-   * @Note:\n-   *   This one could become a macro.\n-   */\n-  static FT_Short\n-  GetShortIns( TT_ExecContext  exc )\n-  {\n-    /* Reading a byte stream so there is no endianness (DaveP) */\n-    exc->IP += 2;\n-    return (FT_Short)( ( exc->code[exc->IP - 2] << 8 ) +\n-                         exc->code[exc->IP - 1]      );\n-  }\n-\n-\n   /**************************************************************************\n    *\n    * @Function:\n    *   Ins_Goto_CodeRange\n    *\n@@ -3301,12 +3276,11 @@\n         if ( exc->IP + 1 >= exc->codeSize )\n           goto Fail_Overflow;\n         exc->length = 2 - exc->length * exc->code[exc->IP + 1];\n       }\n \n-      if ( exc->IP + exc->length <= exc->codeSize )\n-        return SUCCESS;\n+      return SUCCESS;\n     }\n \n   Fail_Overflow:\n     exc->error = FT_THROW( Code_Overflow );\n     return FAILURE;\n@@ -3852,25 +3826,39 @@\n    */\n   static void\n   Ins_NPUSHB( TT_ExecContext  exc,\n               FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n \n \n-    L = (FT_UShort)exc->code[exc->IP + 1];\n+    if ( ++IP > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n+\n+    L = exc->code[IP];\n+\n+    if ( IP + L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    for ( K = 1; K <= L; K++ )\n-      args[K - 1] = exc->code[exc->IP + K + 1];\n+    for ( K = 0; K < L; K++ )\n+      args[K] = exc->code[++IP];\n \n     exc->new_top += L;\n+    exc->IP       = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -3880,28 +3868,40 @@\n    */\n   static void\n   Ins_NPUSHW( TT_ExecContext  exc,\n               FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n+\n+\n+    if ( ++IP > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n+    L = exc->code[IP];\n \n-    L = (FT_UShort)exc->code[exc->IP + 1];\n+    if ( IP + 2 * L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    exc->IP += 2;\n+    /* note casting for sign-extension */\n+    for ( K = 0; K < L; K++, IP += 2 )\n+      args[K] = (FT_Short)( exc->code[IP + 1] << 8 ) | exc->code[IP + 2];\n \n-    for ( K = 0; K < L; K++ )\n-      args[K] = GetShortIns( exc );\n-\n-    exc->length   = 0;\n     exc->new_top += L;\n+    exc->IP       = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -3911,23 +3911,32 @@\n    */\n   static void\n   Ins_PUSHB( TT_ExecContext  exc,\n              FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n \n \n-    L = (FT_UShort)( exc->opcode - 0xB0 + 1 );\n+    L = exc->opcode - 0xB0 + 1;\n+\n+    if ( IP + L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    for ( K = 1; K <= L; K++ )\n-      args[K - 1] = exc->code[exc->IP + K];\n+    for ( K = 0; K < L; K++ )\n+      args[K] = exc->code[++IP];\n+\n+    exc->IP = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -3937,27 +3946,33 @@\n    */\n   static void\n   Ins_PUSHW( TT_ExecContext  exc,\n              FT_Long*        args )\n   {\n-    FT_UShort  L, K;\n+    FT_Long  IP = exc->IP;\n+    FT_Int   L, K;\n \n \n-    L = (FT_UShort)( exc->opcode - 0xB8 + 1 );\n+    L = exc->opcode - 0xB8 + 1;\n+\n+    if ( IP + 2 * L > exc->codeSize )\n+    {\n+      exc->error = FT_THROW( Code_Overflow );\n+      return;\n+    }\n \n     if ( BOUNDS( L, exc->stackSize + 1 - exc->top ) )\n     {\n       exc->error = FT_THROW( Stack_Overflow );\n       return;\n     }\n \n-    exc->IP++;\n-\n-    for ( K = 0; K < L; K++ )\n-      args[K] = GetShortIns( exc );\n+    /* note casting for sign-extension */\n+    for ( K = 0; K < L; K++, IP += 2 )\n+      args[K] = (FT_Short)( exc->code[IP + 1] << 8 ) | exc->code[IP + 2];\n \n-    exc->length = 0;\n+    exc->IP = IP;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -6815,10 +6830,12 @@\n     else\n     {\n       for ( i = 0; i < num_axes; i++ )\n         args[i] = 0;\n     }\n+\n+    exc->new_top += num_axes;\n   }\n \n \n   /**************************************************************************\n    *\n@@ -6998,11 +7015,21 @@\n     exc->iupy_called = FALSE;\n #endif\n \n     do\n     {\n+      /* increment instruction counter and check if we didn't */\n+      /* run this program for too long (e.g. infinite loops). */\n+      if ( ++ins_counter > TT_CONFIG_OPTION_MAX_RUNNABLE_OPCODES )\n+      {\n+        exc->error = FT_THROW( Execution_Too_Long );\n+        goto LErrorLabel_;\n+      }\n+\n+      exc->error  = FT_Err_Ok;\n       exc->opcode = exc->code[exc->IP];\n+      exc->length = 1;\n \n #ifdef FT_DEBUG_LEVEL_TRACE\n       if ( ft_trace_levels[trace_ttinterp] >= 6 )\n       {\n         FT_Long  cnt = FT_MIN( 8, exc->top );\n@@ -7022,21 +7049,10 @@\n           FT_TRACE7(( \" %ld\", exc->stack[exc->top - n] ));\n         FT_TRACE6(( \"\\n\" ));\n       }\n #endif /* FT_DEBUG_LEVEL_TRACE */\n \n-      if ( ( exc->length = opcode_length[exc->opcode] ) < 0 )\n-      {\n-        if ( exc->IP + 1 >= exc->codeSize )\n-          goto LErrorCodeOverflow_;\n-\n-        exc->length = 2 - exc->length * exc->code[exc->IP + 1];\n-      }\n-\n-      if ( exc->IP + exc->length > exc->codeSize )\n-        goto LErrorCodeOverflow_;\n-\n       /* First, let's check for empty stack and overflow */\n       exc->args = exc->top - ( Pop_Push_Count[exc->opcode] >> 4 );\n \n       /* `args' is the top of the stack once arguments have been popped. */\n       /* One can also interpret it as the index of the last argument.    */\n@@ -7052,37 +7068,21 @@\n         for ( i = 0; i < Pop_Push_Count[exc->opcode] >> 4; i++ )\n           exc->stack[i] = 0;\n         exc->args = 0;\n       }\n \n-#ifdef TT_CONFIG_OPTION_GX_VAR_SUPPORT\n-      if ( exc->opcode == 0x91 )\n-      {\n-        /* this is very special: GETVARIATION returns */\n-        /* a variable number of arguments             */\n-\n-        /* it is the job of the application to `activate' GX handling, */\n-        /* that is, calling any of the GX API functions on the current */\n-        /* font to select a variation instance                         */\n-        if ( exc->face->blend )\n-          exc->new_top = exc->args + exc->face->blend->num_axis;\n-      }\n-      else\n-#endif\n-        exc->new_top = exc->args + ( Pop_Push_Count[exc->opcode] & 15 );\n+      exc->new_top = exc->args + ( Pop_Push_Count[exc->opcode] & 15 );\n \n       /* `new_top' is the new top of the stack, after the instruction's */\n       /* execution.  `top' will be set to `new_top' after the `switch'  */\n       /* statement.                                                     */\n       if ( exc->new_top > exc->stackSize )\n       {\n         exc->error = FT_THROW( Stack_Overflow );\n         goto LErrorLabel_;\n       }\n \n-      exc->error = FT_Err_Ok;\n-\n       {\n         FT_Long*  args   = exc->stack + exc->args;\n         FT_Byte   opcode = exc->opcode;\n \n \n@@ -7622,17 +7622,17 @@\n \n       if ( exc->error )\n       {\n         switch ( exc->error )\n         {\n-          /* looking for redefined instructions */\n         case FT_ERR( Invalid_Opcode ):\n           {\n             TT_DefRecord*  def   = exc->IDefs;\n             TT_DefRecord*  limit = FT_OFFSET( def, exc->numIDefs );\n \n \n+            /* looking for redefined instructions */\n             for ( ; def < limit; def++ )\n             {\n               if ( def->active && exc->opcode == (FT_Byte)def->opc )\n               {\n                 TT_CallRec*  callrec;\n@@ -7658,40 +7658,20 @@\n \n                 goto LSuiteLabel_;\n               }\n             }\n           }\n-\n-          exc->error = FT_THROW( Invalid_Opcode );\n-          goto LErrorLabel_;\n-\n-#if 0\n-          break;   /* Unreachable code warning suppression.             */\n-                   /* Leave to remind in case a later change the editor */\n-                   /* to consider break;                                */\n-#endif\n+          FALL_THROUGH;\n \n         default:\n           goto LErrorLabel_;\n-\n-#if 0\n-        break;\n-#endif\n         }\n       }\n \n       exc->top = exc->new_top;\n       exc->IP += exc->length;\n \n-      /* increment instruction counter and check if we didn't */\n-      /* run this program for too long (e.g. infinite loops). */\n-      if ( ++ins_counter > TT_CONFIG_OPTION_MAX_RUNNABLE_OPCODES )\n-      {\n-        exc->error = FT_THROW( Execution_Too_Long );\n-        goto LErrorLabel_;\n-      }\n-\n     LSuiteLabel_:\n       if ( exc->IP >= exc->codeSize )\n       {\n         if ( exc->callTop > 0 )\n         {\n@@ -7708,13 +7688,10 @@\n                 ins_counter,\n                 ins_counter == 1 ? \"\" : \"s\" ));\n \n     return FT_Err_Ok;\n \n-  LErrorCodeOverflow_:\n-    exc->error = FT_THROW( Code_Overflow );\n-\n   LErrorLabel_:\n     if ( exc->error && !exc->instruction_trap )\n       FT_TRACE1(( \"  The interpreter returned error 0x%x\\n\", exc->error ));\n \n     return exc->error;\n",
+  "ground_truth": {
+    "bug_id": "GL-1336",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "828916527ce4f69af722bce46ce54d289001a0bd",
+      "short_sha": "8289165",
+      "message": "[truetype] Tighten code overflow checks.",
+      "author": "Alexei Podtelezhnikov",
+      "date": "2025-05-14T12:45:53-04:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-read-001",
+        "title": "Off-by-one bounds check allows out-of-bounds read in Ins_NPUSHB",
+        "message": "In `Ins_NPUSHB`, the bounds check `if ( IP + L > exc->codeSize )` uses strict greater-than (`>`) rather than greater-than-or-equal (`>=`). Because the code array is 0-indexed and valid indices span `0` to `codeSize - 1`, the condition permits `IP + L == codeSize`. The subsequent loop `args[K] = exc->code[++IP]` then increments IP up to `codeSize`, reading one byte past the end of the heap-allocated code buffer. AddressSanitizer confirms a READ of size 1 immediately after the 32-byte allocation boundary.",
+        "location": {
+          "file": "src/truetype/ttinterp.c",
+          "start_line": 3843,
+          "end_line": 3857,
+          "start_column": null,
+          "end_column": null,
+          "function": "Ins_NPUSHB",
+          "snippet": "    if ( IP + L > exc->codeSize )\n    {\n      exc->error = FT_THROW( Code_Overflow );\n      return;\n    }\n    ...\n    for ( K = 0; K < L; K++ )\n      args[K] = exc->code[++IP];",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/truetype/ttinterp.c",
+            "start_line": 3835,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Ins_NPUSHB",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/truetype/ttinterp.c",
+            "start_line": 3885,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Ins_NPUSHW",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/truetype/ttinterp.c",
+            "start_line": 3922,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Ins_PUSHB",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/truetype/ttinterp.c",
+            "start_line": 3957,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Ins_PUSHW",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.98,
+        "suggestion": "Replace all `>` comparisons with `>=` in the code-overflow checks for Ins_NPUSHB, Ins_NPUSHW, Ins_PUSHB, and Ins_PUSHW. Valid code array indices are 0..codeSize-1, so `IP + L >= codeSize` is required to prevent the final byte from being read at index `codeSize`.",
+        "suggestion_code": "if ( IP + L >= exc->codeSize )\n{\n  exc->error = FT_THROW( Code_Overflow );\n  return;\n}",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "memory-safety",
+          "off-by-one",
+          "heap-buffer-overflow"
+        ],
+        "cwe_ids": [
+          "CWE-193",
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "src/truetype/ttinterp.c"
+    ],
+    "root_cause": "The introducing commit `c3a5513` refactored the PUSH instruction handlers to perform their own IP advance and bounds checking. The bounds check `IP + L > exc->codeSize` uses strict greater-than, but the code array is 0-indexed (size `codeSize`, indices 0..codeSize-1). When `IP + L` exactly equals `codeSize`, the check passes, and the subsequent byte-reading loop reaches `exc->code[codeSize]` \u2014 one byte past the allocation.",
+    "must_cover": [
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_NPUSHB",
+        "start_line": 3843,
+        "end_line": 3857,
+        "role": "primary",
+        "reason": "Primary location of finding: Off-by-one bounds check allows out-of-bounds read in Ins_NPUSHB"
+      },
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_NPUSHB",
+        "start_line": 3835,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Off-by-one bounds check allows out-of-bounds read in Ins_NPUSHB"
+      },
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_NPUSHW",
+        "start_line": 3885,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Off-by-one bounds check allows out-of-bounds read in Ins_NPUSHB"
+      },
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_PUSHB",
+        "start_line": 3922,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Off-by-one bounds check allows out-of-bounds read in Ins_NPUSHB"
+      },
+      {
+        "file": "src/truetype/ttinterp.c",
+        "function": "Ins_PUSHW",
+        "start_line": 3957,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Off-by-one bounds check allows out-of-bounds read in Ins_NPUSHB"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "c3a5513508d71c0635da9431e88e3d8adb5d91f5",
+  "fix_commit_sha": null
+}

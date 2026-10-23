@@ -1,0 +1,18 @@
+{
+  "reviewer": "benchmark owner",
+  "attested_at": "2026-10-05T21:30:41Z",
+  "method": "explicit_user_attestation",
+  "reason": "The benchmark owner explicitly requested that these exact cases be marked human_reviewed and included in the final benchmark.",
+  "authorization": "please help me refine the result directory and the benchmark. help me mark these inconclusive cases to human_reviewed; help me move these out of inconclusive to human reviewed and put them to final benchmark",
+  "identity": "firefox/1987290",
+  "season": "2025H2",
+  "stage": "human_reviewed",
+  "task_hashes": {
+    "buggy": "1f9e71d15d30802233f33962cdc92b22ff98a1810e7e19a0d799cfa6807a60eb",
+    "benign": "e725d234b4b69482bf96a4a06d9d5dd4882dee90da337b45c7dcf7a4cb8c36cb"
+  },
+  "caveat": "Release assertion/ASan SEGV on zero-argument unregister differs from normal TypeError controls; do not invent a buffer-overflow signature.",
+  "catalog_effective_verification": "inconclusive",
+  "original_case_disposition": "inconclusive",
+  "automated_replay_performed": false
+}

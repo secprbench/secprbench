@@ -1,0 +1,37 @@
+{
+  "bug_id": "424617297",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "9a6e62563c9b082830c96ddeb3b09675c1bb8caf",
+    "parent": "d1ad1e1fe8c109d63ced4a2a8e9540250c58bec2",
+    "fix": "ddee520d8c124df1d09d70d9415572ec8afea993"
+  },
+  "affected_files": [
+    "src/compiler/simplified-lowering.cc",
+    "src/compiler/turboshaft/graph-builder.cc",
+    "test/mjsunit/regress/regress-424205788.js"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "The task is a logic-error report requiring a behavioral/compiler-invariant oracle. meta.json and discussion.md were read, and the required default run was attempted. However, the initial builds for pre_intro, post_intro, and post_benign all timed out at the toolkit layer after 300s with no compiler failure logs; the default post_intro run and a read-only post_intro docker shell probe also timed out before execution. A final sequential post_intro build attempt likewise timed out with no build res",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "dcheck",
+    "environment": "hwiwonlee/v8.base:latest (existing image with depot_tools + v8 build deps); gn args is_debug=true, v8_optimized_debug=true, dcheck_always_on=true, v8_enable_slow_dchecks=true, is_asan=false, symbol_level=1, target_cpu=\"x64\"; single container, --cpus 8 -j8, --rm after run",
+    "parent": "d1ad1e1fe8c109d63ced4a2a8e9540250c58bec2: clean is_debug build (2366 ninja targets), d8 ran poc.js with RUN_EXIT=0, no output. Clean control confirmed.",
+    "intro": "9a6e62563c9b082830c96ddeb3b09675c1bb8caf: incremental rebuild (9 targets changed: simplified-lowering.o, graph-builder.o, mksnapshot, libv8.so relink, etc.), d8 crashed on poc.js with RUN_EXIT=133 (SIGABRT): 'Fatal error in ../../src/compiler/node-properties.h, line 261 # Debug check failed: IsTyped(node).' via RedundancyElimination::ReduceSpeculativeNumberComparison <- GraphReducer::Reduce <- OptimizedCompilationJob::ExecuteJob <- Compiler::CompileOptimizedOSR (OSR-triggered recompile hits the untyped dead node left behind by the buggy early-return path in RepresentationSelector::VisitNode).",
+    "benign": "Checked out src/compiler/simplified-lowering.cc from the real upstream fix commit ddee520d8c124df1d09d70d9415572ec8afea993 onto the intro tree; incremental rebuild (8 targets) succeeded; d8 ran poc.js with RUN_EXIT=0, no crash. Fix confirmed to resolve the DCHECK failure.",
+    "evidence": "run_intro.log: '# Fatal error in ../../src/compiler/node-properties.h, line 261\\n# Debug check failed: IsTyped(node).' with backtrace through RedundancyElimination::ReduceSpeculativeNumberComparison -> GraphReducer::Reduce -> OptimizedCompilationJob::ExecuteJob -> Compiler::CompileOptimizedOSR, RUN_EXIT=133 (SIGABRT). This is the exact DCHECK(IsTyped(node)) predicted by ground_truth (node-properties.h line 259 in ground truth vs observed line 261 \u2014 a 2-line drift from intervening upstream commits between the dataset's line reference and the checked-out tree, same function/assertion). run_parent.log and run_benign.log both show RUN_EXIT=0 with no crash output.",
+    "poc_source": "fetched",
+    "reason": "Ground truth (pr_review_424617297.json) attributes the bug to RepresentationSelector::VisitNode in simplified-lowering.cc: the intro commit replaced a correct DisconnectFromEffectAndControl+DeadValue conversion with a bare 'is_dead=true; return' after InsertUnreachableIfNecessary, leaving effectful nodes with None-typed inputs in the graph as their original (untyped) opcode instead of a DeadValue. This should manifest as a DCHECK(IsTyped(node)) failure in NodeProperties::IsTyped (node-properties.h) when such a node is later inspected. No saved PoC existed for this case (prior disposition was give_up due to an infra build timeout). I located the real upstream fix commit ddee520d8c124df1d09d70d9415572ec8afea993 in a local full v8.git clone; its commit message contains 'Bug: 424617297' \u2014 an exact match to this case's bug_id \u2014 and it adds test/mjsunit/regress/regress-424617297.js, which I us",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/v8__424617297/result.json"
+  },
+  "final_disposition": "verified"
+}

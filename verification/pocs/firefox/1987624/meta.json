@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_1987624",
+  "bug_id": "1987624",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "75fa8115ffad385e57297cba554f546820d71208",
+  "intro_parent": "92c3bbb32a85c6ae09c92bcbefd8868a582d6aea",
+  "fix_commit": "c89c1e356e68777009764f656520e2b9079baafb",
+  "affected_files": [
+    "js/src/wasm/WasmJS.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "firefox",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/candidate_01_c001_crash_data.txt: https://bugzilla.mozilla.org/rest/bug/attachment/9512241"
+  ],
+  "input_name": null,
+  "root_cause": "A refactor (bug 1931407) changed bytecode handling from an eager, owning copy of the ArrayBuffer contents into a non-owning weak reference (BytecodeSource) to avoid redundant copies for performance. This removed the implicit safety property that the previous code had (the data was already copied before any further JS could run). The new code paths then call into user-controllable JS (FeatureOptions::init, which parses an options object that can be a Proxy) after capturing the raw pointer but before using it, creating a window where the buffer can be detached/freed out from under the still-held pointer.",
+  "findings": [
+    "WebAssembly_validate (and the sibling WasmModuleObject::construct / WebAssembly_compile paths) call GetBufferSource() first, which unwraps the user-supplied BufferSource object and stores a *raw, non-owning* pointer/length pair (BytecodeSource) directly into the ArrayBuffer's backing data via SharedMem<uint8_t*> dataPointer. Previously (before this commit) GetBufferSource eagerly copied the bytes "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "3673c9d607ca1cd96fe3112b6971d11e386b6b267b7b6dda8d94855ca3415ed3",
+  "generated_artifact_sha256": {
+    "reference": "30ba1de975f8b02459e4e0f9de8c0155b341ac7e225a887458cb35abed354fb1",
+    "introducing": "495408a5fd7a3e179b2ae47d62bd33708425f94d32a53415e47d9d86e1c34f97",
+    "companion": "0430b0b95ccec348096a7ba5b9cecc9f22b41cf105da23bfd4460212920b11ea"
+  }
+}

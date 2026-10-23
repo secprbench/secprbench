@@ -1,0 +1,104 @@
+{
+  "bug_id": "GH-26952",
+  "title": "RCU: Ensure that qp's are actually retired in order",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "use_after_free",
+    "race_or_leak"
+  ],
+  "product": "openssl",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public identifiers in the upstream fixing commit:\n- GH-26952: https://github.com/openssl/openssl/issues/26952\n\nExact upstream commit message:\nRCU: Ensure that qp's are actually retired in order\n\nThe current retirement code for rcu qp's has a race condition,\nwhich can cause use-after-free errors, but only if more than\n3 QPs are allocated, which is not the default configuration.\n\nThis fixes an oversight in commit 5949918f9afa (\"Rework and\nsimplify RCU code\")\n\nReviewed-by: Neil Horman <nhorman@openssl.org>\nReviewed-by: Tomas Mraz <tomas@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/26952)\n\u0000\n\nMainline fixing revision candidate: 6e7be995fd7fd24d38b95982cf90f801ac045743\nDerive the introducing revision independently. No issue content was fetched and no bug replay was run.",
+  "commit_ids": [
+    "6e7be995fd7fd24d38b95982cf90f801ac045743"
+  ],
+  "fix_commit_sha": "6e7be995fd7fd24d38b95982cf90f801ac045743",
+  "fix_date": "2025-03-05T15:04:16Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H1",
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "GH-26952",
+      "url": "https://github.com/openssl/openssl/issues/26952",
+      "kind": "github_issue_or_pr",
+      "evidence": "https://github.com/openssl/openssl/pull/26952"
+    }
+  ],
+  "defect_evidence": [
+    {
+      "kind": "use_after_free",
+      "text": "use-after-free",
+      "start": 132,
+      "end": 146
+    },
+    {
+      "kind": "race_or_leak",
+      "text": "race condition",
+      "start": 100,
+      "end": 114
+    }
+  ],
+  "fix_role_evidence": [
+    {
+      "kind": "explicit_fix",
+      "text": "fixes",
+      "start": 244,
+      "end": 249
+    },
+    {
+      "kind": "prevent_or_correct",
+      "text": "Ensure",
+      "start": 5,
+      "end": 11
+    },
+    {
+      "kind": "repair_state",
+      "text": "free",
+      "start": 142,
+      "end": 146
+    }
+  ],
+  "affected_files": [
+    "crypto/threads_pthread.c",
+    "crypto/threads_win.c",
+    "test/threadstest.c"
+  ],
+  "changed_lines": 24,
+  "candidate_status": "documented_fix_pending_task_construction_and_verification",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "documented_fixes_2025h1_v1",
+    "selection": "commit_message_public_identity_and_concrete_defect",
+    "source_url": "https://github.com/openssl/openssl/commit/6e7be995fd7fd24d38b95982cf90f801ac045743",
+    "issue_contents": "not_fetched",
+    "introducing_commit": "not_inferred",
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "acde7bc05a9979abce12c4f92d2a0aa0a3d61175",
+    "mainline_ancestry_verified": true,
+    "original_committer_date": "2025-03-05T16:04:16+01:00",
+    "commit_object": {
+      "git_sha": "6e7be995fd7fd24d38b95982cf90f801ac045743",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/openssl/raw/commits/6e7be995fd7fd24d38b95982cf90f801ac045743.commit",
+      "sha256": "dd31254e41c499720b547aca87d00775c2f1225e169bfd62c59bb310b5874a9e"
+    },
+    "patch": {
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/openssl/raw/commits/6e7be995fd7fd24d38b95982cf90f801ac045743.patch",
+      "sha256": "8e502b9892f0187de79c016145c47340a644429f75a303300b2735713508f6ed"
+    },
+    "history": {
+      "repository": "/research/openssl",
+      "upstream_url": "https://github.com/openssl/openssl",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_tip": "acde7bc05a9979abce12c4f92d2a0aa0a3d61175",
+      "window_start_utc_inclusive": "2025-01-01T00:00:00Z",
+      "window_end_utc_exclusive": "2025-07-01T00:00:00Z",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/openssl/raw/git_history.26f307fc987cc8b5b379a63df4a1f8d2f57a485b9499fcc8d70ddf336a64aba9.raw",
+      "sha256": "26f307fc987cc8b5b379a63df4a1f8d2f57a485b9499fcc8d70ddf336a64aba9"
+    }
+  }
+}

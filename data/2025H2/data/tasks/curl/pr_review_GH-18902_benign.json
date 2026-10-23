@@ -1,0 +1,63 @@
+{
+  "task_id": "pr_review_GH-18902_benign",
+  "bug_id": "GH-18902",
+  "commit_sha": "4bfd7a961521e1fd6aab7610e931d82a342781a8",
+  "commit_message": "openssl: when a session-ID is reused, skip OCSP stapling\n\nFixes #12399\nReported-by: Alexey Larikov\nCloses #12418",
+  "commit_author": "",
+  "commit_date": "2026-10-02T11:39:58.671890",
+  "pr_title": "openssl: when a session-ID is reused, skip OCSP stapling",
+  "pr_description": "openssl: when a session-ID is reused, skip OCSP stapling\n\nFixes #12399\nReported-by: Alexey Larikov\nCloses #12418",
+  "files": [
+    {
+      "path": "lib/vtls/openssl.c",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 2,
+      "diff": "diff --git a/lib/vtls/openssl.c b/lib/vtls/openssl.c\nindex f788c50cf7..2910ac1bde 100644\n--- a/lib/vtls/openssl.c\n+++ b/lib/vtls/openssl.c\n@@ -3789,33 +3789,35 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,\n   if(connssl->peer.sni) {\n     if(!SSL_set_tlsext_host_name(backend->handle, connssl->peer.sni)) {\n       failf(data, \"Failed set SNI\");\n       return CURLE_SSL_CONNECT_ERROR;\n     }\n   }\n #endif\n \n   SSL_set_app_data(backend->handle, cf);\n \n-  if(ssl_config->primary.sessionid) {\n+  connssl->reused_session = FALSE;\n+  if(ssl_config->primary.sessionid && !conn_config->verifystatus) {\n     Curl_ssl_sessionid_lock(data);\n     if(!Curl_ssl_getsessionid(cf, data, &ssl_sessionid, NULL)) {\n       /* we got a session id, use it! */\n       if(!SSL_set_session(backend->handle, ssl_sessionid)) {\n         Curl_ssl_sessionid_unlock(data);\n         failf(data, \"SSL: SSL_set_session failed: %s\",\n               ossl_strerror(ERR_get_error(), error_buffer,\n                             sizeof(error_buffer)));\n         return CURLE_SSL_CONNECT_ERROR;\n       }\n       /* Informational message */\n       infof(data, \"SSL reusing session ID\");\n+      connssl->reused_session = TRUE;\n     }\n     Curl_ssl_sessionid_unlock(data);\n   }\n \n   backend->bio_method = ossl_bio_cf_method_create();\n   if(!backend->bio_method)\n     return CURLE_OUT_OF_MEMORY;\n   bio = BIO_new(backend->bio_method);\n   if(!bio)\n     return CURLE_OUT_OF_MEMORY;\n@@ -4333,21 +4335,22 @@ static CURLcode servercert(struct Curl_cfilter *cf,\n               X509_verify_cert_error_string(lerr), lerr);\n     }\n     else\n       infof(data, \" SSL certificate verify ok.\");\n   }\n \n   infof_certstack(data, backend->handle);\n \n #if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \\\n   !defined(OPENSSL_NO_OCSP)\n-  if(conn_config->verifystatus) {\n+  if(conn_config->verifystatus && !connssl->reused_session) {\n+    /* don't do this after Session ID reuse */\n     result = verifystatus(cf, data);\n     if(result) {\n       X509_free(backend->server_cert);\n       backend->server_cert = NULL;\n       return result;\n     }\n   }\n #endif\n \n   if(!strict)\n"
+    },
+    {
+      "path": "lib/vtls/vtls_int.h",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/lib/vtls/vtls_int.h b/lib/vtls/vtls_int.h\nindex cc5a357180..af7ae552ed 100644\n--- a/lib/vtls/vtls_int.h\n+++ b/lib/vtls/vtls_int.h\n@@ -68,20 +68,21 @@ CURLcode Curl_alpn_set_negotiated(struct Curl_cfilter *cf,\n struct ssl_connect_data {\n   ssl_connection_state state;\n   ssl_connect_state connecting_state;\n   struct ssl_peer peer;\n   const struct alpn_spec *alpn;     /* ALPN to use or NULL for none */\n   void *backend;                    /* vtls backend specific props */\n   struct cf_call_data call_data;    /* data handle used in current call */\n   struct curltime handshake_done;   /* time when handshake finished */\n   int port;                         /* remote port at origin */\n   BIT(use_alpn);                    /* if ALPN shall be used in handshake */\n+  BIT(reused_session);              /* session-ID was reused for this */\n };\n \n \n #undef CF_CTX_CALL_DATA\n #define CF_CTX_CALL_DATA(cf)  \\\n   ((struct ssl_connect_data *)(cf)->ctx)->call_data\n \n \n /* Definitions for SSL Implementations */\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/vtls/openssl.c b/lib/vtls/openssl.c\nindex f788c50cf7..2910ac1bde 100644\n--- a/lib/vtls/openssl.c\n+++ b/lib/vtls/openssl.c\n@@ -3789,33 +3789,35 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,\n   if(connssl->peer.sni) {\n     if(!SSL_set_tlsext_host_name(backend->handle, connssl->peer.sni)) {\n       failf(data, \"Failed set SNI\");\n       return CURLE_SSL_CONNECT_ERROR;\n     }\n   }\n #endif\n \n   SSL_set_app_data(backend->handle, cf);\n \n-  if(ssl_config->primary.sessionid) {\n+  connssl->reused_session = FALSE;\n+  if(ssl_config->primary.sessionid && !conn_config->verifystatus) {\n     Curl_ssl_sessionid_lock(data);\n     if(!Curl_ssl_getsessionid(cf, data, &ssl_sessionid, NULL)) {\n       /* we got a session id, use it! */\n       if(!SSL_set_session(backend->handle, ssl_sessionid)) {\n         Curl_ssl_sessionid_unlock(data);\n         failf(data, \"SSL: SSL_set_session failed: %s\",\n               ossl_strerror(ERR_get_error(), error_buffer,\n                             sizeof(error_buffer)));\n         return CURLE_SSL_CONNECT_ERROR;\n       }\n       /* Informational message */\n       infof(data, \"SSL reusing session ID\");\n+      connssl->reused_session = TRUE;\n     }\n     Curl_ssl_sessionid_unlock(data);\n   }\n \n   backend->bio_method = ossl_bio_cf_method_create();\n   if(!backend->bio_method)\n     return CURLE_OUT_OF_MEMORY;\n   bio = BIO_new(backend->bio_method);\n   if(!bio)\n     return CURLE_OUT_OF_MEMORY;\n@@ -4333,21 +4335,22 @@ static CURLcode servercert(struct Curl_cfilter *cf,\n               X509_verify_cert_error_string(lerr), lerr);\n     }\n     else\n       infof(data, \" SSL certificate verify ok.\");\n   }\n \n   infof_certstack(data, backend->handle);\n \n #if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \\\n   !defined(OPENSSL_NO_OCSP)\n-  if(conn_config->verifystatus) {\n+  if(conn_config->verifystatus && !connssl->reused_session) {\n+    /* don't do this after Session ID reuse */\n     result = verifystatus(cf, data);\n     if(result) {\n       X509_free(backend->server_cert);\n       backend->server_cert = NULL;\n       return result;\n     }\n   }\n #endif\n \n   if(!strict)\ndiff --git a/lib/vtls/vtls_int.h b/lib/vtls/vtls_int.h\nindex cc5a357180..af7ae552ed 100644\n--- a/lib/vtls/vtls_int.h\n+++ b/lib/vtls/vtls_int.h\n@@ -68,20 +68,21 @@ CURLcode Curl_alpn_set_negotiated(struct Curl_cfilter *cf,\n struct ssl_connect_data {\n   ssl_connection_state state;\n   ssl_connect_state connecting_state;\n   struct ssl_peer peer;\n   const struct alpn_spec *alpn;     /* ALPN to use or NULL for none */\n   void *backend;                    /* vtls backend specific props */\n   struct cf_call_data call_data;    /* data handle used in current call */\n   struct curltime handshake_done;   /* time when handshake finished */\n   int port;                         /* remote port at origin */\n   BIT(use_alpn);                    /* if ALPN shall be used in handshake */\n+  BIT(reused_session);              /* session-ID was reused for this */\n };\n \n \n #undef CF_CTX_CALL_DATA\n #define CF_CTX_CALL_DATA(cf)  \\\n   ((struct ssl_connect_data *)(cf)->ctx)->call_data\n \n \n /* Definitions for SSL Implementations */\n \n",
+  "ground_truth": {
+    "bug_id": "GH-18902",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+    "fix_commit": "4bfd7a961521e1fd6aab7610e931d82a342781a8"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+  "fix_commit_sha": "4bfd7a961521e1fd6aab7610e931d82a342781a8",
+  "intro_commit_message": "openssl: when a session-ID is reused, skip OCSP stapling\n\nFixes #12399\nReported-by: Alexey Larikov\nCloses #12418",
+  "fix_commit_message": "openssl: skip session resumption when verifystatus is set\n\nResumed TLS sessions skip OCSP stapled-response verification.\nForce a full handshake so verifystatus() runs.\n\nCloses #18902",
+  "agent_reasoning": "Without this guard, ossl_connect_step1() still looks up and installs a cached session ID even when conn_config->verifystatus is set, and servercert() already skips verifystatus() whenever connssl->reused_session is TRUE. The combination means a handle configured with CURLOPT_SSL_VERIFYSTATUS could silently reuse a prior TLS session (e.g. on a second request to the same host) and never check the OCSP stapled response for that connection, defeating revocation checking. The fix adds `&& !conn_config->verifystatus` to the sessionid-lookup condition in ossl_connect_step1, so a full handshake (and therefore verifystatus()) is forced whenever OCSP-stapling verification is requested.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+    "fix_revision": "4bfd7a961521e1fd6aab7610e931d82a342781a8",
+    "fix_parent_revision": "1103ccb73e316ee830c9dbfe95218974a32418a3",
+    "inspected_paths": [
+      "lib/vtls/openssl.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "lib/vtls/openssl.c",
+        "symbol": "Curl_ssl_cf_get_primary_config",
+        "status": "available_or_unproven"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

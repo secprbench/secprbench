@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_FOSSIL-2adaee9aa90f280a",
+  "bug_id": "FOSSIL-2adaee9aa90f280a",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "e995d2c226e2b65c5e40cd238415bdfeb0936e8c",
+  "intro_parent": "1ffb6be1195c592e6c85d57603984b1f36bfde62",
+  "fix_commit": "288f35685473c82b12bd47610e473ec34524bba7",
+  "affected_files": [
+    "src/expr.c",
+    "src/vdbeaux.c",
+    "src/vdbe.c",
+    "src/pragma.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "sqlite",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The 2022 'skip loading large TEXT/BLOB column content for IS NULL/NOT NULL checks' optimization tagged the preceding OP_Column opcode with OPFLAG_TYPEOFARG based solely on which register held the operand, without distinguishing a disposable temporary register (safe to taint) from a shared/cached column register that could be read again later for its genuine value (e.g. by a CHECK constraint referencing the same column). This conflated two different lifetimes of the same register number.",
+  "findings": [
+    "sqlite3ExprIfTrue()/sqlite3ExprIfFalse() code the IS NULL / IS NOT NULL operators by evaluating the operand into register r1 via sqlite3ExprCodeTemp(), then unconditionally call sqlite3VdbeTypeofColumn(v, r1). That helper (added in the same commit, src/vdbeaux.c) sets OPFLAG_TYPEOFARG on the immediately preceding OP_Column opcode if it targets r1, telling the VDBE that only the 'type' of the value"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "585f0ef64e3e15550682ba514732dc1c7a3919770b090cf4530726c24fd3bb54",
+  "generated_artifact_sha256": {
+    "reference": "ea6f4c47445ae8b63597a0f1a8cb10ddcd49dc8a84b7b90573c0ab59ea95bb4f",
+    "introducing": "02095590b5078180cb633167f50ce7de2b136e4f24f3c8e3d5eec33a3cc4363b",
+    "companion": "47757177044a6716fb68187273f9b68d8e3a61cdebd24ad5400657571a00aeff"
+  }
+}

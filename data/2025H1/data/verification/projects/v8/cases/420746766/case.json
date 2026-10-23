@@ -1,0 +1,23 @@
+{
+  "bug_id": "420746766",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "e0e0bf451e26ce9c1711b757ead9bd944258d12b",
+    "parent": "d7ef238a2890435b9cb9967278a9d5b69965d547",
+    "fix": "19fd5173c7533cc863c306c5edaa178ed8d5534a"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc",
+    "test/mjsunit/regress-420198866.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built all three configured V8 revisions successfully with ASan and ran the identical /poc/run.sh (d8 --allow-natives-syntax --no-lazy-feedback-allocation --single-threaded --invocation-count-for-maglev=10 /poc/poc.js). pre_intro exited 0, caught the ordinary TypeError 'a3 is not a function', and printed 'completed'. post_intro reproducibly exited 139 with SIGSEGV before completion. LLVM symbolization of its crash offsets placed the failing stack in Runtime_ThrowConstructorNonCallableError (src/r",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

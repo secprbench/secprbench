@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-c9e93df4eed93fe0",
+  "bug_id": "REPORT-c9e93df4eed93fe0",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "589b3ed943d46ba163cea383634d67319af11cba",
+  "intro_parent": "5674879db5ea411b42e55c3906fa586f540bf637",
+  "fix_commit": "c9e93df4eed93fe0044c52d953688c4180de1d48",
+  "affected_files": [
+    "libavcodec/prores_raw.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Incorrect ordering of two dimension-setting operations: the aligned coded_width/coded_height assignment happened before a call to ff_set_dimensions(), which itself also assigns (unaligned) values to those same fields, silently overwriting the alignment performed just before it.",
+  "findings": [
+    "In decode_frame() of the newly added ProRes RAW decoder, avctx->coded_width and avctx->coded_height are set to the 16-byte aligned values of the parsed frame width/height BEFORE the call to ff_set_dimensions(avctx, w, h). ff_set_dimensions() internally resets avctx->coded_width and avctx->coded_height back to the unaligned width/height (w, h) whenever the resolution changes from the previous frame"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "cf9e1027049722e3221d1a58e71ee3bda5518f40c9573d968afd6be07a73f6ee",
+  "generated_artifact_sha256": {
+    "reference": "5bec8a380ab92b22e411348ce44610e5982d0b62910a444369a0afda347b952c",
+    "introducing": "fd47a2cfefb55eef1749a2580c7ca43b56afe51bb1861a75e30c217964f3516a",
+    "companion": "c9a6d733bd00f3f296aacc9f02f17a0d3529ea5b44c2739566b312512602ddb5"
+  }
+}

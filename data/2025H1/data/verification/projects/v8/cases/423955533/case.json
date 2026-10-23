@@ -1,0 +1,37 @@
+{
+  "bug_id": "423955533",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "1af713dbe9344e057c55ee3a45d2f3045cf36f67",
+    "parent": "6ff5d39690b896606d9db5dceb5a7ba02faddc2a",
+    "fix": "edd034ab0cf44cdab8e8d03d2f5f424f743a77d3"
+  },
+  "affected_files": [
+    "src/flags/flag-definitions.h",
+    "src/interpreter/bytecodes.h",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h",
+    "test/mjsunit/maglev/poly-calls-1.js",
+    "test/mjsunit/maglev/poly-calls-2.js"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "All three configured ASan release builds completed. The identical command `sh /poc/run.sh` exited 0 without a sanitizer crash on pre_intro, post_intro, and post_benign, printing `RESULT 1011 1022` each time. Bytecode and `--trace-maglev-graph-building` confirmed post_intro compiled the intended register-mismatch shape (the loaded property was saved by Star2 while CallProperty1 used r0), so the affected Maglev path was exercised. However, the reported manifestation is a DCHECK comparing the itera",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "not_reproduced",
+    "method": "debug_invariant_or_crash",
+    "intro_verified": "not_reproduced_clean",
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Intro built (is_debug) and ran the saved PoC with recorded flags but did not reproduce: not_reproduced_clean. Label is an unvalidated static hypothesis at this revision.",
+    "target_match": null,
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/423955533"
+  },
+  "final_disposition": "not_reproduced"
+}

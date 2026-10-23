@@ -1,0 +1,143 @@
+{
+  "bug_id": "OSSFUZZ-439711052",
+  "project": "ffmpeg",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "efa9d3deca30b47616721f60d8e79b1ccdaaefbc",
+    "parent": "299d9115d4c7c6c108197f48960e140d7433dae6",
+    "fix": "d448d6d1a0a4cdc76499c137742fdd8b30b9e7de"
+  },
+  "affected_files": [
+    "libavcodec/hevc/sei.c",
+    "libavcodec/hevc/sei.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Root cause matches meta.json exactly: in decode_nal_sei_3d_reference_displays_info() (added by intro commit efa9d3deca30), the Exp-Golomb-decoded num_ref_displays is stored into a uint8_t struct field before the \">31\" bound check runs, so a raw value like 287 truncates to 31, passes the check, becomes 32 after +1, and the subsequent loop performs an out-of-bounds write to left_view_id[31] (array size 31). Proven by recompiling only the unmodified sei.c with UBSan(+ASan,+bounds) instrumentation (matching the original OSS-Fuzz job's sanitizer, absent from this task's default ASan-only build) and running the identical 40-byte crafted SEI payload through run_poc with a minimal harness calling the real target function ff_hevc_decode_nal_sei, cross-checked via the full ffmpeg HEVC decoder pipeline. post_intro reproducibly hits 'index 31 out of bounds for type uint16_t[31]' at sei.c:171 on every run; pre_intro (parent commit, feature not yet present) and post_benign (fix commit applied) both complete cleanly on the exact same bytes/command via run_poc — pre_intro because the SEI payload type isn't handled yet, post_benign because the fix's `unsigned num_ref_displays` local-variable check now correctly rejects the raw value 287 with AVERROR_INVALIDDATA before any truncation/array access occurs. Same input, same command, same harness across all three revisions — only the target revision differs.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/150e39ef7278cdc764c3/attempts/07/replay/pr_review_OSSFUZZ-439711052.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/150e39ef7278cdc764c3/attempts/07/replay/pr_review_OSSFUZZ-439711052.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/150e39ef7278cdc764c3/attempts/07/replay/pr_review_OSSFUZZ-439711052.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ASAN_OPTIONS=halt_on_error=1 /work/poc_bin $INPUT",
+          "input": "sei_msg.bin",
+          "poc_sha256": "d813511e96e852a6cbdc5c5c4721fe6bf85fac1feef89c78a14e44261eabd90e",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "efa9d3deca30b47616721f60d8e79b1ccdaaefbc",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "a8739fc887cb7b067079e6ea44408e72adbd8b9bd2f47e9ca35da053010db885"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=1\n\nread 40 bytes\nlibavcodec/hevc/sei.c:171:9: runtime error: index 31 out of bounds for type 'uint16_t[31]' (aka 'unsigned short[31]')\n    #0 0x55ff6c3b6b9e in decode_nal_sei_3d_reference_displays_info /work/libavcodec/hevc/sei.c:171:28\n    #1 0x55ff6c3b6b9e in decode_nal_sei_prefix /work/libavcodec/hevc/sei.c:220:16\n    #2 0x55ff6c3b6b9e in decode_nal_sei_message /work/libavcodec/hevc/sei.c:274:16\n    #3 0x55ff6c3b6b9e in ff_hevc_decode_nal_sei /work/libavcodec/hevc/sei.c:293:15\n    #4 0x55ff6c3b41c4 in main /poc/poc.c:23:15\n    #5 0x7f1eb809dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #6 0x7f1eb809de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #7 0x55ff6c2f6294 in _start (/work/poc_bin+0x439294) (BuildId: 9fc63073ad8f5b7697b620247fb5135851d434b1)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/hevc/sei.c:171:9 in \n",
+            "stdout_tail": "VERIFY_EXIT=1\n\nread 40 bytes\nlibavcodec/hevc/sei.c:171:9: runtime error: index 31 out of bounds for type 'uint16_t[31]' (aka 'unsigned short[31]')\n    #0 0x55ff6c3b6b9e in decode_nal_sei_3d_reference_displays_info /work/libavcodec/hevc/sei.c:171:28\n    #1 0x55ff6c3b6b9e in decode_nal_sei_prefix /work/libavcodec/hevc/sei.c:220:16\n    #2 0x55ff6c3b6b9e in decode_nal_sei_message /work/libavcodec/hevc/sei.c:274:16\n    #3 0x55ff6c3b6b9e in ff_hevc_decode_nal_sei /work/libavcodec/hevc/sei.c:293:15\n    #4 0x55ff6c3b41c4 in main /poc/poc.c:23:15\n    #5 0x7f1eb809dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #6 0x7f1eb809de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #7 0x55ff6c2f6294 in _start (/work/poc_bin+0x439294) (BuildId: 9fc63073ad8f5b7697b620247fb5135851d434b1)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/hevc/sei.c:171:9 in \n"
+          }
+        },
+        "pre_intro": {
+          "command": "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ASAN_OPTIONS=halt_on_error=1 /work/poc_bin $INPUT",
+          "input": "sei_msg.bin",
+          "poc_sha256": "d813511e96e852a6cbdc5c5c4721fe6bf85fac1feef89c78a14e44261eabd90e",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "299d9115d4c7c6c108197f48960e140d7433dae6",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "ef0bae69451c6953dc5f4d1842f4b11ee8450e8b99f5ce0ee062f1f7e114408b"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\nread 40 bytes\nff_hevc_decode_nal_sei returned 1\n"
+          }
+        },
+        "post_benign": {
+          "command": "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ASAN_OPTIONS=halt_on_error=1 /work/poc_bin $INPUT",
+          "input": "sei_msg.bin",
+          "poc_sha256": "d813511e96e852a6cbdc5c5c4721fe6bf85fac1feef89c78a14e44261eabd90e",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "299d9115d4c7c6c108197f48960e140d7433dae6",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "fea1d1da489bd19490fc3d3c7f00df10ef44f8f78997b65c98e7a4f5cc2bca1a"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\nread 40 bytes\nff_hevc_decode_nal_sei returned -1094995529\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "libavcodec/hevc/sei.c:171:9: runtime error: index 31 out of bounds for type 'uint16_t[31]' (aka 'unsigned short[31]')",
+        "pre_marker": "ff_hevc_decode_nal_sei returned 1 (payload type 176 not yet implemented in pre_intro; message treated as unhandled and skipped cleanly, exit=0, no crash)",
+        "benign_marker": "ff_hevc_decode_nal_sei returned -1094995529 (AVERROR_INVALIDDATA), exit=0, no crash: the fix computes the golomb value into a local `unsigned num_ref_displays` and checks `> 31` (287 > 31 is true) before truncating/storing it into the uint8_t struct field, so the same input is cleanly rejected instead of causing an OOB access.",
+        "description": "run_poc invoked the identical command `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 ASAN_OPTIONS=halt_on_error=1 /work/poc_bin $INPUT` with the identical 40-byte input file (sei_msg.bin) on pre_intro, post_intro, and post_benign. /work/poc_bin is a small harness that calls the real target function ff_hevc_decode_nal_sei() directly (also cross-checked earlier by wrapping the same bytes in a full Annex-B HEVC NAL and feeding it to the ffmpeg CLI decoder for post_intro, which hit the identical sanitizer trap during HEVC NAL parsing). intro_verified='yes': pre_intro lacks the vulnerable function entirely (this SEI feature was added whole by the intro commit) so it cannot exhibit the bug and completes cleanly (ret=1, no crash); post_intro deterministically hits the exact labelled index-out-of-bounds. benign_verified='yes': post_benign, built from the same source with only the fix commit applied, processes the identical bytes and returns a normal validation error (AVERROR_INVALIDDATA) instead of crashing.",
+        "target_evidence": "run_poc(post_intro, same 40-byte input/command): crashed=True, \"libavcodec/hevc/sei.c:171:9: runtime error: index 31 out of bounds for type 'uint16_t[31]'\" in decode_nal_sei_3d_reference_displays_info -> decode_nal_sei_prefix -> decode_nal_sei_message -> ff_hevc_decode_nal_sei. This is exactly the off-by-one OOB write into HEVCSEITDRDI.left_view_id[31] caused by storing the raw get_ue_golomb() value (287) into the uint8_t field num_ref_displays before the \">31\" bound check, so the truncated value (287 mod 256 = 31) passes validation, is incremented to 32, and the loop runs i=0..31 (32 iterations) against a 31-element array."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Root cause matches meta.json exactly: in decode_nal_sei_3d_reference_displays_info() (added by intro commit efa9d3deca30), the Exp-Golomb-decoded num_ref_displays is stored into a uint8_t struct field before the \">31\" bound check runs, so a raw value like 287 truncates to 31, passes the check, becomes 32 after +1, and the subsequent loop performs an out-of-bounds write to left_view_id[31] (array size 31). Proven by recompiling only the unmodified sei.c with UBSan(+ASan,+bounds) instrumentation (matching the original OSS-Fuzz job's sanitizer, absent from this task's default ASan-only build) and running the identical 40-byte crafted SEI payload through run_poc with a minimal harness calling the real target function ff_hevc_decode_nal_sei, cross-checked via the full ffmpeg HEVC decoder pipeline. post_intro reproducibly hits 'index 31 out of bounds for type uint16_t[31]' at sei.c:171 on every run; pre_intro (parent commit, feature not yet present) and post_benign (fix commit applied) both complete cleanly on the exact same bytes/command via run_poc — pre_intro because the SEI payload type isn't handled yet, post_benign because the fix's `unsigned num_ref_displays` local-variable check now correctly rejects the raw value 287 with AVERROR_INVALIDDATA before any truncation/array access occurs. Same input, same command, same harness across all three revisions — only the target revision differs."
+    }
+  },
+  "task_hashes": {
+    "buggy": "5a6a8f3cb38c8be7e5e8463715f887ed206e4c4a8f6a0047e876b3823221de33",
+    "benign": "bd22a68dc120ab3aa9a516fd5c4fca51ce9f4976644272fbaea69216f157552c"
+  }
+}

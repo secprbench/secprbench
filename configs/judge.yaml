@@ -1,0 +1,8 @@
+model: claude-opus-5-5
+reasoning_effort: high
+claude_version: 2.1.283
+prompt_version: criteria-first-v1
+max_diff_chars: 30000
+max_attempts: 3
+paper_tools: false
+no_web: true

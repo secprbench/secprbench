@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_1987290",
+  "bug_id": "1987290",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "321172222a2ea5ef15aa7ea8ff4fc27be3064c94",
+  "intro_parent": "cd57ef3c4dbd0cb0bb12a893291911f1767e3680",
+  "fix_commit": "2b8155c2c4c299955d4ae81423992ed56a838aee",
+  "affected_files": [
+    "js/src/builtin/FinalizationRegistryObject.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_poc.js: https://bugzilla.mozilla.org/rest/bug/attachment/9511856"
+  ],
+  "input_name": "poc.js",
+  "root_cause": "Bug 1863140 Part 3 (commit 321172222a2e) refactored FinalizationRegistry.register/unregister to support non-object (e.g. symbol) targets/unregister tokens via a new CanBeHeldWeakly() helper. While doing so, the unregister() function's existing safe pattern of `args.get(0).isObject()` followed by `&args[0].toObject()` (indexing only after confirming the argument existed and was an object) was replaced by directly constructing `RootedValue unregisterToken(cx, args[0])` ahead of any validation, re-introducing an unchecked array index into the native call arguments before verifying argc covers that index.",
+  "findings": [
+    "As part of adding symbol-target support for FinalizationRegistry (Bug 1863140 Part 3), the code in FinalizationRegistryObject::unregister was refactored to accept non-object unregister tokens (via CanBeHeldWeakly) by first fetching the raw argument with `args[0]` into a RootedValue, and only afterwards validating it with CanBeHeldWeakly(). Previously the code validated `args.get(0).isObject()` (a "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "cffa6d8eb180095c8a4ae503ee40033f3589d1bbece1aedb09166f3ef008f16c",
+  "generated_artifact_sha256": {
+    "reference": "da271feb19c5529ef9976420069ec89b73c5e026f4bf4c2adbf2df4220cd20bc",
+    "introducing": "1f9e71d15d30802233f33962cdc92b22ff98a1810e7e19a0d799cfa6807a60eb",
+    "companion": "e725d234b4b69482bf96a4a06d9d5dd4882dee90da337b45c7dcf7a4cb8c36cb"
+  }
+}

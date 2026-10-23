@@ -1,0 +1,141 @@
+name: v8
+repo_url: https://github.com/v8/v8.git
+project:
+  name: v8
+  display_name: V8 JavaScript Engine
+  repo: v8/v8
+  language: C++
+context:
+  description: "V8 is Google's open-source JavaScript and WebAssembly engine that\n\
+    powers Chromium and Node.js. The codebase is primarily C++ with a\nsignificant\
+    \ amount of generated assembly (Torque, CodeStubAssembler,\nMaglev, TurboFan,\
+    \ Sparkplug) and Wasm. Almost all bugs here are\nrenderer-side memory-safety primitives\
+    \ reachable from attacker-\ncontrolled JavaScript / WebAssembly, and many result\
+    \ in arbitrary\nread/write inside the V8 sandbox or escape from it. V8 uses its\
+    \ own\ngarbage-collected heap, hand-rolled allocators (Zone, AccountingAllocator),\n\
+    and tagged-pointer / pointer-compression schemes \u2014 generic C++ aliasing\n\
+    intuition does not apply.\n"
+  input_sources: 'untrusted JavaScript source loaded by the embedder (Chrome / Node),
+
+    WebAssembly modules and runtime calls, V8 API embedder bindings,
+
+    snapshot blobs (startup snapshot, code cache), Inspector / DevTools
+
+    protocol messages, Liftoff / TurboFan compiler IR derived from
+
+    attacker-controlled bytecode, and JS-exposed builtins called with
+
+    crafted argument shapes (Smi vs HeapObject, holey vs packed arrays).
+
+    '
+  assertion_macros: 'DCHECK() / DCHECK_EQ() / DCHECK_LE() are compiled out in release
+    and
+
+    CANNOT be relied on as security guards.
+
+    CHECK() / CHECK_EQ() / FATAL() fire in all builds and ARE hard guards.
+
+    SBXCHECK() / SBXCHECK_EQ() are sandbox-violation guards that fire in
+
+    release: treat any path that bypasses them as a sandbox escape.
+
+    UNREACHABLE() in release is a CHECK-fail; in release-debug builds it
+
+    may degrade to a hint. Torque ``Cast<...>`` deoptimizes on failure
+
+    and is NOT a security boundary at the C++ level.
+
+    '
+  common_bug_types:
+  - TypeConfusion (Map / HiddenClass transitions, JIT-speculated type guards bypassed
+    by side-effecting getters)
+  - OutOfBoundsRead (TypedArray / DataView length checks, ArrayBuffer detach races,
+    JIT-inlined bounds check elision)
+  - OutOfBoundsWrite (ElementsKind transitions on holey arrays, FixedArray copy with
+    wrong length, code-stub buffers)
+  - UseAfterFree (concurrent GC + main-thread mutation, IsolateGroup teardown, weak
+    handle reuse)
+  - IntegerOverflow (Smi range assumptions, kMaxSafeInteger boundary, BigInt size
+    math in builtin codegen)
+  - HeapCorruption (raw memcpy in code-stub assemblers, allocation folding errors
+    in TurboFan)
+  - BoundsCheckElimination (TurboFan / Maglev speculation bug where a guard is removed
+    but the runtime input violates it)
+  - 'SandboxEscape (V8 sandbox boundary: external pointer table corruption, trusted/untrusted
+    heap confusion)'
+  - WasmTypeConfusion (function reference vs nullref, struct/array indexing in GC
+    proposal, table type validation)
+  - InitializationOrder (uninitialized FixedArray slot read by GC scan, partial map
+    setup observed mid-allocation)
+  - LogicError (incorrect Smi tag handling, missing context check in builtin, wrong
+    language mode propagation)
+  file_patterns:
+  - src/compiler/**/*.cc
+  - src/compiler/**/*.h
+  - src/codegen/**/*.cc
+  - src/maglev/**/*.cc
+  - src/baseline/**/*.cc
+  - src/builtins/**/*.cc
+  - src/builtins/**/*.tq
+  - src/heap/**/*.cc
+  - src/objects/**/*.cc
+  - src/objects/**/*.h
+  - src/parsing/**/*.cc
+  - src/runtime/**/*.cc
+  - src/wasm/**/*.cc
+  - src/wasm/**/*.h
+  - src/regexp/**/*.cc
+  - src/sandbox/**/*.cc
+verify:
+  name: v8
+  image: hwiwonlee/v8.base:latest
+  repo_url: https://chromium.googlesource.com/v8/v8.git
+  build_script: "set -Eeuo pipefail\ncd /work\nexport DEPOT_TOOLS_UPDATE=0\nexport\
+    \ DEPOT_TOOLS_METRICS=0\nexport GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1\nexport\
+    \ CIPD_CACHE_DIR=/verify-cache/cipd\nexport VPYTHON_VIRTUALENV_ROOT=/verify-cache/vpython\n\
+    export VPYTHON3_VIRTUALENV_ROOT=/verify-cache/vpython3\nmkdir -p \"$CIPD_CACHE_DIR\"\
+    \ /work/.verify-v8-workspace\n# depot_tools bootstraps helper binaries; the image's\
+    \ copy is root-owned.\nif ! test -x /verify-cache/depot_tools/gclient; then\n\
+    \    cp -R /opt/depot_tools /verify-cache/depot_tools\nfi\nexport PATH=\"/verify-cache/depot_tools:$PATH\"\
+    \ncommand -v gclient > build_configure.log\nrevision=$(git rev-parse HEAD)\ngit\
+    \ diff HEAD --binary > /work/.verify-source-before.patch\nln -sfn /work /work/.verify-v8-workspace/v8\n\
+    cat > /work/.verify-v8-workspace/.gclient <<'EOF'\nsolutions = [{\n  \"name\"\
+    : \"v8\",\n  \"url\": \"https://chromium.googlesource.com/v8/v8.git\",\n  \"managed\"\
+    : False,\n  \"deps_file\": \"DEPS\",\n  \"custom_deps\": {},\n  \"custom_vars\"\
+    : {\"checkout_android\": False, \"checkout_fuchsia\": False},\n}]\ntarget_os =\
+    \ []\nEOF\ncd /work/.verify-v8-workspace\ngclient sync --nohooks >> /work/build_configure.log\
+    \ 2>&1\ngclient runhooks >> /work/build_configure.log 2>&1\ncd /work\n# Dependency\
+    \ tooling must preserve the selected revision and benign source.\ntest \"$(git\
+    \ rev-parse HEAD)\" = \"$revision\"\ngit diff HEAD --binary > /work/.verify-source-after.patch\n\
+    cmp /work/.verify-source-before.patch /work/.verify-source-after.patch\n# Optional\
+    \ compiler cache. pre_intro, post_intro and post_benign differ by a\n# small diff\
+    \ but each builds in its own worktree with an empty output tree, so\n# without\
+    \ a shared cache every version recompiles the whole target. sccache is\n# staged\
+    \ into the persistent build cache by scripts/stage_sccache.sh; when it is\n# absent\
+    \ the build proceeds exactly as before.\nGN_CC_WRAPPER=\"\"\nSCCACHE_BIN=/verify-cache/bin/sccache\n\
+    if test -x \"$SCCACHE_BIN\"; then\n    export SCCACHE_DIR=/verify-cache/sccache\n\
+    \    export SCCACHE_CACHE_SIZE=\"${CGSA_SCCACHE_SIZE:-40G}\"\n    export SCCACHE_IDLE_TIMEOUT=0\n\
+    \    mkdir -p \"$SCCACHE_DIR\"\n    \"$SCCACHE_BIN\" --start-server >> build_configure.log\
+    \ 2>&1 || true\n    GN_CC_WRAPPER=\"cc_wrapper=\\\"$SCCACHE_BIN\\\"\"\nfi\ntest\
+    \ -f tools/dev/v8gen.py\npython3 tools/dev/v8gen.py x64.release -- \\\n    is_asan=true\
+    \ is_lsan=false is_debug=false symbol_level=1 \\\n    v8_use_external_startup_data=false\
+    \ $GN_CC_WRAPPER >> build_configure.log 2>&1\n# v8gen generates this directory\
+    \ consistently for the historical GN revisions.\nninja -C out.gn/x64.release -j\
+    \ \"${CGSA_BUILD_JOBS:-8}\" d8 > build_compile.log 2>&1\nif test -x \"$SCCACHE_BIN\"\
+    ; then\n    \"$SCCACHE_BIN\" --show-stats >> build_compile.log 2>&1 || true\n\
+    fi\nmkdir -p out.gn/verify\nln -sfn ../x64.release/d8 out.gn/verify/d8\ntest -x\
+    \ out.gn/verify/d8\n"
+  harness_source: null
+  harness_build: ''
+  run_cmd: ./out.gn/verify/d8 --allow-natives-syntax "$INPUT"
+  build_artifacts:
+  - out.gn/verify/d8
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+  build_timeout: 10800
+  run_timeout: 300
+  build_network: bridge
+  build_cache: true
+  build_git_mounts: true
+  build_support_files: []

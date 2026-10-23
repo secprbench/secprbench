@@ -1,0 +1,34 @@
+{
+  "bug_id": "1951554",
+  "project": "firefox",
+  "bug_type": "DataRace",
+  "commits": {
+    "intro": "52d7d34ee0f98f050db2ce347fb537b43679b746",
+    "parent": "b667cdad37182140215df6a8592d5b5b1d459c4f",
+    "fix": "d3c35516e9e88c81007543f4f7541b6d25ff86f3"
+  },
+  "affected_files": [
+    "netwerk/protocol/http/nsHttpChannel.cpp",
+    "netwerk/protocol/http/nsHttpTransaction.cpp",
+    "netwerk/protocol/http/nsHttpTransaction.h"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "All three revisions built successfully. The invariant command `MOZCONFIG=/work/.verify-mozconfig timeout 240s ./mach xpcshell-test --repeat 100 --sequential netwerk/test/unit/test_http3_fatal_stream_error.js` exited 0 with crashed=False on pre_intro, post_intro, and post_benign (1,010 checks each), with no sanitizer report. The configured mozconfig enables AddressSanitizer, not ThreadSanitizer. GDB tracing confirmed post_intro reaches the introduced main-thread non-virtual GetConnInfo thunk, and",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "inconclusive",
+    "method": "firefox-verify (era 1.76.0, agent)",
+    "intro_verified": null,
+    "benign_verified": null,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three revisions built successfully. The invariant command `MOZCONFIG=/work/.verify-mozconfig timeout 240s ./mach xpcshell-test --repeat 100 --sequential netwerk/test/unit/test_http3_fatal_stream_error.js` exited 0 with crashed=False on pre_intro, post_intro, and post_benign (1,010 checks each), with no sanitizer report. The configured mozconfig enables AddressSanitizer, not ThreadSanitizer. GDB tracing confirmed post_intro reaches the introduced main-thread non-virtual GetConnInfo thunk, and a deterministic schedule held the loaded mConnInfo pointer while the real socket thread called Disa",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1951554.json"
+  },
+  "final_disposition": "inconclusive"
+}

@@ -1,0 +1,204 @@
+{
+  "bug_id": "GH-18902",
+  "project": "curl",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+    "parent": "07a3cd83e0456ca17dfd8c3104af7cf45b7a1ff5",
+    "fix": "4bfd7a961521e1fd6aab7610e931d82a342781a8"
+  },
+  "affected_files": [
+    "lib/vtls/openssl.c",
+    "lib/vtls/vtls_int.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay.; Root cause matches: the intro commit adds a `connssl->reused_session` check that skips verifystatus() on session resumption, while ossl_connect_step1 can still offer/accept a cached session when CURLOPT_SSL_VERIFYSTATUS is set, so a resumed session's (now revoked) OCSP status is never re-checked. Reproduced with the identical harness (run.sh -> replay.py -> client.c, same fixtures) across all three revisions: pre_intro performs the status check on the resumed session and rejects the revoked status (SECOND_RESULT=91, exact oracle line \"ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\", exit 0); post_intro resumes the session (\"SSL reusing session ID\"), completely skips the OCSP status check (no \"SSL certificate status\" line at all in its log), and accepts the revoked certificate (SECOND_RESULT=0, exact oracle line \"ORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS\", exit 1); post_benign (one-line companion fix forcing a full handshake when sessionid && verifystatus) forces a fresh handshake (\"old SSL session ID is stale, removing\"), correctly detects and rejects the revoked status (\"SSL certificate status: revoked (1)\", SECOND_RESULT=91, exact oracle line \"ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\", exit 0). This is a pure logic bug (no sanitizer/crash); the oracle is self-checking and deterministic, matching the fast-path exit codes (0/1/0), and the full logs confirm the mechanism (session reuse enabling a skipped status check) rather than an unrelated failure.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18902-imported-reference-v1/verification-unified28-v1/cases/curl/8b0905a9b5da0239d5f5/attempts/01/replay/pr_review_GH-18902.result.json",
+    "report": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18902-imported-reference-v1/verification-unified28-v1/cases/curl/8b0905a9b5da0239d5f5/attempts/01/replay/pr_review_GH-18902.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "07a3cd83e0456ca17dfd8c3104af7cf45b7a1ff5",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "CLE_SESSION_OFFER=true\nORACLE_CLIENT_LOG_BEGIN\n=== FIRST REQUEST ===\n* Host localhost:34439 was resolved.\n* IPv6: ::1\n* IPv4: 127.0.0.1\n*   Trying [::1]:34439...\n* connect to ::1 port 34439 failed: Connection refused\n*   Trying 127.0.0.1:34439...\n* Connected to localhost (127.0.0.1) port 34439\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: good (0)\n* using HTTP/1.x\n* Closing connection\nFIRST_RESULT=0 No error\n=== SECOND REQUEST ===\n* Hostname localhost was found in DNS cache\n*   Trying [::1]:34439...\n* connect to ::1 port 34439 failed: Connection refused\n*   Trying 127.0.0.1:34439...\n* Connected to localhost (127.0.0.1) port 34439\n* ALPN: curl offers http/1.1\n* SSL reusing session ID\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / UNDEF\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n* No OCSP response received\n* Closing connection\nSECOND_RESULT=91 SSL server certificate status verification FAILED\n\nORACLE_CLIENT_LOG_END\nORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\nVERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "32b17cc804e75051acd661d2230c4b5ad2fea8aa1ac21e568a517934130f334e"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 1,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "LE_SERVER_GOOD=true\nORACLE_SERVER_REVOKED=false\nORACLE_SESSION_OFFER=true\nORACLE_CLIENT_LOG_BEGIN\n=== FIRST REQUEST ===\n* Host localhost:33573 was resolved.\n* IPv6: ::1\n* IPv4: 127.0.0.1\n*   Trying [::1]:33573...\n* connect to ::1 port 33573 failed: Connection refused\n*   Trying 127.0.0.1:33573...\n* Connected to localhost (127.0.0.1) port 33573\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: good (0)\n* using HTTP/1.x\n* Closing connection\nFIRST_RESULT=0 No error\n=== SECOND REQUEST ===\n* Hostname localhost was found in DNS cache\n*   Trying [::1]:33573...\n* connect to ::1 port 33573 failed: Connection refused\n*   Trying 127.0.0.1:33573...\n* Connected to localhost (127.0.0.1) port 33573\n* ALPN: curl offers http/1.1\n* SSL reusing session ID\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / UNDEF\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n* using HTTP/1.x\n* Closing connection\nSECOND_RESULT=0 No error\n\nORACLE_CLIENT_LOG_END\nORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS\nVERIFY_EXIT=1\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "45fc878aa55f37ed9a7b7f0bbd211d2629ed9f5251f32948d82ab4677ba44b9c"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "07a3cd83e0456ca17dfd8c3104af7cf45b7a1ff5",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": " ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: good (0)\n* using HTTP/1.x\n* Closing connection\nFIRST_RESULT=0 No error\n=== SECOND REQUEST ===\n* Hostname localhost was found in DNS cache\n*   Trying [::1]:46769...\n* connect to ::1 port 46769 failed: Connection refused\n*   Trying 127.0.0.1:46769...\n* Connected to localhost (127.0.0.1) port 46769\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* old SSL session ID is stale, removing\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: revoked (1)\n* SSL certificate revocation reason: (UNKNOWN) (-1)\n* Closing connection\nSECOND_RESULT=91 SSL server certificate status verification FAILED\n\nORACLE_CLIENT_LOG_END\nORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\nVERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "587e944749922d86bbd6231a5ac7c8e5b6197a3c80cc85a59c8c68e958058ab2"
+        }
+      }
+    },
+    "agent": {
+      "verdict": "/research-data/secprbench/season100-20261002-new-reports/curl-gh18902-imported-reference-v1/verification-unified28-v1/cases/curl/8b0905a9b5da0239d5f5/attempts/01/replay/pr_review_GH-18902.agent_verdict.json",
+      "executions": {
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": "ocsp-session.poc",
+          "poc_sha256": "1b5f791f01b34731e419b9a8d03771bbd6781ee9f45dc4f64dd85182b0dbea5c",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "07a3cd83e0456ca17dfd8c3104af7cf45b7a1ff5",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "32b17cc804e75051acd661d2230c4b5ad2fea8aa1ac21e568a517934130f334e"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ORACLE_FIXTURE_SHA256=589b03d3856f241f70e6444e28d1af207756a3d6be0f608939d024f331af3905\nORACLE_INPUT_GOOD_SHA256=8dad996918eb7d1ecfae76e6ceb15923a5ef46df939f23cdf0a5dd9177033f9a\nORACLE_INPUT_REVOKED_SHA256=4471a2c461c4b1b2b293ec1c7cf5dfc1009cd71ab971be5095670a27c20874b7\nORACLE_CLIENT_EXIT=0\nORACLE_FIRST_RESULT=0\nORACLE_SECOND_RESULT=91\nORACLE_SERVER_GOOD=true\nORACLE_SERVER_REVOKED=false\nORACLE_SESSION_OFFER=true\nORACLE_CLIENT_LOG_BEGIN\n=== FIRST REQUEST ===\n* Host localhost:43281 was resolved.\n* IPv6: ::1\n* IPv4: 127.0.0.1\n*   Trying [::1]:43281...\n* connect to ::1 port 43281 failed: Connection refused\n*   Trying 127.0.0.1:43281...\n* Connected to localhost (127.0.0.1) port 43281\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: good (0)\n* using HTTP/1.x\n* Closing connection\nFIRST_RESULT=0 No error\n=== SECOND REQUEST ===\n* Hostname localhost was found in DNS cache\n*   Trying [::1]:43281...\n* connect to ::1 port 43281 failed: Connection refused\n*   Trying 127.0.0.1:43281...\n* Connected to localhost (127.0.0.1) port 43281\n* ALPN: curl offers http/1.1\n* SSL reusing session ID\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / UNDEF\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n* No OCSP response received\n* Closing connection\nSECOND_RESULT=91 SSL server certificate status verification FAILED\n\nORACLE_CLIENT_LOG_END\nORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": "ocsp-session.poc",
+          "poc_sha256": "1b5f791f01b34731e419b9a8d03771bbd6781ee9f45dc4f64dd85182b0dbea5c",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "395365ad2d9a6c3f1a35d5e268a6af2824129832",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "45fc878aa55f37ed9a7b7f0bbd211d2629ed9f5251f32948d82ab4677ba44b9c"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ORACLE_FIXTURE_SHA256=589b03d3856f241f70e6444e28d1af207756a3d6be0f608939d024f331af3905\nORACLE_INPUT_GOOD_SHA256=8dad996918eb7d1ecfae76e6ceb15923a5ef46df939f23cdf0a5dd9177033f9a\nORACLE_INPUT_REVOKED_SHA256=4471a2c461c4b1b2b293ec1c7cf5dfc1009cd71ab971be5095670a27c20874b7\nORACLE_CLIENT_EXIT=0\nORACLE_FIRST_RESULT=0\nORACLE_SECOND_RESULT=0\nORACLE_SERVER_GOOD=true\nORACLE_SERVER_REVOKED=false\nORACLE_SESSION_OFFER=true\nORACLE_CLIENT_LOG_BEGIN\n=== FIRST REQUEST ===\n* Host localhost:33911 was resolved.\n* IPv6: ::1\n* IPv4: 127.0.0.1\n*   Trying [::1]:33911...\n* connect to ::1 port 33911 failed: Connection refused\n*   Trying 127.0.0.1:33911...\n* Connected to localhost (127.0.0.1) port 33911\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: good (0)\n* using HTTP/1.x\n* Closing connection\nFIRST_RESULT=0 No error\n=== SECOND REQUEST ===\n* Hostname localhost was found in DNS cache\n*   Trying [::1]:33911...\n* connect to ::1 port 33911 failed: Connection refused\n*   Trying 127.0.0.1:33911...\n* Connected to localhost (127.0.0.1) port 33911\n* ALPN: curl offers http/1.1\n* SSL reusing session ID\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / UNDEF\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n* using HTTP/1.x\n* Closing connection\nSECOND_RESULT=0 No error\n\nORACLE_CLIENT_LOG_END\nORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS\nVERIFY_EXIT=1\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": "ocsp-session.poc",
+          "poc_sha256": "1b5f791f01b34731e419b9a8d03771bbd6781ee9f45dc4f64dd85182b0dbea5c",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "07a3cd83e0456ca17dfd8c3104af7cf45b7a1ff5",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "587e944749922d86bbd6231a5ac7c8e5b6197a3c80cc85a59c8c68e958058ab2"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ORACLE_FIXTURE_SHA256=589b03d3856f241f70e6444e28d1af207756a3d6be0f608939d024f331af3905\nORACLE_INPUT_GOOD_SHA256=8dad996918eb7d1ecfae76e6ceb15923a5ef46df939f23cdf0a5dd9177033f9a\nORACLE_INPUT_REVOKED_SHA256=4471a2c461c4b1b2b293ec1c7cf5dfc1009cd71ab971be5095670a27c20874b7\nORACLE_CLIENT_EXIT=0\nORACLE_FIRST_RESULT=0\nORACLE_SECOND_RESULT=91\nORACLE_SERVER_GOOD=true\nORACLE_SERVER_REVOKED=true\nORACLE_SESSION_OFFER=false\nORACLE_CLIENT_LOG_BEGIN\n=== FIRST REQUEST ===\n* Host localhost:35147 was resolved.\n* IPv6: ::1\n* IPv4: 127.0.0.1\n*   Trying [::1]:35147...\n* connect to ::1 port 35147 failed: Connection refused\n*   Trying 127.0.0.1:35147...\n* Connected to localhost (127.0.0.1) port 35147\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: good (0)\n* using HTTP/1.x\n* Closing connection\nFIRST_RESULT=0 No error\n=== SECOND REQUEST ===\n* Hostname localhost was found in DNS cache\n*   Trying [::1]:35147...\n* connect to ::1 port 35147 failed: Connection refused\n*   Trying 127.0.0.1:35147...\n* Connected to localhost (127.0.0.1) port 35147\n* ALPN: curl offers http/1.1\n*  CAfile: /poc/ca.crt\n*  CApath: /etc/ssl/certs\n* old SSL session ID is stale, removing\n* SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384 / X25519 / RSASSA-PSS\n* ALPN: server did not agree on a protocol. Uses default.\n* Server certificate:\n*  subject: CN=localhost\n*  start date: Oct  2 16:30:09 2026 GMT\n*  expire date: Dec 31 16:30:09 2026 GMT\n*  subjectAltName: host \"localhost\" matched cert's \"localhost\"\n*  issuer: CN=SecPRBench Local CA\n*  SSL certificate verify ok.\n*   Certificate level 0: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n*   Certificate level 1: Public key type RSA (2048/112 Bits/secBits), signed using sha256WithRSAEncryption\n* SSL certificate status: revoked (1)\n* SSL certificate revocation reason: (UNKNOWN) (-1)\n* Closing connection\nSECOND_RESULT=91 SSL server certificate status verification FAILED\n\nORACLE_CLIENT_LOG_END\nORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "ORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS",
+        "pre_marker": "ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED",
+        "benign_marker": "ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED",
+        "description": "replay.py parses the client's stderr for FIRST_RESULT/SECOND_RESULT markers and prints the exact line ORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS (exit 1) when the second (session-resumed) request succeeds (SECOND_RESULT=0) despite the server now stapling a revoked OCSP response, versus the exact line ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED (exit 0) when the second request is correctly rejected with CURLE_SSL_INVALIDCERTSTATUS (SECOND_RESULT=91).",
+        "target_evidence": "run_poc outputs for all three builds: pre_intro exit=0, log shows \"SECOND_RESULT=91 SSL server certificate status verification FAILED\" then \"ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\"; post_intro exit=1, log shows \"SSL reusing session ID\" then \"SECOND_RESULT=0 No error\" (no status check performed) then \"ORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS\"; post_benign exit=0, log shows \"old SSL session ID is stale, removing\" then \"SSL certificate status: revoked (1)\" then \"SECOND_RESULT=91 SSL server certificate status verification FAILED\" then \"ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\"."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "behavioral",
+        "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+      },
+      "explanation": "Root cause matches: the intro commit adds a `connssl->reused_session` check that skips verifystatus() on session resumption, while ossl_connect_step1 can still offer/accept a cached session when CURLOPT_SSL_VERIFYSTATUS is set, so a resumed session's (now revoked) OCSP status is never re-checked. Reproduced with the identical harness (run.sh -> replay.py -> client.c, same fixtures) across all three revisions: pre_intro performs the status check on the resumed session and rejects the revoked status (SECOND_RESULT=91, exact oracle line \"ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\", exit 0); post_intro resumes the session (\"SSL reusing session ID\"), completely skips the OCSP status check (no \"SSL certificate status\" line at all in its log), and accepts the revoked certificate (SECOND_RESULT=0, exact oracle line \"ORACLE_RESULT=VULNERABLE_OCSP_VALIDATION_BYPASS\", exit 1); post_benign (one-line companion fix forcing a full handshake when sessionid && verifystatus) forces a fresh handshake (\"old SSL session ID is stale, removing\"), correctly detects and rejects the revoked status (\"SSL certificate status: revoked (1)\", SECOND_RESULT=91, exact oracle line \"ORACLE_RESULT=PROTECTED_REVOKED_OCSP_REJECTED\", exit 0). This is a pure logic bug (no sanitizer/crash); the oracle is self-checking and deterministic, matching the fast-path exit codes (0/1/0), and the full logs confirm the mechanism (session reuse enabling a skipped status check) rather than an unrelated failure."
+    }
+  },
+  "task_hashes": {
+    "buggy": "85944c7d2ef821acf1d46099aa6429974b2e8de7b377e8618ad077a636e3630a",
+    "benign": "70a6c065353df267b049ae3457d22728defe14e575b3705ea88dd8ca7e6c5e86"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-391962476",
+  "bug_id": "OSSFUZZ-391962476",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "86dd15fd0dd0deeb69ffcff9952b801bbb2f38c7",
+  "intro_parent": "f651ca3a6838be90e7d5189d831c9db8cb7e3ec8",
+  "fix_commit": "251d43aef0df9262f2688c1c848af993bbb67d08",
+  "affected_files": [
+    "libavformat/mlvdec.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Missing/insufficient bounds validation on an attacker-controlled `size` (and the related `space` field) before it is used in unsigned arithmetic (subtraction that can underflow) and in a size-plus-constant allocation (addition that can overflow), both feeding directly into memory allocation and copy operations.",
+  "findings": [
+    "get_packet_lj92() takes a 64-bit `size` value that is derived, in read_packet(), from an unsigned 32-bit value read straight from the MLV file (block size minus a few fixed header fields and an attacker-controlled `space` field). Neither read_packet() nor get_packet_lj92() validates that `size` is within a sane range before it is used. Inside get_packet_lj92(), the packet buffer is allocated with "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "59c718eaabed43c1429320298c5e25b4ecaf6f6c213d5b2367dfa299a4bb07b1",
+  "generated_artifact_sha256": {
+    "reference": "a6aec0d199b2c0befa3c5347ae2bb9cd652ad6596810dc28b4386574268f7b0e",
+    "introducing": "d35371d3dc7b75303748f370eea9185e7cf9c6cb26e40ff3a464f7f6d5794fda",
+    "companion": "67087de9142f7a30f6807f92f9d4e35c8770b67e9cff2b8835ec2970bf1f024d"
+  }
+}

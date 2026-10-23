@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-418421333",
+  "bug_id": "OSSFUZZ-418421333",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "821717c3fe1ce7fd022077669a1380634fb102d0",
+  "intro_parent": "0c79a091e4dcf5ad00d02c94babab2499bd65793",
+  "fix_commit": "f09c834a7d01dfde9369551b2767c001846a396f",
+  "affected_files": [
+    "libavcodec/cbs_apv_syntax_template.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The tile() syntax function in libavcodec/cbs_apv_syntax_template.c trusted the tile_data_size value derived from the bitstream's tile_header without validating it against the number of bits actually remaining in the reader (get_bits_left) before calling skip_bits_long(). The write-direction code path had an analogous check (put_bytes_left), but the equivalent check was omitted for the read-direction path when the function was first written, allowing out-of-bounds tile data ranges to be accepted silently.",
+  "findings": [
+    "In the CBS APV syntax template's tile() function, when reading (READ direction), the code takes comp_size = current->tile_header.tile_data_size[c] (an attacker-controlled 32-bit value parsed earlier from the bitstream by tile_header()) and immediately does current->tile_data[c] = (uint8_t*)align_get_bits(rw); skip_bits_long(rw, 8 * comp_size); without ever verifying that the underlying bit reader "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "7ccc64180387ec8f1d066df5b6af63fca10df1741f2738bc47eb6a16f8b0f63d",
+  "generated_artifact_sha256": {
+    "reference": "72388a0b59d8a6d4b14331693a19d94d7e744899b7db44c864e739427884d444",
+    "introducing": "14d42f405ec6de657cf008994eaa877a94cbb57476843b66183c02e3ecde06df",
+    "companion": "fb3eeb991f2412b5a9c858c7a701fa34036b84803173ffc2cba3f727fd0d886d"
+  }
+}

@@ -1,0 +1,180 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "Custom /poc/poc.c harness (identical command across all three revisions, run via run_poc): looks up avfilter_get_by_name(\"estdif\") and gracefully exits 0 if absent; otherwise builds a buffer->estdif->buffersink graph with graph->nb_threads=1500, feeds a zeroed 2x2000000 yuv420p AVFrame, and pulls output via av_buffersink_get_frame. Height=2,000,000 with nb_jobs\u22481500 makes deinterlace_slice()'s 32-bit `height*(jobnr+1)` product overflow INT_MAX before dividing by nb_jobs for a late slice, corrupting the computed start/end row bounds and causing an out-of-bounds memcpy.",
+  "explanation": "Intro commit e722b443e462 newly adds libavfilter/vf_estdif.c (absent in intro_parent bf1cc9a43be5, confirmed by `ls`), including deinterlace_slice()'s slice-boundary computation `(height*jobnr)/nb_jobs` / `(height*(jobnr+1))/nb_jobs` in plain 32-bit `int` arithmetic \u2014 exactly matching meta.json's stated root cause. To get an invariant reproducer that runs identically (same command) on all three revisions without depending on the ffmpeg CLI's hard failure for an unknown filter, I built a small libavfilter API harness (/poc/poc.c) that looks up \"estdif\" via avfilter_get_by_name and exits cleanly (0) if it is not registered, otherwise constructs the same buffer->estdif->buffersink graph with 1500 filter threads and a 2x2000000 yuv420p frame and pulls a frame from the sink. Run via the identical build+execute command through run_poc on all three built revisions: pre_intro exits 0 and reports the filter is simply not present (expected, since the vulnerable file doesn't exist yet \u2014 there is no code path to crash); post_intro reliably reproduces a genuine AddressSanitizer heap-buffer-overflow inside deinterlace_slice() at vf_estdif.c:299 (a memcpy writing 33 bytes past the 32,000,031-byte output frame buffer allocated by filter()->ff_get_video_buffer() at vf_estdif.c:356), driven by the labelled 32-bit multiplication overflow for this height/nb_jobs combination; post_benign, which applies the fix commit's widening of the intermediate product to int64_t before dividing, runs the identical command cleanly (exit 0, output frames produced, no sanitizer report), confirming the companion patch removes the overflow-driven out-of-bounds write. The exact same command/harness was used for all three revisions, satisfying the required invariance, and pre_intro's clean pass together with post_intro's crash and post_benign's clean pass jointly confirm both introduction and the benign fix.",
+  "oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom /poc/poc.c harness (identical command across all three revisions, run via run_poc): looks up avfilter_get_by_name(\"estdif\") and gracefully exits 0 if absent; otherwise builds a buffer->estdif->buffersink graph with graph->nb_threads=1500, feeds a zeroed 2x2000000 yuv420p AVFrame, and pulls output via av_buffersink_get_frame. Height=2,000,000 with nb_jobs\u22481500 makes deinterlace_slice()'s 32-bit `height*(jobnr+1)` product overflow INT_MAX before dividing by nb_jobs for a late slice, corrupting the computed start/end row bounds and causing an out-of-bounds memcpy.",
+    "target_evidence": "Same command `bash -c 'cd /work && clang ... -o /tmp/poc /poc/poc.c <libs> && /tmp/poc'` on all three: pre_intro -> exit=0, crashed=False, stdout \"SKIP: estdif filter not present in this build\" (confirmed via `ls /work/libavfilter/vf_estdif.c` -> No such file or directory; the intro commit e722b443e462 is what adds this file). post_intro -> exit=134, crashed=True: \"AddressSanitizer: heap-buffer-overflow ... WRITE of size 2 ... #1 deinterlace_slice /work/libavfilter/vf_estdif.c:299:13 ... 0x7ff71ed32040 is located 33 bytes to the right of 32000031-byte region ... allocated by ... ff_get_video_buffer ... filter /work/libavfilter/vf_estdif.c:356 ... filter_frame vf_estdif.c:420\". post_benign -> exit=0, crashed=False, stdout shows successful output frames (\"OK: got output frame[1] 2x2000000\", flush frames), no sanitizer report."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "docker_shell(pre_intro)",
+    "run_poc(pre_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "run_poc(pre_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "bash -c 'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. -o /tmp/poc /poc/poc.c libavfilter/libavfilter.a libavformat/libavformat.a libavcodec/libavcodec.a libswresample/libswresample.a libswscale/libswscale.a libpostproc/libpostproc.a libavutil/libavutil.a -pthread -lm -lz -fsanitize=address && /tmp/poc'",
+      "input": null,
+      "poc_sha256": "206c1398691c6a6804ffcf31913debcf8d161a17d52d3357e8a2578ca5c6c409",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "e722b443e462ba412c06ac27b3dff5686e322c9b",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "00b629e500b7e662aea909edf4c4ca316fd899fa85ccb577396273821cf7a712"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=134\n\nINFO: get_frame[0] ret=-11\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x7ff71ed32040 at pc 0x5603762eeb5a bp 0x7ff7fc083b90 sp 0x7ff7fc083360\nWRITE of size 2 at 0x7ff71ed32040 thread T1104\n    #0 0x5603762eeb59 in __asan_memcpy (/tmp/poc+0x83fb59) (BuildId: a3be268cdfb47d1fef55585dfbed02d79787c476)\n    #1 0x56037648d61e in deinterlace_slice /work/libavfilter/vf_estdif.c:299:13\n    #2 0x5603763b515a in worker_func /work/libavfilter/pthread.c:50:15\n    #3 0x5603782dbe9b in run_jobs /work/libavutil/slicethread.c:61:9\n    #4 0x5603782dbe9b in thread_worker /work/libavutil/slicethread.c:85:13\n    #5 0x7ffa2b617ac2 in start_thread nptl/./nptl/pthread_create.c:442:8\n    #6 0x7ffa2b6a8a83 in __clone misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100\n\n0x7ff71ed32040 is located 33 bytes to the right of 32000031-byte region [0x7ff71cead800,0x7ff71ed3201f)\nallocated by thread T0 here:\n    #0 0x5603762f02f7 in posix_memalign (/tmp/poc+0x8412f7) (BuildId: a3be268cdfb47d1fef55585dfbed02d79787c476)\n    #1 0x5603782afa74 in av_malloc /work/libavutil/mem.c:86:9\n    #2 0x560378281589 in av_buffer_alloc /work/libavutil/buffer.c:72:12\n    #3 0x56037828189e in av_buffer_allocz /work/libavutil/buffer.c:85:24\n    #4 0x560378283946 in pool_alloc_buffer /work/libavutil/buffer.c:343:26\n    #5 0x560378283946 in av_buffer_pool_get /work/libavutil/buffer.c:379:15\n    #6 0x5603763af884 in ff_frame_pool_get /work/libavfilter/framepool.c:222:29\n    #7 0x56037670ece1 in ff_default_get_video_buffer /work/libavfilter/video.c:90:13\n    #8 0x56037670e8bf in ff_get_video_buffer /work/libavfilter/video.c:109:15\n    #9 0x56037648cf0c in filter /work/libavfilter/vf_estdif.c:356:11\n    #10 0x56037648c6f8 in filter_frame /work/libavfilter/vf_estdif.c:420:11\n    #11 0x56037637bdc8 in ff_filter_frame_framed /work/libavfilter/avfilter.c:1082:11\n    #12 0x56037637bdc8 in ff_filter_frame_to_filter /work/libavfilter/avfilter.c:1230:11\n    #13 0x56037637bdc8 in ff_filter_activate_default /work/libavfilter/avfilter.c:1279:20\n    #14 0x56037637bdc8 in ff_filter_activate /work/libavfilter/avfilter.c:1438:11\n    #15 0x560376387113 in ff_filter_graph_run_once /work/libavfilter/avfiltergraph.c:1403:12\n    #16 0x560376388fb0 in get_frame_internal /work/libavfilter/buffersink.c:131:19\n    #17 0x560376388c6c in av_buffersink_get_frame_flags /work/libavfilter/buffersink.c:142:12\n    #18 0x560376388c6c in av_buffersink_get_frame /work/libavfilter/buffersink.c:90:12\n    #19 0x56037632ab2f in main /poc/poc.c:72:15\n    #20 0x7ffa2b5acd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nThread T1104 created by T0 here:\n    #0 0x5603762d8bfc in pthread_create (/tmp/poc+0x829bfc) (BuildId: a3be268cdfb47d1fef55585dfbed02d79787c476)\n    #1 0x5603782dbaa7 in avpriv_slicethread_create /work/libavutil/slicethread.c:147:19\n    #2 0x5603763b4de4 in thread_init_internal /work/libavfilter/pthread.c:78:18\n    #3 0x5603763b4de4 in ff_graph_thread_init /work/libavfilter/pthread.c:97:11\n    #4 0x56037637fcfd in avfilter_graph_alloc_filter /work/libavfilter/avfiltergraph.c:180:23\n    #5 0x56037637fb47 in avfilter_graph_create_filter /work/libavfilter/avfiltergraph.c:148:17\n    #6 0x56037632a772 in main /poc/poc.c:38:11\n    #7 0x7ffa2b5acd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (/tmp/poc+0x83fb59) (BuildId",
+        "stdout_tail": "131:19\n    #17 0x560376388c6c in av_buffersink_get_frame_flags /work/libavfilter/buffersink.c:142:12\n    #18 0x560376388c6c in av_buffersink_get_frame /work/libavfilter/buffersink.c:90:12\n    #19 0x56037632ab2f in main /poc/poc.c:72:15\n    #20 0x7ffa2b5acd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nThread T1104 created by T0 here:\n    #0 0x5603762d8bfc in pthread_create (/tmp/poc+0x829bfc) (BuildId: a3be268cdfb47d1fef55585dfbed02d79787c476)\n    #1 0x5603782dbaa7 in avpriv_slicethread_create /work/libavutil/slicethread.c:147:19\n    #2 0x5603763b4de4 in thread_init_internal /work/libavfilter/pthread.c:78:18\n    #3 0x5603763b4de4 in ff_graph_thread_init /work/libavfilter/pthread.c:97:11\n    #4 0x56037637fcfd in avfilter_graph_alloc_filter /work/libavfilter/avfiltergraph.c:180:23\n    #5 0x56037637fb47 in avfilter_graph_create_filter /work/libavfilter/avfiltergraph.c:148:17\n    #6 0x56037632a772 in main /poc/poc.c:38:11\n    #7 0x7ffa2b5acd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (/tmp/poc+0x83fb59) (BuildId: a3be268cdfb47d1fef55585dfbed02d79787c476) in __asan_memcpy\nShadow bytes around the buggy address:\n  0x0fff63d9e3b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0fff63d9e3c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0fff63d9e3d0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0fff63d9e3e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0fff63d9e3f0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0fff63d9e400: 00 00 00 07 fa fa fa fa[fa]fa fa fa fa fa fa fa\n  0x0fff63d9e410: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0fff63d9e420: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0fff63d9e430: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0fff63d9e440: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0fff63d9e450: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'bash -c '\"'\"'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. -o /tmp/poc /poc/poc.c libavfilter/libavfilter.a libavformat/libavformat.a libavcodec/libavcodec.a libswresample/libswresample.a libswscale/libswscale.a libpostproc/libpostproc.a libavutil/libavutil.a -pthread -lm -lz -fsanitize=address && /tmp/poc'\"'\"''\n"
+      }
+    },
+    "pre_intro": {
+      "command": "bash -c 'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. -o /tmp/poc /poc/poc.c libavfilter/libavfilter.a libavformat/libavformat.a libavcodec/libavcodec.a libswresample/libswresample.a libswscale/libswscale.a libpostproc/libpostproc.a libavutil/libavutil.a -pthread -lm -lz -fsanitize=address && /tmp/poc'",
+      "input": null,
+      "poc_sha256": "206c1398691c6a6804ffcf31913debcf8d161a17d52d3357e8a2578ca5c6c409",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "bf1cc9a43be5d72d8aea24e927e07c7423d8298c",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "ae1aa64b0cf3a07e809f45482103769dd2bc965f236ac2cb2401c12d8f672d84"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "SKIP: estdif filter not present in this build\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "bash -c 'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. -o /tmp/poc /poc/poc.c libavfilter/libavfilter.a libavformat/libavformat.a libavcodec/libavcodec.a libswresample/libswresample.a libswscale/libswscale.a libpostproc/libpostproc.a libavutil/libavutil.a -pthread -lm -lz -fsanitize=address && /tmp/poc'",
+      "input": null,
+      "poc_sha256": "206c1398691c6a6804ffcf31913debcf8d161a17d52d3357e8a2578ca5c6c409",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "bf1cc9a43be5d72d8aea24e927e07c7423d8298c",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b9a49584e2af97b73a0a099e0a39627b7aa08b7c8a5d1085c8077cb6d65b8e8c"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "OK: got output frame[1] 2x2000000\nOK: got output frame[2] 2x2000000\nOK: flush output frame[0] 2x2000000\nOK: flush output frame[1] 2x2000000\nOK: flush output frame[2] 2x2000000\nDONE\nVERIFY_EXIT=0\n\nINFO: get_frame[0] ret=-11\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

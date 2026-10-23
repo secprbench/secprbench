@@ -1,0 +1,40 @@
+{
+  "bug_id": "401053598",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "3e7191831b1a3f979570b9668541770bb6624d02",
+    "parent": "7813fd9d7d290726440f886e3494362e6fee61af",
+    "fix": "d3e1723bf45a39d3edd53d249b3a4a1af24b468b"
+  },
+  "affected_files": [
+    "src/asmjs/asm-parser.cc",
+    "src/wasm/function-body-decoder-impl.h",
+    "src/wasm/wasm-opcodes-inl.h",
+    "src/wasm/wasm-opcodes.h",
+    "test/cctest/wasm/test-run-wasm-asmjs.cc",
+    "test/common/wasm/wasm-macro-gen.h"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "Reproduction could not be performed. There was no existing PoC or input. The configured build_version calls for pre_intro, post_intro, and post_benign each timed out after 300 seconds without returning build success or a compiler-failure log. A required default run_poc probe on post_intro, one sequential cached build/status retry for post_intro, and a read-only docker_shell probe for /work/out.gn/verify/d8 all likewise timed out before producing any command output. Thus no behavioral oracle (pos",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "dcheck",
+    "environment": "hwiwonlee/v8.base:latest (docker), running as container v8-401053598 with --cpus 8 --memory 24g. The image ships a fully gclient-synced /src/v8 checkout (clang toolchain, all DEPS already fetched) whose git history already contained the intro/parent/fix commits locally, so no network was needed for checkout (only for git-fetching the real upstream fix commit's blob content, since the task JSON's ground_truth.fix_commit was null). Built is_debug=true, is_component_build=false, symbol_level=0 d8 binaries for parent, intro, and benign(fixed) revisions in out/parent, out/intro, out/benign respectively (incremental copy+rebuild between revisions). One infra hiccup: `gclient sync` failed on an overlayfs 'invalid cross-device link' error while cipd tried to remove a stale third_party/siso cipd package instance dir; fixed by `rm -rf /src/.cipd/pkgs/2` before retrying (not a code issue, a Docker overlay2/cipd rename quirk).",
+    "parent": "7813fd9d7d290726440f886e3494362e6fee61af (direct git parent of the intro commit). is_debug=true d8 built cleanly (2266/2266 ninja targets). Running poc.js: WebAssembly.Module() compile throws CompileError 'Invalid opcode 0xfa @+23', process exits 0 (no crash). At this revision the AsmJs opcodes are still single-byte (0xdc-0xfa, no kAsmJsPrefix constant exists yet), so byte 0xfa is decoded as the single-byte opcode I32AsmjsUConvertF64 outside an asmjs module context and rejected by the ordinary is_asmjs_module validation check -- a normal graceful validation error, not a crash. This is a feature-absent-but-clean control: the new prefixed-opcode code path this bug lives in does not exist yet at parent, and the old code path it replaced does not share the flaw.",
+    "intro": "3e7191831b1a3f979570b9668541770bb6624d02. is_debug=true d8 built (incremental from parent's out dir, 2261/2261 targets). Running poc.js aborts the process: 'Fatal error in ../../src/wasm/function-body-decoder-impl.h, line 6204 # Debug check failed: (opcode >> 8) == kAsmJsPrefix.', full C stack trace through DecodeAsmJsOpcode -> DecodeAsmJsImpl -> DecodeAsmJs -> DecodeFunctionBody -> ValidateFunctionBody -> WebAssembly.Module() constructor. Exit code 133 (SIGTRAP/core dump), confirmed via `timeout 30 ... ; echo EXIT=$?`.",
+    "benign": "Applied only the real upstream fix (fetched via `git fetch origin d3e1723bf45a39d3edd53d249b3a4a1af24b468b` then `git checkout FETCH_HEAD -- src/wasm/function-body-decoder-impl.h`) on top of the intro tree, replacing `V8_ASSUME((opcode >> 8) == kAsmJsPrefix);` with an explicit `if ((opcode >> 8) != kAsmJsPrefix) { this->DecodeError(...); return 0; }` guard. Incremental rebuild (2261/2261 targets, only the changed header + its dependents recompiled). Running poc.js: WebAssembly.Module() compile throws CompileError 'Invalid opcode: 0xfa100 @+23', process exits 0. No crash -- the malformed opcode is now rejected gracefully via DecodeError instead of hitting the DCHECK.",
+    "evidence": "intro crash: '# Debug check failed: (opcode >> 8) == kAsmJsPrefix.' at src/wasm/function-body-decoder-impl.h:6204 (matches ground_truth.findings[0].location exactly: file src/wasm/function-body-decoder-impl.h, function DecodeAsmJsOpcode, start_line 6203-6204). parent/benign: graceful CompileError, exit 0, no abort. Full crash log kept at artifacts/run_intro_crash.tail.log.",
+    "poc_source": "constructed",
+    "reason": "The ground-truth JSON (pr_review_401053598.json) gives the exact root cause: DecodeAsmJsOpcode() at function-body-decoder-impl.h:6204 uses V8_ASSUME((opcode >> 8) == kAsmJsPrefix), which expands to a DCHECK in debug builds (confirmed by reading include/v8config.h's V8_ASSUME macro). read_prefixed_opcode() (src/wasm/decoder.h:202-222) LEB128-decodes the byte(s) after a prefix byte; for a decoded index in (0xff, 0xfff] it builds opcode = (prefix << 12) | index, whose top byte is NOT the prefix itself. I constructed a minimal 27-byte wasm module (one () -> () function) whose body is the 3 bytes [0xfa, 0x80, 0x02] -- prefix 0xfa (kAsmJsPrefix) followed by LEB128-encoded index 0x100 (256) -- immediately followed by `end`. This reliably drives the decoder into DecodeAsmJsOpcode with opcode=0xfa100 (top byte 0xfa1 != 0xfa), hitting the DCHECK. I verified this exact reasoning against a real, adj",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/v8__401053598/result.json"
+  },
+  "final_disposition": "verified"
+}

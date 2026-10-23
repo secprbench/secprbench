@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_REPORTED-582cea9ee1bfa873",
+  "bug_id": "REPORTED-582cea9ee1bfa873",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "6a982bde85eaef0ed0aee7dabfb9ebc5080c0f36",
+  "intro_parent": "9e8b642b1005a8a16f39113f42b5f75b4518a5a6",
+  "fix_commit": "582cea9ee1bfa87344792c5c54657250e9983138",
+  "affected_files": [
+    "src/autofit/afadjust.c",
+    "src/autofit/afglobal.h",
+    "src/autofit/afgsub.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "freetype",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The code trusted indices returned by hb_ot_layout_collect_lookups() (via hb_set_next()) to always be within the bounds of the array FreeType allocated for GSUB lookup data, without any explicit bounds check, and without even tracking the array's allocated length in AF_FaceGlobals.",
+  "findings": [
+    "In af_reverse_character_map_new(), the code iterates over GSUB lookup indices returned by hb_ot_layout_collect_lookups() (via hb_set_next()) and uses each index directly to subscript the globals->gsub_lookups_single_alternate[] array, which was allocated with exactly `lookupCount` (the number of lookups discovered while parsing the font's own GSUB table in af_parse_gsub()). HarfBuzz validates look"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "be58a193230e5c722dc52453c4a2e010e3aabcb5d6b447f426357d31ca5345d5",
+  "generated_artifact_sha256": {
+    "reference": "e4ed752d4c683fef468d09da0352ac611417fdf1b8f38e716e0ff5688cffa562",
+    "introducing": "156b8c866fd77c0af10b19f9aac364b6de4a5e0efa3666985f405f4e095af810",
+    "companion": "25deb0b217047a025fe35ea46b8f65f14f0be938a48342ae9696c5e0c52e67ea"
+  }
+}

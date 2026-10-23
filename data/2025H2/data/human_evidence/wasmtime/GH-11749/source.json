@@ -1,0 +1,62 @@
+{
+  "bug_id": "GH-11749",
+  "title": "Panic performing reverse-map of pc offset to function index",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "wasmtime",
+  "component": "",
+  "creation_time": "2025-09-28T03:32:03Z",
+  "resolution_time": null,
+  "bug_discussion": "Public issue or PR: https://github.com/bytecodealliance/wasmtime/issues/11749\n\nPanic performing reverse-map of pc offset to function index\nThis input:\n\n```wasm\n(module\n  (type $a (array (mut i64)))\n  (elem declare externref)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func $f2\n    (local (ref null any))\n    data.drop 0\n    call $f2\n\n    local.get 0\n    ref.test nullref\n    unreachable\n  )\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func (export \"\") unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func unreachable)\n  (func (export \"entry\") (result externref)\n    call $f1\n\n    i32.const 0\n    array.new_default $a\n    i32.const 0\n    array.new_default $a\n    elem.drop 0\n    unreachable\n  )\n  (func $f1 call $f2 call $f2)\n  (data)\n)\n```\n\nfails with this command:\n\n```\n$ cargo run run -Ccache=n --target pulley64 -Oopt-level=0 -Wfunction-references=y -Wgc=y -Wunknown-imports-default --invoke entry testcase0.wat\n...\n\nthread 'main' panicked at crates/environ/src/builtin.rs:353:1:\nassertion failed: i < Self::len()\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n```\n\nI believe the cause of this is https://github.com/bytecodealliance/wasmtime/pull/11630 so cc @fitzgen \n\nMainline fixing commit 89fdfa12f718118d40cce31945e561434693e652: Fix reverse PC to function lookups for sparse func kinds (#11766)\n\n* Add failing test for index building\n\n* Fix reverse PC to function lookups for sparse func kinds\n\nWe were previously computing an offset within the kind's sparse index space, and\nneeded to add its sparse start index to get the actual `SparseIndex` for the\nfunction.\n\nFixes #11749\n\n---------\n\nCo-authored-by: Alex Crichton <alex@alexcrichton.com>\u0000",
+  "commit_ids": [
+    "89fdfa12f718118d40cce31945e561434693e652"
+  ],
+  "fix_commit_sha": "89fdfa12f718118d40cce31945e561434693e652",
+  "fix_date": "2025-09-30T19:00:33Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H2",
+  "affected_files": [
+    "Cargo.lock",
+    "Cargo.toml",
+    "cranelift/assembler-x64/Cargo.toml",
+    "crates/environ/Cargo.toml",
+    "crates/environ/src/builtin.rs",
+    "crates/environ/src/hostcall.rs",
+    "crates/environ/src/key.rs",
+    "crates/environ/src/module_artifacts.rs"
+  ],
+  "changed_lines": 122,
+  "defect_classes": [
+    "crash_or_abort"
+  ],
+  "candidate_status": "public_report_pending_security_review",
+  "verification": "not_run",
+  "security_screen": {
+    "preliminary_defect_classes": [
+      "crash_or_abort"
+    ],
+    "human_review_required": true,
+    "untrusted_input_boundary_proven": false
+  },
+  "provenance": {
+    "collector": "issue_enriched_fixes_h2_v1",
+    "source_url": "https://github.com/bytecodealliance/wasmtime/issues/11749",
+    "report_http": {
+      "url": "https://api.github.com/repos/bytecodealliance/wasmtime/issues/11749",
+      "status": 200,
+      "retrieved_at": "2026-10-01T20:35:54.280753+00:00",
+      "sha256": "b2b94d194e82762375a195d9d56ebbadb204663f2a963ab632b166f8ac4ddd3d",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/issue-enriched-2025H2/raw/http/df97e4fbcd5ff389199956ebb17534e9bb271131db428ae02ca36b1e5a400904.body"
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001/report-collection/issue-enriched-2025H2/raw/git/wasmtime/89fdfa12f718118d40cce31945e561434693e652.commit",
+      "sha256": "d022507bfa5dd5c250df8a2022f0b02db3ceb91665fbf57c35d9c0c75accef81"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001/report-collection/issue-enriched-2025H2/raw/git/wasmtime/89fdfa12f718118d40cce31945e561434693e652.patch",
+      "sha256": "220ebfe81c69ebd1f728b69d4ab07791c5b564ffc4d0c2f597a5e08652ee04cf"
+    }
+  }
+}

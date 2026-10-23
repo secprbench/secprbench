@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_439758498",
+    "bug_id": "439758498",
+    "bug_type": "OutOfBoundsRead",
+    "intro_commit": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+    "intro_parent": "109a22dfaf1e080fd4c86e71e0b4a213a8ea1d9d",
+    "fix_commit": "5666bca708c0a2f888b78e34281b00ed20356cb2",
+    "affected_files": [
+      "src/runtime/runtime-regexp.cc"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reasons": [
+      "The agent claim lacks a matching admissible three-version oracle.",
+      "meta.json's root cause is confirmed to be real at the SOURCE level: pre_intro's RegExpMatchGlobalAtom_OneCharPattern is a simple, safe `for (int i = start_index; i < subject.length(); i++)` scan (no SIMD, no bug); intro_commit 36f07e9a0448 rewrites it into a Highway-SIMD-accelerated version whose scalar tail loop is `for (SChar c = *block; block < end; c = *(++block))`, which does unconditionally dereference `*block`/`*(++block)` once even when `block == end`; post_benign/fix_commit 5666bca708c0 moves that dereference to be the first statement inside the loop body (`for (; block < end; ++block) { SChar c = *block; ... }`), eliminating the issue at the source level - this matches the task's stated root cause and the public V8 fix message exactly. However, after extensive reproduction attempts (the stock PoC did not exist; I built one from the root cause using d8's externalizeString/createExternalizableString natives to get an exact-bounds, ASan-tracked backing buffer for the subject string, then swept dozens of subject lengths - including exact multiples of the relevant SIMD stride for all three OneCharPattern template instantiations - specifically trying to land `block == end` at the entry to the vulnerable tail loop), I could not get a sanitizer crash in the post_intro build. Instruction-level debugging (gdb stepi tracing with source-line attribution) proved why: this particular build is compiled at -O2, and LLVM's loop-rotation/dead-code-elimination optimizes the buggy for-loop into code that checks `block < end` BEFORE ever issuing the load - i.e., the compiler already produces the same safe machine code as the post_benign source fix, for all three reachable instantiations and for both the \"zero trailing characters\" edge case and arbitrary nonzero remainders. No ASan shadow-check or report call is ever executed for the dereference in question. Running the identical PoC/input against pre_intro and post_benign produced byte-identical (non-crashing) output, which is consistent with (not contradicting) this finding, since none of the three builds can be made to execute an actual out-of-bounds load for this code path in this compiled artifact. Because the introduced flaw is real at the source level but I cannot obtain a reliable, build-backed sanitizer observation that discriminates pre_intro/post_intro/post_benign (the one concrete difference that does exist - the compiled instruction sequence itself matching the fixed source even before intro_commit's companion patch is applied - is not a standard crash/behavioral oracle), I'm recording introduction and benign as unknown rather than guessing, per the task's guidance to not force a yes/no from an inconclusive run."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/pocs/v8/439758498",
+    "input_file": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/pocs/v8/439758498/poc.js",
+    "input_name": "poc.js",
+    "size": 403,
+    "has_run_sh": false,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "/work/out.gn/x64.release/d8 --expose-externalize-string --allow-natives-syntax /poc/poc.js",
+      "input": null,
+      "poc_sha256": "2fb8f52fc95d3a69af9ffdc2c02ba2ec98dc32a618a03d94cff3a7891a13d21f",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6865dd20e1c986cc59227811cc1aa896ff96a9f44939eb228bbde29f2809cd59"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "len=1 externalize failed: Error: Read-only strings cannot be externalized.\nlen=2 match result=null\nlen=3 match result=null\nlen=4 match result=null\nlen=5 match result=null\nlen=6 match result=null\nlen=7 match result=null\nlen=8 match result=null\nlen=9 match result=null\nlen=10 match result=null\nlen=15 match result=null\nlen=17 match result=null\nlen=20 match result=null\nlen=30 match result=null\nlen=33 match result=null\nlen=49 match result=null\nlen=50 match result=null\nlen=63 match result=null\nlen=65 match result=null\nlen=70 match result=null\nlen=100 match result=null\nlen=127 match result=null\nlen=129 match result=null\nlen=200 match result=null\nlen=255 match result=null\nlen=257 match result=null\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "pre_intro": {
+      "command": "/work/out.gn/x64.release/d8 --expose-externalize-string --allow-natives-syntax /poc/poc.js",
+      "input": null,
+      "poc_sha256": "2fb8f52fc95d3a69af9ffdc2c02ba2ec98dc32a618a03d94cff3a7891a13d21f",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "109a22dfaf1e080fd4c86e71e0b4a213a8ea1d9d",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6e4f9874af71028d7a9b4f17f501068d9d2672598b82a42c9dac7883f0905921"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "len=1 externalize failed: Error: Read-only strings cannot be externalized.\nlen=2 match result=null\nlen=3 match result=null\nlen=4 match result=null\nlen=5 match result=null\nlen=6 match result=null\nlen=7 match result=null\nlen=8 match result=null\nlen=9 match result=null\nlen=10 match result=null\nlen=15 match result=null\nlen=17 match result=null\nlen=20 match result=null\nlen=30 match result=null\nlen=33 match result=null\nlen=49 match result=null\nlen=50 match result=null\nlen=63 match result=null\nlen=65 match result=null\nlen=70 match result=null\nlen=100 match result=null\nlen=127 match result=null\nlen=129 match result=null\nlen=200 match result=null\nlen=255 match result=null\nlen=257 match result=null\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "/work/out.gn/x64.release/d8 --expose-externalize-string --allow-natives-syntax /poc/poc.js",
+      "input": null,
+      "poc_sha256": "2fb8f52fc95d3a69af9ffdc2c02ba2ec98dc32a618a03d94cff3a7891a13d21f",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "109a22dfaf1e080fd4c86e71e0b4a213a8ea1d9d",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "5d3c9080537aebdd9bf32dd9b0c1bd5303f5bdabc7f1f81220f45e4a583281c8"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "len=1 externalize failed: Error: Read-only strings cannot be externalized.\nlen=2 match result=null\nlen=3 match result=null\nlen=4 match result=null\nlen=5 match result=null\nlen=6 match result=null\nlen=7 match result=null\nlen=8 match result=null\nlen=9 match result=null\nlen=10 match result=null\nlen=15 match result=null\nlen=17 match result=null\nlen=20 match result=null\nlen=30 match result=null\nlen=33 match result=null\nlen=49 match result=null\nlen=50 match result=null\nlen=63 match result=null\nlen=65 match result=null\nlen=70 match result=null\nlen=100 match result=null\nlen=127 match result=null\nlen=129 match result=null\nlen=200 match result=null\nlen=255 match result=null\nlen=257 match result=null\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "d8 script that forces a one-byte or two-byte subject string to be backed by an exact-size, ASan-instrumented `new Char[length]` buffer (via d8's built-in externalizeString()/createExternalizableString() natives), then runs a global one-char-literal regexp (/a/g, or a matching two-byte literal) against it with subject length chosen so that (length - start_index) is an exact multiple of the SIMD stride (16 bytes for the uint8 instantiation, 8 lanes for the uc16 instantiation) that RegExpMatchGlobalAtom_OneCharPattern's vectorized scan consumes. This makes `block == end` exactly when control reaches the scalar \"remaining characters\" tail loop, which is the precise condition meta.json's root cause says triggers the one-past-end read.",
+    "target_evidence": "Confirmed via symbolic/offset breakpoints and instruction-level `stepi` tracing in gdb (functions RegExpMatchGlobalAtom_Dispatch / inlined RegExpMatchGlobalAtom_OneCharPattern) in the post_intro binary that: (1) the externalized subject really is backed by a fresh ASan-tracked `new uint8_t[]`/`new uc16[]` allocation (verified a trivial g++ -fsanitize=address repro of a similar 1-byte heap-buffer-overflow aborts correctly in this same container, proving ASan instrumentation/shadow memory is fully functional here); (2) execution does reach the targeted tail loop for all three OneCharPattern template instantiations (SChar/PChar = uint8/uint8, uc16/uint8, uc16/uc16), confirmed by source-line attribution (runtime-regexp.cc:2241/2242) via addr2line; (3) at -O2 (the configured build's actual flag, confirmed via `ninja -t commands`) the compiler performs loop-rotation + dead-load elimination on the for-loop `for (SChar c = *block; block < end; c = *(++block))`: the compiled code is `cmp block,end; jae <skip-to-post-loop-code>` with NO load instruction and no ASan shadow check executed before that branch, for every one of the three instantiations and across dozens of subject lengths (both exact multiples of the stride and arbitrary remainders 1..stride-1). The unconditional dereference described by the root cause (and literally worded by the public fix commit as \"loading, just not accessing\" a character past the buffer) is therefore not present as an executed instruction in this optimized binary - the compiler already proves `c`'s value is unused whenever the loop body doesn't (or stops) executing, and elides the read in machine code, matching exactly what the companion/fix patch does at the source level (moving `SChar c = *block;` to be the first statement inside the loop body, after the `block < end` check). Identical, non-crashing (`match result=null`, no sanitizer output) behavior was observed for the same PoC/input set run against pre_intro, post_intro, and post_benign."
+  },
+  "agent_oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "task_id": "pr_review_2003588",
+  "bug_id": "2003588",
+  "commit_sha": "9bd0056bb97aef3f6f44ec457417821f92a7eb4c",
+  "commit_message": "Bug 1999464 - Don't nuke CCWs to the debugger object r=jandem\n\nThis is an alternative to the fix in bug 1995637 and removes that change.\n\nThe debugger mostly uses its own wrappers for cross compartment pointers\nbetween debugger and debuggee globals. These are not in the CCW map and so are\nnot nuked by NukeCrossCompartmentWrappers. This pointer from a Breakpoint to\nits owning debugger however is a normal CCW that is in the map and so can be\naffected by that operation.\n\nThe change makes it so we skip nuking CCWs to the main debugger object. This\ncould affect other uses of this CCW but these are not accessible from content\nJS so I don't think this is a problem.\n\nIt's important not to break the link between breakpoints and their debuggers\nbecause they are present in two linked lists which are in different realms. To\nclean up properly the link needs to be intact.\n\nThis change is also covered by the original test in bug 1995637.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D273012",
+  "commit_author": "Jon Coppeard",
+  "commit_date": "2025-11-19T13:24:57Z",
+  "pr_title": "Bug 1999464 - Don't nuke CCWs to the debugger object r=jandem",
+  "pr_description": "This is an alternative to the fix in bug 1995637 and removes that change.\n\nThe debugger mostly uses its own wrappers for cross compartment pointers\nbetween debugger and debuggee globals. These are not in the CCW map and so are\nnot nuked by NukeCrossCompartmentWrappers. This pointer from a Breakpoint to\nits owning debugger however is a normal CCW that is in the map and so can be\naffected by that operation.\n\nThe change makes it so we skip nuking CCWs to the main debugger object. This\ncould affect other uses of this CCW but these are not accessible from content\nJS so I don't think this is a problem.\n\nIt's important not to break the link between breakpoints and their debuggers\nbecause they are present in two linked lists which are in different realms. To\nclean up properly the link needs to be intact.\n\nThis change is also covered by the original test in bug 1995637.\n\nDifferential Revision: https://phabricator.services.mozilla.com/D273012\n",
+  "files": [
+    {
+      "path": "js/src/debugger/Debugger.cpp",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 3,
+      "diff": "diff --git a/js/src/debugger/Debugger.cpp b/js/src/debugger/Debugger.cpp\nindex 16a39e436b6f..4d803e7488d7 100644\n--- a/js/src/debugger/Debugger.cpp\n+++ b/js/src/debugger/Debugger.cpp\n@@ -450,14 +450,12 @@ Breakpoint::Breakpoint(Debugger* debugger, HandleObject wrappedDebugger,\n   debugger->breakpoints.pushBack(this);\n   site->breakpoints.pushBack(this);\n }\n \n void Breakpoint::trace(JSTracer* trc) {\n+  MOZ_ASSERT(!IsDeadProxyObject(wrappedDebugger));\n   TraceEdge(trc, &wrappedDebugger, \"breakpoint owner\");\n-  // Trace the debugger object too in case |wrappedDebugger| got nuked.\n-  TraceCrossCompartmentEdge(trc, wrappedDebugger, &debugger->object,\n-                            \"breakpoint debugger object\");\n   TraceEdge(trc, &handler, \"breakpoint handler\");\n }\n \n void Breakpoint::delete_(JS::GCContext* gcx) {\n   debugger->breakpoints.remove(this);\n"
+    },
+    {
+      "path": "js/src/jit-test/tests/debug/bug-1999464.js",
+      "status": "added",
+      "additions": 6,
+      "deletions": 0,
+      "diff": "diff --git a/js/src/jit-test/tests/debug/bug-1999464.js b/js/src/jit-test/tests/debug/bug-1999464.js\nnew file mode 100644\nindex 000000000000..25a89a2dbcd2\n--- /dev/null\n+++ b/js/src/jit-test/tests/debug/bug-1999464.js\n@@ -0,0 +1,6 @@\n+fullcompartmentchecks(1);\n+var x = newGlobal({ newCompartment: true });\n+Debugger(x).onEnterFrame = function (y) {\n+  y.script.setBreakpoint(0, {});\n+};\n+x.eval(\"(function(){})()\");\n"
+    },
+    {
+      "path": "js/src/proxy/CrossCompartmentWrapper.cpp",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 0,
+      "diff": "diff --git a/js/src/proxy/CrossCompartmentWrapper.cpp b/js/src/proxy/CrossCompartmentWrapper.cpp\nindex d3ec13186a89..6d8094475c48 100644\n--- a/js/src/proxy/CrossCompartmentWrapper.cpp\n+++ b/js/src/proxy/CrossCompartmentWrapper.cpp\n@@ -3,10 +3,11 @@\n  * This Source Code Form is subject to the terms of the Mozilla Public\n  * License, v. 2.0. If a copy of the MPL was not distributed with this\n  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */\n \n #include \"builtin/FinalizationRegistryObject.h\"\n+#include \"debugger/Debugger.h\"\n #include \"gc/GC.h\"\n #include \"gc/PublicIterators.h\"\n #include \"js/friend/WindowProxy.h\"  // js::IsWindow, js::IsWindowProxy\n #include \"js/Wrapper.h\"\n #include \"proxy/DeadObjectProxy.h\"\n@@ -447,10 +448,16 @@ JS_PUBLIC_API bool js::NukeCrossCompartmentWrappers(\n       // all outgoing wrappers for the current compartment.\n       if (!nukeAll && wrapped->nonCCWRealm() != target) {\n         continue;\n       }\n \n+      // Don't nuke wrappers for debugger objects. These are used in Breakpoints\n+      // and nuking them breaks debugger invariants.\n+      if (MOZ_UNLIKELY(wrapped->is<DebuggerInstanceObject>())) {\n+        continue;\n+      }\n+\n       // We only skip nuking window references that point to a target\n       // compartment, not the ones that belong to it.\n       if (nukeReferencesToWindow == DontNukeWindowReferences &&\n           MOZ_LIKELY(!nukeAll) && IsWindowProxy(wrapped)) {\n         continue;\n"
+    }
+  ],
+  "full_diff": "diff --git a/js/src/debugger/Debugger.cpp b/js/src/debugger/Debugger.cpp\nindex 16a39e436b6f..4d803e7488d7 100644\n--- a/js/src/debugger/Debugger.cpp\n+++ b/js/src/debugger/Debugger.cpp\n@@ -450,14 +450,12 @@ Breakpoint::Breakpoint(Debugger* debugger, HandleObject wrappedDebugger,\n   debugger->breakpoints.pushBack(this);\n   site->breakpoints.pushBack(this);\n }\n \n void Breakpoint::trace(JSTracer* trc) {\n+  MOZ_ASSERT(!IsDeadProxyObject(wrappedDebugger));\n   TraceEdge(trc, &wrappedDebugger, \"breakpoint owner\");\n-  // Trace the debugger object too in case |wrappedDebugger| got nuked.\n-  TraceCrossCompartmentEdge(trc, wrappedDebugger, &debugger->object,\n-                            \"breakpoint debugger object\");\n   TraceEdge(trc, &handler, \"breakpoint handler\");\n }\n \n void Breakpoint::delete_(JS::GCContext* gcx) {\n   debugger->breakpoints.remove(this);\ndiff --git a/js/src/jit-test/tests/debug/bug-1999464.js b/js/src/jit-test/tests/debug/bug-1999464.js\nnew file mode 100644\nindex 000000000000..25a89a2dbcd2\n--- /dev/null\n+++ b/js/src/jit-test/tests/debug/bug-1999464.js\n@@ -0,0 +1,6 @@\n+fullcompartmentchecks(1);\n+var x = newGlobal({ newCompartment: true });\n+Debugger(x).onEnterFrame = function (y) {\n+  y.script.setBreakpoint(0, {});\n+};\n+x.eval(\"(function(){})()\");\ndiff --git a/js/src/proxy/CrossCompartmentWrapper.cpp b/js/src/proxy/CrossCompartmentWrapper.cpp\nindex d3ec13186a89..6d8094475c48 100644\n--- a/js/src/proxy/CrossCompartmentWrapper.cpp\n+++ b/js/src/proxy/CrossCompartmentWrapper.cpp\n@@ -3,10 +3,11 @@\n  * This Source Code Form is subject to the terms of the Mozilla Public\n  * License, v. 2.0. If a copy of the MPL was not distributed with this\n  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */\n \n #include \"builtin/FinalizationRegistryObject.h\"\n+#include \"debugger/Debugger.h\"\n #include \"gc/GC.h\"\n #include \"gc/PublicIterators.h\"\n #include \"js/friend/WindowProxy.h\"  // js::IsWindow, js::IsWindowProxy\n #include \"js/Wrapper.h\"\n #include \"proxy/DeadObjectProxy.h\"\n@@ -447,10 +448,16 @@ JS_PUBLIC_API bool js::NukeCrossCompartmentWrappers(\n       // all outgoing wrappers for the current compartment.\n       if (!nukeAll && wrapped->nonCCWRealm() != target) {\n         continue;\n       }\n \n+      // Don't nuke wrappers for debugger objects. These are used in Breakpoints\n+      // and nuking them breaks debugger invariants.\n+      if (MOZ_UNLIKELY(wrapped->is<DebuggerInstanceObject>())) {\n+        continue;\n+      }\n+\n       // We only skip nuking window references that point to a target\n       // compartment, not the ones that belong to it.\n       if (nukeReferencesToWindow == DontNukeWindowReferences &&\n           MOZ_LIKELY(!nukeAll) && IsWindowProxy(wrapped)) {\n         continue;\n",
+  "ground_truth": {
+    "bug_id": "2003588",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "0264cf850afd91cdd3956066e0b00b982566f684",
+      "short_sha": "0264cf8",
+      "message": "Bug 2003588 - Continue to allow creation of CCWs to debugger instances after CCWs have been nuked r=jandem",
+      "author": "Jon Coppeard",
+      "date": "2025-12-08T13:11:30+00:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-uaf-2003588",
+        "title": "Use-after-free from asymmetric nuke/create rules for debugger CCWs",
+        "message": "NukeCrossCompartmentWrappers() was changed so that it skips nuking existing cross-compartment wrappers (CCWs) that point at a Debugger instance object (used to link Breakpoints back to their owning Debugger across realms). However, the companion function js::AllowNewWrapper(), which governs whether a *new* CCW may be created into a compartment/realm that has already had NukeCrossCompartmentWrappers() called on it (via the nukedOutgoingWrappers / nukedIncomingWrappers flags), was left unmodified. This created an inconsistency: an existing CCW to a Debugger instance survives nuking and stays live and usable, but if code subsequently needs to create a *new* CCW to that same (already-nuked) debugger realm -- e.g. while wrapping a fresh reference to the debugger object during debugger operations such as accessing an environment/variable after nukeAllCCWs() -- AllowNewWrapper() unconditionally refuses, since it has no exception for DebuggerInstanceObject. Compartment::wrap() then falls back to producing a dead-object-proxy substitute in a situation where its invariants assume a live wrapper is obtainable (because a live debugger CCW already exists elsewhere), corrupting the compartment's wrapper map: the same debugger object ends up simultaneously represented by a live wrapper and treated through paths that expect a dead one. This mismatched/incoherent wrapper state can be exploited to reach and use a JS object after the compartment's outgoing wrappers were logically invalidated, resulting in a use-after-free (CVE-2026-0884), reproduced by jit-test bug-2003588.js and bug-2003809.js (Debugger + nukeAllCCWs()/recomputeWrappers()/gc() sequences).",
+        "location": {
+          "file": "js/src/proxy/CrossCompartmentWrapper.cpp",
+          "start_line": 453,
+          "end_line": 457,
+          "start_column": null,
+          "end_column": null,
+          "function": "js::NukeCrossCompartmentWrappers",
+          "snippet": "      // Don't nuke wrappers for debugger objects. These are used in Breakpoints\n      // and nuking them breaks debugger invariants.\n      if (MOZ_UNLIKELY(wrapped->is<DebuggerInstanceObject>())) {\n        continue;\n      }",
+          "snippet_hash": "adeed18b85911b021d7169262cfde5779c376e9fcfd1a59cecceec14f1239bda",
+          "description": null,
+          "snippet_start_line": 453,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "UseAfterFree",
+        "confidence": 0.75,
+        "suggestion": "When introducing an exception in NukeCrossCompartmentWrappers() that leaves an object's existing CCW un-nuked, add the matching exception in AllowNewWrapper() so that new wrappers for the same class of objects (DebuggerInstanceObject) can still be created into a target that has already been marked as nuked. Otherwise the nuke/allow-creation policy diverges and Compartment::wrap()'s invariant that a live wrapper is always obtainable for such objects is violated, leading to wrapper-map corruption and use-after-free.",
+        "suggestion_code": "JS_PUBLIC_API bool js::AllowNewWrapper(JS::Compartment* target, JSObject* obj) {\n  MOZ_ASSERT(obj->compartment() != target);\n\n  // Wrappers for debugger objects are not nuked and we must continue to allow\n  // them to be created or we will break the invariants in Compartment::wrap.\n  if (MOZ_UNLIKELY(obj->is<DebuggerInstanceObject>())) {\n    return true;\n  }\n\n  if (target->nukedOutgoingWrappers ||\n      obj->nonCCWRealm()->nukedIncomingWrappers) {\n    return false;\n  }\n  return true;\n}",
+        "tags": [
+          "security",
+          "memory-safety",
+          "use-after-free",
+          "javascript-engine",
+          "cross-compartment-wrapper"
+        ],
+        "cwe_ids": [
+          "CWE-416",
+          "CWE-362"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "UseAfterFree",
+    "affected_files": [
+      "js/src/proxy/CrossCompartmentWrapper.cpp",
+      "js/src/debugger/Debugger.cpp"
+    ],
+    "root_cause": "An earlier fix (bug 1999464) special-cased NukeCrossCompartmentWrappers() to leave CCWs pointing at DebuggerInstanceObject un-nuked, but the matching AllowNewWrapper() gate (which blocks creation of new CCWs into compartments/realms already marked as nuked) was not given the same exception. This mismatch between 'existing wrapper survives' and 'new wrapper creation is still blocked' violates invariants assumed by Compartment::wrap(), leading to corrupted/incoherent wrapper state and eventually use-after-free.",
+    "must_cover": [
+      {
+        "file": "js/src/proxy/CrossCompartmentWrapper.cpp",
+        "function": "js::NukeCrossCompartmentWrappers",
+        "start_line": 453,
+        "end_line": 457,
+        "role": "primary",
+        "reason": "Primary location of finding: Use-after-free from asymmetric nuke/create rules for debugger CCWs"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "9bd0056bb97aef3f6f44ec457417821f92a7eb4c",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

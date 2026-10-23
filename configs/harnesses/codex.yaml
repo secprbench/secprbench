@@ -1,0 +1,27 @@
+# The entrypoint pins plugins/apps/remote skills off and disables analytics,
+# OTEL exporters, and hosted web search; see harnesses/codex/__main__.py.
+harness:
+  name: codex
+  image: secprbench-harness:0.1.0
+  command:
+  - python
+  - -I
+  - -m
+  - secprbench.harnesses.codex
+  - --input
+  - '{input}'
+  - --output
+  - '{output}'
+  - --workspace
+  - '{workspace}'
+  - --model
+  - '{model}'
+  - --project
+  - '{project}'
+  - --max-turns
+  - '{max_turns}'
+  timeout_seconds: 3600
+  max_turns: null
+  writable_workspace: false
+  converter: identity
+  output_path: /out/findings.json

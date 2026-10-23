@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-422217206",
+  "bug_id": "OSSFUZZ-422217206",
+  "bug_type": "UninitializedMemory",
+  "intro_commit": "d4556c98f02e4f2d3deb86efeb060ebe4659be96",
+  "intro_parent": "2de0d095b84f5dea1201ba06933f2a3f42d9a5dc",
+  "fix_commit": "a45755e302baf56461bd7d8cf0c3a88c0ee5e83f",
+  "affected_files": [
+    "libavcodec/dxvenc.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The fix commit's boundary calculation for clearing the padded encode buffer used the frame's linesize (row stride) as a stand-in for the row's real pixel-data width, but these are not necessarily equal; linesize can already contain padding independent of the DXV_ALIGN requirement. This mismatch between 'stride' and 'true data width' let a region of freshly allocated (uninitialized) memory escape being zeroed.",
+  "findings": [
+    "When encoding a frame whose width is not a multiple of 16 (DXV_ALIGN), dxv_encode() allocates a padded buffer (safe_data) with av_image_alloc() and copies the real frame into it with av_image_copy2(). It then attempts to zero the padding columns added at the right edge of each row with:\n\nmemset(safe_data[0] + y * safe_linesize[0] + frame->linesize[0], 0, safe_linesize[0] - frame->linesize[0]);\n\nTh"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "df3fac620e395b4136a8af2e38467d210f2d4782a782c88974b71cc9ad96b57a",
+  "generated_artifact_sha256": {
+    "reference": "08c677abd5519b88342a853e6ee280669f4879c298ec5eecc6c2421ba3bf90af",
+    "introducing": "e80ee8544ef9d4c0af42a68cec0ec2cf9ecb38d9821c623386ea9a8d34573f89",
+    "companion": "91fa1bef080d730595a3194069fd2cccaa7bc5b66da8ed272c0d0b245cacc491"
+  }
+}

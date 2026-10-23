@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "identity": "ffmpeg/OSSFUZZ-421954767",
+  "case_id": "3e0e5056d0a3083c76f3",
+  "project": "ffmpeg",
+  "bug_id": "OSSFUZZ-421954767",
+  "season": "2025H2",
+  "source_sha256": "8f0a36ed156944c884c5e577b9aa71ef67f2e3ef42c42715a713d48cd534d9c6",
+  "generated_artifact_sha256": {
+    "reference": "51c16075d733e65eb33e60863d68f99e1461255ae0ee20737455db4104cbdd42",
+    "introducing": "eeb13e4f27fe2ffbc78a27d9a689b33d92f02adce3b10d4b5c802cbf9fd0cdb9",
+    "companion": "1ebee38ab67b3a38f43bf77958dded7469b840ed2120e67e796f48cc8a9476f2"
+  },
+  "poc_status": "incomplete",
+  "fingerprint": "e5278b680ff6a21441ab3eeaeeb3a1b9a97d8f4b7d9408a9046c0de4a738aa0f",
+  "recipe_source_sha256": "1223b537795d9cd97d1a8bc5e0824d826032b81a3e2c9e63144fb600ae22fcfb",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/3e0e5056d0a3083c76f3/attempts/01",
+      "started_at": "2026-09-29T23:35:33.536560+00:00",
+      "status": "inconclusive",
+      "cache_lane": 3,
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/3e0e5056d0a3083c76f3/attempts/01/worker.log",
+      "result": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/3e0e5056d0a3083c76f3/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-09-30T00:28:19.879816+00:00"
+    }
+  ],
+  "updated_at": "2026-09-30T00:28:19.879816+00:00",
+  "case_record": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/verification/projects/ffmpeg/cases/OSSFUZZ-421954767/case.json",
+  "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/3e0e5056d0a3083c76f3/attempts/01/replay/pr_review_OSSFUZZ-421954767.report.md",
+  "agent_used": true,
+  "recipe_sha256": "74a634b3244d284fe17e",
+  "final_poc_sha256": "63ae74ba8c2cb5761dbd5eb616a2e9c25cc5b5e232a33c0ce1b7e3cf0741d8d0"
+}

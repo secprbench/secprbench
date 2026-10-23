@@ -1,0 +1,37 @@
+{
+  "task_id": "pr_review_2003588",
+  "bug_id": "2003588",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "9bd0056bb97aef3f6f44ec457417821f92a7eb4c",
+  "intro_parent": "9108500bb368dae51d67883f32c85dcbdc8406ba",
+  "fix_commit": "0264cf850afd91cdd3956066e0b00b982566f684",
+  "affected_files": [
+    "js/src/proxy/CrossCompartmentWrapper.cpp",
+    "js/src/debugger/Debugger.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_bug-2003588.js: git:0264cf850afd91cdd3956066e0b00b982566f684:js/src/jit-test/tests/debug/bug-2003588.js",
+    "- evidence/candidate_02_c002_bug-2003809.js: git:0264cf850afd91cdd3956066e0b00b982566f684:js/src/jit-test/tests/debug/bug-2003809.js",
+    "- evidence/candidate_03_c003_inline_51a982f97082.js: https://bugzilla.mozilla.org/rest/bug/2003588#c0",
+    "- evidence/test_01_c7993c84ce34580d_bug-2003588.js: js/src/jit-test/tests/debug/bug-2003588.js",
+    "- evidence/test_02_c43eb48c5643ba08_bug-2003809.js: js/src/jit-test/tests/debug/bug-2003809.js"
+  ],
+  "input_name": "inline_51a982f97082.js",
+  "root_cause": "An earlier fix (bug 1999464) special-cased NukeCrossCompartmentWrappers() to leave CCWs pointing at DebuggerInstanceObject un-nuked, but the matching AllowNewWrapper() gate (which blocks creation of new CCWs into compartments/realms already marked as nuked) was not given the same exception. This mismatch between 'existing wrapper survives' and 'new wrapper creation is still blocked' violates invariants assumed by Compartment::wrap(), leading to corrupted/incoherent wrapper state and eventually use-after-free.",
+  "findings": [
+    "NukeCrossCompartmentWrappers() was changed so that it skips nuking existing cross-compartment wrappers (CCWs) that point at a Debugger instance object (used to link Breakpoints back to their owning Debugger across realms). However, the companion function js::AllowNewWrapper(), which governs whether a *new* CCW may be created into a compartment/realm that has already had NukeCrossCompartmentWrapper"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "daf8d4911b1f3dc4dc92d43ae5e3d50f8b252c0b3e52b0596d4b58a6635460bf",
+  "generated_artifact_sha256": {
+    "reference": "c86eee9a54ab818509e20edbc125672df9a2fd22f2f9d2e949ba009b942a50de",
+    "introducing": "b7083e6e86d664a796225594a6ac1c7900b6004f33e62f0a7e21647bd61aafea",
+    "companion": "5d49468e2362c2f3cdad2182436dc76dfe6667924ddc22f8d025a529fa1cb4f3"
+  }
+}

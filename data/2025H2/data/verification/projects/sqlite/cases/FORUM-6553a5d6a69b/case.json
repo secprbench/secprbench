@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-6553a5d6a69b",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "09ea1256ecc31185dbc61ef61ee6be8fad5c9e02",
+    "parent": "8b65e5919d3f36d807d9f50e5ef649eacc77e0fe",
+    "fix": "6553a5d6a69bcfd261d1055dfd86f37b7b851e27"
+  },
+  "affected_files": [
+    "src/shell.c.in"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded and were tested with the identical input and command. pre_intro exited 0 without a sanitizer crash (only `Out of memory!` / line-1 input error). post_intro exited 1 with crashed=True and UBSan reported signed integer overflow in readHexDb at shell.c:12440 for `2147483647 + 4096`. post_benign again exited 0 without a sanitizer crash and produced the same ordinary out-of-memory/input error as pre_intro. This verifies that INTRO introduced the labelled overflow ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

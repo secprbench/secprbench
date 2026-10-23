@@ -1,0 +1,22 @@
+{
+  "bug_id": "406828712",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "7ad549886aa0f171af42f22b0a5a3dc0a4086e33",
+    "parent": "db5b3e4b2d79cc66f01698ffb21d95e15ece2d63",
+    "fix": "ba4aa40575d4bf8ff32183a240203ce06949b216"
+  },
+  "affected_files": [
+    "src/json/json-stringifier.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds completed successfully. Using the identical command `/work/out.gn/verify/d8 --json-stringify-fast-path /poc/poc.js`, pre_intro printed ACTUAL={\"d\":4}, ORACLE=PASS and exited 0; post_intro printed ACTUAL={}, ORACLE=BUG and exited 86; post_benign printed ACTUAL={\"d\":4}, ORACLE=PASS and exited 0. The non-enumerable accessor creates a descriptor before data property d, so d has descriptor index 1 but field index 0. Post-intro incorrectly reads descriptor index 1 as the fie",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

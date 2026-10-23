@@ -1,0 +1,63 @@
+{
+  "bug_id": "FOSSIL-f0dbd9d22f558dd0",
+  "title": "Strengthen the fts5_locale() function against integer overflow attacks,",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "sqlite",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Official SQLite Fossil fixing commit https://sqlite.org/src/info/f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a\n\nStrengthen the fts5_locale() function against integer overflow attacks,\neven when SQLite is compiled with oversize values for\nSQLITE_MAX_LENGTH.\n\nFossilOrigin-Name: f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a\n\nPreliminary source observation: fts5_locale() combined user text and locale lengths in signed int before allocation; patch widens them. Oversize SQLITE_MAX_LENGTH build is required.\nNo separate public issue was identified. Review security impact, input reachability, earliest relevant fix, and whether the testcase demonstrates the target before task construction.",
+  "commit_ids": [
+    "5b15123fba29709ff32a0aaa13f223223989d369"
+  ],
+  "fix_commit_sha": "5b15123fba29709ff32a0aaa13f223223989d369",
+  "fix_date": "2025-09-30T10:11:44Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_exact_fossil_bridge_mainline_ancestor",
+  "season": "2025H2",
+  "affected_files": [
+    "ext/fts5/fts5_main.c",
+    "manifest",
+    "manifest.uuid"
+  ],
+  "changed_lines": 24,
+  "fossil_fix_id": "f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a",
+  "report_references": [
+    {
+      "id": "FOSSIL-f0dbd9d22f558dd0",
+      "url": "https://sqlite.org/src/info/f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a",
+      "kind": "public_security_linked_fix_commit",
+      "evidence": "Strengthen the fts5_locale() function against integer overflow attacks,"
+    }
+  ],
+  "candidate_status": "security_linked_fossil_fix_pending_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_allocation_size_overflow",
+    "preliminary_source_observation": "fts5_locale() combined user text and locale lengths in signed int before allocation; patch widens them. Oversize SQLITE_MAX_LENGTH build is required.",
+    "untrusted_input_boundary_proven": false,
+    "independent_public_bug_report_found": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_sqlite_security_linked_fossil_fix_v1",
+    "source_url": "https://sqlite.org/src/info/f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a",
+    "report_details": "no_independent_public_bug_report",
+    "fossil_origin": "f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a",
+    "fossil_bridge": "exact_committed_manifest.uuid_and_FossilOrigin-Name",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v4-targeted/sqlite-security-linked-fossil-fixes-v1/raw/git/5b15123fba29709ff32a0aaa13f223223989d369.commit",
+      "sha256": "3570db3feb39d6cb8479de445c6c496dbd48c4b1c780f929a6c93a884d9ad8a7"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v4-targeted/sqlite-security-linked-fossil-fixes-v1/raw/git/5b15123fba29709ff32a0aaa13f223223989d369.patch",
+      "sha256": "118625626dfee851ee84db718e5c61e0eb90b3027d4a1a10dfeab2c038b49df1"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "849be20583a69f53c508258dec453194b6a8cad2",
+    "fix_sha": "5b15123fba29709ff32a0aaa13f223223989d369",
+    "test_evidence": null,
+    "trunk_merge_sha": null
+  }
+}

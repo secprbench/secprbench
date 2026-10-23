@@ -1,0 +1,148 @@
+{
+  "bug_id": "511549239",
+  "project": "v8",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "551ade4880940459b8e3d3b9638ccea44ba75051",
+    "parent": "cc1cc9bb3031182d3641e17196c5db1a2733a70b",
+    "fix": "63226679f9f5272a3a3c1112fb38a758e1a307a6"
+  },
+  "affected_files": [
+    "src/maglev/maglev-reducer-inl.h",
+    "src/maglev/maglev-reducer.h",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-compiler.cc",
+    "src/maglev/maglev-graph-optimizer.cc",
+    "src/maglev/maglev-code-generator.cc",
+    "src/flags/flag-definitions.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Same PoC file + same command run via run_poc on all three versions:\n\n- pre_intro (cc1cc9bb3031): exit=0, crashed=False. Prints \"[repro] ABSENT: MaglevReducer<MaglevGraphOptimizer> has no CanInlineCall overload at all\" then DONE. Confirmed via `git show` of the intro commit that the shared CanInlineCall method (and MaglevGraphOptimizer::VisitCall's promotion-to-CallKnownJSFunction logic) did not exist pre-intro; pre_intro's only direct-recursion check was MaglevGraphBuilder::CanInlineCall, comparing against the builder's own always-valid `compilation_unit_` pointer, never influenced by graph-labeller presence. Clean run; defect structurally absent.\n\n- post_intro (551ade488094): exit=134, crashed=True. has_graph_labeller()==0 confirmed, harness finds and calls the 2-arg `CanInlineCall(shared, 1.0f)`. AddressSanitizer SEGV on address 0x10, backtrace `value (src/compiler/heap-refs.h:374)` <- `shared_function_info (src/maglev/maglev-compilation-unit.h:73)` <- `MaglevReducer<MaglevGraphOptimizer>::CanInlineCall (src/maglev/maglev-reducer-inl.h:1291)` <- `TryTwoArg` <- `main`. Line 1291 is exactly `if (current_provenance().unit->shared_function_info().equals(shared))`; `current_provenance().unit` is null because the Graph has no MaglevGraphLabeller (PreProcessNode never updates it) and the reducer's default-constructed compilation_unit is null -- precisely the mechanism the fix commit describes (\"direct recursion check relied on the debug-only graph labeller's provenance mapping, which is null in release/non-tracing builds\"), matching the labelled bug type NullPointerDereference.\n\n- post_benign (fix 63226679f9f5): exit=0, crashed=False. Same graph setup (has_graph_labeller()==0), harness finds and calls the FIXED 3-arg `CanInlineCall(nullptr, shared, 1.0f)` (the direct analogue of \"unknown provenance\", matching what VisitCall passes when a call node has no lazy-deopt info). \"NO CRASH. CanInlineCall returned 1\" -- the fix's explicit `if (current_unit && current_unit->shared_function_info().equals(shared))` null-checks before dereferencing.\n\nThis is the most direct possible reproduction: the real compiled Maglev code of each exact revision, exercising the literal reported line and precondition under one unmodified harness/command, independent of the orthogonal maglev_gdbjit/readonly-flag build quirk that otherwise prevents reaching it from end-to-end JS in this specific build.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/727158d05306c52774b6/attempts/01/replay/pr_review_511549239.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/727158d05306c52774b6/attempts/01/replay/pr_review_511549239.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/727158d05306c52774b6/attempts/01/replay/pr_review_511549239.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "bash -c '\nset -e\ncd /work/out.gn/x64.release\ncp /poc/repro_unified.cc /tmp/repro_unified.cc\npython3 - <<EOF\nimport re\npath = \"obj/d8.ninja\"\ncontent = open(path).read()\ncontent, n1 = re.subn(r\"build obj/d8/d8\\.o: cxx [^\\s|]+\",\n                      \"build obj/d8/d8.o: cxx /tmp/repro_unified.cc\", content)\ndrop = [\"obj/d8/async-hooks-wrapper.o\", \"obj/d8/d8-console.o\", \"obj/d8/d8-js.o\",\n        \"obj/d8/d8-platforms.o\", \"obj/d8/d8-test.o\", \"obj/d8/hardware-watchpoints.o\",\n        \"obj/d8/d8-posix.o\"]\nidx = content.find(\"build ./d8: link\")\nend = content.find(\"\\n\", idx)\nlink_line = content[idx:end]\nfor tok in drop:\n    if tok + \" \" in link_line:\n        link_line = link_line.replace(tok + \" \", \"\")\ncontent = content[:idx] + link_line + content[end:]\nopen(path, \"w\").write(content)\nEOF\nrm -f obj/d8/d8.o d8\n/opt/depot_tools/ninja d8 > /tmp/build.log 2>&1 || { tail -40 /tmp/build.log; exit 0; }\nif [ ! -x ./d8 ]; then tail -40 /tmp/build.log; echo \"=== d8 not produced ===\"; exit 0; fi\nexec timeout 30 ./d8\n'",
+          "input": null,
+          "poc_sha256": "1d99f46014eff0d434425277d5b29d8a32f95214fbaf0a5d580eb36ea2f0afdd",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "551ade4880940459b8e3d3b9638ccea44ba75051",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "b9e248b7ae66daa5701dd7fbaef697330054f58eee363a612deed9a7bd7d1f8c"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "has_graph_labeller=0 (expect 0: MaglevCompiler::Compile was never called)\n[repro] found 2-arg CanInlineCall(shared, freq) -- this is the post_intro buggy signature. Calling it now...\nVERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==38==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000010 (pc 0x55848d6906f3 bp 0x7ffd02b7a930 sp 0x7ffd02b7a120 T0)\n==38==The signal is caused by a READ memory access.\n==38==Hint: address points to the zero page.\n    #0 0x55848d6906f3 in value src/compiler/heap-refs.h:374:17\n    #1 0x55848d6906f3 in shared_function_info src/maglev/maglev-compilation-unit.h:73:34\n    #2 0x55848d6906f3 in v8::internal::maglev::MaglevReducer<v8::internal::maglev::MaglevGraphOptimizer>::CanInlineCall(v8::internal::compiler::SharedFunctionInfoRef, float) src/maglev/maglev-reducer-inl.h:1291:34\n    #3 0x55848d68ce34 in TryTwoArg<v8::internal::maglev::MaglevReducer<v8::internal::maglev::MaglevGraphOptimizer> > /tmp/repro_unified.cc:69:25\n    #4 0x55848d68ce34 in main /tmp/repro_unified.cc:144:10\n    #5 0x7f8458ed31c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #6 0x7f8458ed328a in __libc_start_main csu/../csu/libc-start.c:360:3\n    #7 0x55848d5b2029 in _start (/work/out.gn/x64.release/d8+0x11fb029) (BuildId: 21a1575e72340bc8)\n\n==38==Register values:\nrax = 0x0000000000000002  rbx = 0x0000100020567428  rcx = 0x0000000000000000  rdx = 0x0000000000000000  \nrdi = 0x0000000000000010  rsi = 0x0000000000000000  rbp = 0x00007ffd02b7a930  rsp = 0x00007ffd02b7a120  \n r8 = 0x00007ffd02b79688   r9 = 0x0000000000000001  r10 = 0x0000000000000000  r11 = 0x0000000000000006  \nr12 = 0x00000fffa056f53a  r13 = 0x00007ffd02b7a9c8  r14 = 0x00007ffd02b7a9d0  r15 = 0x00007ffd02b7a180  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV src/compiler/heap-refs.h:374:17 in value\n==38==ABORTING\n/bin/bash: line 27:     8 Aborted                 bash -c 'bash -c '\"'\"'\nset -e\ncd /work/out.gn/x64.release\ncp /poc/repro_unified.cc /tmp/repro_unified.cc\npython3 - <<EOF\nimport re\npath = \"obj/d8.ninja\"\ncontent = open(path).read()\ncontent, n1 = re.subn(r\"build obj/d8/d8\\.o: cxx [^\\s|]+\",\n                      \"build obj/d8/d8.o: cxx /tmp/repro_unified.cc\", content)\ndrop = [\"obj/d8/async-hooks-wrapper.o\", \"obj/d8/d8-console.o\", \"obj/d8/d8-js.o\",\n        \"obj/d8/d8-platforms.o\", \"obj/d8/d8-test.o\", \"obj/d8/hardware-watchpoints.o\",\n        \"obj/d8/d8-posix.o\"]\nidx = content.find(\"build ./d8: link\")\nend = content.find(\"\\n\", idx)\nlink_line = content[idx:end]\nfor tok in drop:\n    if tok + \" \" in link_line:\n        link_line = link_line.replace(tok + \" \", \"\")\ncontent = content[:idx] + link_line + content[end:]\nopen(path, \"w\").write(content)\nEOF\nrm -f obj/d8/d8.o d8\n/opt/depot_tools/ninja d8 > /tmp/build.log 2>&1 || { tail -40 /tmp/build.log; exit 0; }\nif [ ! -x ./d8 ]; then tail -40 /tmp/build.log; echo \"=== d8 not produced ===\"; exit 0; fi\nexec timeout 30 ./d8\n'\"'\"''\n",
+            "stdout_tail": "expect 0: MaglevCompiler::Compile was never called)\n[repro] found 2-arg CanInlineCall(shared, freq) -- this is the post_intro buggy signature. Calling it now...\nVERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==38==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000010 (pc 0x55848d6906f3 bp 0x7ffd02b7a930 sp 0x7ffd02b7a120 T0)\n==38==The signal is caused by a READ memory access.\n==38==Hint: address points to the zero page.\n    #0 0x55848d6906f3 in value src/compiler/heap-refs.h:374:17\n    #1 0x55848d6906f3 in shared_function_info src/maglev/maglev-compilation-unit.h:73:34\n    #2 0x55848d6906f3 in v8::internal::maglev::MaglevReducer<v8::internal::maglev::MaglevGraphOptimizer>::CanInlineCall(v8::internal::compiler::SharedFunctionInfoRef, float) src/maglev/maglev-reducer-inl.h:1291:34\n    #3 0x55848d68ce34 in TryTwoArg<v8::internal::maglev::MaglevReducer<v8::internal::maglev::MaglevGraphOptimizer> > /tmp/repro_unified.cc:69:25\n    #4 0x55848d68ce34 in main /tmp/repro_unified.cc:144:10\n    #5 0x7f8458ed31c9 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #6 0x7f8458ed328a in __libc_start_main csu/../csu/libc-start.c:360:3\n    #7 0x55848d5b2029 in _start (/work/out.gn/x64.release/d8+0x11fb029) (BuildId: 21a1575e72340bc8)\n\n==38==Register values:\nrax = 0x0000000000000002  rbx = 0x0000100020567428  rcx = 0x0000000000000000  rdx = 0x0000000000000000  \nrdi = 0x0000000000000010  rsi = 0x0000000000000000  rbp = 0x00007ffd02b7a930  rsp = 0x00007ffd02b7a120  \n r8 = 0x00007ffd02b79688   r9 = 0x0000000000000001  r10 = 0x0000000000000000  r11 = 0x0000000000000006  \nr12 = 0x00000fffa056f53a  r13 = 0x00007ffd02b7a9c8  r14 = 0x00007ffd02b7a9d0  r15 = 0x00007ffd02b7a180  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV src/compiler/heap-refs.h:374:17 in value\n==38==ABORTING\n/bin/bash: line 27:     8 Aborted                 bash -c 'bash -c '\"'\"'\nset -e\ncd /work/out.gn/x64.release\ncp /poc/repro_unified.cc /tmp/repro_unified.cc\npython3 - <<EOF\nimport re\npath = \"obj/d8.ninja\"\ncontent = open(path).read()\ncontent, n1 = re.subn(r\"build obj/d8/d8\\.o: cxx [^\\s|]+\",\n                      \"build obj/d8/d8.o: cxx /tmp/repro_unified.cc\", content)\ndrop = [\"obj/d8/async-hooks-wrapper.o\", \"obj/d8/d8-console.o\", \"obj/d8/d8-js.o\",\n        \"obj/d8/d8-platforms.o\", \"obj/d8/d8-test.o\", \"obj/d8/hardware-watchpoints.o\",\n        \"obj/d8/d8-posix.o\"]\nidx = content.find(\"build ./d8: link\")\nend = content.find(\"\\n\", idx)\nlink_line = content[idx:end]\nfor tok in drop:\n    if tok + \" \" in link_line:\n        link_line = link_line.replace(tok + \" \", \"\")\ncontent = content[:idx] + link_line + content[end:]\nopen(path, \"w\").write(content)\nEOF\nrm -f obj/d8/d8.o d8\n/opt/depot_tools/ninja d8 > /tmp/build.log 2>&1 || { tail -40 /tmp/build.log; exit 0; }\nif [ ! -x ./d8 ]; then tail -40 /tmp/build.log; echo \"=== d8 not produced ===\"; exit 0; fi\nexec timeout 30 ./d8\n'\"'\"''\n"
+          }
+        },
+        "pre_intro": {
+          "command": "bash -c '\nset -e\ncd /work/out.gn/x64.release\ncp /poc/repro_unified.cc /tmp/repro_unified.cc\npython3 - <<EOF\nimport re\npath = \"obj/d8.ninja\"\ncontent = open(path).read()\ncontent, n1 = re.subn(r\"build obj/d8/d8\\.o: cxx [^\\s|]+\",\n                      \"build obj/d8/d8.o: cxx /tmp/repro_unified.cc\", content)\ndrop = [\"obj/d8/async-hooks-wrapper.o\", \"obj/d8/d8-console.o\", \"obj/d8/d8-js.o\",\n        \"obj/d8/d8-platforms.o\", \"obj/d8/d8-test.o\", \"obj/d8/hardware-watchpoints.o\",\n        \"obj/d8/d8-posix.o\"]\nidx = content.find(\"build ./d8: link\")\nend = content.find(\"\\n\", idx)\nlink_line = content[idx:end]\nfor tok in drop:\n    if tok + \" \" in link_line:\n        link_line = link_line.replace(tok + \" \", \"\")\ncontent = content[:idx] + link_line + content[end:]\nopen(path, \"w\").write(content)\nEOF\nrm -f obj/d8/d8.o d8\n/opt/depot_tools/ninja d8 > /tmp/build.log 2>&1 || { tail -40 /tmp/build.log; exit 0; }\nif [ ! -x ./d8 ]; then tail -40 /tmp/build.log; echo \"=== d8 not produced ===\"; exit 0; fi\nexec timeout 30 ./d8\n'",
+          "input": null,
+          "poc_sha256": "1d99f46014eff0d434425277d5b29d8a32f95214fbaf0a5d580eb36ea2f0afdd",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "cc1cc9bb3031182d3641e17196c5db1a2733a70b",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "ad0c3f8e843ab29393d97a2545666b32894e30a36efb0eb1b88903820b408951"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "[repro] has_graph_labeller=0 (expect 0: MaglevCompiler::Compile was never called)\n[repro] ABSENT: MaglevReducer<MaglevGraphOptimizer> has no CanInlineCall overload at all on this revision (expected on pre_intro: the shared CanInlineCall + non-eager-inlining VisitCall promotion logic did not exist yet).\n[repro] DONE\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "bash -c '\nset -e\ncd /work/out.gn/x64.release\ncp /poc/repro_unified.cc /tmp/repro_unified.cc\npython3 - <<EOF\nimport re\npath = \"obj/d8.ninja\"\ncontent = open(path).read()\ncontent, n1 = re.subn(r\"build obj/d8/d8\\.o: cxx [^\\s|]+\",\n                      \"build obj/d8/d8.o: cxx /tmp/repro_unified.cc\", content)\ndrop = [\"obj/d8/async-hooks-wrapper.o\", \"obj/d8/d8-console.o\", \"obj/d8/d8-js.o\",\n        \"obj/d8/d8-platforms.o\", \"obj/d8/d8-test.o\", \"obj/d8/hardware-watchpoints.o\",\n        \"obj/d8/d8-posix.o\"]\nidx = content.find(\"build ./d8: link\")\nend = content.find(\"\\n\", idx)\nlink_line = content[idx:end]\nfor tok in drop:\n    if tok + \" \" in link_line:\n        link_line = link_line.replace(tok + \" \", \"\")\ncontent = content[:idx] + link_line + content[end:]\nopen(path, \"w\").write(content)\nEOF\nrm -f obj/d8/d8.o d8\n/opt/depot_tools/ninja d8 > /tmp/build.log 2>&1 || { tail -40 /tmp/build.log; exit 0; }\nif [ ! -x ./d8 ]; then tail -40 /tmp/build.log; echo \"=== d8 not produced ===\"; exit 0; fi\nexec timeout 30 ./d8\n'",
+          "input": null,
+          "poc_sha256": "1d99f46014eff0d434425277d5b29d8a32f95214fbaf0a5d580eb36ea2f0afdd",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "cc1cc9bb3031182d3641e17196c5db1a2733a70b",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "5cbd600a566e5f3894292a6525f2490113ffb8f42905573f847e36d0846a7396"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "[repro] has_graph_labeller=0 (expect 0: MaglevCompiler::Compile was never called)\n[repro] found 3-arg CanInlineCall(current_unit, shared, freq) -- this is the post_benign fixed signature. Calling it with current_unit=nullptr (unknown provenance) now...\n[repro] NO CRASH. CanInlineCall returned 1\n[repro] DONE\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "No upstream PoC existed (source=no_poc), and the crash's real precondition (MaglevGraphLabeller absent) is unreachable from plain d8 command-line JS in this exact build: v8_flags.maglev_gdbjit is FLAG_READONLY and hard-defaults to true (ENABLE_GDB_JIT_INTERFACE is not compiled into this non-debug build), and the unguarded `|| v8_flags.maglev_gdbjit` clause in MaglevCompiler::Compile (present identically in pre_intro and post_intro -- itself one of the things commit 63226679f9f5 also fixes) therefore always forces a MaglevGraphLabeller to be attached, masking the null-pointer precondition for any end-to-end JS test.\n\nI built ONE standalone C++ harness, /poc/repro_unified.cc, run with the IDENTICAL command on all three versions via run_poc (`exec timeout 30 ./d8` as the final statement so the crash signal/exit code propagates directly). It compiles against each revision's own maglev headers (linked into a custom d8 whose main object is replaced by the harness, so it reuses that build's real compiled Maglev code) and: runs `function f(x){return x+1;} f(1); f;`, builds a real Maglev Graph for the resulting JSFunction via MaglevGraphBuilder::Build() directly (bypassing MaglevCompiler::Compile, so no MaglevGraphLabeller is ever attached -- confirmed via has_graph_labeller()==0 -- exactly the \"non-tracing, no --gdbjit\" condition named in the fix commit), constructs MaglevReducer<MaglevGraphOptimizer> the same way MaglevGraphOptimizer's own constructor does, then uses SFINAE to call whichever CanInlineCall overload the revision being compiled actually has (that signature is exactly what the intro/fix commits changed), letting each revision's own compiled code decide the outcome.",
+        "target_evidence": "post_intro (exit=134, crashed=True) AddressSanitizer report, via run_poc with the same command/PoC used on all three versions:\nAddressSanitizer:DEADLYSIGNAL\n==38==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000010\n==38==The signal is caused by a READ memory access.\n==38==Hint: address points to the zero page.\n    #0 ... in value src/compiler/heap-refs.h:374:17\n    #1 ... in shared_function_info src/maglev/maglev-compilation-unit.h:73:34\n    #2 ... in v8::internal::maglev::MaglevReducer<v8::internal::maglev::MaglevGraphOptimizer>::CanInlineCall(v8::internal::compiler::SharedFunctionInfoRef, float) src/maglev/maglev-reducer-inl.h:1291:34\n    #3 ... in TryTwoArg<...> /tmp/repro_unified.cc:69:25\n    #4 ... in main /tmp/repro_unified.cc:144:10\nSUMMARY: AddressSanitizer: SEGV src/compiler/heap-refs.h:374:17 in value\n\npre_intro (exit=0, crashed=False), same command/PoC:\n[repro] has_graph_labeller=0 (expect 0: MaglevCompiler::Compile was never called)\n[repro] ABSENT: MaglevReducer<MaglevGraphOptimizer> has no CanInlineCall overload at all on this revision (expected on pre_intro: the shared CanInlineCall + non-eager-inlining VisitCall promotion logic did not exist yet).\n[repro] DONE\n\npost_benign (exit=0, crashed=False), same command/PoC:\n[repro] has_graph_labeller=0 (expect 0: MaglevCompiler::Compile was never called)\n[repro] found 3-arg CanInlineCall(current_unit, shared, freq) -- this is the post_benign fixed signature. Calling it with current_unit=nullptr (unknown provenance) now...\n[repro] NO CRASH. CanInlineCall returned 1\n[repro] DONE"
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Same PoC file + same command run via run_poc on all three versions:\n\n- pre_intro (cc1cc9bb3031): exit=0, crashed=False. Prints \"[repro] ABSENT: MaglevReducer<MaglevGraphOptimizer> has no CanInlineCall overload at all\" then DONE. Confirmed via `git show` of the intro commit that the shared CanInlineCall method (and MaglevGraphOptimizer::VisitCall's promotion-to-CallKnownJSFunction logic) did not exist pre-intro; pre_intro's only direct-recursion check was MaglevGraphBuilder::CanInlineCall, comparing against the builder's own always-valid `compilation_unit_` pointer, never influenced by graph-labeller presence. Clean run; defect structurally absent.\n\n- post_intro (551ade488094): exit=134, crashed=True. has_graph_labeller()==0 confirmed, harness finds and calls the 2-arg `CanInlineCall(shared, 1.0f)`. AddressSanitizer SEGV on address 0x10, backtrace `value (src/compiler/heap-refs.h:374)` <- `shared_function_info (src/maglev/maglev-compilation-unit.h:73)` <- `MaglevReducer<MaglevGraphOptimizer>::CanInlineCall (src/maglev/maglev-reducer-inl.h:1291)` <- `TryTwoArg` <- `main`. Line 1291 is exactly `if (current_provenance().unit->shared_function_info().equals(shared))`; `current_provenance().unit` is null because the Graph has no MaglevGraphLabeller (PreProcessNode never updates it) and the reducer's default-constructed compilation_unit is null -- precisely the mechanism the fix commit describes (\"direct recursion check relied on the debug-only graph labeller's provenance mapping, which is null in release/non-tracing builds\"), matching the labelled bug type NullPointerDereference.\n\n- post_benign (fix 63226679f9f5): exit=0, crashed=False. Same graph setup (has_graph_labeller()==0), harness finds and calls the FIXED 3-arg `CanInlineCall(nullptr, shared, 1.0f)` (the direct analogue of \"unknown provenance\", matching what VisitCall passes when a call node has no lazy-deopt info). \"NO CRASH. CanInlineCall returned 1\" -- the fix's explicit `if (current_unit && current_unit->shared_function_info().equals(shared))` null-checks before dereferencing.\n\nThis is the most direct possible reproduction: the real compiled Maglev code of each exact revision, exercising the literal reported line and precondition under one unmodified harness/command, independent of the orthogonal maglev_gdbjit/readonly-flag build quirk that otherwise prevents reaching it from end-to-end JS in this specific build."
+    }
+  },
+  "task_hashes": {
+    "buggy": "aced63dbf25bee6b8198b74b8a80b533a27c314fee5e786fadaff287f1ed46c4",
+    "benign": "3383b51fe4845c4206c9f9ce1abddc4b1dc4ff661c0845d049d5f1649347675c"
+  }
+}

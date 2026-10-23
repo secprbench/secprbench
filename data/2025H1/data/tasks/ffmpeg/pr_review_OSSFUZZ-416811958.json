@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_OSSFUZZ-416811958",
+  "bug_id": "OSSFUZZ-416811958",
+  "commit_sha": "afbc3a1b23b3ba3e5a3f2820228a5fe51b517be7",
+  "commit_message": "avformat/mov: perform sanity checks for heif before index building\n\nFixes: undefined NULL pointer use\nFixes: clusterfuzz-testcase-minimized-audio_decoder_fuzzer-6363211175493632\n\nThis performs equivalent sanity checks as are done in mov_read_trak()\nbefore mov_build_index()\n\nReported-by: Dale Curtis <dalecurtis@chromium.org>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "commit_author": "Michael Niedermayer",
+  "commit_date": "2025-01-07T23:21:32+01:00",
+  "pr_title": "avformat/mov: perform sanity checks for heif before index building",
+  "pr_description": "Fixes: undefined NULL pointer use\nFixes: clusterfuzz-testcase-minimized-audio_decoder_fuzzer-6363211175493632\n\nThis performs equivalent sanity checks as are done in mov_read_trak()\nbefore mov_build_index()\n\nReported-by: Dale Curtis <dalecurtis@chromium.org>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "files": [
+    {
+      "path": "libavformat/mov.c",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "diff": "diff --git a/libavformat/mov.c b/libavformat/mov.c\nindex 23f9993350..c016ce8e41 100644\n--- a/libavformat/mov.c\n+++ b/libavformat/mov.c\n@@ -10330,11 +10330,12 @@ static int mov_parse_heif_items(AVFormatContext *s)\n         st = item->st;\n         sc = st->priv_data;\n         st->codecpar->width  = item->width;\n         st->codecpar->height = item->height;\n \n-        if (sc->sample_count != 1 || sc->chunk_count != 1)\n+        err = sanity_checks(s, sc, item->item_id);\n+        if (err)\n             return AVERROR_INVALIDDATA;\n \n         sc->sample_sizes[0]  = item->extent_length;\n         sc->chunk_offsets[0] = item->extent_offset + offset;\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/libavformat/mov.c b/libavformat/mov.c\nindex 23f9993350..c016ce8e41 100644\n--- a/libavformat/mov.c\n+++ b/libavformat/mov.c\n@@ -10330,11 +10330,12 @@ static int mov_parse_heif_items(AVFormatContext *s)\n         st = item->st;\n         sc = st->priv_data;\n         st->codecpar->width  = item->width;\n         st->codecpar->height = item->height;\n \n-        if (sc->sample_count != 1 || sc->chunk_count != 1)\n+        err = sanity_checks(s, sc, item->item_id);\n+        if (err)\n             return AVERROR_INVALIDDATA;\n \n         sc->sample_sizes[0]  = item->extent_length;\n         sc->chunk_offsets[0] = item->extent_offset + offset;\n \n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-416811958",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "0ffe97d9b9e10e88db29d8d910c24ec00ef24edc",
+      "short_sha": "0ffe97d9b9",
+      "message": "avformat/mov: Check that sample_count is allocated in mov_parse_heif_items()",
+      "author": "Michael Niedermayer",
+      "date": "2025-06-21T23:15:17+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullptr-001",
+        "title": "Weakened sample_count/chunk_count check in mov_parse_heif_items() allows sample_count == 0 to slip through, leading to NULL pointer dereference / use of uninitialized index arrays",
+        "message": "In mov_parse_heif_items(), the previous strict check `if (sc->sample_count != 1 || sc->chunk_count != 1) return AVERROR_INVALIDDATA;` was replaced by a generic sanity_checks() call shared with mov_read_trak(). sanity_checks() only flags an error when `(!sc->sample_size && !sc->sample_count)` is true for a non-zero chunk_count; if a crafted HEIF 'stsz' atom specifies a non-zero fixed sample_size while setting the sample entry count to 0 (or otherwise leaves sc->sample_count at 0 through a code path that also sets sc->sample_size), sanity_checks() returns 0 (success) even though sc->sample_count is 0. mov_parse_heif_items() then proceeds to write `sc->sample_sizes[0]` and to call mov_build_index(mov, st) on a stream context whose sample table is effectively empty/inconsistent, which later leads to a NULL pointer dereference (per the OSS-Fuzz report) when the index-building / demuxing code assumes a valid sample_sizes/sample_count relationship for the stream. The original per-HEIF-item check guaranteed exactly one sample and one chunk before this code ran; the replacement sanity_checks() function does not guarantee sample_count > 0 in all cases, silently weakening this invariant for the HEIF item path.",
+        "location": {
+          "file": "libavformat/mov.c",
+          "start_line": 10335,
+          "end_line": 10337,
+          "start_column": null,
+          "end_column": null,
+          "function": "mov_parse_heif_items",
+          "snippet": "        err = sanity_checks(s, sc, item->item_id);\n        if (err)\n            return AVERROR_INVALIDDATA;\n\n        sc->sample_sizes[0]  = item->extent_length;\n        sc->chunk_offsets[0] = item->extent_offset + offset;",
+          "snippet_hash": "b7dda30014d5c52146d48b6d91be1ccfcf05a3a0f0ddf3c302d5d014cb17b979",
+          "description": null,
+          "snippet_start_line": 10335,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.85,
+        "suggestion": "Restore an explicit check that sc->sample_count (and thus the allocated sample_sizes array) is non-zero/consistent for the single-item HEIF case, in addition to the shared sanity_checks(). E.g. change the condition to `if (err || !sc->sample_count) return AVERROR_INVALIDDATA;` as was done in the actual upstream fix.",
+        "suggestion_code": "err = sanity_checks(s, sc, item->item_id);\nif (err || !sc->sample_count)\n    return AVERROR_INVALIDDATA;",
+        "tags": [
+          "security",
+          "null-pointer",
+          "mov-demuxer",
+          "heif"
+        ],
+        "cwe_ids": [
+          "CWE-476",
+          "CWE-20"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "libavformat/mov.c"
+    ],
+    "root_cause": "Replacing a specific, correct precondition check (sample_count == 1 && chunk_count == 1) with a more generic, reusable sanity_checks() function that was designed for regular MOV tracks and does not enforce that sample_count is non-zero when sample_size is non-zero, thereby losing an invariant that later code in mov_parse_heif_items() implicitly relies upon.",
+    "must_cover": [
+      {
+        "file": "libavformat/mov.c",
+        "function": "mov_parse_heif_items",
+        "start_line": 10335,
+        "end_line": 10337,
+        "role": "primary",
+        "reason": "Primary location of finding: Weakened sample_count/chunk_count check in mov_parse_heif_items() allows sample_count == 0 to slip through, leading to NULL pointer dereference / use of uninitialized index arrays"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "afbc3a1b23b3ba3e5a3f2820228a5fe51b517be7",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

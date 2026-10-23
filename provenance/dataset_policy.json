@@ -1,0 +1,29 @@
+{
+  "artifact_policy": "Frozen tasks and supporting JSON are byte-for-byte copies; no new introduction, patch repair, historical build, replay, or model invocation. Corrections require a new artifact version and new evidence where identities change.",
+  "canonical_fix_aliases_preserved": true,
+  "case_count": 265,
+  "exclude_case_keys": [
+    "curl/GH-19269",
+    "curl/GH-19377",
+    "ffmpeg/268d0b6527cb",
+    "ffmpeg/bd75fad85f37",
+    "ffmpeg/c14b837dedad",
+    "ffmpeg/db7ff135744d",
+    "firefox/1950061",
+    "openssl/GH-26346"
+  ],
+  "filter_basis": "The 2026-10-10 security-scope audit: eight exclusions and one held case. Introduction age is not an exclusion.",
+  "fix_committer_date_end_exclusive": "2026-07-01",
+  "fix_committer_date_start_inclusive": "2025-01-01",
+  "held_case_keys": [
+    "ffmpeg/TESTCASE-4015241140b49b26"
+  ],
+  "intro_committer_date_minimum": null,
+  "known_repair_cases_retained": true,
+  "paper_policy_status": "The release omits the introduction-age cutoff by user direction; the manuscript is not edited by this export.",
+  "release": "secprbench-265-20261010",
+  "retained_pre2021_case_count": 36,
+  "schema_version": 1,
+  "source_case_count": 274,
+  "task_count": 530
+}

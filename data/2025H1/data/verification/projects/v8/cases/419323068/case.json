@@ -1,0 +1,35 @@
+{
+  "bug_id": "419323068",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "2d86ce117a1bae89190e6099e9cca45be46385e8",
+    "parent": "789b37d5db1f3b9877ba4afe00a8c95c390ca024",
+    "fix": "229da5091bd3eca5708c6833413d472fb334f286"
+  },
+  "affected_files": [
+    "src/compiler/turboshaft/copying-phase.h",
+    "src/compiler/turboshaft/wasm-revec-reducer.cc",
+    "src/compiler/turboshaft/wasm-revec-reducer.h",
+    "test/cctest/wasm/test-run-wasm-simd.cc"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": true,
+    "benign_verified": null,
+    "reason": "Using the identical command `/work/out.gn/verify/d8 --experimental-wasm-revectorize --trace-wasm-revectorize --no-liftoff --no-wasm-lazy-compilation /work/test/mjsunit/wasm/wasm-module-builder.js /poc/poc_reorder.js`, pre_intro exited 0 and printed PASS with all 16 expected lanes, while post_intro exited 134/SIGABRT with `bad_optional_access` during revectorization. The harness specifically nests the untracked reorder-input condition: B consumes M, C consumes the earlier unvisited D, and the two",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "intro_reproduced",
+    "method": "debug_invariant_or_crash",
+    "intro_verified": "reproduced_abort",
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Intro (2d86ce117a1bae89190e6099e9cca45be46385e8) reproduces under is_debug build with recorded flags: reproduced_abort.",
+    "target_match": "V8_Fatal abort (exit 133) during revectorization run; matches documented bad_optional_access crash on intro. Exact header not in captured tail; stack in run_intro.tail.log.",
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/419323068"
+  },
+  "final_disposition": "intro_reproduced"
+}

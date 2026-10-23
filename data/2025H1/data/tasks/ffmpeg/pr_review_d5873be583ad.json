@@ -1,0 +1,96 @@
+{
+  "task_id": "pr_review_d5873be583ad",
+  "bug_id": "d5873be583ad",
+  "commit_sha": "d38fc25519cf12a9212dadcba1258fc176ffbade",
+  "commit_message": "avformat/iamf_parse: add checks to parameter definition durations\n\nSection 3.6.1 of the IAMF spec states \"When constant_subblock_duration is equal to 0, the summation of all\nsubblock_duration in this parameter block SHALL be equal to duration.\".\n\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "commit_author": "James Almer",
+  "commit_date": "2024-12-11T23:27:00-03:00",
+  "pr_title": "avformat/iamf_parse: add checks to parameter definition durations",
+  "pr_description": "Section 3.6.1 of the IAMF spec states \"When constant_subblock_duration is equal to 0, the summation of all\nsubblock_duration in this parameter block SHALL be equal to duration.\".\n\nSigned-off-by: James Almer <jamrial@gmail.com>\n",
+  "files": [
+    {
+      "path": "libavformat/iamf_parse.c",
+      "status": "modified",
+      "additions": 12,
+      "deletions": 2,
+      "diff": "diff --git a/libavformat/iamf_parse.c b/libavformat/iamf_parse.c\nindex 6c2efc0a6c..00190d87a4 100644\n--- a/libavformat/iamf_parse.c\n+++ b/libavformat/iamf_parse.c\n@@ -499,10 +499,11 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,\n {\n     IAMFParamDefinition *param_definition = NULL;\n     AVIAMFParamDefinition *param;\n     unsigned int parameter_id, parameter_rate, mode;\n     unsigned int duration = 0, constant_subblock_duration = 0, nb_subblocks = 0;\n+    unsigned int total_duration = 0;\n     size_t param_size;\n \n     parameter_id = ffio_read_leb(pb);\n \n     for (int i = 0; i < c->nb_param_definitions; i++)\n@@ -519,24 +520,28 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,\n         if (!duration)\n             return AVERROR_INVALIDDATA;\n         constant_subblock_duration = ffio_read_leb(pb);\n         if (constant_subblock_duration == 0)\n             nb_subblocks = ffio_read_leb(pb);\n-        else\n+        else {\n             nb_subblocks = duration / constant_subblock_duration;\n+            total_duration = duration;\n+        }\n     }\n \n     param = av_iamf_param_definition_alloc(type, nb_subblocks, &param_size);\n     if (!param)\n         return AVERROR(ENOMEM);\n \n     for (int i = 0; i < nb_subblocks; i++) {\n         void *subblock = av_iamf_param_definition_get_subblock(param, i);\n         unsigned int subblock_duration = constant_subblock_duration;\n \n-        if (constant_subblock_duration == 0)\n+        if (constant_subblock_duration == 0) {\n             subblock_duration = ffio_read_leb(pb);\n+            total_duration += subblock_duration;\n+        }\n \n         switch (type) {\n         case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN: {\n             AVIAMFMixGain *mix = subblock;\n             mix->subblock_duration = subblock_duration;\n@@ -560,10 +565,15 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,\n             av_free(param);\n             return AVERROR_INVALIDDATA;\n         }\n     }\n \n+    if (!mode && !constant_subblock_duration && total_duration != duration) {\n+        av_log(s, AV_LOG_ERROR, \"Invalid subblock durations in parameter_id %u\\n\", parameter_id);\n+        return AVERROR_INVALIDDATA;\n+    }\n+\n     param->parameter_id = parameter_id;\n     param->parameter_rate = parameter_rate;\n     param->duration = duration;\n     param->constant_subblock_duration = constant_subblock_duration;\n     param->nb_subblocks = nb_subblocks;\n"
+    },
+    {
+      "path": "libavformat/iamf_reader.c",
+      "status": "modified",
+      "additions": 13,
+      "deletions": 2,
+      "diff": "diff --git a/libavformat/iamf_reader.c b/libavformat/iamf_reader.c\nindex b00bb997ca..7ad61cb246 100644\n--- a/libavformat/iamf_reader.c\n+++ b/libavformat/iamf_reader.c\n@@ -107,10 +107,11 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n     AVIAMFParamDefinition *out_param = NULL;\n     FFIOContext b;\n     AVIOContext *pb;\n     uint8_t *buf;\n     unsigned int duration, constant_subblock_duration;\n+    unsigned int total_duration = 0;\n     unsigned int nb_subblocks;\n     unsigned int parameter_id;\n     size_t out_param_size;\n     int ret;\n \n@@ -145,12 +146,14 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n             goto fail;\n         }\n         constant_subblock_duration = ffio_read_leb(pb);\n         if (constant_subblock_duration == 0)\n             nb_subblocks = ffio_read_leb(pb);\n-        else\n+        else {\n             nb_subblocks = duration / constant_subblock_duration;\n+            total_duration = duration;\n+        }\n     } else {\n         duration = param->duration;\n         constant_subblock_duration = param->constant_subblock_duration;\n         nb_subblocks = param->nb_subblocks;\n     }\n@@ -170,12 +173,14 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n \n     for (int i = 0; i < nb_subblocks; i++) {\n         void *subblock = av_iamf_param_definition_get_subblock(out_param, i);\n         unsigned int subblock_duration = constant_subblock_duration;\n \n-        if (!param_definition->mode && !constant_subblock_duration)\n+        if (!param_definition->mode && !constant_subblock_duration) {\n             subblock_duration = ffio_read_leb(pb);\n+            total_duration += subblock_duration;\n+        }\n \n         switch (param->type) {\n         case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN: {\n             AVIAMFMixGain *mix = subblock;\n \n@@ -233,10 +238,16 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n     if (len) {\n        int level = (s->error_recognition & AV_EF_EXPLODE) ? AV_LOG_ERROR : AV_LOG_WARNING;\n        av_log(s, level, \"Underread in parameter_block_obu. %d bytes left at the end\\n\", len);\n     }\n \n+    if (!param_definition->mode && !constant_subblock_duration && total_duration != duration) {\n+        av_log(s, AV_LOG_ERROR, \"Invalid duration in parameter block\\n\");\n+        ret = AVERROR_INVALIDDATA;\n+        goto fail;\n+    }\n+\n     switch (param->type) {\n     case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN:\n         av_free(c->mix);\n         c->mix = out_param;\n         c->mix_size = out_param_size;\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavformat/iamf_parse.c b/libavformat/iamf_parse.c\nindex 6c2efc0a6c..00190d87a4 100644\n--- a/libavformat/iamf_parse.c\n+++ b/libavformat/iamf_parse.c\n@@ -499,10 +499,11 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,\n {\n     IAMFParamDefinition *param_definition = NULL;\n     AVIAMFParamDefinition *param;\n     unsigned int parameter_id, parameter_rate, mode;\n     unsigned int duration = 0, constant_subblock_duration = 0, nb_subblocks = 0;\n+    unsigned int total_duration = 0;\n     size_t param_size;\n \n     parameter_id = ffio_read_leb(pb);\n \n     for (int i = 0; i < c->nb_param_definitions; i++)\n@@ -519,24 +520,28 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,\n         if (!duration)\n             return AVERROR_INVALIDDATA;\n         constant_subblock_duration = ffio_read_leb(pb);\n         if (constant_subblock_duration == 0)\n             nb_subblocks = ffio_read_leb(pb);\n-        else\n+        else {\n             nb_subblocks = duration / constant_subblock_duration;\n+            total_duration = duration;\n+        }\n     }\n \n     param = av_iamf_param_definition_alloc(type, nb_subblocks, &param_size);\n     if (!param)\n         return AVERROR(ENOMEM);\n \n     for (int i = 0; i < nb_subblocks; i++) {\n         void *subblock = av_iamf_param_definition_get_subblock(param, i);\n         unsigned int subblock_duration = constant_subblock_duration;\n \n-        if (constant_subblock_duration == 0)\n+        if (constant_subblock_duration == 0) {\n             subblock_duration = ffio_read_leb(pb);\n+            total_duration += subblock_duration;\n+        }\n \n         switch (type) {\n         case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN: {\n             AVIAMFMixGain *mix = subblock;\n             mix->subblock_duration = subblock_duration;\n@@ -560,10 +565,15 @@ static int param_parse(void *s, IAMFContext *c, AVIOContext *pb,\n             av_free(param);\n             return AVERROR_INVALIDDATA;\n         }\n     }\n \n+    if (!mode && !constant_subblock_duration && total_duration != duration) {\n+        av_log(s, AV_LOG_ERROR, \"Invalid subblock durations in parameter_id %u\\n\", parameter_id);\n+        return AVERROR_INVALIDDATA;\n+    }\n+\n     param->parameter_id = parameter_id;\n     param->parameter_rate = parameter_rate;\n     param->duration = duration;\n     param->constant_subblock_duration = constant_subblock_duration;\n     param->nb_subblocks = nb_subblocks;\ndiff --git a/libavformat/iamf_reader.c b/libavformat/iamf_reader.c\nindex b00bb997ca..7ad61cb246 100644\n--- a/libavformat/iamf_reader.c\n+++ b/libavformat/iamf_reader.c\n@@ -107,10 +107,11 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n     AVIAMFParamDefinition *out_param = NULL;\n     FFIOContext b;\n     AVIOContext *pb;\n     uint8_t *buf;\n     unsigned int duration, constant_subblock_duration;\n+    unsigned int total_duration = 0;\n     unsigned int nb_subblocks;\n     unsigned int parameter_id;\n     size_t out_param_size;\n     int ret;\n \n@@ -145,12 +146,14 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n             goto fail;\n         }\n         constant_subblock_duration = ffio_read_leb(pb);\n         if (constant_subblock_duration == 0)\n             nb_subblocks = ffio_read_leb(pb);\n-        else\n+        else {\n             nb_subblocks = duration / constant_subblock_duration;\n+            total_duration = duration;\n+        }\n     } else {\n         duration = param->duration;\n         constant_subblock_duration = param->constant_subblock_duration;\n         nb_subblocks = param->nb_subblocks;\n     }\n@@ -170,12 +173,14 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n \n     for (int i = 0; i < nb_subblocks; i++) {\n         void *subblock = av_iamf_param_definition_get_subblock(out_param, i);\n         unsigned int subblock_duration = constant_subblock_duration;\n \n-        if (!param_definition->mode && !constant_subblock_duration)\n+        if (!param_definition->mode && !constant_subblock_duration) {\n             subblock_duration = ffio_read_leb(pb);\n+            total_duration += subblock_duration;\n+        }\n \n         switch (param->type) {\n         case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN: {\n             AVIAMFMixGain *mix = subblock;\n \n@@ -233,10 +238,16 @@ static int parameter_block_obu(AVFormatContext *s, IAMFDemuxContext *c,\n     if (len) {\n        int level = (s->error_recognition & AV_EF_EXPLODE) ? AV_LOG_ERROR : AV_LOG_WARNING;\n        av_log(s, level, \"Underread in parameter_block_obu. %d bytes left at the end\\n\", len);\n     }\n \n+    if (!param_definition->mode && !constant_subblock_duration && total_duration != duration) {\n+        av_log(s, AV_LOG_ERROR, \"Invalid duration in parameter block\\n\");\n+        ret = AVERROR_INVALIDDATA;\n+        goto fail;\n+    }\n+\n     switch (param->type) {\n     case AV_IAMF_PARAMETER_DEFINITION_MIX_GAIN:\n         av_free(c->mix);\n         c->mix = out_param;\n         c->mix_size = out_param_size;\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "d38fc25519cf12a9212dadcba1258fc176ffbade",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "d5873be583ad",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Memory leak of param on failure path in param_parse",
+        "message": "The newly added validation check for subblock durations at line 570-573 returns AVERROR_INVALIDDATA when total_duration != duration, but fails to free the previously allocated `param` object (allocated via av_iamf_param_definition_alloc at line 533). Other error paths in the same function (e.g., the default case in the switch at line 566, the inconsistent parameters check later, and the ENOMEM path) correctly call av_free(param) before returning, but this newly introduced error path was missed. This results in a 48-byte memory leak each time this error path is triggered by a malformed IAMF input file.",
+        "bug_type": "LogicError",
+        "severity": "medium",
+        "cwe_ids": [
+          "CWE-401"
+        ],
+        "location": {
+          "file": "libavformat/iamf_parse.c",
+          "function": "param_parse",
+          "start_line": 570,
+          "end_line": 573,
+          "snippet": "    if (!mode && !constant_subblock_duration && total_duration != duration) {\n        av_log(s, AV_LOG_ERROR, \"Invalid subblock durations in parameter_id %u\\n\", parameter_id);\n        return AVERROR_INVALIDDATA;\n    }"
+        },
+        "related_locations": [
+          {
+            "file": "libavformat/iamf_parse.c",
+            "start_line": 533,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "param_parse",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Add av_free(param) before the return statement on the failure path at line 572, consistent with all other error paths after param allocation in this function.",
+        "rule_id": "sec-memory-leak-1"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "libavformat/iamf_parse.c",
+      "libavformat/iamf_reader.c"
+    ],
+    "root_cause": "Commit d38fc25519cf12a9212dadcba1258fc176ffbade added a new validation check for subblock durations in param_parse, but the author forgot to include an av_free(param) call on this new error path. The param object had been allocated earlier via av_iamf_param_definition_alloc(), and all other error paths after this allocation correctly free param before returning, but this newly added path was missed.",
+    "must_cover": [
+      {
+        "file": "libavformat/iamf_parse.c",
+        "function": "param_parse",
+        "reason": "Primary location of finding: Memory leak of param on failure path in param_parse"
+      },
+      {
+        "file": "libavformat/iamf_parse.c",
+        "function": "param_parse",
+        "reason": "Related location for: Memory leak of param on failure path in param_parse"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "ffmpeg__d5873be583ad__buggy",
+    "project": "ffmpeg",
+    "repo_url": "https://github.com/FFmpeg/FFmpeg.git",
+    "parent_sha": "8ad34e97b62c0e4afdacda58d5e02a6dee16fac5",
+    "diff_stats": {
+      "files_changed": 2,
+      "lines_changed": 29
+    }
+  }
+}

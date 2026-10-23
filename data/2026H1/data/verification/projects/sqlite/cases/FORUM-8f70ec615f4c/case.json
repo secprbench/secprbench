@@ -1,0 +1,23 @@
+{
+  "bug_id": "FORUM-8f70ec615f4c",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "781e34cde3908108e2cadf2c727e8fe0e8743961",
+    "parent": "344510e62b113a570f1b2bc6c1a59c5de8ccd51a",
+    "fix": "8f70ec615f4cd247d36f92a22c99f65ebbcc22a7"
+  },
+  "affected_files": [
+    "src/os_unix.c",
+    "src/os_win.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the identical poc.c and compile/run command on all revisions, pre_intro exited 0 with xShmMap rc=0 and no sanitizer report; post_intro exited 1 and UBSan reported signed integer overflow at unixShmMap (sqlite3.c:28077), specifically 65536 * 32768 in type int; post_benign exited 0 with xShmMap rc=0 and no sanitizer report. The harness overrides getpagesize() to 65536 and compiles each revision's sqlite3.c with _BSD_SOURCE so the 64 KiB-page rounding introduced by the INTRO commit is exercis",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

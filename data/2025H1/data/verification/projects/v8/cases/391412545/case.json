@@ -1,0 +1,23 @@
+{
+  "bug_id": "391412545",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "861a2eb6996c237b1426f3d8a96ae4bf06fec924",
+    "parent": "3046f8824cf4f533850154c45dadcd8862825368",
+    "fix": "9d5c357efebc67e459e129d9d77036985145ca3e"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the identical /poc/run.sh on all three ASan-configured builds, the harness compiled with each revision build flags and linked its V8 objects. The parent printed PREDICATE=absent with LEFT=AnyHeapObject, RIGHT=Number, COMMON_SUBTYPE=HeapNumber and exited 0. Post-INTRO invoked the actual HaveDifferentTypes implementation, which incorrectly printed DISJOINT=1 and intentionally exited 42 as the behavioral logic-error oracle. Post-BENIGN invoked the replacement HaveDisjointTypes implementation ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

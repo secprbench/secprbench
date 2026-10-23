@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-548127491255",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "f8c4b99a0273297cd1779304444b99b79eae6ab4",
+    "parent": "26e731cc8862999c595e31dae1dbcb698d08ebb3",
+    "fix": "548127491255da9996ac20d124dec332d75708f8"
+  },
+  "affected_files": [
+    "ext/misc/zipfile.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the identical /poc/run.sh and /poc/poc.c across all versions: pre_intro exited 0 with no crash because the zipfile aggregate growth helper is absent; post_intro exited 1 with crashed=True and UBSan reported signed integer overflow at ext/misc/zipfile.c:1837 in zipfileBufferGrow (1073741824 * 2 cannot be represented as int); post_benign exited 0 with no sanitizer report and returned SQLITE_NOMEM safely after the growth calculation. This exactly matches the required pre-safe / intro-crash / ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

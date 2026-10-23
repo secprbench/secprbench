@@ -1,0 +1,45 @@
+{
+  "bug_id": "391907159",
+  "project": "v8",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "a5999be59042208ebe97ff84cfe5a9a6cff593d1",
+    "parent": "1a2b08edbec1a8ebcf3d4adc91da4f2569fb744a",
+    "fix": "33ca4f51e5dbba9817eba16fd3249e66a880cf33"
+  },
+  "affected_files": [
+    "src/codegen/x64/macro-assembler-x64.cc",
+    "src/compiler/backend/code-generator.cc",
+    "src/compiler/wasm-compiler.cc",
+    "src/compiler/wasm-compiler.h",
+    "src/heap/factory.cc",
+    "src/heap/memory-measurement.cc",
+    "src/logging/log.cc",
+    "src/objects/objects-body-descriptors-inl.h",
+    "src/runtime/runtime-wasm.cc",
+    "src/wasm/module-compiler.cc",
+    "src/wasm/module-compiler.h",
+    "src/wasm/module-instantiate.cc",
+    "src/wasm/wasm-code-manager.cc",
+    "src/wasm/wasm-code-manager.h",
+    "src/wasm/wasm-engine.cc",
+    "src/wasm/wasm-engine.h",
+    "src/wasm/wasm-import-wrapper-cache.cc",
+    "src/wasm/wasm-import-wrapper-cache.h",
+    "src/wasm/wasm-objects-inl.h",
+    "src/wasm/wasm-objects.cc",
+    "src/wasm/wasm-objects.h",
+    "src/wasm/wrappers.cc",
+    "test/cctest/wasm/test-wasm-import-wrapper-cache.cc",
+    "test/cctest/wasm/wasm-run-utils.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the identical /poc/run.sh and C++ harness on all revisions: pre_intro exited 0 and reported that the process-wide wrapper-cache/compiler symbols introduced by a5999be were absent; post_intro compiled a real Wasm import wrapper, paused after the GC final decrement, and MaybeGet returned the dying wrapper, after which normal WasmCodeRefScope cleanup freed it and a read produced AddressSanitizer heap-use-after-free with exit 134; post_benign exercised the same state and lookup but exited 0 wi",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

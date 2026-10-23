@@ -1,0 +1,36 @@
+{
+  "task_id": "pr_review_398431403_benign",
+  "bug_id": "398431403",
+  "commit_sha": "e9c28abfe4d8f4c86c15d0280645bc95cbae9779",
+  "commit_message": "[Merged] [turbofan] Fix related to the TypedArray type\n\nObjectIsArrayBufferView was not expecting it.\n\nBug: 388844115, 394650781\nChange-Id: I6bc6214f6367e76b956a759842771a325d54b175\nFixed: 394650781\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6243195\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCommit-Queue: Marja H\u00f6ltt\u00e4 <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98574}",
+  "commit_author": "",
+  "commit_date": "2026-09-15T01:32:45.854317",
+  "pr_title": "[turbofan] Fix related to the TypedArray type",
+  "pr_description": "[turbofan] Fix related to the TypedArray type\n\nObjectIsArrayBufferView was not expecting it.\n\nBug: 388844115, 394650781\nChange-Id: I6bc6214f6367e76b956a759842771a325d54b175\nFixed: 394650781\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6243195\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCommit-Queue: Marja H\u00f6ltt\u00e4 <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98574}",
+  "files": [
+    {
+      "path": "src/compiler/turbofan-typer.cc",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "diff": "diff --git a/src/compiler/turbofan-typer.cc b/src/compiler/turbofan-typer.cc\nindex fafa4bf90b..e103f48eb6 100644\n--- a/src/compiler/turbofan-typer.cc\n+++ b/src/compiler/turbofan-typer.cc\n@@ -714,21 +714,22 @@ Type Typer::Visitor::ToString(Type type, Typer* t) {\n   type = ToPrimitive(type, t);\n   if (type.Is(Type::String())) return type;\n   return Type::String();\n }\n \n // Type checks.\n \n Type Typer::Visitor::ObjectIsArrayBufferView(Type type, Typer* t) {\n   // TODO(turbofan): Introduce a Type::ArrayBufferView?\n   CHECK(!type.IsNone());\n-  if (!type.Maybe(Type::OtherObject())) return t->singleton_false_;\n+  if (type.Is(Type::TypedArray())) return t->singleton_true_;\n+  if (!type.Maybe(Type::TypedArray())) return t->singleton_false_;\n   return Type::Boolean();\n }\n \n Type Typer::Visitor::ObjectIsBigInt(Type type, Typer* t) {\n   CHECK(!type.IsNone());\n   if (type.Is(Type::BigInt())) return t->singleton_true_;\n   if (!type.Maybe(Type::BigInt())) return t->singleton_false_;\n   return Type::Boolean();\n }\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/src/compiler/turbofan-typer.cc b/src/compiler/turbofan-typer.cc\nindex fafa4bf90b..e103f48eb6 100644\n--- a/src/compiler/turbofan-typer.cc\n+++ b/src/compiler/turbofan-typer.cc\n@@ -714,21 +714,22 @@ Type Typer::Visitor::ToString(Type type, Typer* t) {\n   type = ToPrimitive(type, t);\n   if (type.Is(Type::String())) return type;\n   return Type::String();\n }\n \n // Type checks.\n \n Type Typer::Visitor::ObjectIsArrayBufferView(Type type, Typer* t) {\n   // TODO(turbofan): Introduce a Type::ArrayBufferView?\n   CHECK(!type.IsNone());\n-  if (!type.Maybe(Type::OtherObject())) return t->singleton_false_;\n+  if (type.Is(Type::TypedArray())) return t->singleton_true_;\n+  if (!type.Maybe(Type::TypedArray())) return t->singleton_false_;\n   return Type::Boolean();\n }\n \n Type Typer::Visitor::ObjectIsBigInt(Type type, Typer* t) {\n   CHECK(!type.IsNone());\n   if (type.Is(Type::BigInt())) return t->singleton_true_;\n   if (!type.Maybe(Type::BigInt())) return t->singleton_false_;\n   return Type::Boolean();\n }\n \n",
+  "ground_truth": {
+    "bug_id": "398431403",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "65beb80d9cd6da4cca447a3a8857b59035412417",
+    "fix_commit": "e9c28abfe4d8f4c86c15d0280645bc95cbae9779"
+  },
+  "task_type": "benign",
+  "intro_commit_sha": "65beb80d9cd6da4cca447a3a8857b59035412417",
+  "fix_commit_sha": "e9c28abfe4d8f4c86c15d0280645bc95cbae9779",
+  "intro_commit_message": "[turbofan] Fix related to the TypedArray type\n\nObjectIsArrayBufferView was not expecting it.\n\nBug: 388844115, 394650781\nChange-Id: I6bc6214f6367e76b956a759842771a325d54b175\nFixed: 394650781\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6243195\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCommit-Queue: Marja H\u00f6ltt\u00e4 <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98574}",
+  "fix_commit_message": "[turbofan, typed array length] Fix typing\n\nThis modification should've been included in\nhttps://chromium-review.googlesource.com/c/v8/v8/+/6243195\nbut it wasn't.\n\nBug: 388844115, 398431403\nChange-Id: I50ed97a29fa2e5e317f85b8936007c568bea8aa1\nFixed: 398431403\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6298237\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCommit-Queue: Marja H\u00f6ltt\u00e4 <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98911}",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix e9c28abfe4d8 on top of intro 65beb80d9cd6 via git's 3-way merge. Vulnerability (LogicError):  Root cause: A preceding commit (c95eccc3885) changed `TypeJSCreateTypedArray` to return `Type::TypedArray()` rather than `Type::OtherObject()`, making TypedArrays a distinct type in the Turbofan type lattice. Commit 65beb80d9cd partially adapted `ObjectIsArrayBufferView` by adding a true-return for pure TypedArray types, but left the false-return guard checking `Type::OtherObject()`. Since `TypedArray` is disjoint from `OtherObject`, any union type containing `TypedArray` (e.g., `TypedArray | Boolean`, which arises in `reduceRight` where the accumulator starts as a TypedArray and subsequent iterations pass in a boolean) satisfies `!type.Maybe(Type::OtherObject())`, incorrectly causing the function to return `singleton_false_` and assert that the value can never be an ArrayBufferView.",
+  "composed_via": "mechanical",
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

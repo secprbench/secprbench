@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "firefox/1996761",
+  "case_id": "aa51699f501d6d454ce7",
+  "project": "firefox",
+  "bug_id": "1996761",
+  "season": "2025H2",
+  "source_sha256": "391bc291322edfcab5d280a5ffdcc84b08796587905c975887df63c35e9aaa69",
+  "generated_artifact_sha256": {
+    "reference": "cd6f8c8c5c8c4d867b7270b607f34a3dd29c8fe104e303d31315f775c42e4e15",
+    "introducing": "6b1469f3a9f09b4c4e9d59d5973fd0a967754edf3a3efeb21f15bc32758f6efa",
+    "companion": "49dcc233ac9025ec58292628013a87c51ebd512c1b56135ea90e2d41cdff36fa"
+  },
+  "poc_status": "no_poc",
+  "fingerprint": "c633a4adbdd8033cf6bd0a1586fef73816efc7122b4de5e99dd05849a018a602",
+  "recipe_source_sha256": "26d2daac9d53cf5269d2e00a4fee119d2b3cf50f0341160919997cec976c6149",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/firefox/aa51699f501d6d454ce7/attempts/01",
+      "started_at": "2026-10-01T21:25:50.444809+00:00",
+      "status": "inconclusive",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/firefox/aa51699f501d6d454ce7/attempts/01/worker.log",
+      "result": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/firefox/aa51699f501d6d454ce7/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-01T21:49:29.130159+00:00"
+    }
+  ],
+  "updated_at": "2026-10-01T21:49:29.130159+00:00",
+  "case_record": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/verification/projects/firefox/cases/1996761/case.json",
+  "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/firefox/aa51699f501d6d454ce7/attempts/01/replay/pr_review_1996761.report.md",
+  "agent_used": true,
+  "recipe_sha256": "1a9fc711c232403a6330",
+  "final_poc_sha256": "b2affe8be3f99c0021285cac785b2a83e1e0587cde06c1a6b2d62f695eb4e3be"
+}

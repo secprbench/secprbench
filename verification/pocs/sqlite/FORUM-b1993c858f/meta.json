@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_FORUM-b1993c858f",
+  "bug_id": "FORUM-b1993c858f",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "fb2e0bfa8b540fb6e7be5a74beaadd06b60570c1",
+  "intro_parent": "ff4917e9a537deeb0bdbbec7c9ea3849e8a095c6",
+  "fix_commit": "feeacfb8977e939c36891c016b9fc94e9703d944",
+  "affected_files": [
+    "ext/misc/base64.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "sqlite",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_ea6e2aff0a7eb25f_basexx1.test: test/basexx1.test"
+  ],
+  "input_name": null,
+  "root_cause": "Missing parentheses around `nv+2` before the division by 3 in the buffer-size formula `4*(nv+2/3)` causes C operator-precedence rules (division binds tighter than addition) to compute the wrong quad count, producing an undersized allocation.",
+  "findings": [
+    "In the base64(x) UDF, the number of base64 'quads' required to encode a blob of nv bytes is computed with the expression `nc = 4*(nv+2/3);`. Because the C `/` operator binds tighter than `+`, this is parsed as `4*(nv + (2/3))` = `4*(nv + 0)` = `4*nv`, instead of the intended `4*((nv+2)/3)` (ceil(nv/3) quads). The computed `nc` is roughly 4/3 smaller than the real requirement. `nc` (declared as `in"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "3441a7997d21c49409abb5d389f9be7f328b1bc68cccb51e6035e04f72ff625e",
+  "generated_artifact_sha256": {
+    "reference": "e8931d6c8aa71fae138934988e7fc9c8e70cb0690e57bc1559d1d4888fcb1d35",
+    "introducing": "6bff9b826d3420f0977ea8eca9e17d036c0fc8992165854e95e34c792746dd77",
+    "companion": "00399e7bea5bd7408f95b1bd6d3bfdacfd56fdb1215d33041dae35a2f26d00d8"
+  }
+}

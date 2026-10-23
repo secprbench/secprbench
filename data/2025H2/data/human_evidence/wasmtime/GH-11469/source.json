@@ -1,0 +1,59 @@
+{
+  "bug_id": "GH-11469",
+  "title": "GC allocation failure during const-expr evaluation can lead to a panic",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "wasmtime",
+  "component": "",
+  "creation_time": "2025-08-19T22:52:25Z",
+  "resolution_time": null,
+  "bug_discussion": "Public issue or PR: https://github.com/bytecodealliance/wasmtime/issues/11469\n\nGC allocation failure during const-expr evaluation can lead to a panic\nCurrently almost all evaluation of const-expr ops unwraps the result, but failures can happen due to GC failures for example. This isn't propagated and will result in an embedder panic. We should change all unwrap to `?` to propagate errors upwards.\n\n(related to the niche issue fixed in https://github.com/bytecodealliance/wasmtime/pull/11468, but different issue)\n\nMainline fixing commit 7941919851b80d9ae4f2c5d0d4802afbc4839bf2: Don't unwrap results of const-eval (#11557)\n\nWhile all const expressions executed at runtime are valid they can still\nfail due to GC OOM or failure to allocate more GC memory. As a result\nall `unwrap()` on `eval(...)` is removed in favor of propagating\nupwards the result.\n\nCloses #11469\u0000",
+  "commit_ids": [
+    "7941919851b80d9ae4f2c5d0d4802afbc4839bf2"
+  ],
+  "fix_commit_sha": "7941919851b80d9ae4f2c5d0d4802afbc4839bf2",
+  "fix_date": "2025-08-28T19:50:56Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H2",
+  "affected_files": [
+    "crates/wasmtime/src/runtime/vm/instance.rs",
+    "crates/wasmtime/src/runtime/vm/instance/allocator.rs",
+    "crates/wasmtime/src/runtime/vm/libcalls.rs",
+    "tests/all/gc.rs"
+  ],
+  "changed_lines": 253,
+  "defect_classes": [
+    "crash_or_abort"
+  ],
+  "candidate_status": "public_report_pending_security_review",
+  "verification": "not_run",
+  "security_screen": {
+    "preliminary_defect_classes": [
+      "crash_or_abort"
+    ],
+    "human_review_required": true,
+    "untrusted_input_boundary_proven": false,
+    "fix_role_review_required": true
+  },
+  "provenance": {
+    "collector": "issue_enriched_fixes_h2_v1",
+    "source_url": "https://github.com/bytecodealliance/wasmtime/issues/11469",
+    "report_http": {
+      "url": "https://api.github.com/repos/bytecodealliance/wasmtime/issues/11469",
+      "status": 200,
+      "retrieved_at": "2026-10-01T20:38:51.569306+00:00",
+      "sha256": "4f183ccb9d78fc54951bcb74b2ad99d6ca008706f8000dcccff26c3de00ad5f3",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/issue-enriched-broad-2025H2/raw/http/367ca69355f597e7e087586555e2b92847413410e890f63c64ab9a8acedcd759.body"
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001/report-collection/issue-enriched-broad-2025H2/raw/git/wasmtime/7941919851b80d9ae4f2c5d0d4802afbc4839bf2.commit",
+      "sha256": "a2a3ada4a2268dbb8ac45f3c996ef3689ae716d488512ca71884ed2ed1927745"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001/report-collection/issue-enriched-broad-2025H2/raw/git/wasmtime/7941919851b80d9ae4f2c5d0d4802afbc4839bf2.patch",
+      "sha256": "e6cf39e14d0aa882e3c83846d57fb07cd3c81b3584e9ef2b6872827ba6adb0df"
+    }
+  }
+}

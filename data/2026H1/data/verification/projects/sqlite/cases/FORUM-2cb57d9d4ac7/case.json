@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-2cb57d9d4ac7",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "c7fe7a969b383bf3bdb280bbc6b31e1a21a401d9",
+    "parent": "c45f24b2815ac892ec36bae7f0301cbbd9631926",
+    "fix": "2cb57d9d4ac7eac3b1d15cfa71511f54817cb3e4"
+  },
+  "affected_files": [
+    "ext/fts5/fts5_hash.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three versions built successfully. Using the identical compile-and-run command and /poc/poc.c, pre_intro exited 0 without a sanitizer finding; post_intro aborted with exit 134 and UBSan reported signed integer overflow at ext/fts5/fts5_hash.c:196 ('1073741824 * 2 cannot be represented in type int'); post_benign exited 0 without a sanitizer finding because its 64-bit multiplication and INT_MAX guard return SQLITE_NOMEM. This establishes the required non-crash/crash/non-crash pattern.",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,22 @@
+{
+  "bug_id": "410842391",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "147949a03eeaeff99acf4f426b6bf1e1a17043ed",
+    "parent": "a8004a053fbdac44c03b67cc276d87a2781ed7eb",
+    "fix": "7a68d07949788e8ff920b6b998ec1b8928f20656"
+  },
+  "affected_files": [
+    "src/json/json-stringifier.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Behavioral reproduction cleanly distinguishes the revisions with one invariant command/input. pre_intro exited 0 and serialized obj2 as {\"foo\":[{}],\"bar\":2}. post_intro (HEAD 147949a03eea) exited 1 because it incorrectly produced {\"foo\":[{}],\"bar\":2,\"hidden\":777}, demonstrating that partial validation of obj1's shared DescriptorArray wrongly promoted the unvalidated non-enumerable tail to kJsonFast. post_benign exited 0 with the correct JSON and its mechanically applied source contains the fix g",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,22 @@
+{
+  "bug_id": "413419840",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "ce7082ea1d4660929e2d4da827daac988649bb96",
+    "parent": "1771069eaddb5bdee330a959dbfed0f1c41b1b55",
+    "fix": "b04613a41917440bdf1253e8463a014bdd2872d1"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc"
+  ],
+  "baseline": {
+    "status": "anomaly",
+    "intro_verified": false,
+    "benign_verified": true,
+    "reason": "There was no existing PoC, so I used the exact 18-line regression test added by fix b04613a41917 and its declared flags: --maglev --no-lazy-feedback-allocation --allow-natives-syntax. The configured release-ASan binaries all exited 0 because DCHECKs were compiled out. Without changing tracked source or the paired patch, I rebuilt /work/out.gn/verify/d8 for each exact worktree with ASan and dcheck_always_on=true, then ran the identical /poc/run.sh on all three. post_intro aborted with exit 133 at",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "anomaly"
+}

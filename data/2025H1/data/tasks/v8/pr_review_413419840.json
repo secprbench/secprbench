@@ -1,0 +1,104 @@
+{
+  "task_id": "pr_review_413419840",
+  "bug_id": "413419840",
+  "commit_sha": "ce7082ea1d4660929e2d4da827daac988649bb96",
+  "commit_message": "[maglev] The type of the empty set of maps is the empty type\n\nBug: 412695458\nChange-Id: Ifb827d14a994901e276d6da7616988ce53015fba\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6480093\nCommit-Queue: Olivier Flückiger <olivf@chromium.org>\nAuto-Submit: Olivier Flückiger <olivf@chromium.org>\nCommit-Queue: Marja Hölttä <marja@chromium.org>\nReviewed-by: Marja Hölttä <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#99857}",
+  "commit_author": "Olivier Flückiger",
+  "commit_date": "2025-04-23T12:08:45Z",
+  "pr_title": "[maglev] The type of the empty set of maps is the empty type",
+  "pr_description": "Bug: 412695458\nChange-Id: Ifb827d14a994901e276d6da7616988ce53015fba\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6480093\nCommit-Queue: Olivier Flückiger <olivf@chromium.org>\nAuto-Submit: Olivier Flückiger <olivf@chromium.org>\nCommit-Queue: Marja Hölttä <marja@chromium.org>\nReviewed-by: Marja Hölttä <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#99857}\n",
+  "files": [
+    {
+      "path": "src/maglev/maglev-graph-builder.cc",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/src/maglev/maglev-graph-builder.cc b/src/maglev/maglev-graph-builder.cc\nindex 1e2a768ef8b..83d34d8fe0b 100644\n--- a/src/maglev/maglev-graph-builder.cc\n+++ b/src/maglev/maglev-graph-builder.cc\n@@ -4987,11 +4987,11 @@ class KnownMapsMerger {\n         } else {\n           known_maps_are_subset_of_requested_maps_ = false;\n         }\n       }\n       if (intersect_set_.is_empty()) {\n-        node_type_ = NodeType::kUnknown;\n+        node_type_ = EmptyNodeType();\n       }\n     } else {\n       // A missing entry here means the universal set, i.e., we don't know\n       // anything about the possible maps of the object. Intersect with the\n       // universal set, which means just insert all requested maps.\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/maglev/maglev-graph-builder.cc b/src/maglev/maglev-graph-builder.cc\nindex 1e2a768ef8b..83d34d8fe0b 100644\n--- a/src/maglev/maglev-graph-builder.cc\n+++ b/src/maglev/maglev-graph-builder.cc\n@@ -4987,11 +4987,11 @@ class KnownMapsMerger {\n         } else {\n           known_maps_are_subset_of_requested_maps_ = false;\n         }\n       }\n       if (intersect_set_.is_empty()) {\n-        node_type_ = NodeType::kUnknown;\n+        node_type_ = EmptyNodeType();\n       }\n     } else {\n       // A missing entry here means the universal set, i.e., we don't know\n       // anything about the possible maps of the object. Intersect with the\n       // universal set, which means just insert all requested maps.\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "ce7082ea1d4660929e2d4da827daac988649bb96",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "413419840",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Missing impossible-type guard in BuildCheckMaps after EmptyNodeType propagation",
+        "message": "In KnownMapsMerger::IntersectWithKnownNodeAspects, when all possible maps for an object are filtered out during intersection (intersect_set_ becomes empty), the commit changed node_type_ from NodeType::kUnknown to EmptyNodeType(). This is semantically correct, but BuildCheckMaps did not add a corresponding guard to detect when the combined type (CombineType(merger.node_type(), GetType(object))) becomes empty — an impossible/dead state. When known_maps_are_subset_of_requested_maps_ is true but the intersect set is empty (maps were filtered by IsInstanceOfNodeType), BuildCheckMaps enters the 'done' branch, calls known_info->IntersectType(EmptyNodeType()), sets the node's type to the empty type, and returns Done without emitting a deopt. Subsequent code generation over this logically-dead graph node proceeds to emit stores via BuildStoreTaggedFieldNoWriteBarrier, which asserts DCHECK(CanElideWriteBarrier(object, value)). Because the object's type is now the empty/impossible type the assertion fails, producing the reported DCHECK crash.",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-617"
+        ],
+        "location": {
+          "file": "src/maglev/maglev-graph-builder.cc",
+          "function": "KnownMapsMerger::IntersectWithKnownNodeAspects",
+          "start_line": 4991,
+          "end_line": 4993,
+          "snippet": "      if (intersect_set_.is_empty()) {\n        node_type_ = EmptyNodeType();\n      }"
+        },
+        "related_locations": [
+          {
+            "file": "src/maglev/maglev-graph-builder.cc",
+            "start_line": 5114,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "MaglevGraphBuilder::BuildCheckMaps",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/maglev/maglev-graph-builder.cc",
+            "start_line": 5496,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "MaglevGraphBuilder::BuildStoreTaggedFieldNoWriteBarrier",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "After calling merger.IntersectWithKnownNodeAspects in BuildCheckMaps, check whether the resulting combined type is empty (impossible). If so, emit an unconditional deopt immediately — before reaching the known_maps_are_subset_of_requested_maps() branch — so that no dead code with inconsistent type assumptions is generated. The same guard should be applied in TryBuildPolymorphicPropertyAccess for the SMI-path selection.",
+        "rule_id": "sec-logicerror-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/maglev/maglev-graph-builder.cc"
+    ],
+    "root_cause": "The introducing commit correctly tightened the type semantics by returning EmptyNodeType() for an empty map intersection, but the caller (BuildCheckMaps) was not updated to detect and handle the case where the combined type of the merger result and the object becomes empty (impossible). Without this guard, dead-code paths are emitted with type invariants that write-barrier elision code cannot satisfy.",
+    "must_cover": [
+      {
+        "file": "src/maglev/maglev-graph-builder.cc",
+        "function": "KnownMapsMerger::IntersectWithKnownNodeAspects",
+        "reason": "Primary location of finding: Missing impossible-type guard in BuildCheckMaps after EmptyNodeType propagation"
+      },
+      {
+        "file": "src/maglev/maglev-graph-builder.cc",
+        "function": "MaglevGraphBuilder::BuildCheckMaps",
+        "reason": "Related location for: Missing impossible-type guard in BuildCheckMaps after EmptyNodeType propagation"
+      },
+      {
+        "file": "src/maglev/maglev-graph-builder.cc",
+        "function": "MaglevGraphBuilder::BuildStoreTaggedFieldNoWriteBarrier",
+        "reason": "Related location for: Missing impossible-type guard in BuildCheckMaps after EmptyNodeType propagation"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__413419840__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "1771069eaddb5bdee330a959dbfed0f1c41b1b55",
+    "diff_stats": {
+      "files_changed": 1,
+      "lines_changed": 2
+    }
+  }
+}

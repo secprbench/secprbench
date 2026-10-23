@@ -1,0 +1,69 @@
+{
+  "bug_id": "OSSFUZZ-424613326",
+  "title": "Mac resource second-font table-directory read crosses a TTC offsets allocation",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "out_of_bounds_read",
+    "memory_safety"
+  ],
+  "product": "freetype",
+  "component": "sfnt/ttload",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Upstream fixing commit message:\nsrc/sfnt/ttload.c (tt_face_load_any): Correctly handle font containers.\n\nReported as\n\n  https://issues.oss-fuzz.com/issues/424613326\n\nIndependent host-only ASan replay of the exact frozen paper pair: one locally derived two-sfnt Mac resource file passed to FT_Load_Sfnt_Table(face, 1, ...) triggered ERROR: AddressSanitizer: heap-buffer-overflow, READ of size 8 at src/sfnt/ttload.c:589 in tt_face_load_any on the introduction. The read is just after the one-element ttc_header.offsets allocation. The clean introduction parent returned Table_Missing, because it does not yet implement tag 1; the bound-checked benign introduction read the directory and exited cleanly. This is a lower-trust font input boundary when a consumer requests the selected face's directory. The linked OSS-Fuzz issue requires sign-in, and its original attachment was not fetched. The input is locally derived, not an upstream reporter PoC. No Docker verifier result exists yet.",
+  "commit_ids": [
+    "d3668e00da732654b50e4e81f982544ed6e26390"
+  ],
+  "season": "2025H2",
+  "fix_commit_sha": "d3668e00da732654b50e4e81f982544ed6e26390",
+  "fix_date": "2025-09-05T18:23:22+00:00",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "aliases": [],
+  "affected_files": [
+    "src/sfnt/ttload.c",
+    "src/sfnt/sfobjs.c"
+  ],
+  "changed_lines": 18,
+  "report_references": [
+    {
+      "id": "OSSFUZZ-424613326",
+      "url": "https://issues.oss-fuzz.com/issues/424613326",
+      "kind": "fix_commit_report_link"
+    },
+    {
+      "id": "d3668e00da732654b50e4e81f982544ed6e26390",
+      "url": "https://github.com/freetype/freetype/commit/d3668e00da732654b50e4e81f982544ed6e26390",
+      "kind": "official_upstream_fix"
+    }
+  ],
+  "candidate_status": "existing_paper_pair_recovery_pending_independent_security_review_and_docker",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "frozen_paper_pair_recovery_20261002_v1",
+    "selection": "2025H2_freetype_open_cell_existing_unverified_pair",
+    "source_url": "https://github.com/freetype/freetype/commit/d3668e00da732654b50e4e81f982544ed6e26390",
+    "issue_contents": "sign_in_required_not_fetched",
+    "fix_commit_object": "/research-data/secprbench/freetype-dfont-paper-recovery-source-v1/raw/fix.commit",
+    "fix_commit_object_sha256": "7e3ddbaaf480398953bfa0f0bd49bacfadfc9e662834688d6535bf8eddacde65",
+    "fix_patch": "/research-data/secprbench/freetype-dfont-paper-recovery-source-v1/raw/fix.patch",
+    "fix_patch_sha256": "4c856688e130e120031c8265ef54a2f5076bd77162204d60461f02658baa0490",
+    "mainline_ref": "origin/master",
+    "mainline_tip": "b6c6934a76fae579fce081b03e2e74aca17e7eeb",
+    "introduction_candidate": {
+      "sha": "5a07f41d0eddddcae927957c6434c4174bae4e6a",
+      "date": "2025-05-28T09:52:44+02:00",
+      "changed_files": 3,
+      "changed_lines": 24
+    },
+    "exact_frozen_paper_pair_host_audit": "/research-data/secprbench/freetype-dfont-paper-pair-audit-v1/manifest.json",
+    "exact_frozen_paper_pair_host_audit_sha256": "340fef081f7036548dc689d257eed491979d65a2b02be43ef3efb93368e3ec0b",
+    "prior_pair_hashes": {
+      "buggy": "bb66b7b2e577e66cc881da294db4e39763f549e63c820f91c01cec1070aec652",
+      "benign": "55753cc1d8f5e64ac4307dec38cdbc0226ecb585802f76121a616ce35dd09065"
+    },
+    "source_kind": "recovery_not_new_report_or_pair",
+    "poc_provenance": "locally_derived_from_public_fix"
+  }
+}

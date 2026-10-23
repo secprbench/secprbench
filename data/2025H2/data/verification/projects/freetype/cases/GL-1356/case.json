@@ -1,0 +1,35 @@
+{
+  "bug_id": "GL-1356",
+  "project": "freetype",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "cda418a4a5a23699956dbcd06ba369405a190821",
+    "parent": "2ab0357d386c3d3cbe1da5b3901e229b8110e326",
+    "fix": "53b9319bff2deaa24eb6d29da7a304ac8c8e42a8"
+  },
+  "affected_files": [
+    "src/autofit/afgsub.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "no PoC available: no PoC under pocs/freetype/GL-1356/ or pocs/freetype/GL-1356.*; add a PoC directory (input file and/or run.sh) or a flat input file",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "asan",
+    "environment": "docker image anypoc-freetype:latest (freetype checkout at /opt/freetype, Ubuntu clang 14.0.0, cmake 3.22.1); container capped --cpus 8 --memory 24g; a prebuilt libharfbuzz.so.0 8.3.0 (1.4MB, reused from prior anypoc evidence, LD_LIBRARY_PATH-loaded) supplies the dlopen()'d HarfBuzz dependency since the image ships no system HarfBuzz",
+    "parent": "2ab0357d386c3d3cbe1da5b3901e229b8110e326 -- FEATURE-ABSENT, not merely clean: src/autofit/afgsub.c does not exist at this commit (`git show` confirms). Built cleanly with -fsanitize=address; PoC (FT_New_Face -> FT_Set_Pixel_Sizes(16) -> FT_Load_Glyph(FT_LOAD_FORCE_AUTOHINT) -> FT_Render_Glyph on glyph 'A') runs to completion, prints 'done', exit 0, no ASan report.",
+    "intro": "The task's literal intro_commit_sha cda418a4a5a23699956dbcd06ba369405a190821 is commit 1/4 of a 4-part series ('[autofit] Speed up computation of af_reverse_character_map_new'). At that single commit afgsub.c is added but is DEAD CODE: nothing calls af_parse_gsub/af_map_lookup, and the file itself fails to compile standalone (7 clang errors: `no member named 'gsub'/'gsub_length'/'gsub_lookups_single_alternate' in struct AF_FaceGlobalsRec_`, since those struct fields are only added in part 2/4). Independently confirmed this build failure myself (not just trusting the prior anypoc run) -- see artifacts/intro_build_failure.log. The defect becomes reachable at commit 6a982bde8 (part 4/4, the first commit that calls af_map_lookup, confirmed via `git log -S af_map_lookup -- src/autofit/afadjust.c`) and remains present through 53b9319bff2deaa24eb6d29da7a304ac8c8e42a8^ (=36f917cc6ac8b3b0c9cbc549fab2f839f6f5680b), the commit immediately preceding the task's own fix_commit. Built 36f917cc6 with ASan (clean full build, git worktree). Running the PoC against it produced AddressSanitizer heap-buffer-overflow: READ of size 1, 0 bytes right of a 98-byte heap region, stack af_coverage_iterator (afgsub.c:446) <- af_map_single_subst1 (afgsub.c:546) <- af_map_lookup (afgsub.c:670) <- af_reverse_character_map_new (afadjust.c:1440) <- af_latin_metrics_init <- af_face_globals_get_metrics <- af_loader_load_glyph <- af_autofitter_load_glyph <- FT_Load_Glyph <- main; allocation site af_parse_gsub (afgsub.c:325). This is exactly the labelled defect (lookupType clobbered by a nested extension-lookup subtable, causing the next subtable in the same lookup to be mis-parsed).",
+    "benign": "53b9319bff2deaa24eb6d29da7a304ac8c8e42a8 (task's fix_commit, matches exactly). Rather than a clean rebuild, reused the already-built vulnerable tree (36f917cc6) per the incremental-compile rule: `git checkout 53b9319bff2deaa24eb6d29da7a304ac8c8e42a8 -- src/autofit/afgsub.c` (8-line diff, introduces a per-iteration `real_lookupType` -- byte-for-byte the same fix shown in the ground-truth JSON's suggestion_code) followed by `cmake --build build -j8`, which only recompiled autofit.c and relinked. Running the same PoC + same poc.ttf against the patched build: prints 'done', exit 0, no ASan report.",
+    "evidence": "vuln: 'AddressSanitizer: heap-buffer-overflow on address 0x60b000000412 ... READ of size 1 ... #0 af_coverage_iterator src/autofit/afgsub.c:446:29 #1 af_map_single_subst1 afgsub.c:546:13 #2 af_map_lookup afgsub.c:670:21 #3 af_reverse_character_map_new afadjust.c:1440:11 ... allocated by ... af_parse_gsub afgsub.c:325:10 ... SUMMARY: AddressSanitizer: heap-buffer-overflow .../afgsub.c:446:29 in af_coverage_iterator' (full text in artifacts/asan_crash_vuln.log). fixed: stdout 'done', exit 0. parent: stdout 'done', exit 0 (feature absent). intro literal commit: 'error: no member named 'gsub_length' in 'struct AF_FaceGlobalsRec_'' x7 (artifacts/intro_build_failure.log).",
+    "poc_source": "anypoc",
+    "reason": "Reused a completed prior anypoc run (attempt_2, found at /research/workspace/anypoc/output/freetype/poc/GL-1356/attempt_2) that had already produced a crafted 628-byte TTF (poc.ttf), a 25-line consumer (poc.c) driving the ordinary FT_New_Face/FT_Load_Glyph API path, and detailed evidence (ASan report, gdb root-cause trace, revision differential across 5 revisions). Rather than trust that report at face value, I independently re-ran the full 3-way (parent/intro/benign) build-and-test cycle myself inside a fresh Docker container (anypoc-freetype:latest, capped at 8 CPUs / 24g memory), reusing only the PoC input artifacts. All of my independently-observed results matched the prior evidence exactly: the parent commit lacks the file entirely (feature-absent, not just 'no crash'); the task's literal intro_commit_sha fails to compile on its own (it's commit 1/4 of a 4-part series and the buggy code ",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/freetype__GL-1356/result.json"
+  },
+  "final_disposition": "verified"
+}

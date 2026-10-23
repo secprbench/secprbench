@@ -1,0 +1,120 @@
+{
+  "identity": "freetype/OSSFUZZ-416538625",
+  "case_id": "f4a3f154a629babbef5b",
+  "project": "freetype",
+  "season": "2025H1",
+  "bug_id": "OSSFUZZ-416538625",
+  "source": "/research-data/secprbench/freetype-svg-alloc-preflight-v1/normalizedsources/2025H1/source_f4a3f154a629babbef5b.json",
+  "source_sha256": "5660eea3fdc3be3056e8cfcba71da331069fc35f0524fd0c894c177f3fb89bcd",
+  "repo": "/research/repos/freetype__freetype",
+  "source_fix_date": "2025-05-09T11:27:51+00:00",
+  "source_fix_sha": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+  "status": "generated",
+  "verification_status": "not_run",
+  "reference_import": {
+    "original_reference": "/research-data/secprbench/freetype-svg-alloc-normal-import-v1/reference.json",
+    "original_reference_sha256": "4c26bf420c22d6093b6dbd86ec81430eccc63401c8be17238aec032db4b99a45",
+    "model_inference_used": false
+  },
+  "attempts": [
+    {
+      "number": 1,
+      "started_at": "2026-10-02T17:30:18.813815+00:00",
+      "status": "imported_reference_seed",
+      "directory": "attempts/01",
+      "model_inference_used": false,
+      "usage": {
+        "complete": true,
+        "cost_usd": 0.0
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.0
+      }
+    },
+    {
+      "number": 2,
+      "started_at": "2026-10-02T17:30:34.649453+00:00",
+      "status": "generated",
+      "directory": "attempts/02",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800.0,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01",
+        "auth_mode": "subscription"
+      },
+      "returncode": 0,
+      "artifact_scan": {
+        "regular_files_scanned": 13,
+        "bytes_scanned": 75117,
+        "entries_scanned": 17,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-10-02T17:31:18.019038+00:00",
+      "elapsed_seconds": 43.355,
+      "usage": {
+        "input_tokens": 22,
+        "output_tokens": 3191,
+        "cache_read_tokens": 299666,
+        "cache_write_tokens": 9601,
+        "cost_usd": 0.1302912,
+        "sessions": 1,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.1302912
+      }
+    }
+  ],
+  "scheduled_at": "2026-10-02T17:30:34.637795+00:00",
+  "updated_at": "2026-10-02T17:31:18.019068+00:00",
+  "fix_proof": {
+    "fix_sha": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+    "fix_date": "2025-05-09T13:27:51+02:00",
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_verified": true,
+    "date_basis": "earliest_mainline_fix",
+    "source_date_provenance": null,
+    "season": "2025H1"
+  },
+  "artifacts": {
+    "reference": {
+      "path": "attempts/02/reference/bug_OSSFUZZ-416538625.json",
+      "sha256": "4c26bf420c22d6093b6dbd86ec81430eccc63401c8be17238aec032db4b99a45"
+    },
+    "introducing": {
+      "path": "attempts/02/tasks/pr_review_OSSFUZZ-416538625.json",
+      "sha256": "de8dffc820325d54b95762aa12a2d36dc2a8675000dc50168dcf39b69c828968"
+    },
+    "companion": {
+      "path": "attempts/02/tasks/pr_review_OSSFUZZ-416538625_benign.json",
+      "sha256": "25d28c566f895c9075fd6ecfa4443c036a3e64792e8448190f997e7d8aaeb54c"
+    }
+  },
+  "intro_eligibility": {
+    "intro_sha": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+    "intro_committer_timestamp": "2022-01-20T16:45:18Z",
+    "intro_timestamp_utc": "2022-01-20T16:45:18+00:00",
+    "intro_date_utc": "2022-01-20",
+    "min_intro_date": "2021-01-01",
+    "cutoff_inclusive": true,
+    "date_basis": "git_committer_date_utc",
+    "eligible": true
+  }
+}

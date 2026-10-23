@@ -1,0 +1,74 @@
+{
+  "bug_id": "GH-21652",
+  "title": "urlapi: prevent a terminal `.0x` component to normalize IPv4",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "curl",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Primary fixing commit: https://github.com/curl/curl/commit/d74c0ada4e317566f19b4fac44d91a9eaa93d2bf\n\nurlapi: prevent a terminal `.0x` component to normalize IPv4\n\nExtend test 1560 to verify\n\nFollow-up to 831a1514843bfa4d4d006627\n\nSpotted by Codex Security\nCloses #21652\n\n\nPublic report: https://github.com/curl/curl/pull/21652\nurlapi: prevent a terminal `.0x` component to normalize IPv4\nExtend test 1560 to verify\r\n\r\nFollow-up to 831a1514843bfa4d4d006627\r\n\r\nSpotted by Codex Security\n\nThis is a source lead. Security impact, lower-trust reachability, true introduction, earliest durable fix, and three-version replay remain pending.",
+  "commit_ids": [
+    "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf"
+  ],
+  "season": "2026H1",
+  "fix_commit_sha": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+  "fix_date": "2026-05-17T14:19:26+02:00",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "affected_files": [
+    "lib/urlapi.c",
+    "tests/libtest/lib1560.c"
+  ],
+  "changed_lines": 6,
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "GH-21652",
+      "url": "https://github.com/curl/curl/pull/21652",
+      "kind": "public_github_issue_or_pr_fetched"
+    }
+  ],
+  "candidate_status": "primary_source_defect_lead_pending_security_and_intro_review",
+  "verification": "not_run",
+  "security_screen": {
+    "status": "pending",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true,
+    "introduction_review_required": true,
+    "three_version_replay_status": "not_run"
+  },
+  "collection_review_note": "IPv4-looking terminal .0x URL component normalized incorrectly",
+  "provenance": {
+    "collector": "project_balance_round2_primary_fix_reports_v1",
+    "source_url": "https://github.com/curl/curl/pull/21652",
+    "public_commit_url": "https://github.com/curl/curl/commit/d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+    "report_details": "public_github_issue_or_pr_fetched",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/round2-collected-sources-v2/raw/git/d74c0ada4e317566f19b4fac44d91a9eaa93d2bf.commit",
+      "sha256": "ee193d7e5d88a1952fde1a8564ac810c2a25c863a6cdb1b4b319f079397365fc",
+      "bytes": 906
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/round2-collected-sources-v2/raw/git/d74c0ada4e317566f19b4fac44d91a9eaa93d2bf.patch",
+      "sha256": "a4eb4517685b8f8d5ab2c8e97e2f5638896db520d3dc66dad5f459f68d6f4901",
+      "bytes": 1579
+    },
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/round2-collected-sources-v2/raw/reports/curl-21652-d74c0ada4e31.json",
+      "sha256": "c99415ff85b912f0581a1b885ba8c2e3ab3a51a8c63c70e29638dedb0459203b",
+      "bytes": 3805,
+      "url": "https://api.github.com/repos/curl/curl/issues/21652"
+    },
+    "comments_http": null,
+    "official_mirror_commit_api": null,
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "dfa444f1e59c52b56fb0d16152e610e4c29c7115",
+    "mainline_ancestry_verified": true,
+    "introducing_commit": "not_yet_established",
+    "prior_ledger": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/prior-report-audit-v3/prior_report_ledger.jsonl",
+      "sha256": "81db9564f0cb3980329b8b3749d3c9e2206976e3791c75baa961e3b6f6640d88"
+    }
+  }
+}

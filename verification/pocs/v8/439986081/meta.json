@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_439986081",
+  "bug_id": "439986081",
+  "bug_type": "TypeConfusion",
+  "intro_commit": "5af53ec82c0f3c031d0943b327e371ed00771279",
+  "intro_parent": "d43a3ca29cc3a5fa593335683da2080fc3b51a37",
+  "fix_commit": "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+  "affected_files": [
+    "src/objects/source-text-module.cc"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "v8",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The reordering of the && conditions in GatherAvailableAncestors made the unguarded GetCycleRoot(isolate) call unconditional for every async parent module iterated, rather than only being reached after other checks had implicitly filtered out modules. Combined with the pre-existing spec gap where an async parent that fails synchronously while depending on an async child never gets its [[CycleRoot]] slot initialized, this allows GetCycleRoot() to be invoked on a module whose cycle_root is still the_hole, producing a type confusion when the hole is treated as a SourceTextModule pointer.",
+  "findings": [
+    "In SourceTextModule::GatherAvailableAncestors, the loop over async parent modules evaluates `m->GetCycleRoot(isolate)->status() != kErrored` as the FIRST operand of the `&&`, meaning it is evaluated unconditionally for every async parent `m`, before checking whether `m` is already present in `exec_list`. GetCycleRoot() reads the module's `cycle_root` Tagged field and casts/dereferences it as a Sou"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "753214226ce6166fa8c5b8a87f4d432c38c98e6bfd0f995a5f20b660c8a76bb2",
+  "generated_artifact_sha256": {
+    "reference": "1029e9e7309469d90254489b41e3e6082c3fc26dba22396083c9fb088cb7dd60",
+    "introducing": "96b278cb48a194dbfbaf9160303fc4b74f52fcc5641ab21fb4233d728dcaf1dc",
+    "companion": "3e0d1b954156f1a82c2f1cf64047c8a51b6e610d2deb9f9f90b9846c201ef3f4"
+  }
+}

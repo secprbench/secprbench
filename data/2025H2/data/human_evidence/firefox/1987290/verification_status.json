@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "firefox/1987290",
+  "case_id": "de45666918eaf16abcc4",
+  "project": "firefox",
+  "bug_id": "1987290",
+  "season": "2025H2",
+  "source_sha256": "cffa6d8eb180095c8a4ae503ee40033f3589d1bbece1aedb09166f3ef008f16c",
+  "generated_artifact_sha256": {
+    "reference": "da271feb19c5529ef9976420069ec89b73c5e026f4bf4c2adbf2df4220cd20bc",
+    "introducing": "1f9e71d15d30802233f33962cdc92b22ff98a1810e7e19a0d799cfa6807a60eb",
+    "companion": "e725d234b4b69482bf96a4a06d9d5dd4882dee90da337b45c7dcf7a4cb8c36cb"
+  },
+  "poc_status": "poc_fetched",
+  "fingerprint": "a73122dd875e402fcb7bef4f9b932b524719814888ed7b8d1f0fa95697b8aae9",
+  "recipe_source_sha256": "26d2daac9d53cf5269d2e00a4fee119d2b3cf50f0341160919997cec976c6149",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/de45666918eaf16abcc4/attempts/01",
+      "started_at": "2026-10-02T19:20:24.857816+00:00",
+      "status": "inconclusive",
+      "cache_lane": 1,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/de45666918eaf16abcc4/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/de45666918eaf16abcc4/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-02T20:03:50.226732+00:00"
+    }
+  ],
+  "updated_at": "2026-10-02T20:03:50.226732+00:00",
+  "case_record": "/research-data/secprbench/season100-balanced-20261001/verification-v3/verification/projects/firefox/cases/1987290/case.json",
+  "report": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/firefox/de45666918eaf16abcc4/attempts/01/replay/pr_review_1987290.report.md",
+  "agent_used": true,
+  "recipe_sha256": "402b808220c82766e43b",
+  "final_poc_sha256": "be3056577c18c5f82d22e195bbd40fb185c109203782e4a54b720de120e9bd6a"
+}

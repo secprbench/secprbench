@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_REPORTED-702e4a1d32e4",
+  "bug_id": "REPORTED-702e4a1d32e4",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "582de1a4b6f6269bdb358605f9b23406988cd5b5",
+  "intro_parent": "fd92af79d801880faf070c84d0c274081369eb76",
+  "fix_commit": "702e4a1d32e4b911e85cc7df84b3ba395c28dab3",
+  "affected_files": [
+    "src/truetype/ttgxvar.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "freetype",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_controlled_gvar_256axis.ttf: /research-data/cgsa-verify/pocs/freetype/REPORTED-702e4a1d32e4/controlled_gvar_256axis.ttf"
+  ],
+  "input_name": "controlled_gvar_256axis.ttf",
+  "root_cause": "Inconsistent/incomplete arithmetic when converting an array-element-count-based allocation macro (FT_QNEW_ARRAY, which handles sizeof internally) into a manual pool-size computation; the sizeof multiplier for one of five sub-buffers (peak_coords, an FT_Fixed array) was dropped while it was correctly applied to the other four, so the pool undersizes the first field by a factor of sizeof(FT_Fixed).",
+  "findings": [
+    "In TT_Vary_Apply_Glyph_Deltas(), the refactor to a single shared allocation pool computes peak_coords_size as ALIGN_SIZE(3 * blend->num_axis) \u2014 the number of FT_Fixed elements needed \u2014 but omits the `* sizeof (FT_Fixed)` factor that every other sub-buffer in the same pool_size computation includes (point_deltas_x_size, points_org_size, points_out_size, has_delta_size all multiply by the element si"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "d4af88a1302a8192f771d0bb387b7ba816116fadd8a5c8f3a6fce125d8c57905",
+  "generated_artifact_sha256": {
+    "reference": "9daeca094a7322f3d63c40d92d8b473e71726373b8fe60b3073ce04ec1356a9f",
+    "introducing": "bc6653d7b51e18413ef7ec2d744ee022c34384acf4f045e5ca0b63565ab2f2b5",
+    "companion": "283f0496b7599e55e00e8e816c8231e2ae73d507351d36efdbf051d90bf548d1"
+  }
+}

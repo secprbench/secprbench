@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_TESTCASE-03d3ae7878f783b7",
+  "bug_id": "TESTCASE-03d3ae7878f783b7",
+  "bug_type": "LogicError",
+  "intro_commit": "e32264a1e17a18e8b0e8d86c2171a73b8515f1c6",
+  "intro_parent": "3cd5672bfeb796342d24228a78f2e733c0a40e7d",
+  "fix_commit": "28c330d0f3f3301128cab541774924de9ca78e5b",
+  "affected_files": [
+    "libavformat/mov.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The search-or-allocate loop that scans c->heif_item[] for a matching item_id (or an available slot to allocate a new one) does not verify that the loop actually terminated via a `break` (match found or new item allocated) versus falling through the loop's natural end condition. Only a NULL-pointer (allocation failure) check was performed afterward, which is insufficient to detect the 'not found' case where `item` still holds a valid but wrong pointer left over from the last loop iteration.",
+  "findings": [
+    "In mov_read_iloc (and identically in mov_read_infe), the code searches the c->heif_item[] array for an entry whose item_id matches the one just parsed from the file, allocating a new HEIFItem into the first NULL slot if one is found along the way:\n\n    for (int j = 0; j < c->nb_heif_item; j++) {\n        item = c->heif_item[j];\n        if (!item)\n            item = c->heif_item[j] = av_mallocz(size"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "c30486b060783e0a9e62b594522062f2e5a4008f477172f6b0ca6de256831474",
+  "generated_artifact_sha256": {
+    "reference": "d0ca260a2936c197ade7382acbe66d73a2547f82d7e1542394311a32fce5f4ea",
+    "introducing": "0577f873f53c61caf7b75551da060e6f052ebe21a590342838bf2fd4a5b73301",
+    "companion": "06f606d81e4c2d52fd1a3de4c1cbcb461b9d044df32cd0604d36d99eabc81e26"
+  }
+}

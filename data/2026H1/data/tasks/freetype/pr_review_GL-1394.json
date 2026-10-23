@@ -1,0 +1,124 @@
+{
+  "task_id": "pr_review_GL-1394",
+  "bug_id": "GL-1394",
+  "commit_sha": "ea94abb1851fcff553af724e7e31e4844b3adec6",
+  "commit_message": "Added the incremental loading system for the CID driver. Tested using my own unit test code.",
+  "commit_author": "Graham Asher",
+  "commit_date": "2002-07-18T16:25:57Z",
+  "pr_title": "Added the incremental loading system for the CID driver. Tested using my own unit test code.",
+  "pr_description": "",
+  "files": [
+    {
+      "path": "src/cid/cidgload.c",
+      "status": "modified",
+      "additions": 77,
+      "deletions": 40,
+      "diff": "diff --git a/src/cid/cidgload.c b/src/cid/cidgload.c\nindex 3c0a898ac..78088e0a4 100644\n--- a/src/cid/cidgload.c\n+++ b/src/cid/cidgload.c\n@@ -41,79 +41,116 @@\n                   FT_UInt     glyph_index )\n   {\n     CID_Face      face = (CID_Face)decoder->builder.face;\n     CID_FaceInfo  cid  = &face->cid;\n     FT_Byte*      p;\n-    FT_UInt       entry_len = cid->fd_bytes + cid->gd_bytes;\n     FT_UInt       fd_select;\n-    FT_ULong      off1, glyph_len;\n     FT_Stream     stream = face->root.stream;\n     FT_Error      error  = 0;\n+    FT_Byte*      charstring = 0;\n+\tFT_Memory     memory = face->root.memory;\n+    FT_UInt       glyph_length = 0;\n \n+#ifdef FT_CONFIG_OPTION_INCREMENTAL\n+\t/* For incremental fonts get the character data using the callback function. */\n+    if (face->root.incremental_interface)\n+    {\n+      FT_Data glyph_data;\n+      error = face->root.incremental_interface->funcs->get_glyph_data(face->root.incremental_interface->object,\n+        glyph_index,&glyph_data);\n+      if (error)\n+        goto Exit;\n+      p = (FT_Byte*)glyph_data.pointer;\n+      fd_select = (FT_UInt)cid_get_offset(&p,(FT_Byte)cid->fd_bytes);\n+      glyph_data.pointer += cid->fd_bytes;\n+      glyph_data.length -= cid->fd_bytes;\n+      glyph_length = glyph_data.length;\n+\n+      if (glyph_length == 0)\n+        goto Exit;\n+      if (FT_ALLOC(charstring,glyph_length))\n+        goto Exit;\n+      ft_memcpy(charstring,glyph_data.pointer,glyph_length);\n+    }\n+else\n+#endif\n \n-    /* read the CID font dict index and charstring offset from the CIDMap */\n-    if ( FT_STREAM_SEEK( cid->data_offset + cid->cidmap_offset +\n-                         glyph_index * entry_len )               ||\n-         FT_FRAME_ENTER( 2 * entry_len )                         )\n-      goto Exit;\n+    /* For ordinary fonts read the CID font dictionary index and charstring offset from the CIDMap. */\n+    {\n+      FT_UInt entry_len = cid->fd_bytes + cid->gd_bytes;\n+      FT_ULong off1;\n+      if ( FT_STREAM_SEEK( cid->data_offset + cid->cidmap_offset +\n+           glyph_index * entry_len ) ||\n+           FT_FRAME_ENTER( 2 * entry_len ) )\n+        goto Exit;\n \n-    p = (FT_Byte*)stream->cursor;\n-    fd_select = (FT_UInt) cid_get_offset( &p, (FT_Byte)cid->fd_bytes );\n-    off1      = (FT_ULong)cid_get_offset( &p, (FT_Byte)cid->gd_bytes );\n-    p        += cid->fd_bytes;\n-    glyph_len = cid_get_offset( &p, (FT_Byte)cid->gd_bytes ) - off1;\n+      p = (FT_Byte*)stream->cursor;\n+      fd_select = (FT_UInt) cid_get_offset( &p, (FT_Byte)cid->fd_bytes );\n+      off1      = (FT_ULong)cid_get_offset( &p, (FT_Byte)cid->gd_bytes );\n+      p        += cid->fd_bytes;\n+      glyph_length = cid_get_offset( &p, (FT_Byte)cid->gd_bytes ) - off1;\n+      FT_FRAME_EXIT();\n \n-    FT_FRAME_EXIT();\n+      if (glyph_length == 0)\n+        goto Exit;\n+      if (FT_ALLOC(charstring,glyph_length))\n+        goto Exit;\n+      if (FT_STREAM_READ_AT(cid->data_offset + off1,charstring,glyph_length))\n+        goto Exit;\n+    }\n \n-    /* now, if the glyph is not empty, set up the subrs array, and parse */\n-    /* the charstrings                                                   */\n-    if ( glyph_len > 0 )\n+    /* Now set up the subrs array and parse the charstrings. */\n     {\n       CID_FaceDict  dict;\n       CID_Subrs     cid_subrs = face->subrs + fd_select;\n-      FT_Byte*      charstring;\n-      FT_Memory     memory = face->root.memory;\n-\n+\t  FT_Int  cs_offset;\n \n-      /* setup subrs */\n+      /* Set up subrs */\n       decoder->num_subrs = cid_subrs->num_subrs;\n       decoder->subrs     = cid_subrs->code;\n       decoder->subrs_len = 0;\n \n-      /* setup font matrix */\n+      /* Set up font matrix */\n       dict                 = cid->font_dicts + fd_select;\n \n       decoder->font_matrix = dict->font_matrix;\n       decoder->font_offset = dict->font_offset;\n       decoder->lenIV       = dict->private_dict.lenIV;\n \n-      /* the charstrings are encoded (stupid!)  */\n-      /* load the charstrings, then execute it  */\n-\n-      if ( FT_ALLOC( charstring, glyph_len ) )\n-        goto Exit;\n+\t  /* Decode the charstring. */\n \n-      if ( !FT_STREAM_READ_AT( cid->data_offset + off1,\n-                               charstring, glyph_len ) )\n-      {\n-        FT_Int  cs_offset;\n+      /* Adjustment for seed bytes. */\n+      cs_offset = ( decoder->lenIV >= 0 ? decoder->lenIV : 0 );\n \n+      /* Decrypt only if lenIV >= 0. */\n+      if ( decoder->lenIV >= 0 )\n+        cid_decrypt( charstring, glyph_length, 4330 );\n \n-        /* Adjustment for seed bytes. */\n-        cs_offset = ( decoder->lenIV >= 0 ? decoder->lenIV : 0 );\n+      error = decoder->funcs.parse_charstrings( decoder,\n+                                                charstring + cs_offset,\n+                                                glyph_length  - cs_offset  );\n+      }\n \n-        /* Decrypt only if lenIV >= 0. */\n-        if ( decoder->lenIV >= 0 )\n-          cid_decrypt( charstring, glyph_len, 4330 );\n+    FT_FREE( charstring );\n \n-        error = decoder->funcs.parse_charstrings( decoder,\n-                                                  charstring + cs_offset,\n-                                                  glyph_len  - cs_offset  );\n+#ifdef FT_CONFIG_OPTION_INCREMENTAL\n+    /* Incremental fonts can optionally override the metrics. */\n+    if (!error && face->root.incremental_interface && face->root.incremental_interface->funcs->get_glyph_metrics)\n+    {\n+      FT_Bool found = FALSE;\n+      FT_Basic_Glyph_Metrics metrics;\n+      error = face->root.incremental_interface->funcs->get_glyph_metrics(face->root.incremental_interface->object,\n+        glyph_index,FALSE,&metrics,&found);\n+      if (found)\n+      {\n+        decoder->builder.left_bearing.x = metrics.bearing_x;\n+        decoder->builder.left_bearing.y = metrics.bearing_y;\n+        decoder->builder.advance.x = metrics.advance;\n+        decoder->builder.advance.y = 0;\n       }\n-\n-      FT_FREE( charstring );\n     }\n+#endif\n \n   Exit:\n     return error;\n   }\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/src/cid/cidgload.c b/src/cid/cidgload.c\nindex 3c0a898ac..78088e0a4 100644\n--- a/src/cid/cidgload.c\n+++ b/src/cid/cidgload.c\n@@ -41,79 +41,116 @@\n                   FT_UInt     glyph_index )\n   {\n     CID_Face      face = (CID_Face)decoder->builder.face;\n     CID_FaceInfo  cid  = &face->cid;\n     FT_Byte*      p;\n-    FT_UInt       entry_len = cid->fd_bytes + cid->gd_bytes;\n     FT_UInt       fd_select;\n-    FT_ULong      off1, glyph_len;\n     FT_Stream     stream = face->root.stream;\n     FT_Error      error  = 0;\n+    FT_Byte*      charstring = 0;\n+\tFT_Memory     memory = face->root.memory;\n+    FT_UInt       glyph_length = 0;\n \n+#ifdef FT_CONFIG_OPTION_INCREMENTAL\n+\t/* For incremental fonts get the character data using the callback function. */\n+    if (face->root.incremental_interface)\n+    {\n+      FT_Data glyph_data;\n+      error = face->root.incremental_interface->funcs->get_glyph_data(face->root.incremental_interface->object,\n+        glyph_index,&glyph_data);\n+      if (error)\n+        goto Exit;\n+      p = (FT_Byte*)glyph_data.pointer;\n+      fd_select = (FT_UInt)cid_get_offset(&p,(FT_Byte)cid->fd_bytes);\n+      glyph_data.pointer += cid->fd_bytes;\n+      glyph_data.length -= cid->fd_bytes;\n+      glyph_length = glyph_data.length;\n+\n+      if (glyph_length == 0)\n+        goto Exit;\n+      if (FT_ALLOC(charstring,glyph_length))\n+        goto Exit;\n+      ft_memcpy(charstring,glyph_data.pointer,glyph_length);\n+    }\n+else\n+#endif\n \n-    /* read the CID font dict index and charstring offset from the CIDMap */\n-    if ( FT_STREAM_SEEK( cid->data_offset + cid->cidmap_offset +\n-                         glyph_index * entry_len )               ||\n-         FT_FRAME_ENTER( 2 * entry_len )                         )\n-      goto Exit;\n+    /* For ordinary fonts read the CID font dictionary index and charstring offset from the CIDMap. */\n+    {\n+      FT_UInt entry_len = cid->fd_bytes + cid->gd_bytes;\n+      FT_ULong off1;\n+      if ( FT_STREAM_SEEK( cid->data_offset + cid->cidmap_offset +\n+           glyph_index * entry_len ) ||\n+           FT_FRAME_ENTER( 2 * entry_len ) )\n+        goto Exit;\n \n-    p = (FT_Byte*)stream->cursor;\n-    fd_select = (FT_UInt) cid_get_offset( &p, (FT_Byte)cid->fd_bytes );\n-    off1      = (FT_ULong)cid_get_offset( &p, (FT_Byte)cid->gd_bytes );\n-    p        += cid->fd_bytes;\n-    glyph_len = cid_get_offset( &p, (FT_Byte)cid->gd_bytes ) - off1;\n+      p = (FT_Byte*)stream->cursor;\n+      fd_select = (FT_UInt) cid_get_offset( &p, (FT_Byte)cid->fd_bytes );\n+      off1      = (FT_ULong)cid_get_offset( &p, (FT_Byte)cid->gd_bytes );\n+      p        += cid->fd_bytes;\n+      glyph_length = cid_get_offset( &p, (FT_Byte)cid->gd_bytes ) - off1;\n+      FT_FRAME_EXIT();\n \n-    FT_FRAME_EXIT();\n+      if (glyph_length == 0)\n+        goto Exit;\n+      if (FT_ALLOC(charstring,glyph_length))\n+        goto Exit;\n+      if (FT_STREAM_READ_AT(cid->data_offset + off1,charstring,glyph_length))\n+        goto Exit;\n+    }\n \n-    /* now, if the glyph is not empty, set up the subrs array, and parse */\n-    /* the charstrings                                                   */\n-    if ( glyph_len > 0 )\n+    /* Now set up the subrs array and parse the charstrings. */\n     {\n       CID_FaceDict  dict;\n       CID_Subrs     cid_subrs = face->subrs + fd_select;\n-      FT_Byte*      charstring;\n-      FT_Memory     memory = face->root.memory;\n-\n+\t  FT_Int  cs_offset;\n \n-      /* setup subrs */\n+      /* Set up subrs */\n       decoder->num_subrs = cid_subrs->num_subrs;\n       decoder->subrs     = cid_subrs->code;\n       decoder->subrs_len = 0;\n \n-      /* setup font matrix */\n+      /* Set up font matrix */\n       dict                 = cid->font_dicts + fd_select;\n \n       decoder->font_matrix = dict->font_matrix;\n       decoder->font_offset = dict->font_offset;\n       decoder->lenIV       = dict->private_dict.lenIV;\n \n-      /* the charstrings are encoded (stupid!)  */\n-      /* load the charstrings, then execute it  */\n-\n-      if ( FT_ALLOC( charstring, glyph_len ) )\n-        goto Exit;\n+\t  /* Decode the charstring. */\n \n-      if ( !FT_STREAM_READ_AT( cid->data_offset + off1,\n-                               charstring, glyph_len ) )\n-      {\n-        FT_Int  cs_offset;\n+      /* Adjustment for seed bytes. */\n+      cs_offset = ( decoder->lenIV >= 0 ? decoder->lenIV : 0 );\n \n+      /* Decrypt only if lenIV >= 0. */\n+      if ( decoder->lenIV >= 0 )\n+        cid_decrypt( charstring, glyph_length, 4330 );\n \n-        /* Adjustment for seed bytes. */\n-        cs_offset = ( decoder->lenIV >= 0 ? decoder->lenIV : 0 );\n+      error = decoder->funcs.parse_charstrings( decoder,\n+                                                charstring + cs_offset,\n+                                                glyph_length  - cs_offset  );\n+      }\n \n-        /* Decrypt only if lenIV >= 0. */\n-        if ( decoder->lenIV >= 0 )\n-          cid_decrypt( charstring, glyph_len, 4330 );\n+    FT_FREE( charstring );\n \n-        error = decoder->funcs.parse_charstrings( decoder,\n-                                                  charstring + cs_offset,\n-                                                  glyph_len  - cs_offset  );\n+#ifdef FT_CONFIG_OPTION_INCREMENTAL\n+    /* Incremental fonts can optionally override the metrics. */\n+    if (!error && face->root.incremental_interface && face->root.incremental_interface->funcs->get_glyph_metrics)\n+    {\n+      FT_Bool found = FALSE;\n+      FT_Basic_Glyph_Metrics metrics;\n+      error = face->root.incremental_interface->funcs->get_glyph_metrics(face->root.incremental_interface->object,\n+        glyph_index,FALSE,&metrics,&found);\n+      if (found)\n+      {\n+        decoder->builder.left_bearing.x = metrics.bearing_x;\n+        decoder->builder.left_bearing.y = metrics.bearing_y;\n+        decoder->builder.advance.x = metrics.advance;\n+        decoder->builder.advance.y = 0;\n       }\n-\n-      FT_FREE( charstring );\n     }\n+#endif\n \n   Exit:\n     return error;\n   }\n \n",
+  "ground_truth": {
+    "bug_id": "GL-1394",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "aa8ca27f9b48bbb99f02d605b7dbf1d6a016cbcb",
+      "short_sha": "aa8ca27",
+      "message": "[cid] Add boundary check in incremental interface.",
+      "author": "Werner Lemberg",
+      "date": "2026-03-06T07:17:59+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-read-001",
+        "title": "Missing fd_select bounds check in CID incremental interface",
+        "message": "In cid_load_glyph(), when the incremental interface is active, fd_select is read directly from callback-supplied glyph data via cid_get_offset() without validating that it is less than cid->num_dicts. The unchecked value is subsequently used as an array index into face->subrs, allowing an attacker-controlled value to produce an out-of-bounds pointer that is then dereferenced, causing a heap-buffer-overflow read. The non-incremental path correctly validates fd_select against cid->num_dicts before use, but this check was omitted when the incremental code path was first introduced.",
+        "location": {
+          "file": "src/cid/cidgload.c",
+          "start_line": 63,
+          "end_line": 63,
+          "start_column": null,
+          "end_column": null,
+          "function": "cid_load_glyph",
+          "snippet": "      p = (FT_Byte*)glyph_data.pointer;\n      fd_select = (FT_UInt)cid_get_offset(&p,(FT_Byte)cid->fd_bytes);\n      glyph_data.pointer += cid->fd_bytes;\n      glyph_data.length -= cid->fd_bytes;\n      glyph_length = glyph_data.length;",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/cid/cidgload.c",
+            "start_line": 104,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "cid_load_glyph",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/cid/cidgload.c",
+            "start_line": 108,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "cid_load_glyph",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.98,
+        "suggestion": "After reading fd_select from the callback-supplied glyph data, validate it against cid->num_dicts before using it as an array index. Mirror the existing check in the non-incremental code path. Additionally, handle the sentinel values 0xFF (fd_bytes==1) and 0xFFFF (fd_bytes==2) as empty-glyph indicators.",
+        "suggestion_code": "fd_select = cid_get_offset( &p, cid->fd_bytes );\n\nif ( fd_select >= cid->num_dicts )\n{\n  error = FT_THROW( Invalid_Offset );\n  goto Exit;\n}",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "memory-safety",
+          "out-of-bounds-read",
+          "incremental-interface"
+        ],
+        "cwe_ids": [
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "src/cid/cidgload.c"
+    ],
+    "root_cause": "When the incremental interface code path was first introduced in 2002, the bounds check that guards fd_select in the ordinary (non-incremental) code path was never added to the incremental branch. Both paths call cid_get_offset() to extract fd_select from untrusted data, but only the ordinary path validates the result before using it as an array index.",
+    "must_cover": [
+      {
+        "file": "src/cid/cidgload.c",
+        "function": "cid_load_glyph",
+        "start_line": 63,
+        "end_line": 63,
+        "role": "primary",
+        "reason": "Primary location of finding: Missing fd_select bounds check in CID incremental interface"
+      },
+      {
+        "file": "src/cid/cidgload.c",
+        "function": "cid_load_glyph",
+        "start_line": 104,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Missing fd_select bounds check in CID incremental interface"
+      },
+      {
+        "file": "src/cid/cidgload.c",
+        "function": "cid_load_glyph",
+        "start_line": 108,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Missing fd_select bounds check in CID incremental interface"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "ea94abb1851fcff553af724e7e31e4844b3adec6",
+  "fix_commit_sha": null
+}

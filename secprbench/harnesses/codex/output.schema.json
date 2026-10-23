@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["instance_id", "model", "predictions"],
+  "properties": {
+    "instance_id": {"type": "string"},
+    "model": {"type": "string"},
+    "predictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "message", "file", "bug_type", "severity", "confidence", "start_line", "end_line"],
+        "properties": {
+          "title": {"type": "string"},
+          "message": {"type": "string"},
+          "file": {"type": "string"},
+          "bug_type": {"type": "string"},
+          "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+          "confidence": {"type": "number"},
+          "start_line": {"type": ["integer", "null"]},
+          "end_line": {"type": ["integer", "null"]}
+        }
+      }
+    }
+  }
+}

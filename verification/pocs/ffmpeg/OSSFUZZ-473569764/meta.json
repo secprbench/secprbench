@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-473569764",
+  "bug_id": "OSSFUZZ-473569764",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "82467b635efced67c1767cb810af1f3c31a2e493",
+  "intro_parent": "3330b733d3eb912ee60a90a163ef8ee5f44ff4c0",
+  "fix_commit": "fa2aec73ed8ff590acb5467bb20847ca917e636e",
+  "affected_files": [
+    "libavcodec/jpeg2000dec.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The rounding-bias addition prior to the right shift in dequantization_int_97() was implemented using 32-bit `int` arithmetic without accounting for the fact that decoded coefficient magnitudes can be close to INT32_MAX, causing the addition of the rounding constant to overflow a signed 32-bit integer.",
+  "findings": [
+    "In dequantization_int_97(), the sign-magnitude-to-two's-complement converted value `val` (an `int`) can be as large as `INT32_MAX` (e.g. via crafted/corrupted wavelet coefficients from the T1 decoding passes). Before shifting down by PRESCALE, the code adds a rounding bias `(1 << (PRESCALE - 1))` (with PRESCALE = 6, this is 32) using 32-bit `int` arithmetic: `val = (val + (1 << (PRESCALE - 1))) >>"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "c5c87123cabfd99fd3fbd42cbbd3ea86f91f45d9f6c5bc778a5e068fb9ef5310",
+  "generated_artifact_sha256": {
+    "reference": "2fce3c0e37b66bedd05f38a3fd208350cddc47fb4836c1af1af0966024c25c77",
+    "introducing": "9d94e64853a4113d79c5b9fa9982ffde07cd587cb6b210af64ac0f2047528350",
+    "companion": "d0db71b74334b28e3a43d99b74e81335bae02e0ed708722b5d1f2a375a791745"
+  }
+}

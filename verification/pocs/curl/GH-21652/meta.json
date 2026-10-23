@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_GH-21652",
+  "bug_id": "GH-21652",
+  "bug_type": "LogicError",
+  "intro_commit": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+  "intro_parent": "aafbe089a88c42bf81ff8cf868f20263661ad3e4",
+  "fix_commit": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+  "affected_files": [
+    "lib/urlapi.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_67301bd1ec8adf7e_lib1560.c: tests/libtest/lib1560.c"
+  ],
+  "input_name": null,
+  "root_cause": "Commit 831a1514843bfa4d4d006627 (urlapi: consume trailing dots after IPv4 numerical addresses) replaced the previous unconditional 'if(rc) return HOST_NAME;' check after the number-parsing dispatch with a conditional that allows a failed parse to be tolerated when n is nonzero, rc == STRE_NO_NUM, and the cursor is at the end of the string -- intending to permit a trailing dot after the last IPv4 octet to be silently dropped. However this same lenient path is also reachable when the component begins with the '0x' prefix (handled by curlx_str_hex) but contains no hex digits at all, because curlx_str_hex also returns STRE_NO_NUM and leaves the cursor at end-of-string in that scenario. The code did not special-case the hex-prefix branch to reject rc failures immediately, so a hex-prefixed-but-empty terminal component is misclassified as the 'trailing dot was swallowed' case.",
+  "findings": [
+    "ipv4_normalize() was changed to tolerate a failing numeric-parse (rc != 0) as a 'trailing dot was swallowed' case whenever the prior component index n is nonzero, the failure code is STRE_NO_NUM, and the cursor c now points at the string terminator. This check is applied uniformly after the '0'/'0x'/'0' (octal)/decimal number-parsing dispatch, but it does not distinguish between a genuine trailing"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "671fefdf07e667034ea898602e8988c3337da11f5f47c6c248f01853f23026bb",
+  "generated_artifact_sha256": {
+    "reference": "63c59bcf6234cd1711b230897d923d7121845f6d080c57108a161aab36c20330",
+    "introducing": "eab44939c7f1ac2876bc79df5e381e1734e6e8d8b93040048daafbac8fc1e95f",
+    "companion": "33ab1825ee4da7b02ef18228852cf6532566fbb41dd8e870af3587236640a17e"
+  }
+}

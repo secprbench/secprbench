@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-11469",
+  "bug_id": "GH-11469",
+  "bug_type": "LogicError",
+  "intro_commit": "128e6b8f57b6b7fa92f9235bc2cd128a8145521d",
+  "intro_parent": "bf06c66ddd3fbe0a493e0c9f0fb53a5d555feac4",
+  "fix_commit": "7941919851b80d9ae4f2c5d0d4802afbc4839bf2",
+  "affected_files": [
+    "crates/wasmtime/src/runtime/vm/const_expr.rs",
+    "crates/wasmtime/src/runtime/vm/instance.rs"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "wasmtime",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_6b36d002732e70a7_gc.rs: tests/all/gc.rs"
+  ],
+  "input_name": null,
+  "root_cause": "A newly reachable fallible GC allocation was added to const-expression evaluation without changing the existing caller's unconditional expect on the result.",
+  "findings": [
+    "This change lets a module-supplied constant expression allocate a GC struct. StructRef::_new can fail, so eval now returns an allocation error for this input. The already-existing global initializer calls eval(...).expect(...); it panics instead of returning that error to the embedder."
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "bbf9a289b44d4bc4821b58f26bd4e27bc0e448b387c6ee12ba832259e0dea654",
+  "generated_artifact_sha256": {
+    "reference": "573a4cd64e12d5b3a3b4c56f8bf5ab234ae76b4e10ae959382bbf8478e4688da",
+    "introducing": "9d430b11d4bb99c656c9787bcf6c4c1b691c1ddd7d91eeb58243d727771dc1a7",
+    "companion": "2c3ebee008c875b912a0153321d5306d41c47aad1948265a3a0f0d277f94572c"
+  }
+}

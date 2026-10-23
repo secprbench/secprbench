@@ -1,0 +1,121 @@
+{
+  "task_id": "pr_review_424617297",
+  "bug_id": "424617297",
+  "commit_sha": "9a6e62563c9b082830c96ddeb3b09675c1bb8caf",
+  "commit_message": "[turbofan] Handle another case of dead values in SimplifiedLowering\n\nDrive-by: And preserve FrameState on unreachable path in GraphBuilder.\n\nBug: 424205788\nChange-Id: I8e3ef0e966165d79a5cd52c59a2355f1c8067071\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6633544\nCommit-Queue: Nico Hartmann <nicohartmann@chromium.org>\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100801}",
+  "commit_author": "Nico Hartmann",
+  "commit_date": "2025-06-12T14:50:26+02:00",
+  "pr_title": "[turbofan] Handle another case of dead values in SimplifiedLowering",
+  "pr_description": "Drive-by: And preserve FrameState on unreachable path in GraphBuilder.\n\nBug: 424205788\nChange-Id: I8e3ef0e966165d79a5cd52c59a2355f1c8067071\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6633544\nCommit-Queue: Nico Hartmann <nicohartmann@chromium.org>\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100801}\n",
+  "files": [
+    {
+      "path": "src/compiler/simplified-lowering.cc",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 9,
+      "diff": "diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc\nindex 44c35ed9b01..e7eff893d47 100644\n--- a/src/compiler/simplified-lowering.cc\n+++ b/src/compiler/simplified-lowering.cc\n@@ -2482,30 +2482,32 @@ class RepresentationSelector {\n                      common()->DeadValue(GetInfo(node)->representation()));\n             return;\n           }\n         }\n       } else {\n-        InsertUnreachableIfNecessary<T>(node);\n+        bool is_dead = false;\n         if (node->op()->ValueOutputCount() > 0 &&\n             node->op()->ControlOutputCount() == 0 &&\n             node->opcode() != IrOpcode::kPhi &&\n             node->opcode() != IrOpcode::kStateValues &&\n             node->opcode() != IrOpcode::kFrameState) {\n           for (int i = 0; i < node->op()->ValueInputCount(); i++) {\n             Node* input = node->InputAt(i);\n-            // If one of the node's inputs produces a None-type, we don't need\n-            // to lower the node.\n+            // If one of the node's inputs produces a None-type, then this node\n+            // cannot produce a value itself.\n             if (TypeOf(input).IsNone()) {\n-              DisconnectFromEffectAndControl(node);\n-              node->TrimInputCount(node->op()->ValueInputCount());\n-              ChangeOp(node,\n-                       common()->DeadValue(GetInfo(node)->representation(),\n-                                           node->op()->ValueInputCount()));\n-              return;\n+              GetInfo(node)->set_feedback_type(Type::None());\n+              is_dead = true;\n+              break;\n             }\n           }\n         }\n+\n+        InsertUnreachableIfNecessary<T>(node);\n+        // If the node is dead, we don't wont to lower it to avoid breaking\n+        // effect chains.\n+        if (is_dead) return;\n       }\n     }\n \n     // Unconditionally eliminate unused pure nodes (only relevant if there's\n     // a pure operation in between two effectful ones, where the last one\n"
+    },
+    {
+      "path": "src/compiler/turboshaft/graph-builder.cc",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 0,
+      "diff": "diff --git a/src/compiler/turboshaft/graph-builder.cc b/src/compiler/turboshaft/graph-builder.cc\nindex 26d2cc74d5e..ebb9ca9b912 100644\n--- a/src/compiler/turboshaft/graph-builder.cc\n+++ b/src/compiler/turboshaft/graph-builder.cc\n@@ -259,10 +259,20 @@ std::optional<BailoutReason> GraphBuilder::Run() {\n           dominating_frame_state = OpIndex::Invalid();\n           break;\n         }\n       }\n     }\n+\n+    // Provisionally store the incoming frame state here as the block's final\n+    // frame state, such that the successor blocks can still compute their\n+    // dominating_frame_state even if this block terminates prematurely due to\n+    // `Unreachable` or `DeadValue`. In this block contains a new Checkpoint, we\n+    // will overwrite this block's `final_frame_state` after visiting all\n+    // operations.\n+    block_mapping[block->rpo_number()].final_frame_state =\n+        dominating_frame_state;\n+\n     std::optional<BailoutReason> bailout = std::nullopt;\n     for (Node* node : *block->nodes()) {\n       if (V8_UNLIKELY(node->InputCount() >=\n                       int{std::numeric_limits<\n                           decltype(Operation::input_count)>::max()})) {\n"
+    },
+    {
+      "path": "test/mjsunit/regress/regress-424205788.js",
+      "status": "added",
+      "additions": 15,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/regress/regress-424205788.js b/test/mjsunit/regress/regress-424205788.js\nnew file mode 100644\nindex 00000000000..b7eb0a9d029\n--- /dev/null\n+++ b/test/mjsunit/regress/regress-424205788.js\n@@ -0,0 +1,15 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax\n+\n+function f1(a2) {\n+    const v6 = (\"string\").codePointAt(1196);\n+  (a2 || v6)?.c;\n+  return a2;\n+}\n+%PrepareFunctionForOptimization(f1);\n+assertEquals(0, f1(0));\n+%OptimizeFunctionOnNextCall(f1);\n+assertEquals(0, f1(0));\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc\nindex 44c35ed9b01..e7eff893d47 100644\n--- a/src/compiler/simplified-lowering.cc\n+++ b/src/compiler/simplified-lowering.cc\n@@ -2482,30 +2482,32 @@ class RepresentationSelector {\n                      common()->DeadValue(GetInfo(node)->representation()));\n             return;\n           }\n         }\n       } else {\n-        InsertUnreachableIfNecessary<T>(node);\n+        bool is_dead = false;\n         if (node->op()->ValueOutputCount() > 0 &&\n             node->op()->ControlOutputCount() == 0 &&\n             node->opcode() != IrOpcode::kPhi &&\n             node->opcode() != IrOpcode::kStateValues &&\n             node->opcode() != IrOpcode::kFrameState) {\n           for (int i = 0; i < node->op()->ValueInputCount(); i++) {\n             Node* input = node->InputAt(i);\n-            // If one of the node's inputs produces a None-type, we don't need\n-            // to lower the node.\n+            // If one of the node's inputs produces a None-type, then this node\n+            // cannot produce a value itself.\n             if (TypeOf(input).IsNone()) {\n-              DisconnectFromEffectAndControl(node);\n-              node->TrimInputCount(node->op()->ValueInputCount());\n-              ChangeOp(node,\n-                       common()->DeadValue(GetInfo(node)->representation(),\n-                                           node->op()->ValueInputCount()));\n-              return;\n+              GetInfo(node)->set_feedback_type(Type::None());\n+              is_dead = true;\n+              break;\n             }\n           }\n         }\n+\n+        InsertUnreachableIfNecessary<T>(node);\n+        // If the node is dead, we don't wont to lower it to avoid breaking\n+        // effect chains.\n+        if (is_dead) return;\n       }\n     }\n \n     // Unconditionally eliminate unused pure nodes (only relevant if there's\n     // a pure operation in between two effectful ones, where the last one\ndiff --git a/src/compiler/turboshaft/graph-builder.cc b/src/compiler/turboshaft/graph-builder.cc\nindex 26d2cc74d5e..ebb9ca9b912 100644\n--- a/src/compiler/turboshaft/graph-builder.cc\n+++ b/src/compiler/turboshaft/graph-builder.cc\n@@ -259,10 +259,20 @@ std::optional<BailoutReason> GraphBuilder::Run() {\n           dominating_frame_state = OpIndex::Invalid();\n           break;\n         }\n       }\n     }\n+\n+    // Provisionally store the incoming frame state here as the block's final\n+    // frame state, such that the successor blocks can still compute their\n+    // dominating_frame_state even if this block terminates prematurely due to\n+    // `Unreachable` or `DeadValue`. In this block contains a new Checkpoint, we\n+    // will overwrite this block's `final_frame_state` after visiting all\n+    // operations.\n+    block_mapping[block->rpo_number()].final_frame_state =\n+        dominating_frame_state;\n+\n     std::optional<BailoutReason> bailout = std::nullopt;\n     for (Node* node : *block->nodes()) {\n       if (V8_UNLIKELY(node->InputCount() >=\n                       int{std::numeric_limits<\n                           decltype(Operation::input_count)>::max()})) {\ndiff --git a/test/mjsunit/regress/regress-424205788.js b/test/mjsunit/regress/regress-424205788.js\nnew file mode 100644\nindex 00000000000..b7eb0a9d029\n--- /dev/null\n+++ b/test/mjsunit/regress/regress-424205788.js\n@@ -0,0 +1,15 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax\n+\n+function f1(a2) {\n+    const v6 = (\"string\").codePointAt(1196);\n+  (a2 || v6)?.c;\n+  return a2;\n+}\n+%PrepareFunctionForOptimization(f1);\n+assertEquals(0, f1(0));\n+%OptimizeFunctionOnNextCall(f1);\n+assertEquals(0, f1(0));\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "9a6e62563c9b082830c96ddeb3b09675c1bb8caf",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "424617297",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Effectful nodes with dead inputs not converted to Unreachable in SimplifiedLowering",
+        "message": "In RepresentationSelector::VisitNode, when an effectful node (one with control/effect inputs) has a value input of type None (unreachable), the introducing commit changed the handling from properly disconnecting and replacing the node with a DeadValue to simply setting is_dead=true and returning after calling InsertUnreachableIfNecessary. InsertUnreachableIfNecessary only handles the effect chain by inserting an Unreachable node after the original node; it does not convert the original effectful node itself to a DeadValue. This leaves the effectful node in the graph as its original opcode but with feedback_type set to Type::None(). The LOWER phase returns without lowering the node, and when downstream code or the verifier later calls NodeProperties::GetType() on this untyped node, the DCHECK(IsTyped(node)) assertion fails. In release builds this inconsistency could lead to miscompilation of JIT-compiled JavaScript code.",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-617",
+          "CWE-670"
+        ],
+        "location": {
+          "file": "src/compiler/simplified-lowering.cc",
+          "function": "RepresentationSelector::VisitNode",
+          "start_line": 2487,
+          "end_line": 2508,
+          "snippet": "      } else {\n        bool is_dead = false;\n        if (node->op()->ValueOutputCount() > 0 &&\n            node->op()->ControlOutputCount() == 0 &&\n            node->opcode() != IrOpcode::kPhi &&\n            node->opcode() != IrOpcode::kStateValues &&\n            node->opcode() != IrOpcode::kFrameState) {\n          for (int i = 0; i < node->op()->ValueInputCount(); i++) {\n            Node* input = node->InputAt(i);\n            // If one of the node's inputs produces a None-type, then this node\n            // cannot produce a value itself.\n            if (TypeOf(input).IsNone()) {\n              GetInfo(node)->set_feedback_type(Type::None());\n              is_dead = true;\n              break;\n            }\n          }\n        }\n\n        InsertUnreachableIfNecessary<T>(node);\n        // If the node is dead, we don't wont to lower it to avoid breaking\n        // effect chains.\n        if (is_dead) return;"
+        },
+        "related_locations": [
+          {
+            "file": "src/compiler/simplified-lowering.cc",
+            "start_line": 5245,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "RepresentationSelector::InsertUnreachableIfNecessary<LOWER>",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/compiler/node-properties.h",
+            "start_line": 259,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "NodeProperties::IsTyped",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "For effectful nodes with control inputs (ControlInputCount() > 0) that have None-typed value inputs, create an Unreachable node using the node's effect and control inputs, redirect all effect/control uses of the original node to the new Unreachable, and convert the original node into a DeadValue. Do not rely on InsertUnreachableIfNecessary for this case as it does not convert the node itself. The condition guarding the dead-input detection also needs to be expanded to cover nodes with ControlInputCount() > 0 (effectful nodes without control outputs).",
+        "rule_id": "sec-logicerror-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/compiler/simplified-lowering.cc",
+      "src/compiler/turboshaft/graph-builder.cc",
+      "test/mjsunit/regress/regress-424205788.js"
+    ],
+    "root_cause": "The introducing commit (9a6e625, fixing bug 424205788) refactored the dead-value handling for effectful nodes in the LOWER phase. The old approach called DisconnectFromEffectAndControl(node) followed by conversion to DeadValue. The new approach set is_dead=true, set feedback_type to None, called InsertUnreachableIfNecessary (which only patches the effect chain but doesn't replace the node itself), then returned early. This is incorrect for effectful nodes with control inputs: the node remains in the graph as its original operation but with a None type, violating the invariant that all nodes in the lowered graph must be either properly typed or replaced by appropriate dead-code nodes.",
+    "must_cover": [
+      {
+        "file": "src/compiler/simplified-lowering.cc",
+        "function": "RepresentationSelector::VisitNode",
+        "reason": "Primary location of finding: Effectful nodes with dead inputs not converted to Unreachable in SimplifiedLowering"
+      },
+      {
+        "file": "src/compiler/simplified-lowering.cc",
+        "function": "RepresentationSelector::InsertUnreachableIfNecessary<LOWER>",
+        "reason": "Related location for: Effectful nodes with dead inputs not converted to Unreachable in SimplifiedLowering"
+      },
+      {
+        "file": "src/compiler/node-properties.h",
+        "function": "NodeProperties::IsTyped",
+        "reason": "Related location for: Effectful nodes with dead inputs not converted to Unreachable in SimplifiedLowering"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__424617297__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "d1ad1e1fe8c109d63ced4a2a8e9540250c58bec2",
+    "diff_stats": {
+      "files_changed": 3,
+      "lines_changed": 45
+    }
+  }
+}

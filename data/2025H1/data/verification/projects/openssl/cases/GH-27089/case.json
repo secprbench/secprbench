@@ -1,0 +1,22 @@
+{
+  "bug_id": "GH-27089",
+  "project": "openssl",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "fff66adfc885c3d229333e28aa2cf225d3be098c",
+    "parent": "434d52a4b693c1f9fc008826ba2c7cceedb74964",
+    "fix": "9f85a036e331d2837db604fc505062f7790a8b2b"
+  },
+  "affected_files": [
+    "ssl/quic/qlog_event_helpers.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three revisions built successfully. Because the configured build disables unstable qlog and contains only a no-op stub, the PoC compiled the revisions' unmodified qlog.c, json_enc.c, and qlog_event_helpers.c with qlog enabled, linked to each revision's sanitizer-built libssl.a/libcrypto.a, and used the same command and input throughout. pre_intro exited 0 and reported that packet_sent is absent, as expected before the introducing commit. post_intro printed the marker immediately before the p",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,128 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "Custom poc.js (adapted from reporter's testcase, evidence/candidate_03 and the official jit-test bug-2003588.js): creates Debugger `y` over global `x`, sets y.x = y, installs onDebuggerStatement handler that calls nukeAllCCWs() then wraps w.environment.getVariable(\"x\") in a try/catch (printing CAUGHT/NO_EXCEPTION then DONE so the script's own JS-level exit path is always clean/exit 0 unless the process is killed by a native crash first), then triggers the debugger statement inside a `with` block via x.eval + x.f(y). Same poc.js and run command (`./obj-verify-js/dist/bin/js \"$INPUT\"`, default) used unmodified across pre_intro, post_intro, post_benign.",
+  "explanation": "pre_intro (parent 9108500bb368): exit=0, clean. Output: \"CAUGHT: TypeError: can't access dead object\" then \"DONE\" \u2014 the CCW was properly nuked by nukeAllCCWs() and the subsequent access throws a well-formed, catchable JS exception; no crash, no sanitizer report. post_intro (9bd0056bb97a, the labelled intro commit): exit=134, crashed. AddressSanitizer reports a SEGV (write to address 0) with stack MOZ_CrashSequence -> JS::Compartment::wrap (vm/Compartment-inl.h:105) -> js::CrossCompartmentWrapper::get (proxy/CrossCompartmentWrapper.cpp:184) -> Proxy::getInternal/get -> GetProperty -> with_GetProperty -> DebugEnvironmentProxyHandler::getMaybeSentinelValue -> ... This exactly matches the reporter's own gdb backtrace in the Bugzilla report (same functions and same source lines: Compartment-inl.h:105, CrossCompartmentWrapper.cpp:184, EnvironmentObject.cpp with_GetProperty). The crash happens natively inside the engine before any JS-level try/catch can intervene, confirming the regression: commit 9bd0056bb97a special-cased NukeCrossCompartmentWrappers() to skip nuking CCWs that point at the Debugger object, but did not give js::AllowNewWrapper() the same exception, so Compartment::wrap()'s invariant (that an existing live wrapper and the \"already nuked\" gate agree) is violated, producing corrupted/incoherent wrapper state and a use-after-free-style crash (null-pointer dereference inside the release-assert path) when the proxy get path runs. post_benign (fix 0264cf850afd, mechanically composed companion): exit=0, clean. Output: \"NO_EXCEPTION\" then \"DONE\" \u2014 getVariable(\"x\") now succeeds without throwing and without crashing, i.e., AllowNewWrapper() was updated to match the nuke exception, restoring Compartment::wrap()'s invariant. The same reproducer (poc.js, same command) yields: clean pre_intro -> sanitizer-crash post_intro (matching the reported bug's exact backtrace) -> clean post_benign, confirming both introduction and the benign fix as labelled.",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom poc.js (adapted from reporter's testcase, evidence/candidate_03 and the official jit-test bug-2003588.js): creates Debugger `y` over global `x`, sets y.x = y, installs onDebuggerStatement handler that calls nukeAllCCWs() then wraps w.environment.getVariable(\"x\") in a try/catch (printing CAUGHT/NO_EXCEPTION then DONE so the script's own JS-level exit path is always clean/exit 0 unless the process is killed by a native crash first), then triggers the debugger statement inside a `with` block via x.eval + x.f(y). Same poc.js and run command (`./obj-verify-js/dist/bin/js \"$INPUT\"`, default) used unmodified across pre_intro, post_intro, post_benign.",
+    "target_evidence": "post_intro ASan report: \"AddressSanitizer: SEGV on unknown address 0x000000000000 ... WRITE memory access ... #0 MOZ_CrashSequence ... #1 JS::Compartment::wrap vm/Compartment-inl.h:105 #2 js::CrossCompartmentWrapper::get proxy/CrossCompartmentWrapper.cpp:184 #3 Proxy::getInternal #4 Proxy::get #5-#8 GetProperty #6 with_GetProperty EnvironmentObject.cpp:870 #9 DebugEnvironmentProxyHandler::getMaybeSentinelValue EnvironmentObject.cpp:2391\" \u2014 matches the reporter's own gdb backtrace for bug 2003588 (same functions/lines). pre_intro and post_benign both exit 0 with no sanitizer output for the identical input/command."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False",
+    "read_context(evidence/test_01_c7993c84ce34580d_bug-2003588.js)",
+    "read_context(evidence/candidate_03_c003_inline_51a982f97082.js)",
+    "write_file(poc.js)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "pre_intro": {
+      "command": "./obj-verify-js/dist/bin/js \"$INPUT\"",
+      "input": "poc.js",
+      "poc_sha256": "6b2b0dc756d92b18532fd62f8fb03333e6502e6250f7887a1401f9830844c449",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "9108500bb368dae51d67883f32c85dcbdc8406ba",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "0573295376c9cc2bfb8b8b3945250a446a2478b5170ceafa3eb4ccbca3bb53a7"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "CAUGHT: TypeError: can't access dead object\nDONE\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "./obj-verify-js/dist/bin/js \"$INPUT\"",
+      "input": "poc.js",
+      "poc_sha256": "6b2b0dc756d92b18532fd62f8fb03333e6502e6250f7887a1401f9830844c449",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "9bd0056bb97aef3f6f44ec457417821f92a7eb4c",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b5c668a71424ddd1661c33da324469f2457fe63ea1d8d1e0e11287d17c72a920"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "/js +0x2d8c85e]\n#39: ???[/lib/x86_64-linux-gnu/libc.so.6 +0x29d90]\n#40: __libc_start_main[/lib/x86_64-linux-gnu/libc.so.6 +0x29e40]\n#41: ???[./obj-verify-js/dist/bin/js +0x2c8e399]\n#42: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x55c5a99c0cf0 bp 0x7ffc3aacab30 sp 0x7ffc3aaca920 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x55c5a99c0cf0 in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3\n    #1 0x55c5a99c0cf0 in JS::Compartment::wrap(JSContext*, JS::MutableHandle<JS::Value>) /work/js/src/vm/Compartment-inl.h:105:3\n    #2 0x55c5aa84565e in js::CrossCompartmentWrapper::get(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) const /work/js/src/proxy/CrossCompartmentWrapper.cpp:184:29\n    #3 0x55c5aa88b003 in js::Proxy::getInternal(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/proxy/Proxy.cpp:526:19\n    #4 0x55c5aa866565 in js::Proxy::get(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/proxy/Proxy.cpp:534:10\n    #5 0x55c5a99c9b53 in js::GetProperty(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/vm/ObjectOperations-inl.h:110:12\n    #6 0x55c5a9d935a6 in with_GetProperty(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/vm/EnvironmentObject.cpp:870:10\n    #7 0x55c5a99c9b53 in js::GetProperty(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::Value>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/vm/ObjectOperations-inl.h:110:12\n    #8 0x55c5a9d7a36c in js::GetProperty(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSObject*>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/vm/ObjectOperations-inl.h:127:10\n    #9 0x55c5a9d7a36c in (anonymous namespace)::DebugEnvironmentProxyHandler::getMaybeSentinelValue(JSContext*, JS::Handle<js::DebugEnvironmentProxy*>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) const /work/js/src/vm/EnvironmentObject.cpp:2391:14\n    #10 0x55c5a9d7a36c in js::DebugEnvironmentProxy::getMaybeSentinelValue(JSContext*, JS::Handle<js::DebugEnvironmentProxy*>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/vm/EnvironmentObject.cpp:2655:50\n    #11 0x55c5aa95f40f in js::DebuggerEnvironment::getVariable(JSContext*, JS::Handle<js::DebuggerEnvironment*>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<JS::Value>) /work/js/src/debugger/Environment.cpp:602:12\n    #12 0x55c5aa95edfd in js::DebuggerEnvironment::CallData::getVariableMethod() /work/js/src/debugger/Environment.cpp:324:10\n    #13 0x55c5aa9b0fec in bool js::DebuggerEnvironment::CallData::ToNative<&(js::DebuggerEnvironment::CallData::getVariableMethod())>(JSContext*, unsigned int, JS::Value*) /work/js/src/debugger/Environment.cpp:140:10\n    #14 0x55c5a9ae4dca in CallJSNative(JSContext*, bool (*)(JSContext*, unsigned int, JS::Value*), js::CallReason, JS::CallArgs const&) /work/js/src/vm/Interpreter.cpp:490:13\n    #15 0x55c5a9aa7ab2 in js::InternalCallOrConstruct(JSCont",
+        "stdout_tail": "a846894 in js::CrossCompartmentWrapper::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) const /work/js/src/proxy/CrossCompartmentWrapper.cpp:230:19\n    #38 0x55c5aa868a44 in js::Proxy::call(JSContext*, JS::Handle<JSObject*>, JS::CallArgs const&) /work/js/src/proxy/Proxy.cpp:705:19\n    #39 0x55c5a9aa8230 in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:566:14\n    #40 0x55c5a9ac3b46 in js::CallFromStack(JSContext*, JS::CallArgs const&, js::CallReason) /work/js/src/vm/Interpreter.cpp:658:10\n    #41 0x55c5a9ac3b46 in js::Interpret(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:3272:16\n    #42 0x55c5a9aa64d9 in js::RunScript(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:460:13\n    #43 0x55c5a9aac1cb in js::ExecuteKernel(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, js::AbstractFramePtr, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:850:10\n    #44 0x55c5a9aac9f6 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:880:10\n    #45 0x55c5a9d2c8f4 in ExecuteScript(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:548:10\n    #46 0x55c5a9d2cc42 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>) /work/js/src/vm/CompilationAndEvaluation.cpp:572:10\n    #47 0x55c5a998f4cf in RunFile(JSContext*, char const*, _IO_FILE*, CompileUtf8, bool, bool) /work/js/src/shell/js.cpp:1345:10\n    #48 0x55c5a998e20e in Process(JSContext*, char const*, bool, FileKind) /work/js/src/shell/js.cpp\n    #49 0x55c5a991cf2e in ProcessArgs(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12099:10\n    #50 0x55c5a991cf2e in Shell(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12352:12\n    #51 0x55c5a990d85d in main /work/js/src/shell/js.cpp:12755:12\n    #52 0x7f8c7465ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #53 0x7f8c7465ee3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #54 0x55c5a980f398 in _start (/work/obj-verify-js/dist/bin/js+0x2c8e398) (BuildId: 43020682dcd5f43ab917991b7dcb5134)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x00007ffc3aacaa60  rcx = 0x0000000000000069  rdx = 0x0000000000000000  \nrdi = 0x000055c5ad92d140  rsi = 0x00007ffc3aaca8d8  rbp = 0x00007ffc3aacab30  rsp = 0x00007ffc3aaca920  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x000010000755152c  r13 = 0x00000faf8e75c013  r14 = 0x00007ffc3aacaa60  r15 = 0x00007ffc3aacaaa0  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c './obj-verify-js/dist/bin/js \"$INPUT\"'\n"
+      }
+    },
+    "post_benign": {
+      "command": "./obj-verify-js/dist/bin/js \"$INPUT\"",
+      "input": "poc.js",
+      "poc_sha256": "6b2b0dc756d92b18532fd62f8fb03333e6502e6250f7887a1401f9830844c449",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "9108500bb368dae51d67883f32c85dcbdc8406ba",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "52aacd86cee9d5846dca0bab27b4f81f910bf6fa42e2ac644f6dde42dd3049a5"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "NO_EXCEPTION\nDONE\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

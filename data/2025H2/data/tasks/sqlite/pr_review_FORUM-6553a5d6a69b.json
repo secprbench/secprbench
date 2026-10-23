@@ -1,0 +1,164 @@
+{
+  "task_id": "pr_review_FORUM-6553a5d6a69b",
+  "bug_id": "FORUM-6553a5d6a69b",
+  "commit_sha": "09ea1256ecc31185dbc61ef61ee6be8fad5c9e02",
+  "commit_message": "Improvement to the hexdb interpreter built into the CLI and into the TCL test harness: Round the \"size\" up to the next multiple of the \"pagesize\".\n\nFossilOrigin-Name: 9ec92939cb2d2c96ae15bc496feed233ce31424c25a6bf86ace7e0ef3eedec5b",
+  "commit_author": "drh",
+  "commit_date": "2019-07-17T15:05:16Z",
+  "pr_title": "Improvement to the hexdb interpreter built into the CLI and into the TCL test harness: Round the \"size\" up to the next multiple of the \"pagesize\".",
+  "pr_description": "FossilOrigin-Name: 9ec92939cb2d2c96ae15bc496feed233ce31424c25a6bf86ace7e0ef3eedec5b",
+  "files": [
+    {
+      "path": "manifest",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 8,
+      "diff": "diff --git a/manifest b/manifest\nindex 35d331730a..5db234d5eb 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C When\\sprocessing\\sa\\sBETWEEN\\sor\\sCASE\\sexpression,\\savoid\\stransforming\\sa\\snode\\sof\\sthe\\soriginal\\sexpression\\sinto\\sa\\sTK_REGISTER\\snode.\\sInstead,\\stake\\sa\\scopy\\sand\\suse\\sit\\sinstead.\\sFix\\sfor\\s[1be72aab9].\n-D 2019-07-17T14:34:17.365\n+C Improvement\\sto\\sthe\\shexdb\\sinterpreter\\sbuilt\\sinto\\sthe\\sCLI\\sand\\sinto\\sthe\\nTCL\\stest\\sharness:\\sRound\\sthe\\s\"size\"\\sup\\sto\\sthe\\snext\\smultiple\\sof\\sthe\\s\"pagesize\".\n+D 2019-07-17T15:05:16.339\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md df5091916dbb40e6e9686186587125e1b2ff51f022cc334e886c19a0e9982724\n F Makefile.in 4640daf826b80947a924ac44275c451ffc13007c7c866a5730c8ce5cf9e1dc74\n F Makefile.linux-gcc 7bc79876b875010e8c8f9502eb935ca92aa3c434\n@@ -521,20 +521,20 @@ F src/prepare.c 1fdf68a8add154bd1de978dde5a4819478e2576d5701b93db2c65d78c3daf1c8\n F src/printf.c 9be6945837c839ba57837b4bc3af349eba630920fa5532aa518816defe42a7d4\n F src/random.c 80f5d666f23feb3e6665a6ce04c7197212a88384\n F src/resolve.c 17d61645b0782809aa2cc68225e93c3ed6a55ca59edcdbf599b5b4a828cec9fb\n F src/rowset.c d977b011993aaea002cab3e0bb2ce50cf346000dff94e944d547b989f4b1fe93\n F src/select.c c4b4fe44df6bcf32b693267ae9ec68e1c25f9a29d4a17afebd287d4af2f5fb51\n-F src/shell.c.in 360607dce532811befb43946e10697833cadac8f8924aaeab56014c9e93c68a7\n+F src/shell.c.in a571d51dd7605b34796e9942dce0e895156d1860383faf6aaca3c88b08fe2a43\n F src/sqlite.h.in 83ebc8ab1a2e82d92214006ea2c15bf8a0604f3fac2c31dd9ce9021f568c71f2\n F src/sqlite3.rc 5121c9e10c3964d5755191c80dd1180c122fc3a8\n F src/sqlite3ext.h 9ecc93b8493bd20c0c07d52e2ac0ed8bab9b549c7f7955b59869597b650dd8b5\n F src/sqliteInt.h c13c4abe0d245b6b2a4b4a1f9f2b6c4f7347b30b22f61b3fdfd4652b2b328906\n F src/sqliteLimit.h 1513bfb7b20378aa0041e7022d04acb73525de35b80b252f1b83fedb4de6a76b\n F src/status.c 46e7aec11f79dad50965a5ca5fa9de009f7d6bde08be2156f1538a0a296d4d0e\n F src/table.c b46ad567748f24a326d9de40e5b9659f96ffff34\n F src/tclsqlite.c cfe7f93daf9d8787f65e099efb67d7cdfc2c35236dec5d3f6758520bd3519424\n-F src/test1.c f57c229ad7878215d0b3bb5d59ffe94772c099ce5b5e147a4a59d3157923a988\n+F src/test1.c 118945bc3c2aabe4528ef2ddb412868e29f5addfb76252b77d441e7b0d67043c\n F src/test2.c 3efb99ab7f1fc8d154933e02ae1378bac9637da5\n F src/test3.c 61798bb0d38b915067a8c8e03f5a534b431181f802659a6616f9b4ff7d872644\n F src/test4.c 405834f6a93ec395cc4c9bb8ecebf7c3d8079e7ca16ae65e82d01afd229694bb\n F src/test5.c 328aae2c010c57a9829d255dc099d6899311672d\n F src/test6.c e8d839fbc552ce044bec8234561a2d5b8819b48e29548ad0ba400471697946a8\n@@ -1835,9 +1835,9 @@ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c\n F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547\n F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93\n F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc\n F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e\n F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0\n-P 84a51a755c18ac8253080db6eec505df894ee3b1e97cfa8e61039ac38001e270\n-R b1d6ad05577abecc48e59e3ebea1a6ed\n-U dan\n-Z f2c9fb7d68d7563adaf07df958f5d837\n+P 7ef7b23cbb1b9ace9f853238d9133320c153e6c3417e6823ab6394ee1fe56358\n+R 6e2985f89ff68a775ef455242410e4b1\n+U drh\n+Z b432616aa5b09e1a9089723afa4c0f9c\n"
+    },
+    {
+      "path": "manifest.uuid",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/manifest.uuid b/manifest.uuid\nindex 02af7a70e7..c537def954 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-7ef7b23cbb1b9ace9f853238d9133320c153e6c3417e6823ab6394ee1fe56358\n\\ No newline at end of file\n+9ec92939cb2d2c96ae15bc496feed233ce31424c25a6bf86ace7e0ef3eedec5b\n\\ No newline at end of file\n"
+    },
+    {
+      "path": "src/shell.c.in",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "diff": "diff --git a/src/shell.c.in b/src/shell.c.in\nindex c63e9bcd68..b51df8194b 100644\n--- a/src/shell.c.in\n+++ b/src/shell.c.in\n@@ -3889,10 +3889,12 @@ static unsigned char *readHexDb(ShellState *p, int *pnData){\n   nLine++;\n   if( fgets(zLine, sizeof(zLine), in)==0 ) goto readHexDb_error;\n   rc = sscanf(zLine, \"| size %d pagesize %d\", &n, &pgsz);\n   if( rc!=2 ) goto readHexDb_error;\n   if( n<0 ) goto readHexDb_error;\n+  if( pgsz<512 || pgsz>65536 || (pgsz&(pgsz-1))!=0 ) goto readHexDb_error;\n+  n = (n+pgsz-1)&~(pgsz-1);  /* Round n up to the next multiple of pgsz */\n   a = sqlite3_malloc( n ? n : 1 );\n   if( a==0 ){\n     utf8_printf(stderr, \"Out of memory!\\n\");\n     goto readHexDb_error;\n   }\n"
+    },
+    {
+      "path": "src/test1.c",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "diff": "diff --git a/src/test1.c b/src/test1.c\nindex 9aaf79261e..02a7aad9fa 100644\n--- a/src/test1.c\n+++ b/src/test1.c\n@@ -7738,10 +7738,15 @@ static int SQLITE_TCLAPI test_decode_hexdb(\n     while( zIn[i]==' ' || zIn[i]=='\\t' ){ i++; }\n     if( a==0 ){\n       int pgsz;\n       rc = sscanf(zIn+i, \"| size %d pagesize %d\", &n, &pgsz);\n       if( rc!=2 ) continue;\n+      if( pgsz<512 || pgsz>65536 || (pgsz&(pgsz-1))!=0 ){\n+        Tcl_AppendResult(interp, \"bad 'pagesize' field\", (void*)0);\n+        return TCL_ERROR;\n+      }\n+      n = (n+pgsz-1)&~(pgsz-1);  /* Round n up to the next multiple of pgsz */\n       if( n<512 ){\n         Tcl_AppendResult(interp, \"bad 'size' field\", (void*)0);\n         return TCL_ERROR;\n       }\n       a = malloc( n );\n"
+    }
+  ],
+  "full_diff": "diff --git a/manifest b/manifest\nindex 35d331730a..5db234d5eb 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C When\\sprocessing\\sa\\sBETWEEN\\sor\\sCASE\\sexpression,\\savoid\\stransforming\\sa\\snode\\sof\\sthe\\soriginal\\sexpression\\sinto\\sa\\sTK_REGISTER\\snode.\\sInstead,\\stake\\sa\\scopy\\sand\\suse\\sit\\sinstead.\\sFix\\sfor\\s[1be72aab9].\n-D 2019-07-17T14:34:17.365\n+C Improvement\\sto\\sthe\\shexdb\\sinterpreter\\sbuilt\\sinto\\sthe\\sCLI\\sand\\sinto\\sthe\\nTCL\\stest\\sharness:\\sRound\\sthe\\s\"size\"\\sup\\sto\\sthe\\snext\\smultiple\\sof\\sthe\\s\"pagesize\".\n+D 2019-07-17T15:05:16.339\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md df5091916dbb40e6e9686186587125e1b2ff51f022cc334e886c19a0e9982724\n F Makefile.in 4640daf826b80947a924ac44275c451ffc13007c7c866a5730c8ce5cf9e1dc74\n F Makefile.linux-gcc 7bc79876b875010e8c8f9502eb935ca92aa3c434\n@@ -521,20 +521,20 @@ F src/prepare.c 1fdf68a8add154bd1de978dde5a4819478e2576d5701b93db2c65d78c3daf1c8\n F src/printf.c 9be6945837c839ba57837b4bc3af349eba630920fa5532aa518816defe42a7d4\n F src/random.c 80f5d666f23feb3e6665a6ce04c7197212a88384\n F src/resolve.c 17d61645b0782809aa2cc68225e93c3ed6a55ca59edcdbf599b5b4a828cec9fb\n F src/rowset.c d977b011993aaea002cab3e0bb2ce50cf346000dff94e944d547b989f4b1fe93\n F src/select.c c4b4fe44df6bcf32b693267ae9ec68e1c25f9a29d4a17afebd287d4af2f5fb51\n-F src/shell.c.in 360607dce532811befb43946e10697833cadac8f8924aaeab56014c9e93c68a7\n+F src/shell.c.in a571d51dd7605b34796e9942dce0e895156d1860383faf6aaca3c88b08fe2a43\n F src/sqlite.h.in 83ebc8ab1a2e82d92214006ea2c15bf8a0604f3fac2c31dd9ce9021f568c71f2\n F src/sqlite3.rc 5121c9e10c3964d5755191c80dd1180c122fc3a8\n F src/sqlite3ext.h 9ecc93b8493bd20c0c07d52e2ac0ed8bab9b549c7f7955b59869597b650dd8b5\n F src/sqliteInt.h c13c4abe0d245b6b2a4b4a1f9f2b6c4f7347b30b22f61b3fdfd4652b2b328906\n F src/sqliteLimit.h 1513bfb7b20378aa0041e7022d04acb73525de35b80b252f1b83fedb4de6a76b\n F src/status.c 46e7aec11f79dad50965a5ca5fa9de009f7d6bde08be2156f1538a0a296d4d0e\n F src/table.c b46ad567748f24a326d9de40e5b9659f96ffff34\n F src/tclsqlite.c cfe7f93daf9d8787f65e099efb67d7cdfc2c35236dec5d3f6758520bd3519424\n-F src/test1.c f57c229ad7878215d0b3bb5d59ffe94772c099ce5b5e147a4a59d3157923a988\n+F src/test1.c 118945bc3c2aabe4528ef2ddb412868e29f5addfb76252b77d441e7b0d67043c\n F src/test2.c 3efb99ab7f1fc8d154933e02ae1378bac9637da5\n F src/test3.c 61798bb0d38b915067a8c8e03f5a534b431181f802659a6616f9b4ff7d872644\n F src/test4.c 405834f6a93ec395cc4c9bb8ecebf7c3d8079e7ca16ae65e82d01afd229694bb\n F src/test5.c 328aae2c010c57a9829d255dc099d6899311672d\n F src/test6.c e8d839fbc552ce044bec8234561a2d5b8819b48e29548ad0ba400471697946a8\n@@ -1835,9 +1835,9 @@ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c\n F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547\n F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93\n F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc\n F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e\n F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0\n-P 84a51a755c18ac8253080db6eec505df894ee3b1e97cfa8e61039ac38001e270\n-R b1d6ad05577abecc48e59e3ebea1a6ed\n-U dan\n-Z f2c9fb7d68d7563adaf07df958f5d837\n+P 7ef7b23cbb1b9ace9f853238d9133320c153e6c3417e6823ab6394ee1fe56358\n+R 6e2985f89ff68a775ef455242410e4b1\n+U drh\n+Z b432616aa5b09e1a9089723afa4c0f9c\ndiff --git a/manifest.uuid b/manifest.uuid\nindex 02af7a70e7..c537def954 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-7ef7b23cbb1b9ace9f853238d9133320c153e6c3417e6823ab6394ee1fe56358\n\\ No newline at end of file\n+9ec92939cb2d2c96ae15bc496feed233ce31424c25a6bf86ace7e0ef3eedec5b\n\\ No newline at end of file\ndiff --git a/src/shell.c.in b/src/shell.c.in\nindex c63e9bcd68..b51df8194b 100644\n--- a/src/shell.c.in\n+++ b/src/shell.c.in\n@@ -3889,10 +3889,12 @@ static unsigned char *readHexDb(ShellState *p, int *pnData){\n   nLine++;\n   if( fgets(zLine, sizeof(zLine), in)==0 ) goto readHexDb_error;\n   rc = sscanf(zLine, \"| size %d pagesize %d\", &n, &pgsz);\n   if( rc!=2 ) goto readHexDb_error;\n   if( n<0 ) goto readHexDb_error;\n+  if( pgsz<512 || pgsz>65536 || (pgsz&(pgsz-1))!=0 ) goto readHexDb_error;\n+  n = (n+pgsz-1)&~(pgsz-1);  /* Round n up to the next multiple of pgsz */\n   a = sqlite3_malloc( n ? n : 1 );\n   if( a==0 ){\n     utf8_printf(stderr, \"Out of memory!\\n\");\n     goto readHexDb_error;\n   }\ndiff --git a/src/test1.c b/src/test1.c\nindex 9aaf79261e..02a7aad9fa 100644\n--- a/src/test1.c\n+++ b/src/test1.c\n@@ -7738,10 +7738,15 @@ static int SQLITE_TCLAPI test_decode_hexdb(\n     while( zIn[i]==' ' || zIn[i]=='\\t' ){ i++; }\n     if( a==0 ){\n       int pgsz;\n       rc = sscanf(zIn+i, \"| size %d pagesize %d\", &n, &pgsz);\n       if( rc!=2 ) continue;\n+      if( pgsz<512 || pgsz>65536 || (pgsz&(pgsz-1))!=0 ){\n+        Tcl_AppendResult(interp, \"bad 'pagesize' field\", (void*)0);\n+        return TCL_ERROR;\n+      }\n+      n = (n+pgsz-1)&~(pgsz-1);  /* Round n up to the next multiple of pgsz */\n       if( n<512 ){\n         Tcl_AppendResult(interp, \"bad 'size' field\", (void*)0);\n         return TCL_ERROR;\n       }\n       a = malloc( n );\n",
+  "ground_truth": {
+    "bug_id": "FORUM-6553a5d6a69b",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "6553a5d6a69bcfd261d1055dfd86f37b7b851e27",
+      "short_sha": "6553a5d",
+      "message": "Fix some integer overflow problems when handling corrupt hexdb dumps in the shell tool. [forum:/forumpost/82b513b116 | Forum post 82b513b116].",
+      "author": "dan",
+      "date": "2025-09-26T11:45:13Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-intoverflow-001",
+        "title": "Integer overflow in readHexDb() leads to wrong-size allocation and out-of-bounds write",
+        "message": "In `readHexDb()` in `src/shell.c.in`, the database size `n` and page offset `iOffset` are stored as `int`. Two integer overflow paths exist in the pre-fix code: (1) The rounding expression `n = (n+pgsz-1)&~(pgsz-1)` overflows when `n` is close to INT_MAX (e.g., n=2147483647, pgsz=512: addition wraps to a small negative value), causing `sqlite3_malloc()` to allocate a far-too-small buffer while `memset` zeroes only that tiny region. (2) The subsequent `k = iOffset+j` can overflow when a corrupt hexdb specifies a large page offset, producing a negative `k` that bypasses the `k>=0` guard or an incorrect positive `k` that bypasses the `k+16<=n` guard, causing out-of-bounds writes into the under-sized buffer `a`. A crafted hexdb input with a corrupt `size` or `offset` field can trigger a heap-buffer overflow.",
+        "location": {
+          "file": "src/shell.c.in",
+          "start_line": 5675,
+          "end_line": 5700,
+          "start_column": null,
+          "end_column": null,
+          "function": "readHexDb",
+          "snippet": "  n = (n+pgsz-1)&~(pgsz-1);  /* Round n up to the next multiple of pgsz */\n  a = sqlite3_malloc( n ? n : 1 );\n  shell_check_oom(a);\n  memset(a, 0, n);\n  ...\n      k = iOffset+j;\n      if( k+16<=n && k>=0 ){\n        int ii;\n        for(ii=0; ii<16; ii++) a[k+ii] = x[ii]&0xff;",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/shell.c.in",
+            "start_line": 5647,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "readHexDb",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/shell.c.in",
+            "start_line": 5649,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "readHexDb",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/shell.c.in",
+            "start_line": 5696,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "readHexDb",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.95,
+        "suggestion": "Use a 64-bit integer type (i64/sqlite3_int64) for the database size `n` (stored as `sz` after rounding), the page offset `iOffset`, and the per-line offset computation. The fix casts `n` to i64 before the addition: `sz = ((i64)n+pgsz-1)&~(pgsz-1)`, changes `iOffset` to `i64`, and computes `i64 iOff = iOffset+j` for the bounds check.",
+        "suggestion_code": "i64 sz = ((i64)n + pgsz - 1) & ~(pgsz - 1);\na = sqlite3_malloc( sz ? sz : 1 );\nshell_check_oom(a);\nmemset(a, 0, sz);\n...\ni64 iOff = iOffset + j;\nif( iOff+16<=sz && iOff>=0 ){\n  int ii;\n  for(ii=0; ii<16; ii++) a[iOff+ii] = x[ii]&0xff;\n}",
+        "tags": [
+          "security",
+          "integer-overflow",
+          "heap-overflow",
+          "shell-tool",
+          "hexdb"
+        ],
+        "cwe_ids": [
+          "CWE-190",
+          "CWE-122"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "src/shell.c.in"
+    ],
+    "root_cause": "Variables `n` (db size), `iOffset` (page base offset), and `k` (computed byte offset) are all declared as `int`. The rounding computation `n = (n+pgsz-1)&~(pgsz-1)` and the offset sum `k = iOffset+j` are performed in 32-bit signed arithmetic without overflow guards, so adversarially chosen values in the hexdb `size` and `offset` fields cause signed integer overflow (undefined behavior in C), corrupting the computed sizes/offsets used for allocation and bounds checking.",
+    "must_cover": [
+      {
+        "file": "src/shell.c.in",
+        "function": "readHexDb",
+        "start_line": 5675,
+        "end_line": 5700,
+        "role": "primary",
+        "reason": "Primary location of finding: Integer overflow in readHexDb() leads to wrong-size allocation and out-of-bounds write"
+      },
+      {
+        "file": "src/shell.c.in",
+        "function": "readHexDb",
+        "start_line": 5647,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Integer overflow in readHexDb() leads to wrong-size allocation and out-of-bounds write"
+      },
+      {
+        "file": "src/shell.c.in",
+        "function": "readHexDb",
+        "start_line": 5649,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Integer overflow in readHexDb() leads to wrong-size allocation and out-of-bounds write"
+      },
+      {
+        "file": "src/shell.c.in",
+        "function": "readHexDb",
+        "start_line": 5696,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Integer overflow in readHexDb() leads to wrong-size allocation and out-of-bounds write"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "09ea1256ecc31185dbc61ef61ee6be8fad5c9e02",
+  "fix_commit_sha": null
+}

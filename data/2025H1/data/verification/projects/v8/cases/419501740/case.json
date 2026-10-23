@@ -1,0 +1,23 @@
+{
+  "bug_id": "419501740",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "5fdab0114d1211e11bce1c74b40fc5e57b4942e6",
+    "parent": "aa8e30f392546337c41682027e5cf0c24f00ebb1",
+    "fix": "0d56aee89ab673291fd90ee79ae806b2d4c6a008"
+  },
+  "affected_files": [
+    "src/json/json-parser.cc",
+    "test/mjsunit/regress/regress-414962716.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured ASan d8 builds succeeded. The same /poc/run.sh and /poc/poc.js were used unchanged across revisions. On pre_intro aa8e30f39254, JSON.stringify(JSON.parse(JSON.stringify(obj))) preserved the escaped newline in the computed class-name key and exited 0. On post_intro 5fdab0114d12, the result contained a literal newline instead of \\\\n, the explicit equality oracle failed, and the process exited 1 (crashed=False), directly reproducing the labeled logic error. On post_benign, the ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

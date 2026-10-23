@@ -1,0 +1,25 @@
+{
+  "bug_id": "GH-30487",
+  "project": "openssl",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "0152e4f9f7503d445f13f92670dd6c651361c377",
+    "parent": "b327b9478a004de5e1f9c86a1b4dd8f77443f249",
+    "fix": "f3dbf6aa79c37f6fd280b1a96c081e3194c3f454"
+  },
+  "affected_files": [
+    "ssl/statem/statem_dtls.c",
+    "ssl/record/rec_layer_s3.c",
+    "ssl/record/rec_layer_d1.c",
+    "ssl/record/methods/tls_common.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured sanitizer builds succeeded, and the identical /poc/run.sh harness was used for every revision. pre_intro exited 0 with no sanitizer finding (the early CCS was not accepted into the introduced buffering path). post_intro exited 134 and AddressSanitizer reported heap-use-after-free on a 12-byte read in dtls1_read_bytes at ssl/record/rec_layer_d1.c:348; the allocation was freed by ossl_tls_buffer_release via tls_int_free -> tls_free -> dtls_free -> ssl_set_new_record_layer, mat",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-18806",
+  "bug_id": "GH-18806",
+  "bug_type": "DataRace",
+  "intro_commit": "68bd759c2bfe74799c3355ad29265b795a7e6c62",
+  "intro_parent": "b399a98d2da10ab51afc77f7d4b83769ec4fa6fd",
+  "fix_commit": "2a25ebe9580e52b375533a7d12a86dff29a36c44",
+  "affected_files": [
+    "lib/vtls/vtls_scache.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When Curl_ssl_scache_take() was reworked to add QUIC 0RTT support and richer trace logging, the call to Curl_ssl_scache_unlock(data) was placed immediately after the critical section that removes/takes a session from the peer's session list, but before the subsequent trace-logging code that itself reads the same shared peer->sessions list (via Curl_llist_count) to report the remaining session count. This left a window where lock-protected data is read/used without holding the lock.",
+  "findings": [
+    "In Curl_ssl_scache_take(), the SSL session cache lock is released via Curl_ssl_scache_unlock(data) before the trace logging code runs. The trace statement (CURL_TRC_CF / later CURL_TRC_SSLS) calls Curl_llist_count(&peer->sessions) to report how many sessions remain for that peer. Because this happens after the lock has already been released, another thread can concurrently mutate peer->sessions (a"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "869caee5aecaa293f943f9d56bdb1c5a3312c1ab37b103efca7fc9efbeab6be2",
+  "generated_artifact_sha256": {
+    "reference": "4712f7b3726a66b4e13fe79ca36868c1c9af8086b5c1d2f8341298c1769e71cd",
+    "introducing": "bece4f90d34063b10f1c95ac7e378def979a5df4c9e286f7e30fc9d0484c9d72",
+    "companion": "b512483786ec0a64036f12736640dc4a6b2b23235801bddce628033590c0c2b4"
+  }
+}

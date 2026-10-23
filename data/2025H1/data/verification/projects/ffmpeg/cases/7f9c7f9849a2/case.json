@@ -1,0 +1,22 @@
+{
+  "bug_id": "7f9c7f9849a2",
+  "project": "ffmpeg",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "80344959f064c7ea10d023862e0f6b79835de9de",
+    "parent": "4b2a186ef02c1fbe7f7cae30a2bdfff72bcc75f7",
+    "fix": "7f9c7f9849a2155224711f0ff57ecdac6e4bfb57"
+  },
+  "affected_files": [
+    "libavcodec/jpeg2000dec.c"
+  ],
+  "baseline": {
+    "status": "anomaly",
+    "intro_verified": false,
+    "benign_verified": null,
+    "reason": "All three sanitizer builds succeeded. The supplied default command and the reporter's `ffmpeg -y -i poc tmp.mp4` equivalent exited 69 without a sanitizer crash because this 2025 attachment is rejected by the 2017 decoder at its malformed JP2 codestream box. Bypassing the wrapper and repairing the tile-part boundary reached packet parsing, but pre_intro, post_intro, and post_benign all identically exited 69 at `nonzerobits -25`, with no sanitizer report. A separately generated valid 3-layer JPEG ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "anomaly"
+}

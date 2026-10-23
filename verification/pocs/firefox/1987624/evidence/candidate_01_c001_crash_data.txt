@@ -1,0 +1,31 @@
+received signal SIGSEGV, Segmentation fault.
+0x00005555573e4b89 in js::wasm::DecodeModuleEnvironment(js::wasm::Decoder&, js::wasm::CodeMetadata*, js::wasm::ModuleMetadata*) ()
+#0  0x00005555573e4b89 in js::wasm::DecodeModuleEnvironment(js::wasm::Decoder&, js::wasm::CodeMetadata*, js::wasm::ModuleMetadata*) ()
+#1  0x00005555573daad9 in js::wasm::Validate(JSContext*, js::wasm::BytecodeSource const&, js::wasm::FeatureOptions const&, std::unique_ptr<char [], JS::FreePolicy>*) ()
+#2  0x00005555573da888 in WebAssembly_validate(JSContext*, unsigned int, JS::Value*) ()
+#3  0x0000555556fbb3b4 in js::Interpret(JSContext*, js::RunState&) ()
+#4  0x0000555556e22088 in js::RunScript(JSContext*, js::RunState&) ()
+#5  0x0000555556e21cd5 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) ()
+#6  0x0000555556e219ae in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>) ()
+#7  0x000055555753087a in RunFile(JSContext*, char const*, _IO_FILE*, CompileUtf8, bool, bool) ()
+#8  0x000055555752f892 in Process(JSContext*, char const*, bool, FileKind) ()
+#9  0x000055555751d98b in main ()
+rax	0x100000	1048576
+rbx	0x7ffff30dad00	140737271147776
+rcx	0x7ffff2900000	140737262911488
+rdx	0x7ffff4222c90	140737289268368
+rsi	0x7ffff2800000	140737261862912
+rdi	0x7fffffffbb88	140737488337800
+rbp	0x7fffffffbb10	140737488337680
+rsp	0x7fffffffb6a0	140737488336544
+r8	0x38c10385	952173445
+r9	0xd10d970585523d08	-3382881695117984504
+r10	0x3e	62
+r11	0x60	96
+r12	0x7fffffffbb88	140737488337800
+r13	0x7fffffffbc38	140737488337976
+r14	0x7ffff30dad00	140737271147776
+r15	0x7fffffffbc20	140737488337952
+rip	0x5555573e4b89 <js::wasm::DecodeModuleEnvironment(js::wasm::Decoder&, js::wasm::CodeMetadata*, js::wasm::ModuleMetadata*)+89>
+=> 0x5555573e4b89 <_ZN2js4wasm23DecodeModuleEnvironmentERNS0_7DecoderEPNS0_12CodeMetadataEPNS0_14ModuleMetadataE+89>:	mov    (%rsi),%edx
+   0x5555573e4b8b <_ZN2js4wasm23DecodeModuleEnvironmentERNS0_7DecoderEPNS0_12CodeMetadataEPNS0_14ModuleMetadataE+91>:	lea    0x4(%rsi),%rax

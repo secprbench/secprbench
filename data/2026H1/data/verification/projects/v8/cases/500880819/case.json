@@ -1,0 +1,190 @@
+{
+  "bug_id": "500880819",
+  "project": "v8",
+  "bug_type": "TypeConfusion",
+  "commits": {
+    "intro": "6469250a124acef52bceabae77ed887f5c8f29ac",
+    "parent": "d1a6089b861336cf4b3887edfd3fdd280b23b5dd",
+    "fix": "b9be4febd638434a37a4215b8ea9ae1f8fab4df6"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The default PoC (the checked-in regress-500880819.js, run via /poc/run.sh) did not crash on any of the three versions because a single default `gc()` call performs a full/major GC, which fully retraces the heap and doesn't expose a missing generational write barrier, and because the HeapNumber used for the trigger was already tenured to old space by the time of the vulnerable store. Using --print-maglev-graph I confirmed the intro commit's code path is exercised exactly as described in the root cause: `SetNamedProperty` for `o.smiField = x` lowers to CheckMaps + StoreTaggedFieldNoWriteBarrier with NO CheckSmi node in between (the elision added in 6469250a124a via `TryGetInt32Constant` matching `Smi::IsValid` on the `checked_value` alternative populated by BuildCheckNumericalValue's CheckFloat64SameValue path for the property-cell-constant store `G = x`). I then adapted the PoC to (1) tenure `obj` first via explicit major GCs, (2) supply a *fresh* young-generation HeapNumber(5.0) (confirmed via %DebugPrint that Float64Array reads produce genuine HeapNumber objects, not canonicalized Smis) as the value for the final optimized call, and (3) force scavenges (`gc({type:'minor'})`) afterward. This reproduced a deterministic SIGSEGV on post_intro (exit 139, signal 11 SEGV_ACCERR) consistent with the described type confusion / missing write barrier, while pre_intro and post_benign both run cleanly to completion (exit 0, printing 5) with the identical command and input, confirming the bug is genuinely introduced by 6469250a124a and genuinely fixed by the benign patch (which restores the `value_representation() != kTagged` gate).",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/c2c9d43ce573a3426493/attempts/01/replay/pr_review_500880819.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/c2c9d43ce573a3426493/attempts/01/replay/pr_review_500880819.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "d1a6089b861336cf4b3887edfd3fdd280b23b5dd",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "0bdddb6b20c5c7ce86b00162d943714a11d4c6ce7b45228db697242d10f8a2de"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "6469250a124acef52bceabae77ed887f5c8f29ac",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "487e84040421d04fd2410a3053802c9b0190601cf7683850a9e3a2e0874be5fc"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "d1a6089b861336cf4b3887edfd3fdd280b23b5dd",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "1c3af01ff7ff5a6f8eaba9278e2c479e74ed582f801a9ec0d75a406aff950a5f"
+        }
+      }
+    },
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/c2c9d43ce573a3426493/attempts/01/replay/pr_review_500880819.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && ./out.gn/verify/d8 --allow-natives-syntax --maglev --expose-gc test/mjsunit/mjsunit.js /poc/poc2.js",
+          "input": "regress-500880819.js",
+          "poc_sha256": "aa86bd79d1f5e0430ecb0fe6a8c1a4cb7c03226fdc0bca13ccb92ebafa121467",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "6469250a124acef52bceabae77ed887f5c8f29ac",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "487e84040421d04fd2410a3053802c9b0190601cf7683850a9e3a2e0874be5fc"
+            }
+          },
+          "run": {
+            "exit_code": 139,
+            "crashed": true,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=139\n\nReceived signal 11 SEGV_ACCERR 79be0001ffcf\n\n==== C stack trace ===============================\n\n./out.gn/verify/d8(___interceptor_backtrace+0x46)[0x55f7dfaa4d26]\n./out.gn/verify/d8(+0x6139b02)[0x55f7e4894b02]\n/lib/x86_64-linux-gnu/libc.so.6(+0x45330)[0x7effecd3a330]\n./out.gn/verify/d8(+0x26bfe08)[0x55f7e0e1ae08]\n./out.gn/verify/d8(+0x16f98a8)[0x55f7dfe548a8]\n./out.gn/verify/d8(+0x1431767)[0x55f7dfb8c767]\n./out.gn/verify/d8(+0x1431a4d)[0x55f7dfb8ca4d]\n./out.gn/verify/d8(+0x5ebd884)[0x55f7e4618884]\n[end of stack trace]\n/bin/bash: line 1:     8 Segmentation fault      bash -c 'cd /work && ./out.gn/verify/d8 --allow-natives-syntax --maglev --expose-gc test/mjsunit/mjsunit.js /poc/poc2.js'\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && ./out.gn/verify/d8 --allow-natives-syntax --maglev --expose-gc test/mjsunit/mjsunit.js /poc/poc2.js",
+          "input": "regress-500880819.js",
+          "poc_sha256": "aa86bd79d1f5e0430ecb0fe6a8c1a4cb7c03226fdc0bca13ccb92ebafa121467",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "d1a6089b861336cf4b3887edfd3fdd280b23b5dd",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "0bdddb6b20c5c7ce86b00162d943714a11d4c6ce7b45228db697242d10f8a2de"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "5\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && ./out.gn/verify/d8 --allow-natives-syntax --maglev --expose-gc test/mjsunit/mjsunit.js /poc/poc2.js",
+          "input": "regress-500880819.js",
+          "poc_sha256": "aa86bd79d1f5e0430ecb0fe6a8c1a4cb7c03226fdc0bca13ccb92ebafa121467",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "d1a6089b861336cf4b3887edfd3fdd280b23b5dd",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "1c3af01ff7ff5a6f8eaba9278e2c479e74ed582f801a9ec0d75a406aff950a5f"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "5\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "explanation": "The default PoC (the checked-in regress-500880819.js, run via /poc/run.sh) did not crash on any of the three versions because a single default `gc()` call performs a full/major GC, which fully retraces the heap and doesn't expose a missing generational write barrier, and because the HeapNumber used for the trigger was already tenured to old space by the time of the vulnerable store. Using --print-maglev-graph I confirmed the intro commit's code path is exercised exactly as described in the root cause: `SetNamedProperty` for `o.smiField = x` lowers to CheckMaps + StoreTaggedFieldNoWriteBarrier with NO CheckSmi node in between (the elision added in 6469250a124a via `TryGetInt32Constant` matching `Smi::IsValid` on the `checked_value` alternative populated by BuildCheckNumericalValue's CheckFloat64SameValue path for the property-cell-constant store `G = x`). I then adapted the PoC to (1) tenure `obj` first via explicit major GCs, (2) supply a *fresh* young-generation HeapNumber(5.0) (confirmed via %DebugPrint that Float64Array reads produce genuine HeapNumber objects, not canonicalized Smis) as the value for the final optimized call, and (3) force scavenges (`gc({type:'minor'})`) afterward. This reproduced a deterministic SIGSEGV on post_intro (exit 139, signal 11 SEGV_ACCERR) consistent with the described type confusion / missing write barrier, while pre_intro and post_benign both run cleanly to completion (exit 0, printing 5) with the identical command and input, confirming the bug is genuinely introduced by 6469250a124a and genuinely fixed by the benign patch (which restores the `value_representation() != kTagged` gate)."
+    }
+  },
+  "task_hashes": {
+    "buggy": "cb80f31f372a8e458e73e6b67df95f51ce0389f414b3b516c59652ec6723262c",
+    "benign": "ec8d6cd99947a8905dc58d4b9b3619f8eb60b55596a7e9e3ab875a7801cbdf27"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "task_id": "pr_review_GH-13512_benign",
+  "bug_id": "GH-13512",
+  "commit_sha": "5b49119236b51f52030b1a3ed4891fa4854ab1cf",
+  "commit_message": "RED-129256, Fix TOUCH command from script in no-touch mode (#13512)\n\nWhen a client in no-touch mode issues a TOUCH command on a key, the\nkey’s access time should be updated, but in scripts, and module's\nRM_Call, it isn’t updated.\nCommand proc should be matched to the executing client, not the current\nclient.\n\nCo-authored-by: Udi Ron <udi@speedb.io>",
+  "commit_author": "",
+  "commit_date": "2026-09-28T17:23:12.567173",
+  "pr_title": "RED-129256, Fix TOUCH command from script in no-touch mode (#13512)",
+  "pr_description": "RED-129256, Fix TOUCH command from script in no-touch mode (#13512)\n\nWhen a client in no-touch mode issues a TOUCH command on a key, the\nkey’s access time should be updated, but in scripts, and module's\nRM_Call, it isn’t updated.\nCommand proc should be matched to the executing client, not the current\nclient.\n\nCo-authored-by: Udi Ron <udi@speedb.io>",
+  "files": [
+    {
+      "path": "src/db.c",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 2,
+      "diff": "diff --git a/src/db.c b/src/db.c\nindex a09fce790..3d7a53da5 100644\n--- a/src/db.c\n+++ b/src/db.c\n@@ -97,22 +97,23 @@ robj *lookupKey(redisDb *db, robj *key, int flags, dictEntry **deref) {\n         if (expireIfNeeded(db, key, expire_flags) != KEY_VALID) {\n             /* The key is no longer valid. */\n             val = NULL;\n         }\n     }\n \n     if (val) {\n         /* Update the access time for the ageing algorithm.\n          * Don't do it if we have a saving child, as this will trigger\n          * a copy on write madness. */\n-        if (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH &&\n-            server.current_client->cmd->proc != touchCommand)\n+        if (((flags & LOOKUP_NOTOUCH) == 0) &&\n+            (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH) &&\n+            (server.executing_client && server.executing_client->cmd->proc != touchCommand))\n             flags |= LOOKUP_NOTOUCH;\n         if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){\n             if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {\n                 updateLFU(val);\n             } else {\n                 val->lru = LRU_CLOCK();\n             }\n         }\n \n         if (!(flags & (LOOKUP_NOSTATS | LOOKUP_WRITE)))\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/db.c b/src/db.c\nindex a09fce790..3d7a53da5 100644\n--- a/src/db.c\n+++ b/src/db.c\n@@ -97,22 +97,23 @@ robj *lookupKey(redisDb *db, robj *key, int flags, dictEntry **deref) {\n         if (expireIfNeeded(db, key, expire_flags) != KEY_VALID) {\n             /* The key is no longer valid. */\n             val = NULL;\n         }\n     }\n \n     if (val) {\n         /* Update the access time for the ageing algorithm.\n          * Don't do it if we have a saving child, as this will trigger\n          * a copy on write madness. */\n-        if (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH &&\n-            server.current_client->cmd->proc != touchCommand)\n+        if (((flags & LOOKUP_NOTOUCH) == 0) &&\n+            (server.current_client && server.current_client->flags & CLIENT_NO_TOUCH) &&\n+            (server.executing_client && server.executing_client->cmd->proc != touchCommand))\n             flags |= LOOKUP_NOTOUCH;\n         if (!hasActiveChildProcess() && !(flags & LOOKUP_NOTOUCH)){\n             if (server.maxmemory_policy & MAXMEMORY_FLAG_LFU) {\n                 updateLFU(val);\n             } else {\n                 val->lru = LRU_CLOCK();\n             }\n         }\n \n         if (!(flags & (LOOKUP_NOSTATS | LOOKUP_WRITE)))\n",
+  "ground_truth": {
+    "bug_id": "GH-13512",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "610eb26c112aaffa434fb978cbd62786c43a1155",
+    "fix_commit": "5b49119236b51f52030b1a3ed4891fa4854ab1cf"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "610eb26c112aaffa434fb978cbd62786c43a1155",
+  "fix_commit_sha": "5b49119236b51f52030b1a3ed4891fa4854ab1cf",
+  "intro_commit_message": "RED-129256, Fix TOUCH command from script in no-touch mode (#13512)\n\nWhen a client in no-touch mode issues a TOUCH command on a key, the\nkey’s access time should be updated, but in scripts, and module's\nRM_Call, it isn’t updated.\nCommand proc should be matched to the executing client, not the current\nclient.\n\nCo-authored-by: Udi Ron <udi@speedb.io>",
+  "fix_commit_message": "Fix crash in lookupKey() when `executing_client` is NULL (#14415)\n\nThis PR is based on:\nhttps://github.com/valkey-io/valkey/pull/2347\n\nThis was introduced in https://github.com/redis/redis/pull/13512\n\nThe server crashes with a null pointer dereference when lookupKey() is\ncalled from handleClientsBlockedOnKey(). The crash occurs because\nserver.executing_client is NULL, but the code attempts to access\nserver.executing_client->cmd->proc without checking.\n\n**Crash scenario:**\nClient 1 enables CLIENT NO-TOUCH\nClient 2 blocks on BRPOP mylist 0\nClient 1 executes RPUSH mylist elem\nWhen unblocking Client 2, lookupKey() dereferences NULL\nserver.executing_client → crash\n\n**Solution**\nAdded proper null checks before dereferencing server.executing_client:\nCheck if LOOKUP_NOTOUCH flag is already set before attempting to modify\nit\nVerify both server.current_client and server.executing_client are not\nNULL before accessing their members\nMaintain the TOUCH command exception for scripts\n\n**Testing**\nAdded regression test in tests/unit/type/list.tcl that reproduces and\nverifies the fix for this crash scenario.\n\nThis fix is based on valkey-io/valkey#2347\n\nCo-authored-by: Uri Yagelnik <uriy@amazon.com>\nCo-authored-by: Ran Shidlansik <ranshid@amazon.com>",
+  "agent_reasoning": "The intro commit (#13512) changed lookupKey()'s CLIENT_NO_TOUCH bypass check from dereferencing server.current_client->cmd->proc to server.executing_client->cmd->proc, but only current_client had a NULL guard. server.executing_client can legitimately be NULL (e.g., in handleClientsBlockedOnKey()'s unblock path), causing a NULL pointer dereference crash. The fix commit (#14415) adds a NULL check on server.executing_client (and also guards on the LOOKUP_NOTOUCH flag already being set), matching the same defensive pattern already used for current_client. I applied the equivalent minimal edit to src/db.c: added `((flags & LOOKUP_NOTOUCH) == 0)` guard and `(server.executing_client && ...)` guard around the cmd->proc dereference, mirroring the upstream fix exactly, without touching test files or unrelated code.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "610eb26c112aaffa434fb978cbd62786c43a1155",
+    "fix_revision": "5b49119236b51f52030b1a3ed4891fa4854ab1cf",
+    "fix_parent_revision": "083f38ef5a2620b8ee947b5d9b2357c86d44498b",
+    "inspected_paths": [
+      "src/db.c"
+    ],
+    "call_candidates": [],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

@@ -1,0 +1,32 @@
+{
+  "bug_id": "396460426",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "c535aa4fecbf2d68ce02a5b57dd0b848d3bf28ca",
+    "parent": "e892482bb131d290422581bb0fb45f8cdd850828",
+    "fix": "a2e2bfb709552759b73df606647ce28ab89ca862"
+  },
+  "affected_files": [
+    "src/json/json-stringifier.cc"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "All three exact revisions built successfully. Using the identical command `/work/out.gn/verify/d8 --json-stringify-fast-path /poc/poc.js`, pre_intro, post_intro, and post_benign each exited 0 with `EXPECTED_THROW=TypeError:no access` and no sanitizer report. The PoC matches the fix commit's regression ordering and exercises JSON.stringify on the detached global, but the configured ASan binary is a release build (`is_debug=false`, `dcheck_always_on=false`). The reported defect manifests as a DCHE",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "intro_reproduced",
+    "method": "debug_invariant_or_crash",
+    "intro_verified": "reproduced_abort",
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Intro (c535aa4fecbf2d68ce02a5b57dd0b848d3bf28ca) reproduces under is_debug build with recorded flags: reproduced_abort.",
+    "target_match": "CONFIRMED: Debug check failed IsNativeContext(*this) at contexts-inl.h:200 \u2014 matches labeled native-context assumption",
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/396460426"
+  },
+  "final_disposition": "intro_reproduced"
+}

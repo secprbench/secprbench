@@ -1,0 +1,42 @@
+{
+  "bug_id": "400052777",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "b8d3f7d0cf6461b59ec41379e49534eb7bebc210",
+    "parent": "6520094871895fbafe91403ceb700ff97fdfd413",
+    "fix": "8b490a9690b859346a68a3d2a7008b4e1852c3ea"
+  },
+  "affected_files": [
+    "src/compiler/escape-analysis.cc",
+    "src/compiler/heap-refs.cc",
+    "src/compiler/js-native-context-specialization.cc",
+    "src/compiler/load-elimination.cc",
+    "src/compiler/load-elimination.h",
+    "src/compiler/node-properties.cc",
+    "src/compiler/opcodes.h",
+    "src/compiler/simplified-lowering.cc",
+    "src/compiler/simplified-operator.cc",
+    "src/compiler/simplified-operator.h",
+    "src/compiler/turbofan-typer.cc",
+    "src/compiler/turboshaft/assembler.h",
+    "src/compiler/turboshaft/graph-builder.cc",
+    "src/compiler/turboshaft/machine-lowering-reducer-inl.h",
+    "src/compiler/turboshaft/maglev-early-lowering-reducer-inl.h",
+    "src/compiler/turboshaft/maglev-graph-building-phase.cc",
+    "src/compiler/turboshaft/operations.h",
+    "src/compiler/typed-optimization.cc",
+    "src/compiler/typed-optimization.h",
+    "src/compiler/verifier.cc",
+    "test/mjsunit/compiler/poly-store-gets-smi.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the V8 fix's regression structure and reporter flags (--allow-natives-syntax --turbofan --no-always-turbofan), I added a direct behavioral oracle for the discarded indexOf result. The same /poc/run.sh and JS input were run against /work/out.gn/verify/d8 in all versions. pre_intro: exit 0, output OK. post_intro: exit 42, output 'BUG: indexOf returned -1, expected 0'. post_benign: exit 0, output OK. This isolates the stale inferred map after nontrivial aliasing: post_intro selects double-ele",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

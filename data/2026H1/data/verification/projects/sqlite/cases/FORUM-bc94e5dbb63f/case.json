@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-bc94e5dbb63f",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "2deb165f4b07bbac98e6ce4b4e983073dd9ff6a3",
+    "parent": "bd58d5f7a38dca22c1c2abc2942aad5a1fe13d99",
+    "fix": "bc94e5dbb63fb5df194299deb4f05fc84081ea88"
+  },
+  "affected_files": [
+    "ext/misc/spellfix.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three revisions built after compiling the Lemon build helper without sanitizers to avoid its unrelated signed-overflow failure; target code remained sanitizer-instrumented. The exact same harness and command were then used across revisions. pre_intro exited 4 without a sanitizer report because its older spellfix implementation does not provide editdist3(). post_intro exited 1 and UBSan reported signed integer overflow, '65537 * 65537 cannot be represented in type int', at src/test_spellfix.c",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

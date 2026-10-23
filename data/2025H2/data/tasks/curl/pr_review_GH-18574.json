@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_GH-18574",
+  "bug_id": "GH-18574",
+  "commit_sha": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+  "commit_message": "tftp: remove the 3600 second default timeout\n\n... it was never meant to be there.\n\nReported-by: Tomas Berger\nFixes #6774\nCloses #6776",
+  "commit_author": "Daniel Stenberg",
+  "commit_date": "2021-03-22T15:39:27+01:00",
+  "pr_title": "tftp: remove the 3600 second default timeout",
+  "pr_description": "... it was never meant to be there.\n\nReported-by: Tomas Berger\nFixes #6774\nCloses #6776\n",
+  "files": [
+    {
+      "path": "lib/tftp.c",
+      "status": "modified",
+      "additions": 22,
+      "deletions": 38,
+      "diff": "diff --git a/lib/tftp.c b/lib/tftp.c\nindex a85f297a75..ecba348d96 100644\n--- a/lib/tftp.c\n+++ b/lib/tftp.c\n@@ -215,39 +215,24 @@ static CURLcode tftp_set_timeouts(struct tftp_state_data *state)\n     /* time-out, bail out, go home */\n     failf(state->data, \"Connection time-out\");\n     return CURLE_OPERATION_TIMEDOUT;\n   }\n \n-  if(start) {\n+  /* timeout in milliseconds */\n+  state->max_time = timeout_ms;\n \n+  if(timeout_ms > 0)\n     maxtime = (time_t)(timeout_ms + 500) / 1000;\n-    state->max_time = state->start_time + maxtime;\n-\n-    /* Set per-block timeout to total */\n-    timeout = maxtime;\n-\n-    /* Average restart after 5 seconds */\n-    state->retry_max = (int)timeout/5;\n-\n-    if(state->retry_max < 1)\n-      /* avoid division by zero below */\n-      state->retry_max = 1;\n-  }\n-  else {\n-    if(timeout_ms > 0)\n-      maxtime = (time_t)(timeout_ms + 500) / 1000;\n-    else\n-      maxtime = 3600;\n+  else\n+    maxtime = 3600; /* use for calculating block timeouts */\n \n-    state->max_time = state->start_time + maxtime;\n+  /* Set per-block timeout to total */\n+  timeout = maxtime;\n \n-    /* Set per-block timeout to total */\n-    timeout = maxtime;\n+  /* Average reposting an ACK after 5 seconds */\n+  state->retry_max = (int)timeout/5;\n \n-    /* Average reposting an ACK after 5 seconds */\n-    state->retry_max = (int)timeout/5;\n-  }\n   /* But bound the total number */\n   if(state->retry_max<3)\n     state->retry_max = 3;\n \n   if(state->retry_max>50)\n@@ -257,13 +242,13 @@ static CURLcode tftp_set_timeouts(struct tftp_state_data *state)\n   state->retry_time = (int)(timeout/state->retry_max);\n   if(state->retry_time<1)\n     state->retry_time = 1;\n \n   infof(state->data,\n-        \"set timeouts for state %d; Total %ld, retry %d maxtry %d\\n\",\n-        (int)state->state, (long)(state->max_time-state->start_time),\n-        state->retry_time, state->retry_max);\n+        \"set timeouts for state %d; Total % \" CURL_FORMAT_CURL_OFF_T\n+        \", retry %d maxtry %d\\n\",\n+        (int)state->state, timeout_ms, state->retry_time, state->retry_max);\n \n   /* init RX time */\n   time(&state->rx_time);\n \n   return CURLE_OK;\n@@ -1207,37 +1192,36 @@ static CURLcode tftp_receive_packet(struct Curl_easy *data)\n  * tftp_state_timeout\n  *\n  * Check if timeouts have been reached\n  *\n  **********************************************************/\n-static long tftp_state_timeout(struct Curl_easy *data, tftp_event_t *event)\n+static timediff_t tftp_state_timeout(struct Curl_easy *data,\n+                                     tftp_event_t *event)\n {\n   time_t current;\n   struct connectdata *conn = data->conn;\n   struct tftp_state_data *state = conn->proto.tftpc;\n+  timediff_t timeout_ms;\n \n   if(event)\n     *event = TFTP_EVENT_NONE;\n \n-  time(&current);\n-  if(current > state->max_time) {\n-    DEBUGF(infof(data, \"timeout: %ld > %ld\\n\",\n-                 (long)current, (long)state->max_time));\n+  timeout_ms = Curl_timeleft(state->data, NULL,\n+                             (state->state == TFTP_STATE_START));\n+  if(timeout_ms < 0) {\n     state->error = TFTP_ERR_TIMEOUT;\n     state->state = TFTP_STATE_FIN;\n     return 0;\n   }\n+  time(&current);\n   if(current > state->rx_time + state->retry_time) {\n     if(event)\n       *event = TFTP_EVENT_TIMEOUT;\n     time(&state->rx_time); /* update even though we received nothing */\n   }\n \n-  /* there's a typecast below here since 'time_t' may in fact be larger than\n-     'long', but we estimate that a 'long' will still be able to hold number\n-     of seconds even if \"only\" 32 bit */\n-  return (long)(state->max_time - current);\n+  return timeout_ms;\n }\n \n /**********************************************************\n  *\n  * tftp_multi_statemach\n@@ -1249,15 +1233,15 @@ static CURLcode tftp_multi_statemach(struct Curl_easy *data, bool *done)\n {\n   tftp_event_t event;\n   CURLcode result = CURLE_OK;\n   struct connectdata *conn = data->conn;\n   struct tftp_state_data *state = conn->proto.tftpc;\n-  long timeout_ms = tftp_state_timeout(data, &event);\n+  timediff_t timeout_ms = tftp_state_timeout(data, &event);\n \n   *done = FALSE;\n \n-  if(timeout_ms <= 0) {\n+  if(timeout_ms < 0) {\n     failf(data, \"TFTP response timeout\");\n     return CURLE_OPERATION_TIMEDOUT;\n   }\n   if(event != TFTP_EVENT_NONE) {\n     result = tftp_state_machine(state, event);\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/tftp.c b/lib/tftp.c\nindex a85f297a75..ecba348d96 100644\n--- a/lib/tftp.c\n+++ b/lib/tftp.c\n@@ -215,39 +215,24 @@ static CURLcode tftp_set_timeouts(struct tftp_state_data *state)\n     /* time-out, bail out, go home */\n     failf(state->data, \"Connection time-out\");\n     return CURLE_OPERATION_TIMEDOUT;\n   }\n \n-  if(start) {\n+  /* timeout in milliseconds */\n+  state->max_time = timeout_ms;\n \n+  if(timeout_ms > 0)\n     maxtime = (time_t)(timeout_ms + 500) / 1000;\n-    state->max_time = state->start_time + maxtime;\n-\n-    /* Set per-block timeout to total */\n-    timeout = maxtime;\n-\n-    /* Average restart after 5 seconds */\n-    state->retry_max = (int)timeout/5;\n-\n-    if(state->retry_max < 1)\n-      /* avoid division by zero below */\n-      state->retry_max = 1;\n-  }\n-  else {\n-    if(timeout_ms > 0)\n-      maxtime = (time_t)(timeout_ms + 500) / 1000;\n-    else\n-      maxtime = 3600;\n+  else\n+    maxtime = 3600; /* use for calculating block timeouts */\n \n-    state->max_time = state->start_time + maxtime;\n+  /* Set per-block timeout to total */\n+  timeout = maxtime;\n \n-    /* Set per-block timeout to total */\n-    timeout = maxtime;\n+  /* Average reposting an ACK after 5 seconds */\n+  state->retry_max = (int)timeout/5;\n \n-    /* Average reposting an ACK after 5 seconds */\n-    state->retry_max = (int)timeout/5;\n-  }\n   /* But bound the total number */\n   if(state->retry_max<3)\n     state->retry_max = 3;\n \n   if(state->retry_max>50)\n@@ -257,13 +242,13 @@ static CURLcode tftp_set_timeouts(struct tftp_state_data *state)\n   state->retry_time = (int)(timeout/state->retry_max);\n   if(state->retry_time<1)\n     state->retry_time = 1;\n \n   infof(state->data,\n-        \"set timeouts for state %d; Total %ld, retry %d maxtry %d\\n\",\n-        (int)state->state, (long)(state->max_time-state->start_time),\n-        state->retry_time, state->retry_max);\n+        \"set timeouts for state %d; Total % \" CURL_FORMAT_CURL_OFF_T\n+        \", retry %d maxtry %d\\n\",\n+        (int)state->state, timeout_ms, state->retry_time, state->retry_max);\n \n   /* init RX time */\n   time(&state->rx_time);\n \n   return CURLE_OK;\n@@ -1207,37 +1192,36 @@ static CURLcode tftp_receive_packet(struct Curl_easy *data)\n  * tftp_state_timeout\n  *\n  * Check if timeouts have been reached\n  *\n  **********************************************************/\n-static long tftp_state_timeout(struct Curl_easy *data, tftp_event_t *event)\n+static timediff_t tftp_state_timeout(struct Curl_easy *data,\n+                                     tftp_event_t *event)\n {\n   time_t current;\n   struct connectdata *conn = data->conn;\n   struct tftp_state_data *state = conn->proto.tftpc;\n+  timediff_t timeout_ms;\n \n   if(event)\n     *event = TFTP_EVENT_NONE;\n \n-  time(&current);\n-  if(current > state->max_time) {\n-    DEBUGF(infof(data, \"timeout: %ld > %ld\\n\",\n-                 (long)current, (long)state->max_time));\n+  timeout_ms = Curl_timeleft(state->data, NULL,\n+                             (state->state == TFTP_STATE_START));\n+  if(timeout_ms < 0) {\n     state->error = TFTP_ERR_TIMEOUT;\n     state->state = TFTP_STATE_FIN;\n     return 0;\n   }\n+  time(&current);\n   if(current > state->rx_time + state->retry_time) {\n     if(event)\n       *event = TFTP_EVENT_TIMEOUT;\n     time(&state->rx_time); /* update even though we received nothing */\n   }\n \n-  /* there's a typecast below here since 'time_t' may in fact be larger than\n-     'long', but we estimate that a 'long' will still be able to hold number\n-     of seconds even if \"only\" 32 bit */\n-  return (long)(state->max_time - current);\n+  return timeout_ms;\n }\n \n /**********************************************************\n  *\n  * tftp_multi_statemach\n@@ -1249,15 +1233,15 @@ static CURLcode tftp_multi_statemach(struct Curl_easy *data, bool *done)\n {\n   tftp_event_t event;\n   CURLcode result = CURLE_OK;\n   struct connectdata *conn = data->conn;\n   struct tftp_state_data *state = conn->proto.tftpc;\n-  long timeout_ms = tftp_state_timeout(data, &event);\n+  timediff_t timeout_ms = tftp_state_timeout(data, &event);\n \n   *done = FALSE;\n \n-  if(timeout_ms <= 0) {\n+  if(timeout_ms < 0) {\n     failf(data, \"TFTP response timeout\");\n     return CURLE_OPERATION_TIMEDOUT;\n   }\n   if(event != TFTP_EVENT_NONE) {\n     result = tftp_state_machine(state, event);\n",
+  "ground_truth": {
+    "bug_id": "GH-18574",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "ad147ec53de822a18b5dec63b72f43688ae53869",
+      "short_sha": "ad147ec53",
+      "message": "tftp: propagate expired timer from tftp_state_timeout()",
+      "author": "Joshua Rogers",
+      "date": "2025-09-17T00:52:28+05:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logic-001",
+        "title": "TFTP overall timeout expiry masked by tftp_state_timeout() returning 0 instead of negative value",
+        "message": "In tftp_state_timeout(), when Curl_timeleft() reports the overall operation time budget has been exhausted (timeout_ms < 0), the function sets state->error = TFTP_ERR_TIMEOUT and state->state = TFTP_STATE_FIN, but then returns the literal value 0 instead of propagating the negative timeout_ms. The sole caller, tftp_multi_statemach(), checks 'if(timeout_ms < 0)' to decide whether to abort the transfer with CURLE_OPERATION_TIMEDOUT. Because the return value is forced to 0 (which is not < 0), that abort path is never taken via this check, even though the state was already flagged as FIN/TFTP_ERR_TIMEOUT. This masks the properly detected timeout condition from the caller, defeating the overall-timeout enforcement for TFTP transfers and can allow the state machine to keep the transfer running (spinning in the event loop, potentially indefinitely / until other guards trigger) instead of promptly aborting with a timeout error as intended. This was introduced together with a change of the caller's guard from '<= 0' to '< 0' in the same commit, which made the masking effective (previously any non-positive return, including 0, would trigger the abort).",
+        "location": {
+          "file": "lib/tftp.c",
+          "start_line": 1210,
+          "end_line": 1214,
+          "start_column": null,
+          "end_column": null,
+          "function": "tftp_state_timeout",
+          "snippet": "  if(timeout_ms < 0) {\n    state->error = TFTP_ERR_TIMEOUT;\n    state->state = TFTP_STATE_FIN;\n    return 0;\n  }",
+          "snippet_hash": "1e38f6e8fa07394abee9f9877cdc13be8d8c7a847c412e60af17d37c5c79414d",
+          "description": null,
+          "snippet_start_line": 1210,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.85,
+        "suggestion": "Return the negative timeout_ms value (instead of hard-coded 0) so that the caller's 'if(timeout_ms < 0)' check correctly detects the expired timer and aborts the transfer with CURLE_OPERATION_TIMEDOUT as intended.",
+        "suggestion_code": "  if(timeout_ms < 0) {\n    state->error = TFTP_ERR_TIMEOUT;\n    state->state = TFTP_STATE_FIN;\n    return timeout_ms;\n  }",
+        "tags": [
+          "security",
+          "logic-error",
+          "tftp",
+          "timeout"
+        ],
+        "cwe_ids": [
+          "CWE-617",
+          "CWE-670"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "lib/tftp.c"
+    ],
+    "root_cause": "A refactor of the TFTP timeout logic (commit d3d90ad9c0) replaced the old wall-clock deadline comparison with a Curl_timeleft()-based negative-value convention, but in the branch that handles an already-expired timer it kept returning the literal 0 (a holdover from the old code's 'return 0' pattern for absolute timeout) instead of returning the negative timeout_ms. The same commit also tightened the caller's guard from '<= 0' to '< 0', which had previously masked this exact bug (0 used to also trigger the abort). The combination silently disables timeout propagation for the expired-timer branch.",
+    "must_cover": [
+      {
+        "file": "lib/tftp.c",
+        "function": "tftp_state_timeout",
+        "start_line": 1210,
+        "end_line": 1214,
+        "role": "primary",
+        "reason": "Primary location of finding: TFTP overall timeout expiry masked by tftp_state_timeout() returning 0 instead of negative value"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "d3d90ad9c00530d0ab8154b51050da12500b44bd",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-632b61806300",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "88a1650859cd828a80261f4c228247fef5635790",
+    "parent": "fe663fdecb69e715faf31f9ab9bffdf183ab9a12",
+    "fix": "632b618063002fd1497584b557e24f86a5ce07b3"
+  },
+  "affected_files": [
+    "ext/icu/icu.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. With the same harness and command, pre_intro exited 0 with no sanitizer finding; post_intro exited 1 and UBSan reported signed integer overflow at ext/icu/icu.c:390 ('1073741824 * 2 cannot be represented in type int') through icuCaseFunc16(); post_benign exited 0 with no sanitizer finding and returned SQLITE_NOMEM after the bounded allocator rejected the 2 GiB request. This verifies that the intro commit added the 32-bit multiplication overflow and the benig",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

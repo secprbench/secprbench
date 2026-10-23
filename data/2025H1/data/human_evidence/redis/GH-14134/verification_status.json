@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "redis/GH-14134",
+  "case_id": "7b5ae4c41d734db2ccd5",
+  "project": "redis",
+  "bug_id": "GH-14134",
+  "season": "2025H1",
+  "source_sha256": "30c00fd378127b1559e8ff12106e76e73e5b95f4e927daec1261cbd8906b3290",
+  "generated_artifact_sha256": {
+    "reference": "43ef52171b75b5c00ed976619e06ab880968e869da6c1f275c402723078b7ba9",
+    "introducing": "b95830778511e8f42ca4a69e97200f89fa85fc5320d486067fba621802e30acd",
+    "companion": "a1670562fac497d5d13e0162b1043541152ecf95a23e3721ecb6f69e9536324a"
+  },
+  "poc_status": "poc_fetched",
+  "fingerprint": "bf87de7308524feb668a7ac9284a8c0d3840807c3767cae8d15e588c64bb5513",
+  "recipe_source_sha256": "e1bd07bf250fe18823abf1708098ea2b8b697d5d3798df5e769d23ad85a0ada0",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-20261002-redis-GH-14134-normal-pair-v1/verification-unified28-v1/cases/redis/7b5ae4c41d734db2ccd5/attempts/01",
+      "started_at": "2026-10-02T22:50:49.254029+00:00",
+      "status": "inconclusive",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-20261002-redis-GH-14134-normal-pair-v1/verification-unified28-v1/cases/redis/7b5ae4c41d734db2ccd5/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-20261002-redis-GH-14134-normal-pair-v1/verification-unified28-v1/cases/redis/7b5ae4c41d734db2ccd5/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-02T22:52:50.379603+00:00"
+    }
+  ],
+  "updated_at": "2026-10-02T22:52:50.379603+00:00",
+  "case_record": "/research-data/secprbench/season100-20261002-redis-GH-14134-normal-pair-v1/verification-unified28-v1/verification/projects/redis/cases/GH-14134/case.json",
+  "report": "/research-data/secprbench/season100-20261002-redis-GH-14134-normal-pair-v1/verification-unified28-v1/cases/redis/7b5ae4c41d734db2ccd5/attempts/01/replay/pr_review_GH-14134.report.md",
+  "agent_used": true,
+  "recipe_sha256": "f992a0ce5868cc639d49",
+  "final_poc_sha256": "86d3cf127908a9eada1f0cca99dcc68e37bc61c60a66ff2ca0c93c626b9acae1"
+}

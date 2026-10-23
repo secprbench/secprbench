@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-14143",
+    "bug_id": "GH-14143",
+    "bug_type": "LogicError",
+    "intro_commit": "dcf02298110fabb3c8f0c73c096adfafb64d9134",
+    "intro_parent": "58edea7385785368e0f7503fdb6f985932933c96",
+    "fix_commit": "03816c15f75962b8e4662cee22be6f7ba6d5d9dd",
+    "affected_files": [
+      "src/rdb.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reasons": [
+      "The agent claim lacks a matching admissible three-version oracle.",
+      "Static review: diffing src/rdb.c across the three revisions shows intro commit dcf02298110f adds, for RDB_TYPE_HASH_METADATA object loading, a new block that reads an 8-byte 'min expiration time' and on rioGetReadError() calls rdbReportCorruptRDB(\\\"Hash failed loading minExpire\\\") i.e. rdbReportError(corruption_error=1,...). In rdbReportError, the diskless-load branch (reached whenever not RESTORE/rdbCheckMode/file-based-load -- exactly the replica-diskless-load-from-socket case) unconditionally falls through to exit(1) for corruption_error=1, regardless of whether the failure was a genuine corrupt file or merely a dropped/short network read. The fix commit 03816c15f759 mechanically swaps only that call to rdbReportReadError(...) (corruption_error=0), whose branch logs and returns without exiting, matching the upstream fix message 'Fix short read of hfe key that causes exit() on replica'. pre_intro (parent 58edea738578) has no such minExpire-read block at all for this object type (confirmed by direct source diff at the call site).\n\nDynamic reproduction: built pre_intro, post_intro and post_benign, and ran the identical /poc/run.sh + /poc/fake_master.py PoC (a crafted, deliberately truncated diskless-replication RDB stream that cuts off mid-way through the HFE min-expire field, then closes the socket) against each via run_poc. post_intro: replica logs the exact 'Hash failed loading minExpire'/'Failure loading rdb format' message at rdb.c:2274, then 'Terminating server after rdb file reading failure.' and the process exits (REPLICA_ALIVE=no, PING refused) -- reproducing the reported exit() on a benign short read. post_benign: identical call site/message, but the log instead ends '...assuming connection error, resuming operation.', no exit -- the replica process stays alive and answers PING -- confirming the fix. pre_intro: the vulnerable code path does not exist at all (no MINEXPIRE_LOG_LINE produced, by source inspection it's structurally unreachable), and the same PoC bytes do not crash the process either (REPLICA_ALIVE=yes/PONG), consistent with introduction=yes/benign=yes."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: candidate_only)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/redis/75a9aa25cd494c66e4d6/attempts/01/pocs/redis/GH-14143",
+    "input_file": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/redis/75a9aa25cd494c66e4d6/attempts/01/pocs/redis/GH-14143/replication_hfe.tcl",
+    "input_name": "replication_hfe.tcl",
+    "size": 76933,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "bash /poc/run.sh /work",
+      "input": null,
+      "poc_sha256": "6357b4f20524ba8ac47a7213fcd00cb9bb52964843496c4acea6de6f5bd49ac8",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "dcf02298110fabb3c8f0c73c096adfafb64d9134",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "56072aad1ec0d5b7a2eb3e8120ebbce8f8f2c43bf30e5e5d4d7a0e14ac956cec"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "=== SUMMARY ===\nREPLICA_ALIVE=no\nPING_RESULT=Could not connect to Redis at 127.0.0.1:10102: Connection refused\nMINEXPIRE_LOG_LINE: Internal error in RDB reading offset 0, function at rdb.c:2274 -> Hash failed loading minExpire. Failure loading rdb format\nTERMINATE_LOG_LINE: Terminating server after rdb file reading failure.\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "bash /poc/run.sh /work",
+      "input": null,
+      "poc_sha256": "6357b4f20524ba8ac47a7213fcd00cb9bb52964843496c4acea6de6f5bd49ac8",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "58edea7385785368e0f7503fdb6f985932933c96",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3180f9be87e77f5e7d48d4b8e1775532912e59050956cbf5e3e46cafd11f600e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "=== SUMMARY ===\nREPLICA_ALIVE=yes\nPING_RESULT=PONG\nMINEXPIRE_LOG_LINE: Internal error in RDB reading offset 0, function at rdb.c:2274 -> Hash failed loading minExpire. Failure loading rdb format from socket, assuming connection error, resuming operation.\nTERMINATE_LOG_LINE: \nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "pre_intro": {
+      "command": "bash /poc/run.sh /work",
+      "input": null,
+      "poc_sha256": "6357b4f20524ba8ac47a7213fcd00cb9bb52964843496c4acea6de6f5bd49ac8",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "58edea7385785368e0f7503fdb6f985932933c96",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "71acc494bea3be5181c6b88f07532a3e1abc6792ffd1a8730bd25e5933b9b001"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "=== SUMMARY ===\nREPLICA_ALIVE=yes\nPING_RESULT=PONG\nMINEXPIRE_LOG_LINE: \nTERMINATE_LOG_LINE: \nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "MINEXPIRE_LOG_LINE: Internal error in RDB reading offset 0, function at rdb.c:2274 -> Hash failed loading minExpire. Failure loading rdb format\nTERMINATE_LOG_LINE: Terminating server after rdb file reading failure.\nREPLICA_ALIVE=no",
+    "pre_marker": "MINEXPIRE_LOG_LINE: \nTERMINATE_LOG_LINE: \nREPLICA_ALIVE=yes\nPING_RESULT=PONG",
+    "benign_marker": "MINEXPIRE_LOG_LINE: Internal error in RDB reading offset 0, function at rdb.c:2274 -> Hash failed loading minExpire. Failure loading rdb format from socket, assuming connection error, resuming operation.\nTERMINATE_LOG_LINE: \nREPLICA_ALIVE=yes\nPING_RESULT=PONG",
+    "description": "Reconstructed a genuine diskless-replication 'broken connection during full sync while reading the HFE min-expire field' scenario end-to-end with real redis-server binaries acting as the replica, driven by a tiny hand-rolled replication-protocol master. The oracle is (a) the exact rdbReportError() log line/call-site 'Hash failed loading minExpire' at rdb.c:2274, identical in post_intro and post_benign (same code location/root cause exercised in both), and (b) whether the replica process subsequently terminates (exit(1), 'Terminating server...', connection refused) or survives and keeps serving PING -- precisely the corruption-vs-read-error misclassification described in GH-14143/PR#14143 and its fix 03816c15f759.",
+    "target_evidence": "run_poc(post_intro): REPLICA_ALIVE=no; PING_RESULT=Could not connect to Redis at 127.0.0.1:10102: Connection refused; MINEXPIRE_LOG_LINE: Internal error in RDB reading offset 0, function at rdb.c:2274 -> Hash failed loading minExpire. Failure loading rdb format; TERMINATE_LOG_LINE: Terminating server after rdb file reading failure.\nrun_poc(post_benign): REPLICA_ALIVE=yes; PING_RESULT=PONG; MINEXPIRE_LOG_LINE: Internal error in RDB reading offset 0, function at rdb.c:2274 -> Hash failed loading minExpire. Failure loading rdb format from socket, assuming connection error, resuming operation.; TERMINATE_LOG_LINE: (empty)\nrun_poc(pre_intro): REPLICA_ALIVE=yes; PING_RESULT=PONG; MINEXPIRE_LOG_LINE: (empty, this code path does not exist in src/rdb.c at commit 58edea738578 -- confirmed by source diff: the whole 'load next/min expiration time' block for RDB_TYPE_HASH_METADATA, present at post_intro/post_benign rdb.c:2261-2275, is absent in pre_intro); TERMINATE_LOG_LINE: (empty)"
+  },
+  "agent_oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

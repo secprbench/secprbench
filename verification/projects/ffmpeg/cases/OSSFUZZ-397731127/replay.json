@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-397731127",
+    "bug_id": "OSSFUZZ-397731127",
+    "bug_type": "OutOfBoundsRead",
+    "intro_commit": "11a8e0a4e585c0a5acf09397e39bccf45e1ba7ae",
+    "intro_parent": "a4630d479a54058f5abfd56fdcfd0b454e5de0ee",
+    "fix_commit": "d643a5ba0836c4d7ec86cb67fae387984ef3d1a6",
+    "affected_files": [
+      "libavcodec/aac/aacdec_usac.c",
+      "libavcodec/aac/aacdec_dsp_template.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "run_poc on post_intro crashed (crashed=True): AddressSanitizer global-buffer-overflow, READ of size 4, 28 bytes to the left of global variable ff_aac_pow2sf_tab, in dequant_scalefactors (libavcodec/aac/aacdec_dsp_template.c:73), reached via spectrum_scale\u2192spectrum_decode\u2192decode_usac_core_coder\u2192ff_aac_usac_decode_frame\u2192aac_decode_frame_int\u2192latm_decode_frame\u2192avcodec_send_packet. This is exactly the scenario the fix's `FFMAX(sce->sfo[...] + noise_offset, -200)` clamp in apply_noise_fill (aacdec_usac.c) exists to prevent: the intro commit moved noise-offset accumulation from the safe float sce->sf onto the raw integer sce->sfo with no lower bound, and sfo[idx] here evaluates to about -207 (200-207 = -7, i.e. 28 bytes = 7 floats before the table start), so ff_aac_pow2sf_tab[sfo[idx]+POW_SF2_ZERO] reads out of bounds. run_poc on pre_intro with the identical input/harness completed cleanly (exit=0, crashed=False, \"pixels decoded: 40960, samples decoded: 38912, iterations: 38\", no sanitizer report). run_poc on post_benign with the identical input/harness likewise completed cleanly (exit=0, crashed=False, identical decode counts, no sanitizer report). The reproducer input was discovered by hand-deriving the AAC-USAC/LATM bitstream syntax from aacdec_latm.h/aacdec_usac.c to build a valid seed reaching decode_usac_core_coder\u2192apply_noise_fill\u2192dequant_scalefactors, then running a short guided-fuzzing session (libFuzzer fork mode) from that seed against the post_intro build of the same harness; the resulting crash was isolated and its bytes verified identical (md5/cmp) before being split into /poc/crash_dq_part0..3.bin. The same exact input and harness invocation was used unmodified across all three revisions (pre_intro/post_intro/post_benign) via run_poc, satisfying the invariance requirement: sanitizer report present only in post_intro, absent in pre_intro and post_benign."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: incomplete)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/5b1ef016f604ba4aa41f/attempts/01/pocs/ffmpeg/OSSFUZZ-397731127",
+    "input_file": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/5b1ef016f604ba4aa41f/attempts/01/pocs/ffmpeg/OSSFUZZ-397731127/crash_dq_part3.bin",
+    "input_name": "crash_dq_part3.bin",
+    "size": 94,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "972237c7ace482b9ac566defe42826d6fc472df4679a66a7b856f241a42fcc5f",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "11a8e0a4e585c0a5acf09397e39bccf45e1ba7ae",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "670b0bbde978f0a5237f84066f116db39edc061fbe72c7d4d6dd428b6ee72fc5"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "316 [0x5633d2db5380,0x5633d2db6740), \n/work/aac_latm_fuzzer_run: Running 1 inputs 1 time(s) each.\nRunning: /tmp/crash_input.bin\n=================================================================\n==13==ERROR: AddressSanitizer: global-buffer-overflow on address 0x5633d3c4d2e4 at pc 0x5633d1ef7bcf bp 0x7fffbcd39b90 sp 0x7fffbcd39b88\nREAD of size 4 at 0x5633d3c4d2e4 thread T0\n    #0 0x5633d1ef7bce in dequant_scalefactors /work/libavcodec/aac/aacdec_dsp_template.c:73:28\n    #1 0x5633d1f0ce8c in spectrum_scale /work/libavcodec/aac/aacdec_usac.c:991:5\n    #2 0x5633d1f0ce8c in spectrum_decode /work/libavcodec/aac/aacdec_usac.c:1236:9\n    #3 0x5633d1f0ce8c in decode_usac_core_coder /work/libavcodec/aac/aacdec_usac.c:1417:5\n    #4 0x5633d1f07ed9 in ff_aac_usac_decode_frame /work/libavcodec/aac/aacdec_usac.c\n    #5 0x5633d1ee79e6 in aac_decode_frame_int /work/libavcodec/aac/aacdec.c:2430:15\n    #6 0x5633d1edd1f6 in latm_decode_frame /work/libavcodec/aac/aacdec_latm.h:309:15\n    #7 0x5633d119c71c in decode_simple_internal /work/libavcodec/decode.c:429:20\n    #8 0x5633d119c71c in decode_simple_receive_frame /work/libavcodec/decode.c:600:15\n    #9 0x5633d119c71c in decode_receive_frame_internal /work/libavcodec/decode.c:631:15\n    #10 0x5633d119bfde in avcodec_send_packet /work/libavcodec/decode.c:721:15\n    #11 0x5633d0f5d89f in LLVMFuzzerTestOneInput /work/tools/target_dec_fuzzer.c:533:25\n    #12 0x5633d0e83b53 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) (/work/aac_latm_fuzzer_run+0x454b53) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #13 0x5633d0e6d8cf in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) (/work/aac_latm_fuzzer_run+0x43e8cf) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #14 0x5633d0e73626 in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (/work/aac_latm_fuzzer_run+0x444626) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #15 0x5633d0e9d442 in main (/work/aac_latm_fuzzer_run+0x46e442) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #16 0x7fdc26a4cd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #17 0x7fdc26a4ce3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #18 0x5633d0e68194 in _start (/work/aac_latm_fuzzer_run+0x439194) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n\n0x5633d3c4d2e4 is located 28 bytes to the left of global variable 'ff_aac_pow2sf_tab' defined in 'libavcodec/aactab.c:43:7' (0x5633d3c4d300) of size 1712\n0x5633d3c4d2e4 is located 0 bytes to the right of global variable 'init_static_once' defined in 'libavcodec/aactab.c:105:19' (0x5633d3c4d2e0) of size 4\nSUMMARY: AddressSanitizer: global-buffer-overflow /work/libavcodec/aac/aacdec_dsp_template.c:73:28 in dequant_scalefactors\nShadow bytes around the buggy address:\n  0x0ac6fa781a00: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a10: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a20: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a30: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a40: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 00 00 00 00\n=>0x0ac6fa781a50: 00 00 00 00 00 00 f9 f9 f9 f9 f9 f9[04]f9 f9 f9\n  0x0ac6fa781a60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781a70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781a80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781a90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0",
+        "stdout_tail": "bavcodec/decode.c:631:15\n    #10 0x5633d119bfde in avcodec_send_packet /work/libavcodec/decode.c:721:15\n    #11 0x5633d0f5d89f in LLVMFuzzerTestOneInput /work/tools/target_dec_fuzzer.c:533:25\n    #12 0x5633d0e83b53 in fuzzer::Fuzzer::ExecuteCallback(unsigned char const*, unsigned long) (/work/aac_latm_fuzzer_run+0x454b53) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #13 0x5633d0e6d8cf in fuzzer::RunOneTest(fuzzer::Fuzzer*, char const*, unsigned long) (/work/aac_latm_fuzzer_run+0x43e8cf) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #14 0x5633d0e73626 in fuzzer::FuzzerDriver(int*, char***, int (*)(unsigned char const*, unsigned long)) (/work/aac_latm_fuzzer_run+0x444626) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #15 0x5633d0e9d442 in main (/work/aac_latm_fuzzer_run+0x46e442) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n    #16 0x7fdc26a4cd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #17 0x7fdc26a4ce3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #18 0x5633d0e68194 in _start (/work/aac_latm_fuzzer_run+0x439194) (BuildId: bcc4b53fd686a9b7269f8121ca97bcc0e5a60e31)\n\n0x5633d3c4d2e4 is located 28 bytes to the left of global variable 'ff_aac_pow2sf_tab' defined in 'libavcodec/aactab.c:43:7' (0x5633d3c4d300) of size 1712\n0x5633d3c4d2e4 is located 0 bytes to the right of global variable 'init_static_once' defined in 'libavcodec/aactab.c:105:19' (0x5633d3c4d2e0) of size 4\nSUMMARY: AddressSanitizer: global-buffer-overflow /work/libavcodec/aac/aacdec_dsp_template.c:73:28 in dequant_scalefactors\nShadow bytes around the buggy address:\n  0x0ac6fa781a00: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a10: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a20: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a30: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9\n  0x0ac6fa781a40: f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 f9 00 00 00 00\n=>0x0ac6fa781a50: 00 00 00 00 00 00 f9 f9 f9 f9 f9 f9[04]f9 f9 f9\n  0x0ac6fa781a60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781a70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781a80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781a90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ac6fa781aa0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==13==ABORTING\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "972237c7ace482b9ac566defe42826d6fc472df4679a66a7b856f241a42fcc5f",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "a4630d479a54058f5abfd56fdcfd0b454e5de0ee",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6de46174fcbff4122dfdb8d20b952a66a8df66e6aa3ddac3d83950884bfe64bb"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\ntools/target_dec_fuzzer.c:201:13: warning: 4 enumeration values not handled in switch: 'AVMEDIA_TYPE_UNKNOWN', 'AVMEDIA_TYPE_DATA', 'AVMEDIA_TYPE_ATTACHMENT'... [-Wswitch]\n    switch (c->p.type) {\n            ^~~~~~~~~\ntools/target_dec_fuzzer.c:206:13: warning: 523 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n    switch (c->p.id) {\n            ^~~~~~~\ntools/target_dec_fuzzer.c:211:13: warning: 413 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n    switch (c->p.id) {\n            ^~~~~~~\ntools/target_dec_fuzzer.c:393:21: warning: 522 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n            switch (ctx->codec_id) {\n                    ^~~~~~~~~~~~~\ntools/target_dec_fuzzer.c:407:21: warning: 518 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n            switch (ctx->codec_id) {\n                    ^~~~~~~~~~~~~\n5 warnings generated.\nINFO: Running with entropic power schedule (0xFF, 100).\nINFO: Seed: 3299635486\nINFO: Loaded 1 modules   (316 inline 8-bit counters): 316 [0x55c4b9230240, 0x55c4b923037c), \nINFO: Loaded 1 PC tables (316 PCs): 316 [0x55c4b9230380,0x55c4b9231740), \n/work/aac_latm_fuzzer_run: Running 1 inputs 1 time(s) each.\nRunning: /tmp/crash_input.bin\npixels decoded: 40960, samples decoded: 38912, iterations: 38\nExecuted /tmp/crash_input.bin in 3 ms\n***\n*** NOTE: fuzzing was not performed, you have only\n***       executed the target code on a fixed set of inputs.\n***\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "972237c7ace482b9ac566defe42826d6fc472df4679a66a7b856f241a42fcc5f",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "a4630d479a54058f5abfd56fdcfd0b454e5de0ee",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "02d61b12085033dc2eb434f561b9b087932a79cc09a30e0bcc0d39f87ec98807"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\ntools/target_dec_fuzzer.c:201:13: warning: 4 enumeration values not handled in switch: 'AVMEDIA_TYPE_UNKNOWN', 'AVMEDIA_TYPE_DATA', 'AVMEDIA_TYPE_ATTACHMENT'... [-Wswitch]\n    switch (c->p.type) {\n            ^~~~~~~~~\ntools/target_dec_fuzzer.c:206:13: warning: 523 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n    switch (c->p.id) {\n            ^~~~~~~\ntools/target_dec_fuzzer.c:211:13: warning: 413 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n    switch (c->p.id) {\n            ^~~~~~~\ntools/target_dec_fuzzer.c:393:21: warning: 522 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n            switch (ctx->codec_id) {\n                    ^~~~~~~~~~~~~\ntools/target_dec_fuzzer.c:407:21: warning: 518 enumeration values not handled in switch: 'AV_CODEC_ID_NONE', 'AV_CODEC_ID_MPEG1VIDEO', 'AV_CODEC_ID_MPEG2VIDEO'... [-Wswitch]\n            switch (ctx->codec_id) {\n                    ^~~~~~~~~~~~~\n5 warnings generated.\nINFO: Running with entropic power schedule (0xFF, 100).\nINFO: Seed: 3737827382\nINFO: Loaded 1 modules   (316 inline 8-bit counters): 316 [0x55bcb636c240, 0x55bcb636c37c), \nINFO: Loaded 1 PC tables (316 PCs): 316 [0x55bcb636c380,0x55bcb636d740), \n/work/aac_latm_fuzzer_run: Running 1 inputs 1 time(s) each.\nRunning: /tmp/crash_input.bin\npixels decoded: 40960, samples decoded: 38912, iterations: 38\nExecuted /tmp/crash_input.bin in 3 ms\n***\n*** NOTE: fuzzing was not performed, you have only\n***       executed the target code on a fixed set of inputs.\n***\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/run.sh compiles FFmpeg's own oss-fuzz harness (tools/target_dec_fuzzer.c) for AV_CODEC_ID_AAC_LATM against the current revision's built libavcodec.a, then runs it once on a crafted 1894-byte AAC-USAC/LATM input (extradata = AudioSpecificConfig selecting AOT_USAC/mono/SCE with noiseFill=1, followed by several LATM/LOAS packets) stored as /poc/crash_dq_part0..3.bin (concatenated in run.sh). The same input/harness was executed via run_poc on all three revisions.",
+    "target_evidence": "post_intro (run_poc): \"==13==ERROR: AddressSanitizer: global-buffer-overflow ... READ of size 4 ... #0 dequant_scalefactors /work/libavcodec/aac/aacdec_dsp_template.c:73:28 #1 spectrum_scale aacdec_usac.c:991 #2 spectrum_decode aacdec_usac.c:1236 #3 decode_usac_core_coder aacdec_usac.c:1417 ... 0x... is located 28 bytes to the left of global variable 'ff_aac_pow2sf_tab' ... ==13==ABORTING\". pre_intro (run_poc): exit=0 crashed=False, \"pixels decoded: 40960, samples decoded: 38912, iterations: 38\", no sanitizer output. post_benign (run_poc): exit=0 crashed=False, \"pixels decoded: 40960, samples decoded: 38912, iterations: 38\", no sanitizer output."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

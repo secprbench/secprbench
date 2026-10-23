@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-28962",
+  "bug_id": "GH-28962",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "3c963394d0c7dad0bffdbc452f2c5354355a9720",
+  "intro_parent": "48a2d1e448d48533c88d8b4087ce201d8b33e265",
+  "fix_commit": "dfc6f643c09aba831d4856597ef9633dda2fb6c4",
+  "affected_files": [
+    "crypto/x509/x509_vfy.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "openssl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Assuming ASN1_STRING_get0_data() returns a NUL-terminated string and using strcmp() on it without first validating the string's explicit length field, when ASN1_STRING objects only guarantee explicit length tracking, not NUL termination.",
+  "findings": [
+    "The code added to ossl_x509_check_cert_time() (and mirrored in ossl_x509_check_certificate_times) treats the raw data buffer returned by ASN1_STRING_get0_data() on the certificate's notAfter field as a NUL-terminated C string and passes it to strcmp() to compare against the literal \"99991231235959Z\". ASN1_STRING objects are NOT guaranteed to be NUL-terminated and their length is tracked explicitly"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "bfa39c2c57c9e0f686f687ffde824394bfac294b54570ebf06f9b83bacfdbe4b",
+  "generated_artifact_sha256": {
+    "reference": "4529729e574e0a6741afda410658f23fce23d03dca0331eeadf75ebe4aca4cb9",
+    "introducing": "6aa0fa58c22d4360505f917d12fd85bc31eeb621d59b2c93192886551846533d",
+    "companion": "78486d2383bd1aa14cae119b38b009a0353e55845506c039f8b92a1c68c7a815"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_2013562",
+  "bug_id": "2013562",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "3b5eb00effebb2765c66f4120e770542f7c1a372",
+  "intro_parent": "85ed04eda9d264dd23a1be1cb02d6d119eb6c52a",
+  "fix_commit": "670eb2adbc70900fb1077437e452e698b0aaf488",
+  "affected_files": [
+    "js/src/builtin/AtomicsObject.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_crash_data.txt: https://bugzilla.mozilla.org/rest/bug/attachment/9541327",
+    "- evidence/candidate_02_c002_test.js.js: https://bugzilla.mozilla.org/rest/bug/attachment/9541328"
+  ],
+  "input_name": "test.js.js",
+  "root_cause": "The same-thread fast path for Atomics.waitAsync()/Atomics.notify() was added without accounting for the fact that JSContext::realm() can differ from the realm of the promise being resolved; the code assumed 'same context' implied 'same realm', which is not guaranteed in a multi-realm embedding like the browser (e.g. cross-origin iframes, Xray wrappers, or other realm-switching operations happening on the same context).",
+  "findings": [
+    "In js::atomics_notify_impl, when Atomics.notify() detects that the async waiter it is about to resolve was created by the *same* JSContext (waiter->cx() == cx), it takes a fast path: instead of dispatching an off-thread task to the event loop, it extracts the PromiseObject directly into a `promisesToResolve` vector and later calls PromiseObject::resolve(cx, promisesToResolve[i], resultMsg) on it a"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "66620a722c976b68c5a2b086dc30013fc1b805214d155217b131432d3d48b5c9",
+  "generated_artifact_sha256": {
+    "reference": "dccc49d38fcccf0a4fe21fad2c454a2fff77875dad061416897ebd307cd0442e",
+    "introducing": "28981b18bebe67edcda47f66da6b8f8ac410300c1172535d08a224729c613315",
+    "companion": "c0161b2d29ba99361a6e7ed155801e487a0f5e96f35d75176d9c815fe7192a91"
+  }
+}

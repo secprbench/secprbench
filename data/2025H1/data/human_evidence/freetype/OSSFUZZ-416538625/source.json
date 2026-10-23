@@ -1,0 +1,64 @@
+{
+  "affected_files": [
+    "src/sfnt/ttsvg.c"
+  ],
+  "aliases": [],
+  "bug_discussion": "Upstream fixing commit message:\n[sfnt] Avoid allocation bomb in compressed SVG documents.\n\nReported as\n\n  https://issues.oss-fuzz.com/issues/416538625\n\n* src/sfnt/ttsvg.c (MAX_SVG_SIZE): New macro.\n  (tt_face_load_svg_doc): Reject too large buffer.\n\nThe linked OSS-Fuzz issue requires sign-in; no issue body or reporter attachment was fetched. The local 128 MiB font is a derived preflight input, not a reporter PoC.",
+  "bug_id": "OSSFUZZ-416538625",
+  "candidate_status": "review_only_pending_security_screen_and_task_construction",
+  "changed_lines": 10,
+  "commit_ids": [
+    "6fa8725a416735a9cf62b68b8aa146144c1e471e"
+  ],
+  "component": "sfnt/OT-SVG",
+  "creation_time": "",
+  "date_basis": "mainline_committer_date_utc",
+  "fix_commit_sha": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+  "fix_date": "2025-05-09T11:27:51+00:00",
+  "keywords": [
+    "documented_fix",
+    "allocation_bomb",
+    "availability"
+  ],
+  "mainline_verified": true,
+  "product": "freetype",
+  "provenance": {
+    "collector": "targeted_freetype_h1_svg_allocation_20261002_v1",
+    "fix_commit_object": "/research-data/secprbench/freetype-svg-alloc-preflight-v1/raw/fix.commit",
+    "fix_commit_object_sha256": "d1678ee5c525afa7665fd8581d13fff820d7c375f5d1cd9a717abe6816a1c408",
+    "fix_patch": "/research-data/secprbench/freetype-svg-alloc-preflight-v1/raw/fix.patch",
+    "fix_patch_sha256": "eb1f31af1098ad0bcbc049d2d8c2676f3887463d477a568c612f3e667ddb256e",
+    "host_preflight": "/research-data/secprbench/freetype-svg-alloc-preflight-v1/replay.json",
+    "host_preflight_status": "clean/large-allocation-request/clean; Docker not run",
+    "introduction_candidate": {
+      "changed_files": 2,
+      "changed_lines": 134,
+      "date": "2022-01-20T16:45:18Z",
+      "new_external_call": "src/truetype/ttgload.c::load_svg_doc",
+      "sha": "5cf01aa2b26727abd97ef202a3687cd7a43819c3"
+    },
+    "issue_contents": "sign_in_required_not_fetched",
+    "mainline_ref": "origin/master",
+    "mainline_tip": "b6c6934a76fae579fce081b03e2e74aca17e7eeb",
+    "poc_provenance": "locally_derived_from_public_fix",
+    "selection": "2025H1_free_type_open_cell_security_fix_mainline_screen",
+    "source_url": "https://github.com/freetype/freetype/commit/6fa8725a416735a9cf62b68b8aa146144c1e471e"
+  },
+  "report_references": [
+    {
+      "id": "OSSFUZZ-416538625",
+      "kind": "fix_commit_report_link",
+      "url": "https://issues.oss-fuzz.com/issues/416538625"
+    },
+    {
+      "id": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+      "kind": "official_upstream_fix",
+      "url": "https://github.com/freetype/freetype/commit/6fa8725a416735a9cf62b68b8aa146144c1e471e"
+    }
+  ],
+  "resolution_time": null,
+  "season": "2025H1",
+  "severity": "unknown",
+  "title": "Compressed OT-SVG document triggers an oversized allocation",
+  "verification": "not_run"
+}

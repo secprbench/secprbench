@@ -1,0 +1,31 @@
+{
+  "task_id": "pr_review_OSSFUZZ-439711052",
+  "bug_id": "OSSFUZZ-439711052",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "efa9d3deca30b47616721f60d8e79b1ccdaaefbc",
+  "intro_parent": "299d9115d4c7c6c108197f48960e140d7433dae6",
+  "fix_commit": "d448d6d1a0a4cdc76499c137742fdd8b30b9e7de",
+  "affected_files": [
+    "libavcodec/hevc/sei.c",
+    "libavcodec/hevc/sei.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The unsigned value decoded from the bitstream via get_ue_golomb() was stored into a narrow uint8_t struct field before validating it, so the validation check operated on an already-truncated (wrapped) value instead of the original decoded value, defeating the intended upper-bound check of 31.",
+  "findings": [
+    "In decode_nal_sei_3d_reference_displays_info(), the raw Exp-Golomb decoded value returned by get_ue_golomb(gb) (an unsigned int, which can be arbitrarily large, e.g. up to 2^32-1) is stored directly into s->num_ref_displays, a field declared as uint8_t in HEVCSEITDRDI. This assignment silently truncates the value modulo 256 BEFORE the bounds check 'if (s->num_ref_displays > 31)' is performed. As a"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "f633973a638c59745f52828addb58570b342774f1989dd35468e44a185f508f6",
+  "generated_artifact_sha256": {
+    "reference": "cf448b9dd4574a7e96399862ca505e814d1aa6967331334db204b47adb6e7b33",
+    "introducing": "5a6a8f3cb38c8be7e5e8463715f887ed206e4c4a8f6a0047e876b3823221de33",
+    "companion": "bd22a68dc120ab3aa9a516fd5c4fca51ce9f4976644272fbaea69216f157552c"
+  }
+}

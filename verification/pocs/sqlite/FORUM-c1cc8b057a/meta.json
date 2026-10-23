@@ -1,0 +1,31 @@
+{
+  "task_id": "pr_review_FORUM-c1cc8b057a",
+  "bug_id": "FORUM-c1cc8b057a",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "cebf06c7980109ab459b5d90dd563ae621a78f94",
+  "intro_parent": "dae87df198a40df2c04507f86b49c291c1e917e3",
+  "fix_commit": "d4c224b833b7c4d58f1e5748f5a1de2af013fc3d",
+  "affected_files": [
+    "src/vdbesort.c",
+    "src/sqliteInt.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "sqlite",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A macro semantics change (from a 'size for N-1 extra elements beyond the first embedded one' formula to a 'size for exactly N elements from offsetof' formula) was not reflected correctly at one of its call sites; the call site retained an extra '+1' meant for the old formula, causing the size computation to request one more array element than actually exists in the source object being copied.",
+  "findings": [
+    "While refactoring VdbeSorter/KeyInfo to use C99 flexible array members, the size computation for the KeyInfo object that is embedded/copied after the VdbeSorter struct was changed from `sizeof(KeyInfo) + (nKeyField-1)*sizeof(CollSeq*)` to `SZ_KEYINFO(nKeyField+1)`, where `SZ_KEYINFO(N)` is defined as `offsetof(KeyInfo,aColl) + (N)*sizeof(CollSeq*)`. Because `KeyInfo.aColl` is now a flexible array "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "272d4fcdf983d9d6db9c470e2dd2ba05143f833fdaa3426da57a55b90608df87",
+  "generated_artifact_sha256": {
+    "reference": "01f094a8b19381ecd1356ec2e00f7d3da242c434633e5d3defce1989d99726c9",
+    "introducing": "176718bd9fde6bcd60c4495b146d3d6874fb85049a3c3c3459acc05dc19d2a06",
+    "companion": "ca38766cecdc85f830a156c8dd542f33a438b99b26fcf820cb7ed8460ce5975e"
+  }
+}

@@ -1,0 +1,3 @@
+recursive-include configs *.yaml
+recursive-include secprbench *.md *.txt *.json *.yaml Dockerfile* *.sh *.c
+include requirements.lock

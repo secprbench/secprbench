@@ -1,0 +1,62 @@
+{
+  "bug_id": "482345688",
+  "title": "[wasm] Fix data race on WasmModuleSignatureStorage",
+  "severity": "unknown",
+  "keywords": [
+    "explicit_fixed_footer",
+    "concurrency"
+  ],
+  "product": "v8",
+  "component": "",
+  "creation_time": "2026-02-12T01:36:49-08:00",
+  "resolution_time": null,
+  "bug_discussion": "Public V8 fixing commit: https://github.com/v8/v8/commit/e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9\nExplicit numeric issue footer: 482345688\nThe issue page was not fetched. The public commit message documents the defect:\n\n[wasm] Fix data race on WasmModuleSignatureStorage\n\nThe same race existed before on the `signature_zone_`, but looks like it\nwas less likely to trigger.\n\nIt's very unintuitive that `WasmModule::signature_storage` is protected\nby `NativeModule::allocation_mutex_`, but that's how it is.\n\nDrive-by: Remove the actual signature storage size from\n`EstimateStoredSize` which otherwise only reports the size of decoded\ninformation. Add it to `EstimateCurrentMemoryConsumption` instead.\n\nR=jkummerow@chromium.org\n\nFixed: 482345688\nCq-Include-Trybots: luci.v8.try:v8_linux64_tsan_dbg,v8_linux64_tsan_rel\nChange-Id: Ic51ee1998ecd14c8c501b3b4d78bde5ab47b6db0\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/7566469\nCommit-Queue: Clemens Backes <clemensb@chromium.org>\nReviewed-by: Jakob Kummerow <jkummerow@chromium.org>\nCr-Commit-Position: refs/heads/main@{#105223}\n\nTreat this as an attributed fixing candidate. Derive the introducing revision independently during task construction; no introducing-date filter or bug verification has run.",
+  "commit_ids": [
+    "e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9"
+  ],
+  "fix_commit_sha": "e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9",
+  "fix_date": "2026-02-12T01:36:49-08:00",
+  "fix_date_utc": "2026-02-12T09:36:49Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_timestamp_on_captured_mainline",
+  "season": "2026H1",
+  "provenance": {
+    "source_type": "public_git_commit_message_with_exact_numeric_fixed_footer",
+    "source_url": "https://github.com/v8/v8/commit/e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9",
+    "issue_ids": [
+      "482345688"
+    ],
+    "issue_details": "not_fetched",
+    "raw_commit_record": "/research-data/secprbench/campaign-100-20260928/intake/v8-history/raw/commit_messages/e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9.json",
+    "raw_commit_record_sha256": "eb2b293a6220a8ec7d8c7c0bf9568fd4490bb51b15b5044c69a65389ab4c03b1",
+    "selection_policy_version": "v8-explicit-fixed-footer-v1",
+    "selection_policy_sha256": "5460882e1a5d1e6789316e9242df33e72b1fedcf3496836cc4f276612548149c",
+    "defect_classes": [
+      "concurrency"
+    ],
+    "changed_paths": [
+      "src/wasm/wasm-code-manager.cc",
+      "src/wasm/wasm-module.cc",
+      "src/wasm/wasm-module.h"
+    ],
+    "production_paths": [
+      "src/wasm/wasm-code-manager.cc",
+      "src/wasm/wasm-module.cc",
+      "src/wasm/wasm-module.h"
+    ],
+    "mainline_proof": {
+      "ref": "refs/remotes/origin/main",
+      "tip": "f1d2db6bb88aa249853e11bc2a654d37aa6bdac1",
+      "fix_sha": "e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9",
+      "merge_base_is_ancestor": true,
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9",
+        "f1d2db6bb88aa249853e11bc2a654d37aa6bdac1"
+      ]
+    }
+  },
+  "candidate_status": "documented_git_fix_pending_construction_and_verification"
+}

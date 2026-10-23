@@ -1,0 +1,12 @@
+name: sonnet5
+display_name: Claude Sonnet 5 (first-party)
+claude_version: 2.1.283
+model: claude-sonnet-5
+small_model: claude-haiku-4-5-20251001
+env:
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+egress_hosts:
+- api.anthropic.com
+- console.anthropic.com
+- platform.claude.com
+cutoff_date: null

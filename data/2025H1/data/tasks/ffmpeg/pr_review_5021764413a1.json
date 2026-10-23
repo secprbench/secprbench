@@ -1,0 +1,89 @@
+{
+  "task_id": "pr_review_5021764413a1",
+  "bug_id": "5021764413a1",
+  "commit_sha": "f91906973c62459f31beb5683a8e2105758af0bb",
+  "commit_message": "avformat/mov: fix demuxing of eia-608\n\nFixes #4616.",
+  "commit_author": "Paul B Mahol",
+  "commit_date": "2020-06-14T14:19:56+02:00",
+  "pr_title": "avformat/mov: fix demuxing of eia-608",
+  "pr_description": "Fixes #4616.\n",
+  "files": [
+    {
+      "path": "libavformat/mov.c",
+      "status": "modified",
+      "additions": 24,
+      "deletions": 0,
+      "diff": "diff --git a/libavformat/mov.c b/libavformat/mov.c\nindex 4e68532b69..e06d28fa10 100644\n--- a/libavformat/mov.c\n+++ b/libavformat/mov.c\n@@ -7856,10 +7856,31 @@ static int mov_change_extradata(MOVStreamContext *sc, AVPacket *pkt)\n     }\n \n     return 0;\n }\n \n+static int get_eia608_packet(AVIOContext *pb, AVPacket *pkt, int size)\n+{\n+    int new_size, ret;\n+\n+    if (size <= 8)\n+        return AVERROR_INVALIDDATA;\n+    new_size = ((size - 8) / 2) * 3;\n+    ret = av_new_packet(pkt, new_size);\n+    if (ret < 0)\n+        return ret;\n+\n+    avio_skip(pb, 8);\n+    for (int j = 0; j < new_size; j += 3) {\n+        pkt->data[j] = 0xFC;\n+        pkt->data[j+1] = avio_r8(pb);\n+        pkt->data[j+2] = avio_r8(pb);\n+    }\n+\n+    return 0;\n+}\n+\n static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)\n {\n     MOVContext *mov = s->priv_data;\n     MOVStreamContext *sc;\n     AVIndexEntry *sample;\n@@ -7900,10 +7921,13 @@ static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)\n         if( st->discard == AVDISCARD_NONKEY && 0==(sample->flags & AVINDEX_KEYFRAME) ) {\n             av_log(mov->fc, AV_LOG_DEBUG, \"Nonkey frame from stream %d discarded due to AVDISCARD_NONKEY\\n\", sc->ffindex);\n             goto retry;\n         }\n \n+        if (st->codecpar->codec_id == AV_CODEC_ID_EIA_608 && sample->size > 8)\n+            ret = get_eia608_packet(sc->pb, pkt, sample->size);\n+        else\n         ret = av_get_packet(sc->pb, pkt, sample->size);\n         if (ret < 0) {\n             if (should_retry(sc->pb, ret)) {\n                 mov_current_sample_dec(sc);\n             }\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavformat/mov.c b/libavformat/mov.c\nindex 4e68532b69..e06d28fa10 100644\n--- a/libavformat/mov.c\n+++ b/libavformat/mov.c\n@@ -7856,10 +7856,31 @@ static int mov_change_extradata(MOVStreamContext *sc, AVPacket *pkt)\n     }\n \n     return 0;\n }\n \n+static int get_eia608_packet(AVIOContext *pb, AVPacket *pkt, int size)\n+{\n+    int new_size, ret;\n+\n+    if (size <= 8)\n+        return AVERROR_INVALIDDATA;\n+    new_size = ((size - 8) / 2) * 3;\n+    ret = av_new_packet(pkt, new_size);\n+    if (ret < 0)\n+        return ret;\n+\n+    avio_skip(pb, 8);\n+    for (int j = 0; j < new_size; j += 3) {\n+        pkt->data[j] = 0xFC;\n+        pkt->data[j+1] = avio_r8(pb);\n+        pkt->data[j+2] = avio_r8(pb);\n+    }\n+\n+    return 0;\n+}\n+\n static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)\n {\n     MOVContext *mov = s->priv_data;\n     MOVStreamContext *sc;\n     AVIndexEntry *sample;\n@@ -7900,10 +7921,13 @@ static int mov_read_packet(AVFormatContext *s, AVPacket *pkt)\n         if( st->discard == AVDISCARD_NONKEY && 0==(sample->flags & AVINDEX_KEYFRAME) ) {\n             av_log(mov->fc, AV_LOG_DEBUG, \"Nonkey frame from stream %d discarded due to AVDISCARD_NONKEY\\n\", sc->ffindex);\n             goto retry;\n         }\n \n+        if (st->codecpar->codec_id == AV_CODEC_ID_EIA_608 && sample->size > 8)\n+            ret = get_eia608_packet(sc->pb, pkt, sample->size);\n+        else\n         ret = av_get_packet(sc->pb, pkt, sample->size);\n         if (ret < 0) {\n             if (should_retry(sc->pb, ret)) {\n                 mov_current_sample_dec(sc);\n             }\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "f91906973c62459f31beb5683a8e2105758af0bb",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "5021764413a1",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Incorrect parsing of multi-atom c608 payload in get_eia608_packet",
+        "message": "The get_eia608_packet function incorrectly assumes that the EIA-608 payload consists of a single 8-byte atom header followed by raw caption byte pairs. In reality, the c608 payload can contain multiple atoms (cdat for CC field 1, cdt2 for CC field 2), each with their own 8-byte header (4 bytes size + 4 bytes type). The function skips only the first 8-byte header via avio_skip(pb, 8) and then treats all remaining bytes as caption data pairs, including the headers of subsequent atoms. This causes: (1) atom headers to be interpreted as caption data, corrupting the output; (2) the hardcoded 0xFC cc_type byte always indicates field 1, so cdt2 (field 2) caption data is misidentified; (3) the size calculation ((size - 8) / 2) * 3 does not account for multiple atom headers, leading to incorrect output buffer sizing. Additionally, there is no integer overflow check on this size calculation — a crafted file with a very large sample size could cause ((size - 8) / 2) * 3 to overflow, resulting in an undersized allocation followed by a heap buffer overflow in the write loop.",
+        "bug_type": "LogicError",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-131",
+          "CWE-190"
+        ],
+        "location": {
+          "file": "libavformat/mov.c",
+          "function": "get_eia608_packet",
+          "start_line": 7861,
+          "end_line": 7880,
+          "snippet": "static int get_eia608_packet(AVIOContext *pb, AVPacket *pkt, int size)\n{\n    int new_size, ret;\n\n    if (size <= 8)\n        return AVERROR_INVALIDDATA;\n    new_size = ((size - 8) / 2) * 3;\n    ret = av_new_packet(pkt, new_size);\n    if (ret < 0)\n        return ret;\n\n    avio_skip(pb, 8);\n    for (int j = 0; j < new_size; j += 3) {\n        pkt->data[j] = 0xFC;\n        pkt->data[j+1] = avio_r8(pb);\n        pkt->data[j+2] = avio_r8(pb);\n    }"
+        },
+        "related_locations": [
+          {
+            "file": "libavformat/mov.c",
+            "start_line": 7927,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "mov_read_packet",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Properly iterate over all atoms in the c608 payload. For each atom, read the 4-byte size and 4-byte type, determine cc_field from the atom type (cdat=field 1, cdt2=field 2), and process only the data portion as caption byte pairs. Set the correct cc_type byte based on the field. Also add an integer overflow check on the size calculation before allocating the output packet.",
+        "rule_id": "sec-logic-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "libavformat/mov.c"
+    ],
+    "root_cause": "The function was written with the assumption that a c608 sample contains a single atom (one 8-byte header followed by byte pairs), but the actual format allows multiple atoms (cdat, cdt2) each with their own headers. The single avio_skip(pb, 8) only skips the first atom's header, and all subsequent atom headers are misinterpreted as caption data. The hardcoded 0xFC byte also fails to distinguish between CC field 1 and field 2.",
+    "must_cover": [
+      {
+        "file": "libavformat/mov.c",
+        "function": "get_eia608_packet",
+        "reason": "Primary location of finding: Incorrect parsing of multi-atom c608 payload in get_eia608_packet"
+      },
+      {
+        "file": "libavformat/mov.c",
+        "function": "mov_read_packet",
+        "reason": "Related location for: Incorrect parsing of multi-atom c608 payload in get_eia608_packet"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "ffmpeg__5021764413a1__buggy",
+    "project": "ffmpeg",
+    "repo_url": "https://github.com/FFmpeg/FFmpeg.git",
+    "parent_sha": "cb98483ea081c0ea7949a75f9776703f395f8e8d",
+    "diff_stats": {
+      "files_changed": 1,
+      "lines_changed": 24
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_GH-13512",
+  "bug_id": "GH-13512",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "610eb26c112aaffa434fb978cbd62786c43a1155",
+  "intro_parent": "d265a614384c9b6e5c92d674a2f8a04b3a67b822",
+  "fix_commit": "5b49119236b51f52030b1a3ed4891fa4854ab1cf",
+  "affected_files": [
+    "src/db.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_640e14957f9d1a1f_list.tcl: tests/unit/type/list.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "The fix for the TOUCH-from-script bug swapped current_client for executing_client in a dereference chain without adding the same NULL-guard that was already present for current_client. server.executing_client is not guaranteed to be set in all code paths that reach lookupKey() (notably the blocked-client unblocking path), so the missing null check leads to a NULL pointer dereference.",
+  "findings": [
+    "In lookupKey(), the CLIENT NO-TOUCH check was changed to use server.executing_client->cmd->proc instead of server.current_client->cmd->proc, in order to correctly detect the TOUCH command when it is invoked via scripts/RM_Call. However, the code only null-checks server.current_client before entering the branch; it never checks whether server.executing_client itself is NULL before dereferencing it."
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "08c5c897138406e0f4d52d52d0481d6191b7952cf2078a0b227444e0889d3c85",
+  "generated_artifact_sha256": {
+    "reference": "49245160d59839f93d33ffcf84e1521279a4e807a15775b62d32f6cdb79b4843",
+    "introducing": "3cb1a0585f539d074199d73d385ba31f0f1bfa385d20cd88349eeeb9bddd3bba",
+    "companion": "f83622df8a827abd9c8b2ac341755096ae587570fa8c83d3865565de622aa3c3"
+  }
+}

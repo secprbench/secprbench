@@ -1,0 +1,129 @@
+{
+  "bug_id": "GH-19438",
+  "project": "curl",
+  "bug_type": "DoubleFree",
+  "commits": {
+    "intro": "cd3be116b688f293376a3071ed1db3130c5139fa",
+    "parent": "76d13c721bcd992e3e19f52d3a5281b8755283f3",
+    "fix": "00872d5c98bf977eff7d4276eb7379c2b3a7eed6"
+  },
+  "affected_files": [
+    "lib/curl_rtmp.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "This container's curl was configured without librtmp (only the librtmp1 runtime .so.1 is installed, no -dev headers/symlink), so the stock `curl rtmp://...` path never reaches lib/curl_rtmp.c at all (it compiles to an empty TU without USE_LIBRTMP), and no existing PoC input file was usable. To reproduce faithfully, /poc/run.sh #includes the actual, unmodified lib/curl_rtmp.c from whichever revision is built (with -DUSE_LIBRTMP=1 and a minimal stand-in <librtmp/rtmp.h> supplying just the fields/functions curl_rtmp.c references), links against the project's real lib/hash.c object so Curl_conn_meta_set/get/remove exercise the genuine Curl_hash implementation, and drives rtmp_setup_connection() with a URL for which the fake RTMP_SetupURL() reports a parse failure (mirroring the reporter's malformed-RTMP-URL scenario), followed by the connection-teardown path appropriate to that revision. run_poc confirmed on all three builds:\n\n- pre_intro (76d13c721bcd): exit=0, crashed=False. rtmp_setup_connection() manually calls RTMP_Free(r) on the RTMP_SetupURL failure path; conn->proto.rtmp is only assigned on the success path so it stays NULL, and the old-style rtmp_disconnect() teardown sees r==NULL and does nothing further — single free, correct pre-bug behavior.\n- post_intro (cd3be116b688): exit=134, crashed=True. rtmp_setup_connection() registers r into conn->meta_hash via Curl_conn_meta_set(..., rtmp_conn_dtor) right after RTMP_Alloc(), but still manually calls RTMP_Free(r) on the RTMP_SetupURL failure path (the pre-existing manual free was not removed when ownership moved to the meta-hash destructor). Tearing the connection down (Curl_hash_destroy, matching real url.c cleanup) runs rtmp_conn_dtor(), which calls RTMP_Free(r) again on the same pointer. AddressSanitizer reports a double-free with the exact expected stack: freed first at curl_rtmp.c:245 (rtmp_setup_connection's manual free) and freed again at curl_rtmp.c:231 (rtmp_conn_dtor via Curl_hash_destroy/hash_elem_destroy) — matching the meta.json root cause precisely.\n- post_benign (fix on top of 76d13c721bcd): exit=0, crashed=False. The manual RTMP_Free(r) on the failure path is removed (comment: \"rtmp_conn_dtor() performs the cleanup\"), relying solely on the meta-hash destructor; RTMP_Free is called exactly once, no crash.\n\nSame triggering scenario (RTMP_SetupURL failure during connection setup) reproduced across all three revisions confirms intro introduces the double-free and the benign/fix revision removes it.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/99b24738ed1b5fc2159d/attempts/01/replay/pr_review_GH-19438.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/99b24738ed1b5fc2159d/attempts/01/replay/pr_review_GH-19438.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/curl/99b24738ed1b5fc2159d/attempts/01/replay/pr_review_GH-19438.agent_verdict.json",
+      "executions": {
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "f96bd65839f7fcde58267e0f1e04cfd4c73158456707a4eaa6fcfae03df5a146",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "76d13c721bcd992e3e19f52d3a5281b8755283f3",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "eddd69bf701d39601095602657e02142e922fabed6ba267df921fec4412d320f"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": " | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:30:3: note: in expansion of macro 'LOG'\n   30 |   LOG(\"[harness] RTMP_Alloc\\n\");\n      |   ^~~\n/poc/harness_preintro.c: In function 'RTMP_SetupURL':\n/poc/harness_preintro.c:19:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   19 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:37:3: note: in expansion of macro 'LOG'\n   37 |   LOG(\"[harness] RTMP_SetupURL -> failure (simulated bad URL)\\n\");\n      |   ^~~\n/poc/harness_preintro.c: In function 'RTMP_Free':\n/poc/harness_preintro.c:19:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   19 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:43:3: note: in expansion of macro 'LOG'\n   43 |   LOG(\"[harness] RTMP_Free() call\\n\");\n      |   ^~~\n/poc/harness_preintro.c: In function 'main':\n/poc/harness_preintro.c:19:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   19 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:88:3: note: in expansion of macro 'LOG'\n   88 |   LOG(\"[harness] calling rtmp_setup_connection()...\\n\");\n      |   ^~~\n/poc/harness_preintro.c:19:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   19 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:91:3: note: in expansion of macro 'LOG'\n   91 |   LOG(\"[harness] rtmp_setup_connection() returned\\n\");\n      |   ^~~\n/poc/harness_preintro.c:19:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   19 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:93:3: note: in expansion of macro 'LOG'\n   93 |   LOG(\"[harness] calling rtmp_disconnect() (old-style teardown)...\\n\");\n      |   ^~~\n/poc/harness_preintro.c:19:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   19 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_preintro.c:96:3: note: in expansion of macro 'LOG'\n   96 |   LOG(\"[harness] done, no crash observed\\n\");\n      |   ^~~\n[harness] calling rtmp_setup_connection()...\n[harness] RTMP_Alloc\n[harness] RTMP_SetupURL -> failure (simulated bad URL)\n[harness] RTMP_Free() call\n[harness] rtmp_setup_connection() returned\n[harness] calling rtmp_disconnect() (old-style teardown)...\n[harness] done, no crash observed\n"
+          }
+        },
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "f96bd65839f7fcde58267e0f1e04cfd4c73158456707a4eaa6fcfae03df5a146",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "cd3be116b688f293376a3071ed1db3130c5139fa",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "55e6229ea982cff7373ac81cc0ddbd877e92127e0f3dbb9a0736f18fbaaca7e0"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "eturned\n[harness] tearing down conn->meta_hash (invokes rtmp_conn_dtor if 'r' is still registered)...\n[harness] RTMP_Free() call\n=================================================================\n==8==ERROR: AddressSanitizer: attempting double-free on 0x503000000070 in thread T0:\n    #0 0x7ff894e75537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55e1406f161f in RTMP_Free /poc/harness_postintro.c:66\n    #2 0x55e1406f164d in rtmp_conn_dtor curl_rtmp.c:231\n    #3 0x55e1406f246b in hash_elem_clear_ptr /work/lib/hash.c:137\n    #4 0x55e1406f255a in hash_elem_destroy /work/lib/hash.c:147\n    #5 0x55e1406f329f in Curl_hash_clean /work/lib/hash.c:302\n    #6 0x55e1406f338f in Curl_hash_destroy /work/lib/hash.c:280\n    #7 0x55e1406f2262 in main /poc/harness_postintro.c:150\n    #8 0x7ff89458cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #9 0x7ff89458ce3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #10 0x55e1406f13a4 in _start (/tmp/harness_run+0x63a4)\n\n0x503000000070 is located 0 bytes inside of 20-byte region [0x503000000070,0x503000000084)\nfreed by thread T0 here:\n    #0 0x7ff894e75537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55e1406f161f in RTMP_Free /poc/harness_postintro.c:66\n    #2 0x55e1406f17ca in rtmp_setup_connection curl_rtmp.c:245\n    #3 0x55e1406f222e in main /poc/harness_postintro.c:140\n    #4 0x7ff89458cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\npreviously allocated by thread T0 here:\n    #0 0x7ff894e75a57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154\n    #1 0x55e1406f1589 in RTMP_Alloc /poc/harness_postintro.c:51\n    #2 0x55e1406f1767 in rtmp_setup_connection curl_rtmp.c:237\n    #3 0x55e1406f222e in main /poc/harness_postintro.c:140\n    #4 0x7ff89458cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: double-free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127 in __interceptor_free\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n",
+            "stdout_tail": "lt]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:148:3: note: in expansion of macro 'LOG'\n  148 |   LOG(\"[harness] tearing down conn->meta_hash \"\n      |   ^~~\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:152:3: note: in expansion of macro 'LOG'\n  152 |   LOG(\"[harness] done, no crash observed\\n\");\n      |   ^~~\n[harness] calling rtmp_setup_connection()...\n[harness] RTMP_Alloc\n[harness] RTMP_SetupURL -> failure (simulated bad URL)\n[harness] RTMP_Free() call\n[harness] rtmp_setup_connection() returned\n[harness] tearing down conn->meta_hash (invokes rtmp_conn_dtor if 'r' is still registered)...\n[harness] RTMP_Free() call\n=================================================================\n==8==ERROR: AddressSanitizer: attempting double-free on 0x503000000070 in thread T0:\n    #0 0x7ff894e75537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55e1406f161f in RTMP_Free /poc/harness_postintro.c:66\n    #2 0x55e1406f164d in rtmp_conn_dtor curl_rtmp.c:231\n    #3 0x55e1406f246b in hash_elem_clear_ptr /work/lib/hash.c:137\n    #4 0x55e1406f255a in hash_elem_destroy /work/lib/hash.c:147\n    #5 0x55e1406f329f in Curl_hash_clean /work/lib/hash.c:302\n    #6 0x55e1406f338f in Curl_hash_destroy /work/lib/hash.c:280\n    #7 0x55e1406f2262 in main /poc/harness_postintro.c:150\n    #8 0x7ff89458cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #9 0x7ff89458ce3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #10 0x55e1406f13a4 in _start (/tmp/harness_run+0x63a4)\n\n0x503000000070 is located 0 bytes inside of 20-byte region [0x503000000070,0x503000000084)\nfreed by thread T0 here:\n    #0 0x7ff894e75537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55e1406f161f in RTMP_Free /poc/harness_postintro.c:66\n    #2 0x55e1406f17ca in rtmp_setup_connection curl_rtmp.c:245\n    #3 0x55e1406f222e in main /poc/harness_postintro.c:140\n    #4 0x7ff89458cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\npreviously allocated by thread T0 here:\n    #0 0x7ff894e75a57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154\n    #1 0x55e1406f1589 in RTMP_Alloc /poc/harness_postintro.c:51\n    #2 0x55e1406f1767 in rtmp_setup_connection curl_rtmp.c:237\n    #3 0x55e1406f222e in main /poc/harness_postintro.c:140\n    #4 0x7ff89458cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: double-free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127 in __interceptor_free\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "f96bd65839f7fcde58267e0f1e04cfd4c73158456707a4eaa6fcfae03df5a146",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "76d13c721bcd992e3e19f52d3a5281b8755283f3",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "ed256be91eaf3742ae186e6d31acabe1ac751fc9198115d39e63c6458eb01783"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "sg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:52:3: note: in expansion of macro 'LOG'\n   52 |   LOG(\"[harness] RTMP_Alloc\\n\");\n      |   ^~~\n/poc/harness_postintro.c: In function 'RTMP_SetupURL':\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:59:3: note: in expansion of macro 'LOG'\n   59 |   LOG(\"[harness] RTMP_SetupURL -> failure (simulated bad URL)\\n\");\n      |   ^~~\n/poc/harness_postintro.c: In function 'RTMP_Free':\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:65:3: note: in expansion of macro 'LOG'\n   65 |   LOG(\"[harness] RTMP_Free() call\\n\");\n      |   ^~~\n/poc/harness_postintro.c: In function 'main':\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:139:3: note: in expansion of macro 'LOG'\n  139 |   LOG(\"[harness] calling rtmp_setup_connection()...\\n\");\n      |   ^~~\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:142:3: note: in expansion of macro 'LOG'\n  142 |   LOG(\"[harness] rtmp_setup_connection() returned\\n\");\n      |   ^~~\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:148:3: note: in expansion of macro 'LOG'\n  148 |   LOG(\"[harness] tearing down conn->meta_hash \"\n      |   ^~~\n/poc/harness_postintro.c:40:18: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   40 | #define LOG(msg) write(2, msg, sizeof(msg) - 1)\n      |                  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n/poc/harness_postintro.c:152:3: note: in expansion of macro 'LOG'\n  152 |   LOG(\"[harness] done, no crash observed\\n\");\n      |   ^~~\n[harness] calling rtmp_setup_connection()...\n[harness] RTMP_Alloc\n[harness] RTMP_SetupURL -> failure (simulated bad URL)\n[harness] rtmp_setup_connection() returned\n[harness] tearing down conn->meta_hash (invokes rtmp_conn_dtor if 'r' is still registered)...\n[harness] RTMP_Free() call\n[harness] done, no crash observed\n"
+          }
+        }
+      },
+      "explanation": "This container's curl was configured without librtmp (only the librtmp1 runtime .so.1 is installed, no -dev headers/symlink), so the stock `curl rtmp://...` path never reaches lib/curl_rtmp.c at all (it compiles to an empty TU without USE_LIBRTMP), and no existing PoC input file was usable. To reproduce faithfully, /poc/run.sh #includes the actual, unmodified lib/curl_rtmp.c from whichever revision is built (with -DUSE_LIBRTMP=1 and a minimal stand-in <librtmp/rtmp.h> supplying just the fields/functions curl_rtmp.c references), links against the project's real lib/hash.c object so Curl_conn_meta_set/get/remove exercise the genuine Curl_hash implementation, and drives rtmp_setup_connection() with a URL for which the fake RTMP_SetupURL() reports a parse failure (mirroring the reporter's malformed-RTMP-URL scenario), followed by the connection-teardown path appropriate to that revision. run_poc confirmed on all three builds:\n\n- pre_intro (76d13c721bcd): exit=0, crashed=False. rtmp_setup_connection() manually calls RTMP_Free(r) on the RTMP_SetupURL failure path; conn->proto.rtmp is only assigned on the success path so it stays NULL, and the old-style rtmp_disconnect() teardown sees r==NULL and does nothing further — single free, correct pre-bug behavior.\n- post_intro (cd3be116b688): exit=134, crashed=True. rtmp_setup_connection() registers r into conn->meta_hash via Curl_conn_meta_set(..., rtmp_conn_dtor) right after RTMP_Alloc(), but still manually calls RTMP_Free(r) on the RTMP_SetupURL failure path (the pre-existing manual free was not removed when ownership moved to the meta-hash destructor). Tearing the connection down (Curl_hash_destroy, matching real url.c cleanup) runs rtmp_conn_dtor(), which calls RTMP_Free(r) again on the same pointer. AddressSanitizer reports a double-free with the exact expected stack: freed first at curl_rtmp.c:245 (rtmp_setup_connection's manual free) and freed again at curl_rtmp.c:231 (rtmp_conn_dtor via Curl_hash_destroy/hash_elem_destroy) — matching the meta.json root cause precisely.\n- post_benign (fix on top of 76d13c721bcd): exit=0, crashed=False. The manual RTMP_Free(r) on the failure path is removed (comment: \"rtmp_conn_dtor() performs the cleanup\"), relying solely on the meta-hash destructor; RTMP_Free is called exactly once, no crash.\n\nSame triggering scenario (RTMP_SetupURL failure during connection setup) reproduced across all three revisions confirms intro introduces the double-free and the benign/fix revision removes it."
+    }
+  },
+  "task_hashes": {
+    "buggy": "8bdb6e094db39e0641a147fd1a1aca7a75359b60060fb1ef576ab66ddd6951af",
+    "benign": "6a7efad86cf8fed7fe43d81bba4128a2b74f2525069458e00511630d3e6c693b"
+  }
+}

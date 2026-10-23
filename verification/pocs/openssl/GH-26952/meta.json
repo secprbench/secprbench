@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-26952",
+  "bug_id": "GH-26952",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "5949918f9afa85d72535676f114346ed541e0b1e",
+  "intro_parent": "65787e2dc219685c30539c6f60eb6b64b890bf6f",
+  "fix_commit": "6e7be995fd7fd24d38b95982cf90f801ac045743",
+  "affected_files": [
+    "crypto/threads_pthread.c",
+    "crypto/threads_win.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "openssl",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_d2a7730d4af00a59_threadstest.c: test/threadstest.c"
+  ],
+  "input_name": null,
+  "root_cause": "The write-side 'retire in order' signal (next_to_retire increment + condvar broadcast + mutex unlock) was placed before, rather than after, the busy-wait loop that confirms the current qp has zero active readers. This decouples the order-enforcement signal from the actual safety condition it is meant to guarantee (that the qp is no longer in use), allowing the next writer in line to race ahead and retire/reuse a qp whose safety has not yet been verified.",
+  "findings": [
+    "In ossl_synchronize_rcu(), the write-side retirement handshake (incrementing lock->next_to_retire, broadcasting lock->prior_signal, and unlocking lock->prior_lock) was reordered to happen BEFORE the loop that waits for the current qp's reader count (qp->users) to reach zero, instead of after it. The next_to_retire counter and its broadcast are the signal that tells the NEXT waiting writer (synchro"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "743e56cfe4badf8b62a1943dea8095d8ca98b2ac52d1149b66aae5aa262d62d7",
+  "generated_artifact_sha256": {
+    "reference": "83b98f8b6b402ae07bff6ff1b5c3473bc61d3297b58104caf562768cc7e6f1e0",
+    "introducing": "46602d7f52e6c46a7bed57128734be2db5ffe2b218ac86ac58f1a48745d473a9",
+    "companion": "bd9aac428d0089c5262f308d6944b9573285f6c41bf8f1e6f93372a13fc4a917"
+  }
+}

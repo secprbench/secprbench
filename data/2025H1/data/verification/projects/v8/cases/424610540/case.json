@@ -1,0 +1,35 @@
+{
+  "bug_id": "424610540",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "63198ef5f7483ce7cd2481159cb48f06b05d21df",
+    "parent": "3b0fdbd3cd9429073bb4396029491b67fbca37c5",
+    "fix": "897d8169b0576fa7b53b6447ff35e578d5474ca4"
+  },
+  "affected_files": [
+    "src/compiler/simplified-lowering.cc"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "No revision was testable. The configured sanitizer build failed identically for pre_intro, post_intro, and post_benign before producing /work/out.gn/verify/d8: tools/dev/v8gen.py imported tools/mb/mb.py, which raised ModuleNotFoundError: No module named 'urllib2'. Per the benchmark rules, the pinned target source/build tooling was not repaired and the unchanged failed builds were not retried. Because no affected API execution or behavioral oracle could run, there is no reproduction evidence for ",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "reproduce-pipeline agent (Docker 3-way build + reproducer)",
+    "oracle": "release_check_differential",
+    "environment": "hwiwonlee/v8.base:latest (depot_tools+gn+ninja on Ubuntu 24.04), custom bash driver scripts run.sh/run2.sh in this workdir. is_debug=true, v8_optimized_debug=true, dcheck_always_on=true, v8_enable_slow_dchecks=true, is_component_build=false, is_asan=false, symbol_level=1, target_cpu=x64. Three environment fixes applied entirely inside the container (documented in status.json and inline comments in run.sh/run2.sh): (1) real ninja 1.12.1 binary fetched to PATH because this 2020-era v8 predates DEPS-managed ninja and depot_tools/ninja.py refuses to fall back; (2) LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu so the prebuilt (2020-pinned) ld.lld resolves the host's own newer libstdc++/libicuuc instead of its bundled ancient libstdc++.so.6 (root-caused via ldd: ld.lld itself depends on host libxml2->libicuuc, and its DT_RUNPATH otherwise prefers the incompatible bundled libstdc++); (3) patched vendored third_party/jinja2's py2-era 'from collections import Mapping/MutableMapping/...' to 'from collections.abc import ...' for Python 3.12 compatibility (identical patch applied regardless of revision, no bias). None of these needed for the 2025-era near-head build, whose modern toolchain matched the host cleanly.",
+    "parent": "Commit 3b0fdbd3cd9429073bb4396029491b67fbca37c5 (2020-04-27, immediate parent of intro). Built is_debug=true d8 via incremental file-swap on the intro tree; PoC ran clean, exit 0, no crash. Note: a similarly-shaped ternary already existed pre-refactor at a different call site in the file, but the 2020 tree lacks the TurboFan Array/indexOf inlining machinery the PoC needs, so this is a feature-absent-style clean result, not proof of absence of the underlying flaw.",
+    "intro": "Two builds performed. (a) TRUE intro commit 63198ef5f7483ce7cd2481159cb48f06b05d21df (2020-04-27): is_debug=true d8 built successfully (confirmed via grep that the vulnerable ternary from the ground truth is present at the labelled function); PoC ran clean, exit 0, NO crash. Root cause of the clean run: bug_id 424610540 was filed by fuzzing in 2025, five years after this commit; the PoC's trigger (Array(([f0,f0,f0])[1]).indexOf() producing a SameValue-typed None pure node) needs TurboFan Array/indexOf-inlining infrastructure that did not exist yet in April 2020, so the code defect exists but is unreachable by this PoC at this revision. (b) EFFECTIVE-intro / pre-fix commit ef5225097917290af9455f4f39dcc556ff70b343 (897d8169...^1, 2025-06-13): built fresh is_debug=true d8 (2354 ninja targets, ~15 min); this tree carries the SAME unmodified vulnerable simplified-lowering.cc as the labelled intro commit (untouched for 5 years) plus the full modern TurboFan infra. Running the PoC here CRASHED: exit 133 (SIGABRT), 'Fatal error in ../../src/compiler/node-properties.h, line 92 / Check failed: index < node->op()->ControlInputCount() (0 vs. 0).' This exactly matches the ground truth's CHECK_LT in NodeProperties::GetControlInput reached via the missing-guard ternary in InsertUnreachableIfNecessary<LOWER>.",
+    "benign": "Incremental rebuild (only 7 files, same tree as (b) above) with src/compiler/simplified-lowering.cc checked out from the fix commit 897d8169b0576fa7b53b6447ff35e578d5474ca4: build OK; PoC ran clean, exit 0, no crash, no fatal output. Confirms the official fix resolves the crash with everything else held constant.",
+    "evidence": "near_intro_run.log: '# Fatal error in ../../src/compiler/node-properties.h, line 92\\n# Check failed: index < node->op()->ControlInputCount() (0 vs. 0).' RUN_EXIT=133. fix_run.log: RUN_EXIT=0. Upstream node-properties.h source confirms: 'static Node* GetControlInput(Node* node, int index = 0) { CHECK_LE(0, index); CHECK_LT(index, node->op()->ControlInputCount()); ... }' -- this is CHECK_LT (release-mode, always-on), not DCHECK, so is_debug=true was a convenience/safety choice, not a strict requirement.",
+    "poc_source": "fetched",
+    "reason": "The task's own affected-commit triplet spans a genuine 5-year gap: intro (2020-04-27) and parent (2020-04-27) are adjacent 2020 commits, but the fix (2025-06-13) is the actual upstream resolution filed against a 2025 fuzzer-found bug_id. Fetched the fix commit's diff directly from chromium.googlesource.com and found it includes the exact upstream regression test test/mjsunit/regress/regress-424610540.js, saved verbatim as poc.js -- the canonical PoC, not a guess. Running that PoC against a build of the literal 2020 intro commit does not crash, but grep confirms the vulnerable ternary (`(node->op()->ControlOutputCount() == 0) ? GetControlInput(...) : FindSuccessfulControlProjection(...)` with no branch for the pure-node case) is present verbatim at that commit -- the code defect was introduced then, exactly as labelled, but the specific fuzzer-discovered JS trigger needs Array/indexOf Tur",
+    "verified_by": "reproduce-pipeline",
+    "record": "reproduce-pipeline/status/v8__424610540/result.json"
+  },
+  "final_disposition": "verified"
+}

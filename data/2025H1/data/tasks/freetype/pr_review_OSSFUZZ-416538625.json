@@ -1,0 +1,122 @@
+{
+  "task_id": "pr_review_OSSFUZZ-416538625",
+  "bug_id": "OSSFUZZ-416538625",
+  "commit_sha": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+  "commit_message": "[truetype, cff] Add code to load SVG document.\n\n* src/cff/cffgload.c (cff_slot_load): Add code to load SVG doc.\n* src/truetype/ttgload.c (TT_Load_Glyph): Add code to load SVG doc.",
+  "commit_author": "Moazin Khatti",
+  "commit_date": "2021-12-25T19:46:46-08:00",
+  "pr_title": "[truetype, cff] Add code to load SVG document.",
+  "pr_description": "* src/cff/cffgload.c (cff_slot_load): Add code to load SVG doc.\n* src/truetype/ttgload.c (TT_Load_Glyph): Add code to load SVG doc.\n",
+  "files": [
+    {
+      "path": "src/cff/cffgload.c",
+      "status": "modified",
+      "additions": 70,
+      "deletions": 0,
+      "diff": "diff --git a/src/cff/cffgload.c b/src/cff/cffgload.c\nindex 86b8ea5ed..2ef9c760c 100644\n--- a/src/cff/cffgload.c\n+++ b/src/cff/cffgload.c\n@@ -344,10 +344,80 @@\n \n     /* return immediately if we only want the embedded bitmaps */\n     if ( load_flags & FT_LOAD_SBITS_ONLY )\n       return FT_THROW( Invalid_Argument );\n \n+#ifdef FT_CONFIG_OPTION_SVG\n+    /* check for OT-SVG */\n+    if ( ( load_flags & FT_LOAD_COLOR )     &&\n+         ( (TT_Face)glyph->root.face )->svg )\n+    {\n+      /*\n+       * We load the SVG document and try to grab the advances from the\n+       * table.  For the bearings we rely on the presetting hook to do that.\n+       */\n+\n+      FT_Short      dummy;\n+      FT_UShort     advanceX;\n+      FT_UShort     advanceY;\n+      SFNT_Service  sfnt;\n+\n+\n+      if ( size->root.metrics.x_ppem < 1 ||\n+           size->root.metrics.y_ppem < 1 )\n+      {\n+        error = FT_THROW( Invalid_Size_Handle );\n+        return error;\n+      }\n+\n+      FT_TRACE3(( \"Trying to load SVG glyph\\n\" ));\n+\n+      sfnt  = (SFNT_Service)((TT_Face)glyph->root.face)->sfnt;\n+      error = sfnt->load_svg_doc( (FT_GlyphSlot)glyph, glyph_index );\n+      if ( !error )\n+      {\n+        FT_TRACE3(( \"Successfully loaded SVG glyph\\n\" ));\n+\n+        glyph->root.format = FT_GLYPH_FORMAT_SVG;\n+\n+        /*\n+         * If horizontal or vertical advances are not present in the table,\n+         * this is a problem with the font since the standard requires them.\n+         * However, we are graceful and calculate the values by ourselves\n+         * for the vertical case.\n+         */\n+        sfnt->get_metrics( face,\n+                           FALSE,\n+                           glyph_index,\n+                           &dummy,\n+                           &advanceX );\n+        sfnt->get_metrics( face,\n+                           TRUE,\n+                           glyph_index,\n+                           &dummy,\n+                           &advanceY );\n+\n+        advanceX =\n+          (FT_UShort)FT_MulDiv( advanceX,\n+                                glyph->root.face->size->metrics.x_ppem,\n+                                glyph->root.face->units_per_EM );\n+        advanceY =\n+          (FT_UShort)FT_MulDiv( advanceY,\n+                                glyph->root.face->size->metrics.y_ppem,\n+                                glyph->root.face->units_per_EM );\n+\n+        glyph->root.metrics.horiAdvance = advanceX << 6;\n+        glyph->root.metrics.vertAdvance = advanceY << 6;\n+\n+        return error;\n+      }\n+\n+      FT_TRACE3(( \"Failed to load SVG glyph\\n\" ));\n+    }\n+\n+#endif /* FT_CONFIG_OPTION_SVG */\n+\n     /* if we have a CID subfont, use its matrix (which has already */\n     /* been multiplied with the root matrix)                       */\n \n     /* this scaling is only relevant if the PS hinter isn't active */\n     if ( cff->num_subfonts )\n"
+    },
+    {
+      "path": "src/truetype/ttgload.c",
+      "status": "modified",
+      "additions": 63,
+      "deletions": 1,
+      "diff": "diff --git a/src/truetype/ttgload.c b/src/truetype/ttgload.c\nindex e77305931..33d743bd3 100644\n--- a/src/truetype/ttgload.c\n+++ b/src/truetype/ttgload.c\n@@ -2917,25 +2917,87 @@\n \n         return FT_Err_Ok;\n       }\n     }\n \n+    if ( load_flags & FT_LOAD_SBITS_ONLY )\n+    {\n+      error = FT_THROW( Invalid_Argument );\n+      goto Exit;\n+    }\n+\n #endif /* TT_CONFIG_OPTION_EMBEDDED_BITMAPS */\n \n     /* if FT_LOAD_NO_SCALE is not set, `ttmetrics' must be valid */\n     if ( !( load_flags & FT_LOAD_NO_SCALE ) && !size->ttmetrics.valid )\n     {\n       error = FT_THROW( Invalid_Size_Handle );\n       goto Exit;\n     }\n \n-    if ( load_flags & FT_LOAD_SBITS_ONLY )\n+#ifdef FT_CONFIG_OPTION_SVG\n+\n+    /* check for OT-SVG */\n+    if ( ( load_flags & FT_LOAD_COLOR ) && ( (TT_Face)glyph->face )->svg )\n+    {\n+      SFNT_Service  sfnt;\n+\n+      FT_Short   leftBearing;\n+      FT_Short   topBearing;\n+      FT_UShort  advanceX;\n+      FT_UShort  advanceY;\n+\n+\n+      FT_TRACE3(( \"Trying to load SVG glyph\\n\" ));\n+      sfnt = (SFNT_Service)( (TT_Face)glyph->face )->sfnt;\n+\n+      error = sfnt->load_svg_doc( glyph, glyph_index );\n+      if ( !error )\n+      {\n+        TT_Face  face = (TT_Face)glyph->face;\n+\n+\n+        FT_TRACE3(( \"Successfully loaded SVG glyph\\n\" ));\n+\n+        glyph->format = FT_GLYPH_FORMAT_SVG;\n+\n+        sfnt->get_metrics( face,\n+                           FALSE,\n+                           glyph_index,\n+                           &leftBearing,\n+                           &advanceX );\n+        sfnt->get_metrics( face,\n+                           TRUE,\n+                           glyph_index,\n+                           &topBearing,\n+                           &advanceY );\n+\n+        advanceX = (FT_UShort)FT_MulDiv( advanceX,\n+                                         glyph->face->size->metrics.x_ppem,\n+                                         glyph->face->units_per_EM );\n+        advanceY = (FT_UShort)FT_MulDiv( advanceY,\n+                                         glyph->face->size->metrics.y_ppem,\n+                                         glyph->face->units_per_EM );\n+\n+        glyph->metrics.horiAdvance = advanceX << 6;\n+        glyph->metrics.vertAdvance = advanceY << 6;\n+\n+        return error;\n+      }\n+\n+      FT_TRACE3(( \"Failed to load SVG glyph\\n\" ));\n+    }\n+\n+    /* return immediately if we only want SVG glyphs */\n+    if ( load_flags & FT_LOAD_SVG_ONLY )\n     {\n       error = FT_THROW( Invalid_Argument );\n       goto Exit;\n     }\n \n+#endif /* FT_CONFIG_OPTION_SVG */\n+\n     error = tt_loader_init( &loader, size, glyph, load_flags, FALSE );\n     if ( error )\n       goto Exit;\n \n     /* done if we are only interested in the `hdmx` advance */\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/cff/cffgload.c b/src/cff/cffgload.c\nindex 86b8ea5ed..2ef9c760c 100644\n--- a/src/cff/cffgload.c\n+++ b/src/cff/cffgload.c\n@@ -344,10 +344,80 @@\n \n     /* return immediately if we only want the embedded bitmaps */\n     if ( load_flags & FT_LOAD_SBITS_ONLY )\n       return FT_THROW( Invalid_Argument );\n \n+#ifdef FT_CONFIG_OPTION_SVG\n+    /* check for OT-SVG */\n+    if ( ( load_flags & FT_LOAD_COLOR )     &&\n+         ( (TT_Face)glyph->root.face )->svg )\n+    {\n+      /*\n+       * We load the SVG document and try to grab the advances from the\n+       * table.  For the bearings we rely on the presetting hook to do that.\n+       */\n+\n+      FT_Short      dummy;\n+      FT_UShort     advanceX;\n+      FT_UShort     advanceY;\n+      SFNT_Service  sfnt;\n+\n+\n+      if ( size->root.metrics.x_ppem < 1 ||\n+           size->root.metrics.y_ppem < 1 )\n+      {\n+        error = FT_THROW( Invalid_Size_Handle );\n+        return error;\n+      }\n+\n+      FT_TRACE3(( \"Trying to load SVG glyph\\n\" ));\n+\n+      sfnt  = (SFNT_Service)((TT_Face)glyph->root.face)->sfnt;\n+      error = sfnt->load_svg_doc( (FT_GlyphSlot)glyph, glyph_index );\n+      if ( !error )\n+      {\n+        FT_TRACE3(( \"Successfully loaded SVG glyph\\n\" ));\n+\n+        glyph->root.format = FT_GLYPH_FORMAT_SVG;\n+\n+        /*\n+         * If horizontal or vertical advances are not present in the table,\n+         * this is a problem with the font since the standard requires them.\n+         * However, we are graceful and calculate the values by ourselves\n+         * for the vertical case.\n+         */\n+        sfnt->get_metrics( face,\n+                           FALSE,\n+                           glyph_index,\n+                           &dummy,\n+                           &advanceX );\n+        sfnt->get_metrics( face,\n+                           TRUE,\n+                           glyph_index,\n+                           &dummy,\n+                           &advanceY );\n+\n+        advanceX =\n+          (FT_UShort)FT_MulDiv( advanceX,\n+                                glyph->root.face->size->metrics.x_ppem,\n+                                glyph->root.face->units_per_EM );\n+        advanceY =\n+          (FT_UShort)FT_MulDiv( advanceY,\n+                                glyph->root.face->size->metrics.y_ppem,\n+                                glyph->root.face->units_per_EM );\n+\n+        glyph->root.metrics.horiAdvance = advanceX << 6;\n+        glyph->root.metrics.vertAdvance = advanceY << 6;\n+\n+        return error;\n+      }\n+\n+      FT_TRACE3(( \"Failed to load SVG glyph\\n\" ));\n+    }\n+\n+#endif /* FT_CONFIG_OPTION_SVG */\n+\n     /* if we have a CID subfont, use its matrix (which has already */\n     /* been multiplied with the root matrix)                       */\n \n     /* this scaling is only relevant if the PS hinter isn't active */\n     if ( cff->num_subfonts )\ndiff --git a/src/truetype/ttgload.c b/src/truetype/ttgload.c\nindex e77305931..33d743bd3 100644\n--- a/src/truetype/ttgload.c\n+++ b/src/truetype/ttgload.c\n@@ -2917,25 +2917,87 @@\n \n         return FT_Err_Ok;\n       }\n     }\n \n+    if ( load_flags & FT_LOAD_SBITS_ONLY )\n+    {\n+      error = FT_THROW( Invalid_Argument );\n+      goto Exit;\n+    }\n+\n #endif /* TT_CONFIG_OPTION_EMBEDDED_BITMAPS */\n \n     /* if FT_LOAD_NO_SCALE is not set, `ttmetrics' must be valid */\n     if ( !( load_flags & FT_LOAD_NO_SCALE ) && !size->ttmetrics.valid )\n     {\n       error = FT_THROW( Invalid_Size_Handle );\n       goto Exit;\n     }\n \n-    if ( load_flags & FT_LOAD_SBITS_ONLY )\n+#ifdef FT_CONFIG_OPTION_SVG\n+\n+    /* check for OT-SVG */\n+    if ( ( load_flags & FT_LOAD_COLOR ) && ( (TT_Face)glyph->face )->svg )\n+    {\n+      SFNT_Service  sfnt;\n+\n+      FT_Short   leftBearing;\n+      FT_Short   topBearing;\n+      FT_UShort  advanceX;\n+      FT_UShort  advanceY;\n+\n+\n+      FT_TRACE3(( \"Trying to load SVG glyph\\n\" ));\n+      sfnt = (SFNT_Service)( (TT_Face)glyph->face )->sfnt;\n+\n+      error = sfnt->load_svg_doc( glyph, glyph_index );\n+      if ( !error )\n+      {\n+        TT_Face  face = (TT_Face)glyph->face;\n+\n+\n+        FT_TRACE3(( \"Successfully loaded SVG glyph\\n\" ));\n+\n+        glyph->format = FT_GLYPH_FORMAT_SVG;\n+\n+        sfnt->get_metrics( face,\n+                           FALSE,\n+                           glyph_index,\n+                           &leftBearing,\n+                           &advanceX );\n+        sfnt->get_metrics( face,\n+                           TRUE,\n+                           glyph_index,\n+                           &topBearing,\n+                           &advanceY );\n+\n+        advanceX = (FT_UShort)FT_MulDiv( advanceX,\n+                                         glyph->face->size->metrics.x_ppem,\n+                                         glyph->face->units_per_EM );\n+        advanceY = (FT_UShort)FT_MulDiv( advanceY,\n+                                         glyph->face->size->metrics.y_ppem,\n+                                         glyph->face->units_per_EM );\n+\n+        glyph->metrics.horiAdvance = advanceX << 6;\n+        glyph->metrics.vertAdvance = advanceY << 6;\n+\n+        return error;\n+      }\n+\n+      FT_TRACE3(( \"Failed to load SVG glyph\\n\" ));\n+    }\n+\n+    /* return immediately if we only want SVG glyphs */\n+    if ( load_flags & FT_LOAD_SVG_ONLY )\n     {\n       error = FT_THROW( Invalid_Argument );\n       goto Exit;\n     }\n \n+#endif /* FT_CONFIG_OPTION_SVG */\n+\n     error = tt_loader_init( &loader, size, glyph, load_flags, FALSE );\n     if ( error )\n       goto Exit;\n \n     /* done if we are only interested in the `hdmx` advance */\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-416538625",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "6fa8725a416735a9cf62b68b8aa146144c1e471e",
+      "short_sha": "6fa8725",
+      "message": "[sfnt] Avoid allocation bomb in compressed SVG documents.",
+      "author": "Werner Lemberg",
+      "date": "2025-05-09T13:27:51+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "freetype-svg-gzip-allocation-bomb",
+        "title": "SVG glyph loading reaches an unbounded gzip expansion allocation",
+        "message": "The newly added glyph-load call reaches tt_face_load_svg_doc. That parser trusts the gzip trailer's uncompressed size and requests a buffer of that size before imposing a cap.",
+        "location": {
+          "file": "src/truetype/ttgload.c",
+          "start_line": 2953,
+          "end_line": 2953,
+          "start_column": null,
+          "end_column": null,
+          "function": "TT_Load_Glyph",
+          "snippet": "      error = sfnt->load_svg_doc( glyph, glyph_index );",
+          "snippet_hash": "3b358ec0bb76a7bfd68696ffebcd787e001bc485285293682a6c040972a44379",
+          "description": "New public glyph-load reachability in the exact 2022 introduction.",
+          "snippet_start_line": 2953,
+          "revision_validated": true
+        },
+        "related_locations": [
+          {
+            "file": "src/sfnt/ttsvg.c",
+            "start_line": 322,
+            "end_line": 322,
+            "start_column": null,
+            "end_column": null,
+            "function": "tt_face_load_svg_doc",
+            "snippet": "      if ( FT_QALLOC( uncomp_buffer, uncomp_size ) )",
+            "snippet_hash": "2281c9bd8c5bea7eb5aef7799008290982dee9aa58bdd3c801aca6b05a256c48",
+            "description": "Preexisting dormant allocation reached by the new glyph-load call.",
+            "snippet_start_line": 322,
+            "revision_validated": true
+          }
+        ],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.97,
+        "suggestion": "At the introducing revision, reject gzip SVG documents whose uncomp_size is at least 1<<26 before FT_QALLOC in src/sfnt/ttsvg.c. Preserve a normal error return for such input; the upstream fix adds this exact size cap.",
+        "suggestion_code": null,
+        "tags": [
+          "OT-SVG",
+          "gzip",
+          "font",
+          "allocation-bomb",
+          "denial-of-service"
+        ],
+        "cwe_ids": [
+          "CWE-400"
+        ],
+        "references": [
+          "https://issues.oss-fuzz.com/issues/416538625",
+          "https://github.com/freetype/freetype/commit/6fa8725a416735a9cf62b68b8aa146144c1e471e"
+        ]
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/truetype/ttgload.c",
+      "src/cff/cffgload.c",
+      "src/sfnt/ttsvg.c"
+    ],
+    "root_cause": "tt_face_load_svg_doc reads the gzip trailer's ISIZE as uncomp_size and passes it to FT_QALLOC without a cap. Before this introduction, the public glyph loader did not call the SVG document loader. The 2025 fix bounds ISIZE; an equivalent small guard applies to the 2022 tree.",
+    "must_cover": [
+      {
+        "file": "src/truetype/ttgload.c",
+        "function": "TT_Load_Glyph",
+        "start_line": 2953,
+        "end_line": 2953,
+        "role": "primary",
+        "reason": "Primary location of finding: SVG glyph loading reaches an unbounded gzip expansion allocation"
+      },
+      {
+        "file": "src/sfnt/ttsvg.c",
+        "function": "tt_face_load_svg_doc",
+        "start_line": 322,
+        "end_line": 322,
+        "role": "related",
+        "reason": "Related location for: SVG glyph loading reaches an unbounded gzip expansion allocation"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "5cf01aa2b26727abd97ef202a3687cd7a43819c3",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

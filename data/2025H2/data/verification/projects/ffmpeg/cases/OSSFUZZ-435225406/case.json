@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-435225406",
+  "project": "ffmpeg",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "7c5319e6924fd82772eff890df191f973767d38e",
+    "parent": "ce172bc362f09a12dc422283d81313bde4920f51",
+    "fix": "75f30b4d3e2320275b60be1cf3213ce2cbf55ff8"
+  },
+  "affected_files": [
+    "libavcodec/vvc/ctu.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Verified by direct code execution of the unmodified vulnerable function across all three revisions using the identical harness/input:\n- pre_intro (ce172bc362f0): ff_vvc_palette_escape_val(lc) (old 1-arg API) decodes the same bits, and the caller checks `coeff >= (1U << bit_depth)` BEFORE the multiply, returning AVERROR_INVALIDDATA cleanly (no overflow). run_poc: exit=0, crashed=False, prints \"palette_subblock_data returned -1094995529\".\n- post_intro (7c5319e6924f): ff_vvc_palette_escape_val(lc, max) (new failable API) returns the same negative sentinel, but the `if (coeff < 0) return ...` check was placed AFTER `const int pixel = av_clip_intp2(RSHIFT(coeff * scale, 6), ...)`, so coeff (-1094995529) * scale (64) executes and overflows signed int. run_poc: exit=134, crashed=True, UBSan report: \"libavcodec/vvc/ctu.c:2057:53: runtime error: signed integer overflow: -1094995529 * 64 cannot be represented in type 'int'\" inside palette_subblock_data — this exactly matches the upstream fix commit's cited UBSan finding (\"-1094995529 * 6528\") at the same source line/function, just with a different (still overflowing) scale value produced by our minimal QP setup.\n- post_benign (fix applied on ce172bc362f0): the `if (coeff < 0) return AVERROR_INVALIDDATA;` check is moved BEFORE the multiply/pixel computation (matching the real fix), so the function returns before the multiply. run_poc: exit=0, crashed=False, same clean \"-1094995529\" return as pre_intro.\n\nThe same input bytes, the same harness call into the same static function, and the same build/run command (/poc/run.sh, invoked identically by run_poc) were used for all three revisions — only the target source under test differed. This isolates the regression to the check-after-multiply ordering introduced by 7c5319e6924f and confirms the companion patch removes it, exactly as described in root_cause/fix_message.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/047e8d10ad1044c1c66f/attempts/04/replay/pr_review_OSSFUZZ-435225406.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/047e8d10ad1044c1c66f/attempts/04/replay/pr_review_OSSFUZZ-435225406.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/047e8d10ad1044c1c66f/attempts/04/replay/pr_review_OSSFUZZ-435225406.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "8b6df65cd42ec7e913fbdb6968e910be243dd9174d6d802ae350c3d9532ebf34",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "7c5319e6924fd82772eff890df191f973767d38e",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "ab11b6f7a8f64fb27e71370c0e7b99e2a83f3c212349dc759f5f6ca134548d4d"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "argument to parameter 'tab' here\nstatic void set_tb_tab(uint8_t *tab, uint8_t v, const VVCFrameContext *fc,\n                                ^\n2 warnings generated.\n/work/libavcodec/vvc/ctu.c:2057:53: runtime error: signed integer overflow: -1094995529 * 64 cannot be represented in type 'int'\n    #0 0x56133fdca3ec in palette_subblock_data /work/libavcodec/vvc/ctu.c:2057:53\n    #1 0x56133fdc5057 in main /poc/harness.c:87:15\n    #2 0x7f45d355dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #3 0x7f45d355de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #4 0x56133fcfb0e4 in _start (/tmp/poc_harness+0x4880e4) (BuildId: 26f7eb737d4b392c053cade07eaf89e2da1aefb7)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /work/libavcodec/vvc/ctu.c:2057:53 in \n/poc/run.sh: line 36:    12 Aborted                 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 /tmp/poc_harness\n",
+            "stdout_tail": "VERIFY_EXIT=134\n\nIn file included from /poc/harness.c:13:\n/work/libavcodec/vvc/ctu.c:171:20: warning: passing 'int8_t *' (aka 'signed char *') to parameter of type 'uint8_t *' (aka 'unsigned char *') converts between pointers to integer types with different sign [-Wpointer-sign]\n    set_cb_tab(lc, lc->fc->tab.qp[LUMA], ep->qp_y);\n                   ^~~~~~~~~~~~~~~~~~~~\n/work/libavcodec/vvc/ctu.c:122:60: note: passing argument to parameter 'tab' here\nstatic void set_cb_tab(const VVCLocalContext *lc, uint8_t *tab, const uint8_t v)\n                                                           ^\n/work/libavcodec/vvc/ctu.c:182:16: warning: passing 'int8_t *' (aka 'signed char *') to parameter of type 'uint8_t *' (aka 'unsigned char *') converts between pointers to integer types with different sign [-Wpointer-sign]\n    set_tb_tab(lc->fc->tab.qp[tb->c_idx], lc->cu->qp[idx], lc->fc, tb);\n               ^~~~~~~~~~~~~~~~~~~~~~~~~\n/work/libavcodec/vvc/ctu.c:60:33: note: passing argument to parameter 'tab' here\nstatic void set_tb_tab(uint8_t *tab, uint8_t v, const VVCFrameContext *fc,\n                                ^\n2 warnings generated.\n/work/libavcodec/vvc/ctu.c:2057:53: runtime error: signed integer overflow: -1094995529 * 64 cannot be represented in type 'int'\n    #0 0x56133fdca3ec in palette_subblock_data /work/libavcodec/vvc/ctu.c:2057:53\n    #1 0x56133fdc5057 in main /poc/harness.c:87:15\n    #2 0x7f45d355dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #3 0x7f45d355de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #4 0x56133fcfb0e4 in _start (/tmp/poc_harness+0x4880e4) (BuildId: 26f7eb737d4b392c053cade07eaf89e2da1aefb7)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /work/libavcodec/vvc/ctu.c:2057:53 in \n/poc/run.sh: line 36:    12 Aborted                 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 /tmp/poc_harness\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "8b6df65cd42ec7e913fbdb6968e910be243dd9174d6d802ae350c3d9532ebf34",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "ce172bc362f09a12dc422283d81313bde4920f51",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "7ee76ce7814e8c18be315adaf3e5f10325528ddf74203db48c5911ca93945158"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "palette_subblock_data returned -1094995529\nVERIFY_EXIT=0\n\nIn file included from /poc/harness.c:13:\n/work/libavcodec/vvc/ctu.c:170:20: warning: passing 'int8_t *' (aka 'signed char *') to parameter of type 'uint8_t *' (aka 'unsigned char *') converts between pointers to integer types with different sign [-Wpointer-sign]\n    set_cb_tab(lc, lc->fc->tab.qp[LUMA], ep->qp_y);\n                   ^~~~~~~~~~~~~~~~~~~~\n/work/libavcodec/vvc/ctu.c:121:60: note: passing argument to parameter 'tab' here\nstatic void set_cb_tab(const VVCLocalContext *lc, uint8_t *tab, const uint8_t v)\n                                                           ^\n/work/libavcodec/vvc/ctu.c:181:16: warning: passing 'int8_t *' (aka 'signed char *') to parameter of type 'uint8_t *' (aka 'unsigned char *') converts between pointers to integer types with different sign [-Wpointer-sign]\n    set_tb_tab(lc->fc->tab.qp[tb->c_idx], lc->cu->qp[idx], lc->fc, tb);\n               ^~~~~~~~~~~~~~~~~~~~~~~~~\n/work/libavcodec/vvc/ctu.c:59:33: note: passing argument to parameter 'tab' here\nstatic void set_tb_tab(uint8_t *tab, uint8_t v, const VVCFrameContext *fc,\n                                ^\n2 warnings generated.\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "8b6df65cd42ec7e913fbdb6968e910be243dd9174d6d802ae350c3d9532ebf34",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "ce172bc362f09a12dc422283d81313bde4920f51",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "a0798aeed6c0410946d869854662b3dd3add7ae2ef04f5b157ecce7eb888a691"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "palette_subblock_data returned -1094995529\nVERIFY_EXIT=0\n\nIn file included from /poc/harness.c:13:\n/work/libavcodec/vvc/ctu.c:171:20: warning: passing 'int8_t *' (aka 'signed char *') to parameter of type 'uint8_t *' (aka 'unsigned char *') converts between pointers to integer types with different sign [-Wpointer-sign]\n    set_cb_tab(lc, lc->fc->tab.qp[LUMA], ep->qp_y);\n                   ^~~~~~~~~~~~~~~~~~~~\n/work/libavcodec/vvc/ctu.c:122:60: note: passing argument to parameter 'tab' here\nstatic void set_cb_tab(const VVCLocalContext *lc, uint8_t *tab, const uint8_t v)\n                                                           ^\n/work/libavcodec/vvc/ctu.c:182:16: warning: passing 'int8_t *' (aka 'signed char *') to parameter of type 'uint8_t *' (aka 'unsigned char *') converts between pointers to integer types with different sign [-Wpointer-sign]\n    set_tb_tab(lc->fc->tab.qp[tb->c_idx], lc->cu->qp[idx], lc->fc, tb);\n               ^~~~~~~~~~~~~~~~~~~~~~~~~\n/work/libavcodec/vvc/ctu.c:60:33: note: passing argument to parameter 'tab' here\nstatic void set_tb_tab(uint8_t *tab, uint8_t v, const VVCFrameContext *fc,\n                                ^\n2 warnings generated.\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "Sanitizer-report oracle (not behavioral): UndefinedBehaviorSanitizer signed-integer-overflow report anchored at the exact vulnerable line (libavcodec/vvc/ctu.c, the `coeff * scale` multiply inside palette_subblock_data) must appear only for post_intro under the fixed harness/input; pre_intro and post_benign must complete cleanly under the identical harness/input.",
+        "target_evidence": "post_intro UBSan report: \"/work/libavcodec/vvc/ctu.c:2057:53: runtime error: signed integer overflow: -1094995529 * 64 cannot be represented in type 'int'\" with stack frame \"#0 ... in palette_subblock_data /work/libavcodec/vvc/ctu.c:2057:53\", process aborted (exit 134). pre_intro and post_benign both print \"palette_subblock_data returned -1094995529\" and exit 0 with no sanitizer report."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Verified by direct code execution of the unmodified vulnerable function across all three revisions using the identical harness/input:\n- pre_intro (ce172bc362f0): ff_vvc_palette_escape_val(lc) (old 1-arg API) decodes the same bits, and the caller checks `coeff >= (1U << bit_depth)` BEFORE the multiply, returning AVERROR_INVALIDDATA cleanly (no overflow). run_poc: exit=0, crashed=False, prints \"palette_subblock_data returned -1094995529\".\n- post_intro (7c5319e6924f): ff_vvc_palette_escape_val(lc, max) (new failable API) returns the same negative sentinel, but the `if (coeff < 0) return ...` check was placed AFTER `const int pixel = av_clip_intp2(RSHIFT(coeff * scale, 6), ...)`, so coeff (-1094995529) * scale (64) executes and overflows signed int. run_poc: exit=134, crashed=True, UBSan report: \"libavcodec/vvc/ctu.c:2057:53: runtime error: signed integer overflow: -1094995529 * 64 cannot be represented in type 'int'\" inside palette_subblock_data — this exactly matches the upstream fix commit's cited UBSan finding (\"-1094995529 * 6528\") at the same source line/function, just with a different (still overflowing) scale value produced by our minimal QP setup.\n- post_benign (fix applied on ce172bc362f0): the `if (coeff < 0) return AVERROR_INVALIDDATA;` check is moved BEFORE the multiply/pixel computation (matching the real fix), so the function returns before the multiply. run_poc: exit=0, crashed=False, same clean \"-1094995529\" return as pre_intro.\n\nThe same input bytes, the same harness call into the same static function, and the same build/run command (/poc/run.sh, invoked identically by run_poc) were used for all three revisions — only the target source under test differed. This isolates the regression to the check-after-multiply ordering introduced by 7c5319e6924f and confirms the companion patch removes it, exactly as described in root_cause/fix_message."
+    }
+  },
+  "task_hashes": {
+    "buggy": "ab513dc027bd33e6b7d3d9334df9e71088363ed1b4dda18634a1347445c1aaf8",
+    "benign": "b063545684740511e3130b80569eb1a5700e6f41086d749ad407df50704737b9"
+  }
+}

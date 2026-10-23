@@ -1,0 +1,115 @@
+{
+  "task_id": "pr_review_GH-27272",
+  "bug_id": "GH-27272",
+  "commit_sha": "fa495604516a610d988f02298c8d97a6ac4777bb",
+  "commit_message": "Fix handling of max_fragment_length extension for PSK\n\nA psk session was assumed to be a resumption which failed a check\nwhen parsing the max_fragment_length extension hello from the client.\n\nRelevant code from PR#18130 which was a suggested fix to the issue\nwas cherry-picked.\n\nFixes #18121\n\nReviewed-by: Matt Caswell <matt@openssl.org>\nReviewed-by: Viktor Dukhovni <viktor@openssl.org>\nReviewed-by: Tomas Mraz <tomas@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/24513)",
+  "commit_author": "Frederik Wedel-Heinen",
+  "commit_date": "2024-05-28T13:59:44+02:00",
+  "pr_title": "Fix handling of max_fragment_length extension for PSK",
+  "pr_description": "A psk session was assumed to be a resumption which failed a check\nwhen parsing the max_fragment_length extension hello from the client.\n\nRelevant code from PR#18130 which was a suggested fix to the issue\nwas cherry-picked.\n\nFixes #18121\n\nReviewed-by: Matt Caswell <matt@openssl.org>\nReviewed-by: Viktor Dukhovni <viktor@openssl.org>\nReviewed-by: Tomas Mraz <tomas@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/24513)\n",
+  "files": [
+    {
+      "path": "include/openssl/tls1.h",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "diff": "diff --git a/include/openssl/tls1.h b/include/openssl/tls1.h\nindex 8ff39e3956b..8a963f62f6d 100644\n--- a/include/openssl/tls1.h\n+++ b/include/openssl/tls1.h\n@@ -229,10 +229,12 @@ extern \"C\" {\n /* Allowed values for max fragment length extension */\n # define TLSEXT_max_fragment_length_512         1\n # define TLSEXT_max_fragment_length_1024        2\n # define TLSEXT_max_fragment_length_2048        3\n # define TLSEXT_max_fragment_length_4096        4\n+/* OpenSSL value for unset maximum fragment length extension */\n+# define TLSEXT_max_fragment_length_UNSPECIFIED 255\n \n /*\n  * TLS Certificate Type (for RFC7250)\n  * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-3\n  */\n"
+    },
+    {
+      "path": "ssl/ssl_sess.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/ssl/ssl_sess.c b/ssl/ssl_sess.c\nindex d326eadb048..12c64d8b7ae 100644\n--- a/ssl/ssl_sess.c\n+++ b/ssl/ssl_sess.c\n@@ -107,10 +107,11 @@ SSL_SESSION *SSL_SESSION_new(void)\n \n     ss = OPENSSL_zalloc(sizeof(*ss));\n     if (ss == NULL)\n         return NULL;\n \n+    ss->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_UNSPECIFIED;\n     ss->verify_result = 1;      /* avoid 0 (= X509_V_OK) just in case */\n    /* 5 minute timeout by default */\n     ss->timeout = ossl_seconds2time(60 * 5 + 4);\n     ss->time = ossl_time_now();\n     ssl_session_calculate_timeout(ss);\n"
+    },
+    {
+      "path": "ssl/statem/extensions.c",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 9,
+      "diff": "diff --git a/ssl/statem/extensions.c b/ssl/statem/extensions.c\nindex 0a64ca22469..a52b9096efd 100644\n--- a/ssl/statem/extensions.c\n+++ b/ssl/statem/extensions.c\n@@ -1739,19 +1739,13 @@ static int final_early_data(SSL_CONNECTION *s, unsigned int context, int sent)\n }\n \n static int final_maxfragmentlen(SSL_CONNECTION *s, unsigned int context,\n                                 int sent)\n {\n-    /*\n-     * Session resumption on server-side with MFL extension active\n-     *  BUT MFL extension packet was not resent (i.e. sent == 0)\n-     */\n-    if (s->server && s->hit && USE_MAX_FRAGMENT_LENGTH_EXT(s->session)\n-            && !sent ) {\n-        SSLfatal(s, SSL_AD_MISSING_EXTENSION, SSL_R_BAD_EXTENSION);\n-        return 0;\n-    }\n+    /* MaxFragmentLength defaults to disabled */\n+    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n+        s->session->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_DISABLED;\n \n     if (s->session && USE_MAX_FRAGMENT_LENGTH_EXT(s->session)) {\n         s->rlayer.rrlmethod->set_max_frag_len(s->rlayer.rrl,\n                                               GET_MAX_FRAGMENT_LENGTH(s->session));\n         s->rlayer.wrlmethod->set_max_frag_len(s->rlayer.wrl,\n"
+    },
+    {
+      "path": "ssl/statem/extensions_srvr.c",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 12,
+      "diff": "diff --git a/ssl/statem/extensions_srvr.c b/ssl/statem/extensions_srvr.c\nindex 2962a0bdcd3..699cc202c34 100644\n--- a/ssl/statem/extensions_srvr.c\n+++ b/ssl/statem/extensions_srvr.c\n@@ -190,25 +190,30 @@ int tls_parse_ctos_maxfragmentlen(SSL_CONNECTION *s, PACKET *pkt,\n                  SSL_R_SSL3_EXT_INVALID_MAX_FRAGMENT_LENGTH);\n         return 0;\n     }\n \n     /*\n-     * RFC 6066:  The negotiated length applies for the duration of the session\n+     * When doing a full handshake or a renegotiation max_fragment_len_mode will\n+     * be TLSEXT_max_fragment_length_UNSPECIFIED\n+     *\n+     * In case of a resumption max_fragment_len_mode will be one of\n+     *      TLSEXT_max_fragment_length_DISABLED, TLSEXT_max_fragment_length_512,\n+     *      TLSEXT_max_fragment_length_1024, TLSEXT_max_fragment_length_2048.\n+     *      TLSEXT_max_fragment_length_4096\n+     *\n+     * RFC 6066: The negotiated length applies for the duration of the session\n      * including session resumptions.\n-     * We should receive the same code as in resumed session !\n+     *\n+     * So we only set the value in case it is unspecified.\n      */\n-    if (s->hit && s->session->ext.max_fragment_len_mode != value) {\n-        SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER,\n-                 SSL_R_SSL3_EXT_INVALID_MAX_FRAGMENT_LENGTH);\n-        return 0;\n-    }\n+    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n+        /*\n+         * Store it in session, so it'll become binding for us\n+         * and we'll include it in a next Server Hello.\n+         */\n+        s->session->ext.max_fragment_len_mode = value;\n \n-    /*\n-     * Store it in session, so it'll become binding for us\n-     * and we'll include it in a next Server Hello.\n-     */\n-    s->session->ext.max_fragment_len_mode = value;\n     return 1;\n }\n \n #ifndef OPENSSL_NO_SRP\n int tls_parse_ctos_srp(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,\n"
+    },
+    {
+      "path": "ssl/t1_lib.c",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "diff": "diff --git a/ssl/t1_lib.c b/ssl/t1_lib.c\nindex cb9eefb5058..14e9cee0ee4 100644\n--- a/ssl/t1_lib.c\n+++ b/ssl/t1_lib.c\n@@ -3928,10 +3928,12 @@ int SSL_set_tlsext_max_fragment_length(SSL *ssl, uint8_t mode)\n     return 1;\n }\n \n uint8_t SSL_SESSION_get_max_fragment_length(const SSL_SESSION *session)\n {\n+    if (session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n+        return TLSEXT_max_fragment_length_DISABLED;\n     return session->ext.max_fragment_len_mode;\n }\n \n /*\n  * Helper functions for HMAC access with legacy support included.\n"
+    }
+  ],
+  "full_diff": "diff --git a/include/openssl/tls1.h b/include/openssl/tls1.h\nindex 8ff39e3956b..8a963f62f6d 100644\n--- a/include/openssl/tls1.h\n+++ b/include/openssl/tls1.h\n@@ -229,10 +229,12 @@ extern \"C\" {\n /* Allowed values for max fragment length extension */\n # define TLSEXT_max_fragment_length_512         1\n # define TLSEXT_max_fragment_length_1024        2\n # define TLSEXT_max_fragment_length_2048        3\n # define TLSEXT_max_fragment_length_4096        4\n+/* OpenSSL value for unset maximum fragment length extension */\n+# define TLSEXT_max_fragment_length_UNSPECIFIED 255\n \n /*\n  * TLS Certificate Type (for RFC7250)\n  * https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#tls-extensiontype-values-3\n  */\ndiff --git a/ssl/ssl_sess.c b/ssl/ssl_sess.c\nindex d326eadb048..12c64d8b7ae 100644\n--- a/ssl/ssl_sess.c\n+++ b/ssl/ssl_sess.c\n@@ -107,10 +107,11 @@ SSL_SESSION *SSL_SESSION_new(void)\n \n     ss = OPENSSL_zalloc(sizeof(*ss));\n     if (ss == NULL)\n         return NULL;\n \n+    ss->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_UNSPECIFIED;\n     ss->verify_result = 1;      /* avoid 0 (= X509_V_OK) just in case */\n    /* 5 minute timeout by default */\n     ss->timeout = ossl_seconds2time(60 * 5 + 4);\n     ss->time = ossl_time_now();\n     ssl_session_calculate_timeout(ss);\ndiff --git a/ssl/statem/extensions.c b/ssl/statem/extensions.c\nindex 0a64ca22469..a52b9096efd 100644\n--- a/ssl/statem/extensions.c\n+++ b/ssl/statem/extensions.c\n@@ -1739,19 +1739,13 @@ static int final_early_data(SSL_CONNECTION *s, unsigned int context, int sent)\n }\n \n static int final_maxfragmentlen(SSL_CONNECTION *s, unsigned int context,\n                                 int sent)\n {\n-    /*\n-     * Session resumption on server-side with MFL extension active\n-     *  BUT MFL extension packet was not resent (i.e. sent == 0)\n-     */\n-    if (s->server && s->hit && USE_MAX_FRAGMENT_LENGTH_EXT(s->session)\n-            && !sent ) {\n-        SSLfatal(s, SSL_AD_MISSING_EXTENSION, SSL_R_BAD_EXTENSION);\n-        return 0;\n-    }\n+    /* MaxFragmentLength defaults to disabled */\n+    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n+        s->session->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_DISABLED;\n \n     if (s->session && USE_MAX_FRAGMENT_LENGTH_EXT(s->session)) {\n         s->rlayer.rrlmethod->set_max_frag_len(s->rlayer.rrl,\n                                               GET_MAX_FRAGMENT_LENGTH(s->session));\n         s->rlayer.wrlmethod->set_max_frag_len(s->rlayer.wrl,\ndiff --git a/ssl/statem/extensions_srvr.c b/ssl/statem/extensions_srvr.c\nindex 2962a0bdcd3..699cc202c34 100644\n--- a/ssl/statem/extensions_srvr.c\n+++ b/ssl/statem/extensions_srvr.c\n@@ -190,25 +190,30 @@ int tls_parse_ctos_maxfragmentlen(SSL_CONNECTION *s, PACKET *pkt,\n                  SSL_R_SSL3_EXT_INVALID_MAX_FRAGMENT_LENGTH);\n         return 0;\n     }\n \n     /*\n-     * RFC 6066:  The negotiated length applies for the duration of the session\n+     * When doing a full handshake or a renegotiation max_fragment_len_mode will\n+     * be TLSEXT_max_fragment_length_UNSPECIFIED\n+     *\n+     * In case of a resumption max_fragment_len_mode will be one of\n+     *      TLSEXT_max_fragment_length_DISABLED, TLSEXT_max_fragment_length_512,\n+     *      TLSEXT_max_fragment_length_1024, TLSEXT_max_fragment_length_2048.\n+     *      TLSEXT_max_fragment_length_4096\n+     *\n+     * RFC 6066: The negotiated length applies for the duration of the session\n      * including session resumptions.\n-     * We should receive the same code as in resumed session !\n+     *\n+     * So we only set the value in case it is unspecified.\n      */\n-    if (s->hit && s->session->ext.max_fragment_len_mode != value) {\n-        SSLfatal(s, SSL_AD_ILLEGAL_PARAMETER,\n-                 SSL_R_SSL3_EXT_INVALID_MAX_FRAGMENT_LENGTH);\n-        return 0;\n-    }\n+    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n+        /*\n+         * Store it in session, so it'll become binding for us\n+         * and we'll include it in a next Server Hello.\n+         */\n+        s->session->ext.max_fragment_len_mode = value;\n \n-    /*\n-     * Store it in session, so it'll become binding for us\n-     * and we'll include it in a next Server Hello.\n-     */\n-    s->session->ext.max_fragment_len_mode = value;\n     return 1;\n }\n \n #ifndef OPENSSL_NO_SRP\n int tls_parse_ctos_srp(SSL_CONNECTION *s, PACKET *pkt, unsigned int context,\ndiff --git a/ssl/t1_lib.c b/ssl/t1_lib.c\nindex cb9eefb5058..14e9cee0ee4 100644\n--- a/ssl/t1_lib.c\n+++ b/ssl/t1_lib.c\n@@ -3928,10 +3928,12 @@ int SSL_set_tlsext_max_fragment_length(SSL *ssl, uint8_t mode)\n     return 1;\n }\n \n uint8_t SSL_SESSION_get_max_fragment_length(const SSL_SESSION *session)\n {\n+    if (session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n+        return TLSEXT_max_fragment_length_DISABLED;\n     return session->ext.max_fragment_len_mode;\n }\n \n /*\n  * Helper functions for HMAC access with legacy support included.\n",
+  "ground_truth": {
+    "bug_id": "GH-27272",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "28de1f5004c1083d358e6934552124a201e0251e",
+      "short_sha": "28de1f5004c",
+      "message": "Fix potential NULL pointer dereference in final_maxfragmentlen()",
+      "author": "Andrey Tsygunka",
+      "date": "2025-04-04T14:58:40+03:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullptr-01",
+        "title": "NULL pointer dereference of s->session in final_maxfragmentlen()",
+        "message": "final_maxfragmentlen() unconditionally dereferences s->session (via s->session->ext.max_fragment_len_mode) at the top of the function, before the existing NULL check 'if (s->session && USE_MAX_FRAGMENT_LENGTH_EXT(s->session))' further down. s->session can legitimately be NULL at this point in the handshake state machine (this extension-processing callback runs for both client and server, and in some PSK / early handshake states the session has not yet been established or resumed). This introduces a crash (NULL pointer dereference / DoS) reachable by a remote peer that drives the handshake into a state where final_maxfragmentlen() is invoked with s->session == NULL.",
+        "location": {
+          "file": "ssl/statem/extensions.c",
+          "start_line": 1741,
+          "end_line": 1745,
+          "start_column": null,
+          "end_column": null,
+          "function": "final_maxfragmentlen",
+          "snippet": "static int final_maxfragmentlen(SSL_CONNECTION *s, unsigned int context,\n                                int sent)\n{\n    /* MaxFragmentLength defaults to disabled */\n    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n        s->session->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_DISABLED;\n\n    if (s->session && USE_MAX_FRAGMENT_LENGTH_EXT(s->session)) {",
+          "snippet_hash": "4ddbe35b839f0585b11a339b3d6c1407b2884676aae6e7fefcb034dc55d22f0d",
+          "description": null,
+          "snippet_start_line": 1741,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.95,
+        "suggestion": "Move the NULL check for s->session to the very top of the function, before any dereference, and return early (success) if it is NULL, since there is nothing to do for max-fragment-length handling without a session.",
+        "suggestion_code": "static int final_maxfragmentlen(SSL_CONNECTION *s, unsigned int context,\n                                int sent)\n{\n    if (s->session == NULL)\n        return 1;\n\n    /* MaxFragmentLength defaults to disabled */\n    if (s->session->ext.max_fragment_len_mode == TLSEXT_max_fragment_length_UNSPECIFIED)\n        s->session->ext.max_fragment_len_mode = TLSEXT_max_fragment_length_DISABLED;\n\n    if (USE_MAX_FRAGMENT_LENGTH_EXT(s->session)) {",
+        "tags": [
+          "security",
+          "null-pointer",
+          "tls",
+          "handshake"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "ssl/statem/extensions.c"
+    ],
+    "root_cause": "A new dereference of s->session was introduced above an existing NULL check for the same pointer, instead of placing the NULL check before any use of s->session. The refactor removed the old PSK-resumption-specific check (which happened to also reference s->session only after other guards) and replaced it with unconditional access, without re-validating that s->session could still be NULL at function entry in all call paths.",
+    "must_cover": [
+      {
+        "file": "ssl/statem/extensions.c",
+        "function": "final_maxfragmentlen",
+        "start_line": 1741,
+        "end_line": 1745,
+        "role": "primary",
+        "reason": "Primary location of finding: NULL pointer dereference of s->session in final_maxfragmentlen()"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "fa495604516a610d988f02298c8d97a6ac4777bb",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

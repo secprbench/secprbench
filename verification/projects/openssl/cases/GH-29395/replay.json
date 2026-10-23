@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-29395",
+    "bug_id": "GH-29395",
+    "bug_type": "NullPointerDereference",
+    "intro_commit": "1a91fda1839bc745e8359f82d19a5ef44ca36f7e",
+    "intro_parent": "8c110311fd5e7f04e2c152b17d44acfd4a279ea6",
+    "fix_commit": "380ff1448596926fc9d252c8e4c2720b006ef912",
+    "affected_files": [
+      "crypto/bio/bio_lib.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Built pre_intro (8c110311fd5e), post_intro (1a91fda1839b) and post_benign (fix-equivalent) with OpenSSL's default ASan+UBSan config and ran the identical PoC/run.sh against all three. post_intro crashes with a UBSan 'load of null pointer of type size_t' report at crypto/bio/bio_lib.c:66 inside bio_call_callback, called from BIO_sendmmsg at bio_lib.c:435 (the BIO_CB_SENDMMSG|BIO_CB_RETURN invocation that passes inret=ret (a positive value) but processed=NULL). pre_intro does not crash: BIO_sendmmsg's RETURN callback previously hard-coded inret=0, so the `inret > 0` guard at line 66 was never true and *processed was never dereferenced (dead-safe code path) -- the PoC completes and reports 'BIO_sendmmsg returned 0, processed=0', consistent with the old always-0 inret. post_benign (which passes the real msgs_processed pointer instead of NULL, matching the upstream fix 380ff1448596) also completes without any sanitizer report and shows the *correct* behavior restored: 'BIO_sendmmsg returned 1, processed=1'. This exactly matches meta.json's root cause: 1a91fda1839b changed the previously-safe hardcoded-0 inret to the genuine positive return value while still passing a NULL processed pointer, re-activating a dead code path with an invalid argument; the fix supplies the valid processed pointer. Same reproducer (identical poc.c/run.sh) used unmodified across all three builds."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/openssl/58ae2f7ad3214e64ed74/attempts/01/pocs/openssl/GH-29395",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "d7fd92ad577ea3b85d88bb1d710b6537011931ad0f7c8ab946d50be78f8dcc93",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "1a91fda1839bc745e8359f82d19a5ef44ca36f7e",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "fe741b0d03937a24beb4757d61bdba5379199adc88827a0135a5371e41484580"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=1\n\nlegacy_cb called: oper=8 ret=1\ncrypto/bio/bio_lib.c:66:13: runtime error: load of null pointer of type 'size_t' (aka 'unsigned long')\n    #0 0x559580ea4d9a in bio_call_callback /work/crypto/bio/bio_lib.c:66\n    #1 0x559580ea64d4 in BIO_sendmmsg /work/crypto/bio/bio_lib.c:435\n    #2 0x559580ea457a in main /poc/poc.c:76\n    #3 0x7f4507825d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #4 0x7f4507825e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #5 0x559580ea4024 in _start (/tmp/poc+0x386024)\n\n",
+        "stdout_tail": "VERIFY_EXIT=1\n\nlegacy_cb called: oper=8 ret=1\ncrypto/bio/bio_lib.c:66:13: runtime error: load of null pointer of type 'size_t' (aka 'unsigned long')\n    #0 0x559580ea4d9a in bio_call_callback /work/crypto/bio/bio_lib.c:66\n    #1 0x559580ea64d4 in BIO_sendmmsg /work/crypto/bio/bio_lib.c:435\n    #2 0x559580ea457a in main /poc/poc.c:76\n    #3 0x7f4507825d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #4 0x7f4507825e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #5 0x559580ea4024 in _start (/tmp/poc+0x386024)\n\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "d7fd92ad577ea3b85d88bb1d710b6537011931ad0f7c8ab946d50be78f8dcc93",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "8c110311fd5e7f04e2c152b17d44acfd4a279ea6",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "85be70eb1de4db8c4f36e81ea38c4f2f9726c36cb28eaeea55e46f3d30cf276b"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "NO_CRASH: completed successfully\nVERIFY_EXIT=0\n\nlegacy_cb called: oper=8 ret=0\nBIO_sendmmsg returned 0, processed=0\nlegacy_cb called: oper=1 ret=1\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "d7fd92ad577ea3b85d88bb1d710b6537011931ad0f7c8ab946d50be78f8dcc93",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "8c110311fd5e7f04e2c152b17d44acfd4a279ea6",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d710eac8f7843bdbd89029fd390744c6727fc155f3b97bf14c92471fa9834910"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "NO_CRASH: completed successfully\nVERIFY_EXIT=0\n\nlegacy_cb called: oper=8 ret=1\nlegacy_cb called: oper=136 ret=1\nBIO_sendmmsg returned 1, processed=1\nlegacy_cb called: oper=1 ret=1\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "other",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "UBSan (compiled with -fsanitize=address,undefined -fno-sanitize-recover=all, OpenSSL's standard sanitizer config) reports 'load of null pointer of type size_t' at the exact statement `inret = *processed;` (bio_lib.c:66) reached only via BIO_sendmmsg's BIO_CB_RETURN legacy-callback invocation with a NULL processed pointer and inret>0. This is a crash-on-report harness abort (-fno-sanitize-recover=all), i.e. a real NULL pointer dereference, not a benign/ignorable diagnostic.",
+    "target_evidence": "post_intro: 'crypto/bio/bio_lib.c:66:13: runtime error: load of null pointer of type size_t (aka unsigned long)' with stack frames bio_call_callback -> BIO_sendmmsg -> main, process aborts (exit=1, crashed=True). pre_intro: exit=0, output '...BIO_sendmmsg returned 0, processed=0...' no sanitizer report. post_benign: exit=0, output '...BIO_sendmmsg returned 1, processed=1...' no sanitizer report."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

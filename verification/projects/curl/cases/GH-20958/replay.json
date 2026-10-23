@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-20958",
+    "bug_id": "GH-20958",
+    "bug_type": "LogicError",
+    "intro_commit": "769ccb4d4261a75c8a4236fbe7dc3e27956db1c9",
+    "intro_parent": "990a23bb97915567415d5857ee6d862a1528f1af",
+    "fix_commit": "ae09e5bf0d1f868f7094be8f640ec46d66e668bf",
+    "affected_files": [
+      "lib/curl_get_line.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "Exact bug and unaffected output lines matched the shared three-version Docker replay.",
+      "root cause confirmed by source diff and by execution. post_intro's Curl_get_line() (commit 769ccb4d4261) only sets `*eof = feof(input)` after fgets() fails and keeps looping `while(1)` until `*eof` is true; with a persistent I/O error (fgets() returns NULL, ferror() true, feof() false forever) the loop never terminates - verified: the PoC hits the 5s alarm guard and prints TIMEOUT_HANG, i.e. a genuine unbounded hang (DoS), not a resource-limit artifact. pre_intro uses the older Curl_get_line(buf,input) implementation which, on fgets() returning NULL with an empty accumulated buffer, falls into the `else` branch and `break`s out of the loop immediately, returning 0 - no hang, confirming the bug is absent before the introducing commit. post_benign (the agent-composed companion fix) adds the same `if(!b && ferror(input)) return CURLE_READ_ERROR;` check as the real upstream fix (ae09e5bf0d1f) and the PoC returns promptly with RESULT=26 (CURLE_READ_ERROR), EOF=0, matching the intended fix behavior. All three revisions were built with ASan+UBSan and exercised with the identical invocation (same run.sh / same FILE* oracle); only the API shape differs across the refactor boundary, which run.sh detects generically from the header rather than from bug-dependent behavior."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification/cases/curl/ac1aa8831478c1c85c93/attempts/01/pocs/curl/GH-20958",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "1a3bdd7685765365a4e146e905eedaaa865968e580bbcdc45306840c4d29c3d0",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "769ccb4d4261a75c8a4236fbe7dc3e27956db1c9",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a20cdb8dc6d5ddd7031b0e3fcb1958da1a1dceadcafd9de1ff8a9b6c642daf7e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "/poc/poc_new.c:14: warning: \"_GNU_SOURCE\" redefined\n   14 | #define _GNU_SOURCE\n      | \n<command-line>: note: this is the location of the previous definition\n/poc/poc_new.c: In function 'alarm_handler':\n/poc/poc_new.c:29:3: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   29 |   write(2, msg, sizeof(msg) - 1);\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nEXIT_CODE=42\nVERIFY_EXIT=0\n\nTIMEOUT_HANG: Curl_get_line did not return within 5s\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "1a3bdd7685765365a4e146e905eedaaa865968e580bbcdc45306840c4d29c3d0",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "990a23bb97915567415d5857ee6d862a1528f1af",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7b6c80896566ecc18be0bbeba81fcb7058027880fac0862ed9f5946f008161df"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "/poc/poc_new.c:14: warning: \"_GNU_SOURCE\" redefined\n   14 | #define _GNU_SOURCE\n      | \n<command-line>: note: this is the location of the previous definition\n/poc/poc_new.c: In function 'alarm_handler':\n/poc/poc_new.c:29:3: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   29 |   write(2, msg, sizeof(msg) - 1);\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nRESULT=26 EOF=0 LEN=0\nEXIT_CODE=0\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "1a3bdd7685765365a4e146e905eedaaa865968e580bbcdc45306840c4d29c3d0",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "990a23bb97915567415d5857ee6d862a1528f1af",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "ced2e180312f7ee782101955e8e81fa9532bdda424c5e44332769b9e00aa06bb"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "/poc/poc_old.c:5: warning: \"_GNU_SOURCE\" redefined\n    5 | #define _GNU_SOURCE\n      | \n<command-line>: note: this is the location of the previous definition\n/poc/poc_old.c: In function 'alarm_handler':\n/poc/poc_old.c:20:3: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]\n   20 |   write(2, msg, sizeof(msg) - 1);\n      |   ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\nRESULT=0 LEN=0\nEXIT_CODE=0\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "TIMEOUT_HANG: Curl_get_line did not return within 5s",
+    "pre_marker": "RESULT=0 LEN=0",
+    "benign_marker": "RESULT=26 EOF=0 LEN=0",
+    "description": "Custom driver (/poc/poc_new.c for the post-refactor 3-arg API, /poc/poc_old.c for pre_intro's 2-arg API, selected by /poc/run.sh via a grep of lib/curl_get_line.h) links directly against lib/.libs/libcurl.a and calls the internal Curl_get_line() with a FILE* created via glibc fopencookie() whose read callback always returns -1 with errno=EIO and never signals EOF \u2014 i.e. a persistent I/O read error, exactly the scenario in the bug report. A 5s alarm(2) guards against a real infinite loop so the test terminates deterministically.",
+    "target_evidence": "pre_intro: exit=0, stdout \"RESULT=0 LEN=0\" (no hang, old implementation bails out). post_intro: process self-terminated via alarm(5) printing \"TIMEOUT_HANG: Curl_get_line did not return within 5s\" to stderr and exiting 42 (confirmed unbounded loop, i.e. the labelled DoS/infinite-loop logic bug). post_benign: exit=0, stdout \"RESULT=26 EOF=0 LEN=0\" (CURLE_READ_ERROR returned promptly, no hang) - matches upstream fix ae09e5bf0d1f's added `if(!b && ferror(input)) return CURLE_READ_ERROR;` check, confirmed present verbatim in post_benign's lib/curl_get_line.c."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "behavioral",
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+  }
+}

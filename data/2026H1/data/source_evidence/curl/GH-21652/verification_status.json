@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "curl/GH-21652",
+  "case_id": "4916d583bc23ebb3161b",
+  "project": "curl",
+  "bug_id": "GH-21652",
+  "season": "2026H1",
+  "source_sha256": "671fefdf07e667034ea898602e8988c3337da11f5f47c6c248f01853f23026bb",
+  "generated_artifact_sha256": {
+    "reference": "63c59bcf6234cd1711b230897d923d7121845f6d080c57108a161aab36c20330",
+    "introducing": "eab44939c7f1ac2876bc79df5e381e1734e6e8d8b93040048daafbac8fc1e95f",
+    "companion": "33ab1825ee4da7b02ef18228852cf6532566fbb41dd8e870af3587236640a17e"
+  },
+  "poc_status": "candidate_only",
+  "fingerprint": "d16289e5d249fe855d8dc6ee16819a7d0375f870ce0bd4d1875818e834f676f6",
+  "recipe_source_sha256": "e4673b7f05a95a3b50ef4b2f8f4aa0471bb06e5abf04309709bb41ad55fb2e21",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "verified",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/curl/4916d583bc23ebb3161b/attempts/01",
+      "started_at": "2026-10-05T00:52:14.523415+00:00",
+      "status": "verified",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/curl/4916d583bc23ebb3161b/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/curl/4916d583bc23ebb3161b/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-05T00:57:51.337598+00:00"
+    }
+  ],
+  "updated_at": "2026-10-05T00:57:51.337598+00:00",
+  "case_record": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/verification/projects/curl/cases/GH-21652/case.json",
+  "report": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/curl/4916d583bc23ebb3161b/attempts/01/replay/pr_review_GH-21652.report.md",
+  "agent_used": true,
+  "recipe_sha256": "a3fad1fe8136936e6013",
+  "final_poc_sha256": "70b1606adfdbce4fd49f1a19d21a3bb43b7cc2113faa8177efc2e9c8ff74719a"
+}

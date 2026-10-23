@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-14134",
+  "bug_id": "GH-14134",
+  "bug_type": "LogicError",
+  "intro_commit": "70a079db5eaa201da00b72fdfd4cf349e8b8ede7",
+  "intro_parent": "b7c6755b1b44da36866c0376da0a000873177270",
+  "fix_commit": "a95b94b3dd8948671926f356ae9238ead7f079cf",
+  "affected_files": [
+    "src/networking.c",
+    "src/server.c",
+    "src/server.h",
+    "src/module.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "redis",
+  "source": "locally_fix_derived",
+  "attachments": [],
+  "input_name": "malformed_get.resp",
+  "root_cause": "processInputBuffer calls getSlotFromCommand on client argv before commandCheckArity. An invalid argument count can make the key-position traversal use unavailable argv entries.",
+  "findings": [
+    "At this newly introduced call, client-controlled argv reaches key-slot lookup before commandCheckArity. A malformed request can make Redis abort instead of returning an arity error."
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "30c00fd378127b1559e8ff12106e76e73e5b95f4e927daec1261cbd8906b3290",
+  "generated_artifact_sha256": {
+    "reference": "43ef52171b75b5c00ed976619e06ab880968e869da6c1f275c402723078b7ba9",
+    "introducing": "b95830778511e8f42ca4a69e97200f89fa85fc5320d486067fba621802e30acd",
+    "companion": "a1670562fac497d5d13e0162b1043541152ecf95a23e3721ecb6f69e9536324a"
+  }
+}

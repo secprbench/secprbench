@@ -1,0 +1,43 @@
+{
+  "task_id": "pr_review_OSSFUZZ-490433932_benign",
+  "bug_id": "OSSFUZZ-490433932",
+  "commit_sha": "31401a3b2d7a9c69c1c4292c59030fdd58402661",
+  "commit_message": "[Merged] Increase precision for B/W rasterizer.\n\n* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\nthe precision.  This corrects rendering of some small glyphs, for\nexample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\non my GNU/Linux box I don't see a performance degradation.",
+  "commit_author": "",
+  "commit_date": "2026-09-15T00:50:35.690189",
+  "pr_title": "raster: guard high-precision mode against large bitmap dimensions",
+  "pr_description": "The B/W rasterizer's `Set_High_Precision` function selects between two internal coordinate precision modes: a 12-bit mode (4096x scaling) for fine rendering of small glyphs, and a 6-bit mode (64x scaling) for larger content.\n\nPreviously, the 12-bit high-precision mode was enabled unconditionally whenever the `FT_OUTLINE_HIGH_PRECISION` flag was set. For large bitmaps, the 64x-per-axis coordinate scaling causes internal arithmetic values to exceed integer bounds, resulting in integer overflow.\n\nThis change adds a dimension guard: high precision is only activated when the bitmap's combined top and right extents are less than 256. For larger bitmaps, the rasterizer falls back to the standard 6-bit precision mode, which keeps all intermediate values well within integer range. Small glyph rendering quality (the original motivation for 12-bit precision) is unaffected.",
+  "files": [
+    {
+      "path": "ChangeLog",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 0,
+      "diff": "diff --git a/ChangeLog b/ChangeLog\nindex 36b621027..6edf1050c 100644\n--- a/ChangeLog\n+++ b/ChangeLog\n@@ -1,10 +1,19 @@\n+2009-06-11  Werner Lemberg  <wl@gnu.org>\n+\n+\tIncrease precision for B/W rasterizer.\n+\n+\t* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\n+\tthe precision.  This corrects rendering of some small glyphs, for\n+\texample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\n+\ton my GNU/Linux box I don't see a performance degradation.\n+\n 2009-06-08  Michael Zucchi  <notzed@gmail.com>\n \n \tHandle FT_STROKER_LINECAP_BUTT.\n \tThis fixes Savannah bug #26757.\n \n \t* src/base/ftstroke.c (ft_stroker_cap): Implement it.\n \n 2009-06-07  Harald Fernengel  <harry@kdevelop.org>\n \n \tFix some potential out-of-memory crashes.\n"
+    },
+    {
+      "path": "src/raster/ftraster.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 4,
+      "diff": "diff --git a/src/raster/ftraster.c b/src/raster/ftraster.c\nindex 12a8dff3e..2e925119c 100644\n--- a/src/raster/ftraster.c\n+++ b/src/raster/ftraster.c\n@@ -579,25 +579,25 @@\n   /* <Description>                                                         */\n   /*    Set precision variables according to param flag.                   */\n   /*                                                                       */\n   /* <Input>                                                               */\n   /*    High :: Set to True for high precision (typically for ppem < 18),  */\n   /*            false otherwise.                                           */\n   /*                                                                       */\n   static void\n   Set_High_Precision( RAS_ARGS Int  High )\n   {\n-    if ( High )\n+    if ( High && ras.bTop + ras.bRight < 256 )\n     {\n-      ras.precision_bits   = 10;\n-      ras.precision_step   = 128;\n-      ras.precision_jitter = 24;\n+      ras.precision_bits   = 12;\n+      ras.precision_step   = 256;\n+      ras.precision_jitter = 50;\n     }\n     else\n     {\n       ras.precision_bits   = 6;\n       ras.precision_step   = 32;\n       ras.precision_jitter = 2;\n     }\n \n     FT_TRACE6(( \"Set_High_Precision(%s)\\n\", High ? \"true\" : \"false\" ));\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/ChangeLog b/ChangeLog\nindex 36b621027..6edf1050c 100644\n--- a/ChangeLog\n+++ b/ChangeLog\n@@ -1,10 +1,19 @@\n+2009-06-11  Werner Lemberg  <wl@gnu.org>\n+\n+\tIncrease precision for B/W rasterizer.\n+\n+\t* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\n+\tthe precision.  This corrects rendering of some small glyphs, for\n+\texample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\n+\ton my GNU/Linux box I don't see a performance degradation.\n+\n 2009-06-08  Michael Zucchi  <notzed@gmail.com>\n \n \tHandle FT_STROKER_LINECAP_BUTT.\n \tThis fixes Savannah bug #26757.\n \n \t* src/base/ftstroke.c (ft_stroker_cap): Implement it.\n \n 2009-06-07  Harald Fernengel  <harry@kdevelop.org>\n \n \tFix some potential out-of-memory crashes.\ndiff --git a/src/raster/ftraster.c b/src/raster/ftraster.c\nindex 12a8dff3e..2e925119c 100644\n--- a/src/raster/ftraster.c\n+++ b/src/raster/ftraster.c\n@@ -579,25 +579,25 @@\n   /* <Description>                                                         */\n   /*    Set precision variables according to param flag.                   */\n   /*                                                                       */\n   /* <Input>                                                               */\n   /*    High :: Set to True for high precision (typically for ppem < 18),  */\n   /*            false otherwise.                                           */\n   /*                                                                       */\n   static void\n   Set_High_Precision( RAS_ARGS Int  High )\n   {\n-    if ( High )\n+    if ( High && ras.bTop + ras.bRight < 256 )\n     {\n-      ras.precision_bits   = 10;\n-      ras.precision_step   = 128;\n-      ras.precision_jitter = 24;\n+      ras.precision_bits   = 12;\n+      ras.precision_step   = 256;\n+      ras.precision_jitter = 50;\n     }\n     else\n     {\n       ras.precision_bits   = 6;\n       ras.precision_step   = 32;\n       ras.precision_jitter = 2;\n     }\n \n     FT_TRACE6(( \"Set_High_Precision(%s)\\n\", High ? \"true\" : \"false\" ));\n \n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-490433932",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "0409ef32686188c1947298e0fca9fbeadd23c1c3",
+    "fix_commit": "31401a3b2d7a9c69c1c4292c59030fdd58402661"
+  },
+  "task_type": "benign",
+  "intro_commit_sha": "0409ef32686188c1947298e0fca9fbeadd23c1c3",
+  "fix_commit_sha": "31401a3b2d7a9c69c1c4292c59030fdd58402661",
+  "intro_commit_message": "Increase precision for B/W rasterizer.\n\n* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\nthe precision.  This corrects rendering of some small glyphs, for\nexample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\non my GNU/Linux box I don't see a performance degradation.",
+  "fix_commit_message": "* src/raster/ftraster.c (Set_High_Precision): Limit size.\n\nThis should avoid integer overflows:\n   https://issues.oss-fuzz.com/issues/490433932\n   https://issues.oss-fuzz.com/issues/490464129",
+  "agent_reasoning": "Without the size check, calling Set_High_Precision with High=1 on a large bitmap unconditionally sets precision_bits=12, causing a 4096x internal coordinate scale. For large bitmaps (e.g., bTop+bRight >= 256), subsequent fixed-point arithmetic in the rasterizer overflows integer types, leading to undefined behavior and potential memory corruption. The fix gates the high-precision path on `ras.bTop + ras.bRight < 256`, ensuring that only small-glyph scenarios \u2014 where the scaled coordinates fit safely \u2014 use the 12-bit mode. Large bitmaps fall back to the 6-bit mode where the 64x scaling keeps values in range.",
+  "composed_via": "agent",
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

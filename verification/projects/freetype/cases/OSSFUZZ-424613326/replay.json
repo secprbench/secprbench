@@ -1,0 +1,94 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-424613326",
+    "bug_id": "OSSFUZZ-424613326",
+    "bug_type": "OutOfBoundsRead",
+    "intro_commit": "5a07f41d0eddddcae927957c6434c4174bae4e6a",
+    "intro_parent": "3aeabbf87d858398aeee6397cea568e624f38366",
+    "fix_commit": "d3668e00da732654b50e4e81f982544ed6e26390",
+    "affected_files": [
+      "src/sfnt/ttload.c",
+      "src/sfnt/sfobjs.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "locally_fix_derived",
+    "poc_dir": "/research-data/secprbench/freetype-dfont-paper-pair-import-v1/verification/cases/freetype/67d0bb59828d724deb71/attempts/01/pocs/freetype/OSSFUZZ-424613326",
+    "input_file": "/research-data/secprbench/freetype-dfont-paper-pair-import-v1/verification/cases/freetype/67d0bb59828d724deb71/attempts/01/pocs/freetype/OSSFUZZ-424613326/two-sfnt.bin",
+    "input_name": "two-sfnt.bin",
+    "size": 1775616,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "3aeabbf87d858398aeee6397cea568e624f38366",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "face_index=1 num_faces=2\ndirectory_length=0 probe_error=142\nORACLE_RESULT=TAG1_UNSUPPORTED_NO_OOB\nVERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "2d27154688d3b751d980f5bdc82da1dd87ccc163d8d457038504cafdbee29927"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "5a07f41d0eddddcae927957c6434c4174bae4e6a",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": true,
+      "sanitizer_report": "VERIFY_EXIT=1\n\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6020000000b8 at pc 0x5587e0337a46 bp 0x7ffcbf5269d0 sp 0x7ffcbf5269c8\nREAD of size 8 at 0x6020000000b8 thread T0\n    #0 0x5587e0337a45 in tt_face_load_any /work/src/sfnt/ttload.c:589:17\n    #1 0x5587e0360d88 in sfnt_load_table /work/src/sfnt/sfdriver.c:96:12\n    #2 0x5587e0247e0f in FT_Load_Sfnt_Table /work/src/base/ftobjs.c:4398:12\n    #3 0x5587e02301f2 in main /poc/oracle.c:28:11\n    #4 0x7f343cb63d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7f343cb63e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x5587e01723b4 in _start (/work/dfont_directory_oracle+0x1483b4) (BuildId: abc3ac41b3a8cd76a0531daa82ec110f26e0ce8b)\n\n0x6020000000b8 is located 0 bytes to the right of 8-byte region [0x6020000000b0,0x6020000000b8)\nallocated by thread T0 here:\n    #0 0x5587e01f51fe in __interceptor_malloc (/work/dfont_directory_oracle+0x1cb1fe) (BuildId: abc3ac41b3a8cd76a0531daa82ec110f26e0ce8b)\n    #1 0x5587e0401ecb in ft_alloc /work/builds/unix/ftsystem.c:113:12\n    #2 0x5587e0240539 in ft_mem_qalloc /work/src/base/ftutil.c:75:15\n    #3 0x5587e03313bf in sfnt_open_font /work/src/sfnt/sfobjs.c:484:12\n    #4 0x5587e03313bf in sfnt_init_face /work/src/sfnt/sfobjs.c:562:13\n    #5 0x5587e0378fcf in tt_face_init /work/src/truetype/ttobjs.c:693:13\n    #6 0x5587e025e76d in open_face /work/src/base/ftobjs.c:1542:15\n    #7 0x5587e023d95b in ft_open_face_internal /work/src/base/ftobjs.c:2598:17\n    #8 0x5587e025fa60 in open_face_from_buffer /work/src/base/ftobjs.c:1775:12\n    #9 0x5587e02610f8 in Mac_Read_sfnt_Resource /work/src/base/ftobjs.c:2224:13\n    #10 0x5587e02610f8 in IsMacResource /work/src/base/ftobjs.c:2287:15\n    #11 0x5587e023d221 in load_mac_face /work/src/base/ftobjs.c:2478:15\n    #12 0x5587e023d221 in ft_open_face_internal /work/src/base/ftobjs.c:2680:17\n    #13 0x5587e023c57a in FT_New_Face /work/src/base/ftobjs.c:1608:12\n    #14 0x5587e02300c3 in main /poc/oracle.c:15:11\n    #15 0x7f343cb63d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/src/sfnt/ttload.c:589:17 in tt_face_load_any\nShadow bytes around the buggy address:\n  0x0c047fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff8000: fa fa 00 fa fa fa 00 fa fa fa 00 fa fa fa 00 fa\n=>0x0c047fff8010: fa fa fd fd fa fa 00[fa]fa fa 00 fa fa fa 00 04\n  0x0c047fff8020: fa fa 00 fa fa fa 05 fa fa fa 05 fa fa fa fd fa\n  0x0c047fff8030: fa fa fd fd fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n ",
+      "build_log_tail": "",
+      "run_log_tail": "ac_Read_sfnt_Resource /work/src/base/ftobjs.c:2224:13\n    #10 0x5587e02610f8 in IsMacResource /work/src/base/ftobjs.c:2287:15\n    #11 0x5587e023d221 in load_mac_face /work/src/base/ftobjs.c:2478:15\n    #12 0x5587e023d221 in ft_open_face_internal /work/src/base/ftobjs.c:2680:17\n    #13 0x5587e023c57a in FT_New_Face /work/src/base/ftobjs.c:1608:12\n    #14 0x5587e02300c3 in main /poc/oracle.c:15:11\n    #15 0x7f343cb63d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/src/sfnt/ttload.c:589:17 in tt_face_load_any\nShadow bytes around the buggy address:\n  0x0c047fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff8000: fa fa 00 fa fa fa 00 fa fa fa 00 fa fa fa 00 fa\n=>0x0c047fff8010: fa fa fd fd fa fa 00[fa]fa fa 00 fa fa fa 00 04\n  0x0c047fff8020: fa fa 00 fa fa fa 05 fa fa fa 05 fa fa fa fd fa\n  0x0c047fff8030: fa fa fd fd fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "6aa08e34732a7c31700222e3edc550fc782cc312a3afc27e876a9c81a9663365"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "3aeabbf87d858398aeee6397cea568e624f38366",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "face_index=1 num_faces=2\ndirectory_length=348 probe_error=0\ndirectory_read_error=0 bytes=348\nORACLE_RESULT=DIRECTORY_READ_NO_OOB\nVERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "e4b5e0f32eb8611c3810d7b65ac4a3195a2d14f42336634c14aa2992c6b47a07"
+      }
+    }
+  }
+}

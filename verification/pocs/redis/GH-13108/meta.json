@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-13108",
+  "bug_id": "GH-13108",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "ad28d222edcef9d4496fd7a94656013f07dd08e5",
+  "intro_parent": "a8e745117f3648cc813d18f5a8cf1218ec83cb5d",
+  "fix_commit": "8ad5421502241d6088b701bb4a4262124343345a",
+  "affected_files": [
+    "src/eval.c",
+    "src/defrag.c",
+    "src/server.c",
+    "src/replication.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "redis",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A raw pointer to a heap object (`luaScript *l`) is cached across a long-lived operation (Lua script execution) during which a concurrent maintenance subsystem (active defragmentation) is permitted to reallocate and free the very object being referenced, without any mechanism to invalidate or refresh the cached pointer before it is used again.",
+  "findings": [
+    "evalGenericCommand() caches a raw pointer `l = dictGetVal(de)` into the luaScript struct BEFORE calling luaCallFunction(), and then dereferences `l->node` AFTER the (potentially long-running) script finishes executing. While the script is running, Redis's active defragmentation cron (whileBlockedCron -> defragWhileBlocked -> activeDefragSdsDict on the lua scripts dict) can run concurrently/re-entr"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "0773f048f571fd5bfec21c28c294fdc00153f721d2d5e2f793911100ef15d615",
+  "generated_artifact_sha256": {
+    "reference": "a71c62ee5f1468b398b1278d33b987b3e94ff259b40637ba3e3a98c18600e139",
+    "introducing": "b7731c1e0b16adc4b3824d8af6133a58dc708e39aab8eb8b9596f8bb39ca4b7d",
+    "companion": "93480b4777f1042350570931ccd7eebcac567d61acfd8efc2b0be6ed6bc24d31"
+  }
+}

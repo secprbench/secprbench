@@ -1,0 +1,18 @@
+{
+  "reviewer": "benchmark owner",
+  "attested_at": "2026-10-05T21:30:41Z",
+  "method": "explicit_user_attestation",
+  "reason": "The benchmark owner explicitly requested that these exact cases be marked human_reviewed and included in the final benchmark.",
+  "authorization": "please help me refine the result directory and the benchmark. help me mark these inconclusive cases to human_reviewed; help me move these out of inconclusive to human reviewed and put them to final benchmark",
+  "identity": "ffmpeg/OSSFUZZ-421954767",
+  "season": "2025H2",
+  "stage": "human_reviewed",
+  "task_hashes": {
+    "buggy": "eeb13e4f27fe2ffbc78a27d9a689b33d92f02adce3b10d4b5c802cbf9fd0cdb9",
+    "benign": "1ebee38ab67b3a38f43bf77958dded7469b840ed2120e67e796f48cc8a9476f2"
+  },
+  "caveat": "Saved MSan trace executes a scratch Shorten source copy with DBG edits; main-checkout integrity does not attest that binary. Owner approval does not certify a pristine-source replay.",
+  "catalog_effective_verification": "inconclusive",
+  "original_case_disposition": "inconclusive",
+  "automated_replay_performed": false
+}

@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-385224934",
+  "project": "ffmpeg",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "71716406e68a1f139717c5025e49f648e3666b0e",
+    "parent": "84e0e2f43e424c8a9ae0d18711f204ffebd961ba",
+    "fix": "1afbc40875069312dd729b5959fb04950c3938db"
+  },
+  "affected_files": [
+    "libavformat/wavdec.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay.; Verified via reproduction using run_poc identically on all three configured versions (pre_intro, post_intro, post_benign) with the same PoC file (/poc/poc2.w64) and the same harness-build-and-run command. The W64 PoC (channels=9, sample_rate=1, codec tag 0x0045/ADPCM_G726, nAvgBytesPerSec=0x10000000) drives bits_per_coded_sample to INT32_MIN via the pre-existing G.726 bit_rate/sample_rate override, then exercises w64_read_header's block_align sanity check (the code added by the intro commit). Results: pre_intro -> block_align=1 (the check doesn't exist yet in this revision, so the raw fmt-chunk value passes through unmodified); post_intro -> block_align=1879048201 (the 32-bit signed multiplication -268435455*9 overflows int range and wraps -- this is the exact UB class OSS-Fuzz's UBSan flagged, 'signed integer overflow: ... cannot be represented in type int', in the same w64_read_header block_align expression); post_benign -> block_align=1 again, matching pre_intro, because the fix widens the intermediate to int64_t, removing the UB. This clean 3-way divergence (unaffected -> corrupted -> restored), combined with the source diff exactly matching meta.json's root-cause description and the intro/fix commits' actual code changes, confirms intro_verified=yes and benign_verified=yes. The sandbox's ASan-only build cannot trap the UB itself (no UBSan configured in this build), so a behavioral oracle (the corrupted vs. correct block_align value, an unambiguous, deterministic, target-exercised observation) was used instead of a raw sanitizer trap, consistent with the guidance for cases where the labelled UB doesn't crash under the available sanitizer instrumentation.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/12bfcc81327aa2805dce/attempts/01/replay/pr_review_OSSFUZZ-385224934.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/12bfcc81327aa2805dce/attempts/01/replay/pr_review_OSSFUZZ-385224934.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/12bfcc81327aa2805dce/attempts/01/replay/pr_review_OSSFUZZ-385224934.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /tmp && clang -g -O0 -fsanitize=address -I/work -o poc_check /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libswresample/libswresample.a /work/libavutil/libavutil.a -lm -lz -lpthread && ./poc_check /poc/poc2.w64",
+          "input": null,
+          "poc_sha256": "dd38b6fdfa907105a1e528ee9764088ceb3aeed18a6db73d83e872aed4410079",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "71716406e68a1f139717c5025e49f648e3666b0e",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "e3bc431411a292a8d67855b400f7620cec468d16441226f00d27042536630a6f"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "STREAM 0: block_align=1879048201 channels=9 bits_per_coded_sample=-2147483648 bit_rate=2147483648\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /tmp && clang -g -O0 -fsanitize=address -I/work -o poc_check /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libswresample/libswresample.a /work/libavutil/libavutil.a -lm -lz -lpthread && ./poc_check /poc/poc2.w64",
+          "input": null,
+          "poc_sha256": "dd38b6fdfa907105a1e528ee9764088ceb3aeed18a6db73d83e872aed4410079",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "84e0e2f43e424c8a9ae0d18711f204ffebd961ba",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "858ca605793eb701b7e35ea140440e5e5cb2d3c7692c74d52c4e4a76533cc581"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "STREAM 0: block_align=1 channels=9 bits_per_coded_sample=-2147483648 bit_rate=2147483648\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /tmp && clang -g -O0 -fsanitize=address -I/work -o poc_check /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libswresample/libswresample.a /work/libavutil/libavutil.a -lm -lz -lpthread && ./poc_check /poc/poc2.w64",
+          "input": null,
+          "poc_sha256": "dd38b6fdfa907105a1e528ee9764088ceb3aeed18a6db73d83e872aed4410079",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "84e0e2f43e424c8a9ae0d18711f204ffebd961ba",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "5eb456d56dac6c73ad9c6e190ede6114ddd51c5f58924af58cc5c88284486953"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "STREAM 0: block_align=1 channels=9 bits_per_coded_sample=-2147483648 bit_rate=2147483648\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "STREAM 0: block_align=1879048201 channels=9 bits_per_coded_sample=-2147483648 bit_rate=2147483648",
+        "pre_marker": "STREAM 0: block_align=1 channels=9 bits_per_coded_sample=-2147483648 bit_rate=2147483648",
+        "benign_marker": "STREAM 0: block_align=1 channels=9 bits_per_coded_sample=-2147483648 bit_rate=2147483648",
+        "description": "Print the demuxed AVCodecParameters.block_align after avformat_open_input() on the W64 PoC, run via run_poc with the identical command and input file on pre_intro, post_intro, and post_benign. Pre-fix/unaffected builds must report block_align=1 (the original fmt-chunk value, unmodified because either the sanity-check code does not exist yet, or it is computed without overflow). The introduced-bug build must report a corrupted, wrapped block_align (1879048201) produced by the 32-bit signed multiplication overflow.",
+        "target_evidence": "Source diff confirms the mechanism: pre_intro (84e0e2f43e42) has no block_align sanity-check in w64_read_header's 'fmt ' handling at all. post_intro (71716406e68a) adds: `int block_align = st->codecpar->block_align; block_align = FFMAX(block_align, ((st->codecpar->bits_per_coded_sample + 7) / 8) * st->codecpar->ch_layout.nb_channels);` using plain 32-bit `int` arithmetic -- exactly the root cause described in meta.json, and exactly what OSS-Fuzz's UBSan report (\"signed integer overflow: -251517880 * 32 cannot be represented in type 'int'\") caught in this same function/expression. post_benign (fix 1afbc4087506) changes the intermediate to `int64_t block_align` and computes `((bits_per_coded_sample + 7LL) / 8) * nb_channels`, eliminating the overflow. Confirmed by reading source in each built container. The sandbox's sanitizer build here is ASan-only (no UBSan instrumentation, verified via configure flags: only -fsanitize=address), so the UB does not trap/crash under this harness's build config; instead it silently wraps at -O1, which is directly observable and reproducible as a corrupted block_align value gated by the exact intro/fix diff, giving a reliable behavioral oracle for the same labelled IntegerOverflow bug. Confirmed reproducible identically via both docker_shell and run_poc."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "behavioral",
+        "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+      },
+      "explanation": "Verified via reproduction using run_poc identically on all three configured versions (pre_intro, post_intro, post_benign) with the same PoC file (/poc/poc2.w64) and the same harness-build-and-run command. The W64 PoC (channels=9, sample_rate=1, codec tag 0x0045/ADPCM_G726, nAvgBytesPerSec=0x10000000) drives bits_per_coded_sample to INT32_MIN via the pre-existing G.726 bit_rate/sample_rate override, then exercises w64_read_header's block_align sanity check (the code added by the intro commit). Results: pre_intro -> block_align=1 (the check doesn't exist yet in this revision, so the raw fmt-chunk value passes through unmodified); post_intro -> block_align=1879048201 (the 32-bit signed multiplication -268435455*9 overflows int range and wraps -- this is the exact UB class OSS-Fuzz's UBSan flagged, 'signed integer overflow: ... cannot be represented in type int', in the same w64_read_header block_align expression); post_benign -> block_align=1 again, matching pre_intro, because the fix widens the intermediate to int64_t, removing the UB. This clean 3-way divergence (unaffected -> corrupted -> restored), combined with the source diff exactly matching meta.json's root-cause description and the intro/fix commits' actual code changes, confirms intro_verified=yes and benign_verified=yes. The sandbox's ASan-only build cannot trap the UB itself (no UBSan configured in this build), so a behavioral oracle (the corrupted vs. correct block_align value, an unambiguous, deterministic, target-exercised observation) was used instead of a raw sanitizer trap, consistent with the guidance for cases where the labelled UB doesn't crash under the available sanitizer instrumentation."
+    }
+  },
+  "task_hashes": {
+    "buggy": "62da9eb90f69911e8b20f6968a5a81225c28c7aab5277418998a3f82248695d6",
+    "benign": "2cb44a8f4870ddb02c3df11cc37951ff739e6de0427f0e83cb3e0f7563f71936"
+  }
+}

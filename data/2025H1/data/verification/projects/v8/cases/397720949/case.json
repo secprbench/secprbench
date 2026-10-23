@@ -1,0 +1,22 @@
+{
+  "bug_id": "397720949",
+  "project": "v8",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "81c947baca3bc7d6432cf5d52104ffde106f0fe5",
+    "parent": "e7735263b7aab83b7aed8199d3966342aa64a430",
+    "fix": "3e097c3eb753c0459958708a5ae2dff885127810"
+  },
+  "affected_files": [
+    "src/objects/elements.cc"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built ASan d8 artifacts for all three benchmark states and ran the identical finalized /poc/poc.js with `/work/out.gn/verify/d8 --js-staging /poc/poc.js` in Docker. pre_intro printed -1 and exited 0. post_intro reached Float16Array.lastIndexOf after fromIndex.valueOf() resized the backing RAB to zero, then crashed with `Received signal 11 SEGV_ACCERR` and exit 139; the stack used ASan interceptors and the build args had is_asan=true. The mechanically composed post_benign source diff was preserve",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

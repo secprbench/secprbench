@@ -1,0 +1,19 @@
+{
+  "status": "verified",
+  "outcome": {
+    "task_id": "pr_review_2013739",
+    "status": "verified",
+    "via": "agent",
+    "intro_verified": "yes",
+    "benign_verified": "yes",
+    "bug_class": "memory-safety",
+    "report": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/f3d7a65a56c2027a7200/attempts/09/replay/pr_review_2013739.report.md",
+    "agent_verdict": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/f3d7a65a56c2027a7200/attempts/09/replay/pr_review_2013739.agent_verdict.json"
+  },
+  "agent_used": true,
+  "case_record": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/verification/projects/firefox/cases/2013739/case.json",
+  "recipe_sha256": "402b808220c82766e43b",
+  "cache_root": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cache/firefox/402b808220c82766e43b/worktrees",
+  "cache_lane": 0,
+  "final_poc_sha256": "e967ee059f1b0e1a8eeaaf90412b2e1b327ecd8948ca29f3255fc0452b267496"
+}

@@ -1,0 +1,18 @@
+{
+  "reviewer": "benchmark owner",
+  "attested_at": "2026-10-05T21:30:41Z",
+  "method": "explicit_user_attestation",
+  "reason": "The benchmark owner explicitly requested that these exact cases be marked human_reviewed and included in the final benchmark.",
+  "authorization": "please help me refine the result directory and the benchmark. help me mark these inconclusive cases to human_reviewed; help me move these out of inconclusive to human reviewed and put them to final benchmark",
+  "identity": "freetype/REPORTED-582cea9ee1bfa873",
+  "season": "2025H2",
+  "stage": "human_reviewed",
+  "task_hashes": {
+    "buggy": "156b8c866fd77c0af10b19f9aac364b6de4a5e0efa3666985f405f4e095af810",
+    "benign": "25deb0b217047a025fe35ea46b8f65f14f0be938a48342ae9696c5e0c52e67ea"
+  },
+  "caveat": "HarfBuzz/GSUB target path is disabled in saved builds; owner approval is separate from the still-missing feature-enabled replay.",
+  "catalog_effective_verification": "inconclusive",
+  "original_case_disposition": "inconclusive",
+  "automated_replay_performed": false
+}

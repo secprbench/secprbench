@@ -1,0 +1,102 @@
+{
+  "task_id": "pr_review_GH-19039",
+  "bug_id": "GH-19039",
+  "commit_sha": "4cd10ee28b5ee5ad9206c34c2c7887b2ac0cbfd2",
+  "commit_message": "POP3: fix multi-line responses\n\nSome POP3 commands are multi-line, e.g. have responses terminated by a\nlast line with '.', but some are not. Define the known command\nproperties and fix response handling.\n\nAdd test case for STAT.\n\nFixes #14677\nReported-by: ralfjunker on github\nCloses #14707",
+  "commit_author": "Stefan Eissing",
+  "commit_date": "2024-08-28T11:09:43+02:00",
+  "pr_title": "POP3: fix multi-line responses",
+  "pr_description": "Some POP3 commands are multi-line, e.g. have responses terminated by a\nlast line with '.', but some are not. Define the known command\nproperties and fix response handling.\n\nAdd test case for STAT.\n\nFixes #14677\nReported-by: ralfjunker on github\nCloses #14707\n",
+  "files": [
+    {
+      "path": "lib/pop3.c",
+      "status": "modified",
+      "additions": 59,
+      "deletions": 6,
+      "diff": "diff --git a/lib/pop3.c b/lib/pop3.c\nindex 47271252e8..1d12a71632 100644\n--- a/lib/pop3.c\n+++ b/lib/pop3.c\n@@ -81,10 +81,14 @@\n /* The last 3 #include files should be in this order */\n #include \"curl_printf.h\"\n #include \"curl_memory.h\"\n #include \"memdebug.h\"\n \n+#ifndef ARRAYSIZE\n+#define ARRAYSIZE(A) (sizeof(A)/sizeof((A)[0]))\n+#endif\n+\n /* Local API functions */\n static CURLcode pop3_regular_transfer(struct Curl_easy *data, bool *done);\n static CURLcode pop3_do(struct Curl_easy *data, bool *done);\n static CURLcode pop3_done(struct Curl_easy *data, CURLcode status,\n                           bool premature);\n@@ -197,10 +201,57 @@ static void pop3_to_pop3s(struct connectdata *conn)\n }\n #else\n #define pop3_to_pop3s(x) Curl_nop_stmt\n #endif\n \n+struct pop3_cmd {\n+  const char *name;\n+  unsigned short nlen;\n+  BIT(multiline); /* response is multi-line with last '.' line */\n+  BIT(multiline_with_args); /* is multi-line when command has args */\n+};\n+\n+static const struct pop3_cmd pop3cmds[] = {\n+  { \"APOP\", 4, FALSE, FALSE },\n+  { \"AUTH\", 4, FALSE, FALSE },\n+  { \"CAPA\", 4, TRUE, TRUE },\n+  { \"DELE\", 4, FALSE, FALSE },\n+  { \"LIST\", 4, TRUE, TRUE },\n+  { \"MSG\",  3, TRUE, TRUE },\n+  { \"NOOP\", 4, FALSE, FALSE },\n+  { \"PASS\", 4, FALSE, FALSE },\n+  { \"QUIT\", 4, FALSE, FALSE },\n+  { \"RETR\", 4, TRUE, TRUE },\n+  { \"RSET\", 4, FALSE, FALSE },\n+  { \"STAT\", 4, FALSE, FALSE },\n+  { \"STLS\", 4, FALSE, FALSE },\n+  { \"TOP\",  3, TRUE, TRUE },\n+  { \"UIDL\", 4, TRUE, FALSE },\n+  { \"USER\", 4, FALSE, FALSE },\n+  { \"UTF8\", 4, FALSE, FALSE },\n+  { \"XTND\", 4, TRUE, TRUE },\n+};\n+\n+/* Return iff a command is defined as \"multi-line\" (RFC 1939),\n+ * has a response terminated by a last line with a '.'.\n+ */\n+static bool pop3_is_multiline(const char *cmdline)\n+{\n+  size_t i;\n+  for(i = 0; i < ARRAYSIZE(pop3cmds); ++i) {\n+    if(strncasecompare(pop3cmds[i].name, cmdline, pop3cmds[i].nlen)) {\n+      if(!cmdline[pop3cmds[i].nlen])\n+        return pop3cmds[i].multiline;\n+      else if(cmdline[pop3cmds[i].nlen] == ' ')\n+        return pop3cmds[i].multiline_with_args;\n+    }\n+  }\n+  /* Unknown command, assume multi-line for backward compatibility with\n+   * earlier curl versions that only could do multi-line responses. */\n+  return TRUE;\n+}\n+\n /***********************************************************************\n  *\n  * pop3_endofresp()\n  *\n  * Checks for an ending POP3 status code at the start of the given string, but\n@@ -612,22 +663,24 @@ static CURLcode pop3_perform_command(struct Curl_easy *data)\n       pop3->transfer = PPTRANSFER_INFO;\n   }\n   else\n     command = \"RETR\";\n \n+  if(pop3->custom && pop3->custom[0] != '\\0')\n+    command = pop3->custom;\n+\n   /* Send the command */\n   if(pop3->id[0] != '\\0')\n     result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s %s\",\n-                           (pop3->custom && pop3->custom[0] != '\\0' ?\n-                            pop3->custom : command), pop3->id);\n+                           command, pop3->id);\n   else\n-    result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s\",\n-                           (pop3->custom && pop3->custom[0] != '\\0' ?\n-                            pop3->custom : command));\n+    result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s\", command);\n \n-  if(!result)\n+  if(!result) {\n     pop3_state(data, POP3_COMMAND);\n+    data->req.no_body = !pop3_is_multiline(command);\n+  }\n \n   return result;\n }\n \n /***********************************************************************\n"
+    },
+    {
+      "path": "tests/data/Makefile.am",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/tests/data/Makefile.am b/tests/data/Makefile.am\nindex 3a893e8ead..54efa41909 100644\n--- a/tests/data/Makefile.am\n+++ b/tests/data/Makefile.am\n@@ -129,11 +129,11 @@ test943 test944 test945 test946 test947 test948 test949 test950 test951 \\\n test952 test953 test954 test955 test956 test957 test958 test959 test960 \\\n test961 test962 test963 test964 test965 test966 test967 test968 test969 \\\n test970 test971 test972 test973 test974 test975 test976 test977 test978 \\\n test979 test980 test981 test982 test983 test984 test985 test986 test987 \\\n test988 test989 test990 test991 test992 test993 test994 test995 test996 \\\n-\\\n+test997 \\\n test1000 test1001 test1002 test1003 test1004 test1005 test1006 test1007 \\\n test1008 test1009 test1010 test1011 test1012 test1013 test1014 test1015 \\\n test1016 test1017 test1018 test1019 test1020 test1021 test1022 test1023 \\\n test1024 test1025 test1026 test1027 test1028 test1029 test1030 test1031 \\\n test1032 test1033 test1034 test1035 test1036 test1037 test1038 test1039 \\\n"
+    },
+    {
+      "path": "tests/data/test997",
+      "status": "added",
+      "additions": 47,
+      "deletions": 0,
+      "diff": "diff --git a/tests/data/test997 b/tests/data/test997\nnew file mode 100644\nindex 0000000000..2883330f85\n--- /dev/null\n+++ b/tests/data/test997\n@@ -0,0 +1,47 @@\n+<testcase>\n+<info>\n+<keywords>\n+POP3\n+Clear Text\n+STAT\n+CUSTOMREQUEST\n+RFC2449\n+</keywords>\n+</info>\n+\n+#\n+# Server-side\n+<reply>\n+<servercmd>\n+CAPA TOP USER\n+</servercmd>\n+<data>\n+</data>\n+</reply>\n+\n+#\n+# Client-side\n+<client>\n+<server>\n+pop3\n+</server>\n+<name>\n+POP3 retrieve STAT (CUSTOMREQUEST)\n+</name>\n+<command>\n+pop3://%HOSTIP:%POP3PORT -u user:secret -X 'STAT'\n+</command>\n+</client>\n+\n+#\n+# Verify data after the test has been \"shot\"\n+<verify>\n+<protocol>\n+CAPA\n+USER user\n+PASS secret\n+STAT\n+QUIT\n+</protocol>\n+</verify>\n+</testcase>\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/pop3.c b/lib/pop3.c\nindex 47271252e8..1d12a71632 100644\n--- a/lib/pop3.c\n+++ b/lib/pop3.c\n@@ -81,10 +81,14 @@\n /* The last 3 #include files should be in this order */\n #include \"curl_printf.h\"\n #include \"curl_memory.h\"\n #include \"memdebug.h\"\n \n+#ifndef ARRAYSIZE\n+#define ARRAYSIZE(A) (sizeof(A)/sizeof((A)[0]))\n+#endif\n+\n /* Local API functions */\n static CURLcode pop3_regular_transfer(struct Curl_easy *data, bool *done);\n static CURLcode pop3_do(struct Curl_easy *data, bool *done);\n static CURLcode pop3_done(struct Curl_easy *data, CURLcode status,\n                           bool premature);\n@@ -197,10 +201,57 @@ static void pop3_to_pop3s(struct connectdata *conn)\n }\n #else\n #define pop3_to_pop3s(x) Curl_nop_stmt\n #endif\n \n+struct pop3_cmd {\n+  const char *name;\n+  unsigned short nlen;\n+  BIT(multiline); /* response is multi-line with last '.' line */\n+  BIT(multiline_with_args); /* is multi-line when command has args */\n+};\n+\n+static const struct pop3_cmd pop3cmds[] = {\n+  { \"APOP\", 4, FALSE, FALSE },\n+  { \"AUTH\", 4, FALSE, FALSE },\n+  { \"CAPA\", 4, TRUE, TRUE },\n+  { \"DELE\", 4, FALSE, FALSE },\n+  { \"LIST\", 4, TRUE, TRUE },\n+  { \"MSG\",  3, TRUE, TRUE },\n+  { \"NOOP\", 4, FALSE, FALSE },\n+  { \"PASS\", 4, FALSE, FALSE },\n+  { \"QUIT\", 4, FALSE, FALSE },\n+  { \"RETR\", 4, TRUE, TRUE },\n+  { \"RSET\", 4, FALSE, FALSE },\n+  { \"STAT\", 4, FALSE, FALSE },\n+  { \"STLS\", 4, FALSE, FALSE },\n+  { \"TOP\",  3, TRUE, TRUE },\n+  { \"UIDL\", 4, TRUE, FALSE },\n+  { \"USER\", 4, FALSE, FALSE },\n+  { \"UTF8\", 4, FALSE, FALSE },\n+  { \"XTND\", 4, TRUE, TRUE },\n+};\n+\n+/* Return iff a command is defined as \"multi-line\" (RFC 1939),\n+ * has a response terminated by a last line with a '.'.\n+ */\n+static bool pop3_is_multiline(const char *cmdline)\n+{\n+  size_t i;\n+  for(i = 0; i < ARRAYSIZE(pop3cmds); ++i) {\n+    if(strncasecompare(pop3cmds[i].name, cmdline, pop3cmds[i].nlen)) {\n+      if(!cmdline[pop3cmds[i].nlen])\n+        return pop3cmds[i].multiline;\n+      else if(cmdline[pop3cmds[i].nlen] == ' ')\n+        return pop3cmds[i].multiline_with_args;\n+    }\n+  }\n+  /* Unknown command, assume multi-line for backward compatibility with\n+   * earlier curl versions that only could do multi-line responses. */\n+  return TRUE;\n+}\n+\n /***********************************************************************\n  *\n  * pop3_endofresp()\n  *\n  * Checks for an ending POP3 status code at the start of the given string, but\n@@ -612,22 +663,24 @@ static CURLcode pop3_perform_command(struct Curl_easy *data)\n       pop3->transfer = PPTRANSFER_INFO;\n   }\n   else\n     command = \"RETR\";\n \n+  if(pop3->custom && pop3->custom[0] != '\\0')\n+    command = pop3->custom;\n+\n   /* Send the command */\n   if(pop3->id[0] != '\\0')\n     result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s %s\",\n-                           (pop3->custom && pop3->custom[0] != '\\0' ?\n-                            pop3->custom : command), pop3->id);\n+                           command, pop3->id);\n   else\n-    result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s\",\n-                           (pop3->custom && pop3->custom[0] != '\\0' ?\n-                            pop3->custom : command));\n+    result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s\", command);\n \n-  if(!result)\n+  if(!result) {\n     pop3_state(data, POP3_COMMAND);\n+    data->req.no_body = !pop3_is_multiline(command);\n+  }\n \n   return result;\n }\n \n /***********************************************************************\ndiff --git a/tests/data/Makefile.am b/tests/data/Makefile.am\nindex 3a893e8ead..54efa41909 100644\n--- a/tests/data/Makefile.am\n+++ b/tests/data/Makefile.am\n@@ -129,11 +129,11 @@ test943 test944 test945 test946 test947 test948 test949 test950 test951 \\\n test952 test953 test954 test955 test956 test957 test958 test959 test960 \\\n test961 test962 test963 test964 test965 test966 test967 test968 test969 \\\n test970 test971 test972 test973 test974 test975 test976 test977 test978 \\\n test979 test980 test981 test982 test983 test984 test985 test986 test987 \\\n test988 test989 test990 test991 test992 test993 test994 test995 test996 \\\n-\\\n+test997 \\\n test1000 test1001 test1002 test1003 test1004 test1005 test1006 test1007 \\\n test1008 test1009 test1010 test1011 test1012 test1013 test1014 test1015 \\\n test1016 test1017 test1018 test1019 test1020 test1021 test1022 test1023 \\\n test1024 test1025 test1026 test1027 test1028 test1029 test1030 test1031 \\\n test1032 test1033 test1034 test1035 test1036 test1037 test1038 test1039 \\\ndiff --git a/tests/data/test997 b/tests/data/test997\nnew file mode 100644\nindex 0000000000..2883330f85\n--- /dev/null\n+++ b/tests/data/test997\n@@ -0,0 +1,47 @@\n+<testcase>\n+<info>\n+<keywords>\n+POP3\n+Clear Text\n+STAT\n+CUSTOMREQUEST\n+RFC2449\n+</keywords>\n+</info>\n+\n+#\n+# Server-side\n+<reply>\n+<servercmd>\n+CAPA TOP USER\n+</servercmd>\n+<data>\n+</data>\n+</reply>\n+\n+#\n+# Client-side\n+<client>\n+<server>\n+pop3\n+</server>\n+<name>\n+POP3 retrieve STAT (CUSTOMREQUEST)\n+</name>\n+<command>\n+pop3://%HOSTIP:%POP3PORT -u user:secret -X 'STAT'\n+</command>\n+</client>\n+\n+#\n+# Verify data after the test has been \"shot\"\n+<verify>\n+<protocol>\n+CAPA\n+USER user\n+PASS secret\n+STAT\n+QUIT\n+</protocol>\n+</verify>\n+</testcase>\n",
+  "ground_truth": {
+    "bug_id": "GH-19039",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "67c4256f7e4f00d8e85b9a7da0b6004bfe5669e1",
+      "short_sha": "67c4256",
+      "message": "pop3: function could get the ->transfer field wrong",
+      "author": "Daniel Stenberg",
+      "date": "2025-10-13T08:41:38+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logic-001",
+        "title": "pop3_perform() reads stale data->req.no_body before pop3_perform_command() recomputes it",
+        "message": "Commit 4cd10ee28b introduced logic in pop3_perform_command() that recomputes data->req.no_body based on whether the outgoing POP3 command is multi-line (data->req.no_body = !pop3_is_multiline(command);). However, pop3_perform() (the caller) reads data->req.no_body BEFORE calling pop3_perform_command(), using its value (set previously, e.g. from a prior request or left over from handle state) to decide whether pop3->transfer should be set to PPTRANSFER_INFO (no body transfer expected). Because pop3_perform_command() only updates data->req.no_body afterwards, pop3->transfer can end up reflecting the OLD no_body value instead of the value that was just computed for the current command. This means the transfer state machine can incorrectly believe a body transfer is or is not expected, causing curl to mishandle the POP3 response (e.g. treat data as headers-only when a body should be read, or vice versa), leading to incorrect state handling / data corruption for POP3 transfers, particularly across handle reuse where req.no_body carries over from an earlier request.",
+        "location": {
+          "file": "lib/pop3.c",
+          "start_line": 650,
+          "end_line": 684,
+          "start_column": null,
+          "end_column": null,
+          "function": "pop3_perform_command",
+          "snippet": "static CURLcode pop3_perform_command(struct Curl_easy *data)\n{\n  CURLcode result = CURLE_OK;\n  struct connectdata *conn = data->conn;\n  struct POP3 *pop3 = data->req.p.pop3;\n  const char *command = NULL;\n\n  /* Calculate the default command */\n  if(pop3->id[0] == '\\0' || data->set.list_only) {\n    command = \"LIST\";\n\n    if(pop3->id[0] != '\\0')\n      /* Message specific LIST so skip the BODY transfer */\n      pop3->transfer = PPTRANSFER_INFO;\n  }\n  else\n    command = \"RETR\";\n\n  if(pop3->custom && pop3->custom[0] != '\\0')\n    command = pop3->custom;\n\n  /* Send the command */\n  if(pop3->id[0] != '\\0')\n    result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s %s\",\n                           command, pop3->id);\n  else\n    result = Curl_pp_sendf(data, &conn->proto.pop3c.pp, \"%s\", command);\n\n  if(!result) {\n    pop3_state(data, POP3_COMMAND);\n    data->req.no_body = !pop3_is_multiline(command);\n  }\n\n  return result;\n}",
+          "snippet_hash": "dcd3744e544ba5666d8df2101657122f0936d827c98edab60155bb87393071c4",
+          "description": null,
+          "snippet_start_line": 650,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.85,
+        "suggestion": "Reorder pop3_perform() so it calls pop3_perform_command() first (which computes the correct, up-to-date data->req.no_body for the current command), and only afterwards check data->req.no_body to decide whether pop3->transfer should be set to PPTRANSFER_INFO. This is exactly what the upstream fix (commit 67c4256f7e) does: it moves the pop3_perform_command() call before the data->req.no_body check in pop3_perform().",
+        "suggestion_code": "  /* Start the first command in the DO phase, may alter data->req.no_body */\n  result = pop3_perform_command(data);\n  if(result)\n    return result;\n\n  if(data->req.no_body)\n    /* Requested no body means no transfer */\n    pop3->transfer = PPTRANSFER_INFO;\n\n  *dophase_done = FALSE; /* not done yet */",
+        "tags": [
+          "security",
+          "logic-error",
+          "pop3",
+          "state-management"
+        ],
+        "cwe_ids": [
+          "CWE-696",
+          "CWE-670"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "lib/pop3.c"
+    ],
+    "root_cause": "A caller (pop3_perform) read a shared state field (data->req.no_body) to make a decision, while the callee it subsequently invokes (pop3_perform_command) is the one responsible for computing/updating that same field for the current operation. The call order was wrong: the read-and-decide step happened before the compute step, so decisions were based on stale state.",
+    "must_cover": [
+      {
+        "file": "lib/pop3.c",
+        "function": "pop3_perform_command",
+        "start_line": 650,
+        "end_line": 684,
+        "role": "primary",
+        "reason": "Primary location of finding: pop3_perform() reads stale data->req.no_body before pop3_perform_command() recomputes it"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "4cd10ee28b5ee5ad9206c34c2c7887b2ac0cbfd2",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

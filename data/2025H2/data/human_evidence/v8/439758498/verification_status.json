@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "identity": "v8/439758498",
+  "case_id": "56fbebfade85f7304b47",
+  "project": "v8",
+  "bug_id": "439758498",
+  "season": "2025H2",
+  "source_sha256": "a65d35448eb9ec0e5bb88e54a0c64228d5915b1535d314792bc272cf595ab614",
+  "generated_artifact_sha256": {
+    "reference": "a3c96d96fd772920c78b7e215fef2c4953e24cc2139b5dcb85e9c5423dc51003",
+    "introducing": "bd4505fe495ca5872b17a434d29802da37eff9af6fbf26cbe6be98f62277f733",
+    "companion": "2f2c0496a77f594586482873e7eedbff08397250fccbad3ef6fef1fcb730b5f0"
+  },
+  "poc_status": "no_poc",
+  "fingerprint": "bb6bfc80154912dba968200a6c39aa3fb27c5ac4cf2347a8e4feb07e4100633e",
+  "recipe_source_sha256": "a3a0c418591d846ab4a73c1ad81003ac37c69329da742be4706eb3ef8af6bb40",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/01",
+      "started_at": "2026-10-02T05:59:59.616587+00:00",
+      "status": "interrupted",
+      "cache_lane": 2,
+      "auth_mode": "subscription",
+      "worker_exit_code": 75,
+      "log": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/01/worker.log",
+      "result": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/01/result.json",
+      "worker_error_type": "AgentAuthenticationError",
+      "ended_at": "2026-10-02T06:31:34.743564+00:00"
+    },
+    {
+      "number": 2,
+      "directory": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02",
+      "started_at": "2026-10-02T14:05:25.321227+00:00",
+      "status": "inconclusive",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/worker.log",
+      "result": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-02T16:03:26.331053+00:00"
+    }
+  ],
+  "updated_at": "2026-10-02T16:03:26.331053+00:00",
+  "case_record": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/verification/projects/v8/cases/439758498/case.json",
+  "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/56fbebfade85f7304b47/attempts/02/replay/pr_review_439758498.report.md",
+  "agent_used": true,
+  "recipe_sha256": "4523edbd949b1fdc04b4",
+  "final_poc_sha256": "2fb8f52fc95d3a69af9ffdc2c02ba2ec98dc32a618a03d94cff3a7891a13d21f"
+}

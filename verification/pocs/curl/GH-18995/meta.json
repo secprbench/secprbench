@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-18995",
+  "bug_id": "GH-18995",
+  "bug_type": "DoubleFree",
+  "intro_commit": "06d12105c7aa883a62802e36eebb76d5303247d0",
+  "intro_parent": "a61eac6248ea29e499f7e9dbd1c27661ef58b754",
+  "fix_commit": "bf41be6292cf712315815c722aab2653a0ec827f",
+  "affected_files": [
+    "lib/url.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Manual, ad-hoc 'move' semantics implemented by copying a struct and then individually NULLing out its pointer fields on the source is error-prone and was not applied consistently to all pointer members (`encalloc` was missed for `conn_to_host` while it was handled for `host`), leaving a dangling shared pointer between two structures.",
+  "findings": [
+    "In reuse_conn(), when an existing connection is reused, the `host` and `conn_to_host` struct hostname fields are moved (shallow-copied) from `old_conn` to `conn`. For `host`, both `rawalloc` and `encalloc` are correctly zeroed out on the source (`old_conn->host.rawalloc = NULL; old_conn->host.encalloc = NULL;`) after the copy, preventing the pointers from being freed twice. However, for `conn_to_h"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "8224ddf2465c4cd750569045e5238675348fba56c5a7f4ed58484b898fbccca7",
+  "generated_artifact_sha256": {
+    "reference": "920162166a8b5d733a5bb527493bd4ac8cd44e6545b2b8c81f17576426704e5a",
+    "introducing": "7a15f9515174d8bfae2ba78bd63f9c1ce338dc85cc371768713b8321fc990029",
+    "companion": "b70ab55c50ebe5399bcd8cf3a5feac13063c9369a9f3f9389d969b1957faf8f6"
+  }
+}

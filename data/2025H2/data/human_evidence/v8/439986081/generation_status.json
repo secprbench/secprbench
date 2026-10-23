@@ -1,0 +1,149 @@
+{
+  "identity": "v8/439986081",
+  "case_id": "71a49e8dbbc159841f3e",
+  "project": "v8",
+  "season": "2025H2",
+  "bug_id": "439986081",
+  "source": "/research-data/secprbench/season100-balanced-20261001/repair-v8-h2-hydrated-v1/campaign/sources/v8/71a49e8dbbc159841f3e/source.json",
+  "source_sha256": "753214226ce6166fa8c5b8a87f4d432c38c98e6bfd0f995a5f20b660c8a76bb2",
+  "repo": "/research-data/secprbench/campaign-100-20260928/hydrated-repos/v8.git",
+  "source_fix_date": "2025-08-29T03:54:10-07:00",
+  "source_fix_sha": "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+  "status": "generated",
+  "attempts": [
+    {
+      "number": 1,
+      "started_at": "2026-10-01T22:36:30.208728+00:00",
+      "status": "failed",
+      "directory": "attempts/01",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800.0,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01",
+        "auth_mode": "subscription"
+      },
+      "returncode": 1,
+      "artifact_scan": {
+        "regular_files_scanned": 15,
+        "bytes_scanned": 324574,
+        "entries_scanned": 22,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-10-01T22:38:10.399522+00:00",
+      "elapsed_seconds": 100.189,
+      "usage": {
+        "input_tokens": 34,
+        "output_tokens": 8586,
+        "cache_read_tokens": 576881,
+        "cache_write_tokens": 23399,
+        "cost_usd": 0.29490020000000006,
+        "sessions": 1,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.29490020000000006
+      }
+    },
+    {
+      "number": 2,
+      "started_at": "2026-10-01T22:38:10.400508+00:00",
+      "status": "generated",
+      "directory": "attempts/02",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800.0,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01",
+        "auth_mode": "subscription"
+      },
+      "returncode": 0,
+      "artifact_scan": {
+        "regular_files_scanned": 22,
+        "bytes_scanned": 408628,
+        "entries_scanned": 32,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-10-01T22:40:33.833615+00:00",
+      "elapsed_seconds": 143.43,
+      "usage": {
+        "input_tokens": 40,
+        "output_tokens": 11698,
+        "cache_read_tokens": 647522,
+        "cache_write_tokens": 34274,
+        "cost_usd": 0.38366039999999996,
+        "sessions": 2,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.38366039999999996
+      }
+    }
+  ],
+  "verification_status": "not_run",
+  "scheduled_at": "2026-10-01T22:36:30.205562+00:00",
+  "updated_at": "2026-10-01T22:40:33.833628+00:00",
+  "fix_proof": {
+    "fix_sha": "aea6f2fc95c69e2a9932a6384b6d52b8f79c9718",
+    "fix_date": "2025-08-29T03:54:10-07:00",
+    "mainline_ref": "refs/heads/main",
+    "mainline_verified": true,
+    "date_basis": "earliest_mainline_fix",
+    "source_date_provenance": null,
+    "season": "2025H2"
+  },
+  "artifacts": {
+    "reference": {
+      "path": "attempts/02/reference/bug_439986081.json",
+      "sha256": "1029e9e7309469d90254489b41e3e6082c3fc26dba22396083c9fb088cb7dd60"
+    },
+    "introducing": {
+      "path": "attempts/02/tasks/pr_review_439986081.json",
+      "sha256": "96b278cb48a194dbfbaf9160303fc4b74f52fcc5641ab21fb4233d728dcaf1dc"
+    },
+    "companion": {
+      "path": "attempts/02/tasks/pr_review_439986081_benign.json",
+      "sha256": "3e0d1b954156f1a82c2f1cf64047c8a51b6e610d2deb9f9f90b9846c201ef3f4"
+    }
+  },
+  "intro_eligibility": {
+    "intro_sha": "5af53ec82c0f3c031d0943b327e371ed00771279",
+    "intro_committer_timestamp": "2024-08-27T08:35:50Z",
+    "intro_timestamp_utc": "2024-08-27T08:35:50+00:00",
+    "intro_date_utc": "2024-08-27",
+    "min_intro_date": "2021-01-01",
+    "cutoff_inclusive": true,
+    "date_basis": "git_committer_date_utc",
+    "eligible": true
+  }
+}

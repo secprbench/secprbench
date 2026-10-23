@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-441131173",
+  "bug_id": "OSSFUZZ-441131173",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "ad77345a5d14862f4701e5ad422b03b14934a5b9",
+  "intro_parent": "bb90b262d6d23f1bca3587a48abc15b951cbbf05",
+  "fix_commit": "76645e096fabd9beeecb681691b4bca327241ee8",
+  "affected_files": [
+    "libavcodec/exif.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The generic EXIF_COPY macro used for cloning fixed-size-element arrays was reused for AV_TIFF_STRING without accounting for the fact that string values require one extra byte for the NUL terminator beyond `count` elements, since the original allocation is `count + 1` bytes rather than `count` bytes.",
+  "findings": [
+    "In exif_clone_entry(), string-typed EXIF entries (AV_TIFF_STRING) are duplicated using the generic EXIF_COPY macro, which allocates and copies exactly `src->count` bytes via av_memdup(). However, AV_TIFF_STRING values are allocated and stored as NUL-terminated C strings of length `count + 1` (as seen in the parsing code that does `av_mallocz(entry->count + 1)`). Because EXIF_COPY only copies `coun"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "43a1ffd396a360baed4f040d6051d5ba6384378bedf428ad84a5d40779a42a2e",
+  "generated_artifact_sha256": {
+    "reference": "ec48d5f35c2c68542949f478b21b8ca129543c8d19d2ab5298de97a7301cfc72",
+    "introducing": "8c746770f1b60ae3839c271a8fc6b6d134c8ef6bbedf4b89fcd358c03779ad21",
+    "companion": "b517be4a8a342c34edc4f8091b6a35634c3acd5fa7d7469b23b58e5cb3f693d3"
+  }
+}

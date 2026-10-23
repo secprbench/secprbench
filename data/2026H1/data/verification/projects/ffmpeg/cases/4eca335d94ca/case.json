@@ -1,0 +1,24 @@
+{
+  "bug_id": "4eca335d94ca",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "7cf6a67ef9c9ac95e57867c753f38104f481f6f1",
+    "parent": "ecc92ee717eac18540e236ee27e9052cd2917800",
+    "fix": null
+  },
+  "affected_files": [
+    "libavcodec/hevc.c",
+    "libavcodec/hevc_filter.c",
+    "libavcodec/hevc_ps.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The intro commit (7cf6a67ef9) added YUV400 (monochrome) support to the HEVC decoder by removing the AVERROR_PATCHWELCOME guard for chroma_format_idc=0 in hevc_ps.c and mapping to GRAY8/GRAY16 pixel formats. This made hls_pcm_sample() reachable for YUV400 input. However, the PCM block length calculation in hls_pcm_sample() was not updated: it still computes `cb_size^2*bit_depth + (cb_size^2+cb_size^2)*bit_depth_chroma` even for YUV400, where hshift[1]=hshift[2]=vshift[1]=vshift[2]=0. For YUV400 t",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

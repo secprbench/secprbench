@@ -1,0 +1,35 @@
+{
+  "task_id": "pr_review_2003589",
+  "bug_id": "2003589",
+  "bug_type": "LogicError",
+  "intro_commit": "7c0e78c0e4575dda295abed143b32888ac5a8f5d",
+  "intro_parent": "7ef21c323fbce385ee230dc6be03658081af012d",
+  "fix_commit": "1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274",
+  "affected_files": [
+    "js/src/jit/IonAnalysis.cpp",
+    "js/src/vm/Iteration.cpp",
+    "js/src/jit/CodeGenerator.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_reporter_object_keys_proxy_proto.js: /research-data/cgsa-verify/pocs/firefox/2003589/reporter_object_keys_proxy_proto.js",
+    "- evidence/test_01_16ec470f122a044c_object-keys-proxy-proto.js: js/src/jit-test/tests/ion/object-keys-proxy-proto.js"
+  ],
+  "input_name": "reporter_object_keys_proxy_proto.js",
+  "root_cause": "The new iterator-index fast path assumes Object.keys iteration has no surprising prototype side effects, while the existing iterator cache and enumeration path do not enforce an own-properties-only iterator.",
+  "findings": [
+    "This newly added LoadIteratorElement branch lets Object.keys iteration use the iterator-indices optimization. For property loads it emits an indexed slot access based on the iterator's cached indices. The earlier iterator cache path can still enumerate/reuse prototype properties, including a Proxy trap that runs script. The reporter's debug-shell input trips the restricted JIT arbitrary-code asser"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "bea5168cedf8f0f81e8edee285de2b42a25d22f225801ddbc722227ee48ee8e9",
+  "generated_artifact_sha256": {
+    "reference": "9ae49dbd5605444093962c376206fdf5398c163694412a8fb0eac641a96a461d",
+    "introducing": "796a45c15d73e75c6bff3092600d670393a29743102503eef640b7a7b326be59",
+    "companion": "772b86c0eecb1ee295616d5bd916218b0b10233955b990fce52ee55f9d558a4a"
+  }
+}

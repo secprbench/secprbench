@@ -1,0 +1,206 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-10453",
+    "bug_id": "GH-10453",
+    "bug_type": "OutOfBoundsRead",
+    "intro_commit": "0a29578f1095679b7b1a84c486cfc338b0b87e7e",
+    "intro_parent": "406d00bb5afe8e361d90bf6699657f476bb566f6",
+    "fix_commit": "04eee21826057ca0f67ad55bd6386ce61d2352ce",
+    "affected_files": [
+      "crates/cranelift/src/gc/enabled/drc.rs",
+      "crates/cranelift/src/gc/enabled.rs",
+      "crates/cranelift/src/gc/enabled/null.rs"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reasons": [
+      "The agent claim lacks a matching admissible three-version oracle.",
+      "The intro commit (0a29578f) changed `DrcCompiler::alloc_array` (crates/cranelift/src/gc/enabled/drc.rs) to compute `num_gc_refs` for GC-ref-element arrays by reusing the `size` SSA value from `emit_array_size` (the array's total byte size including header) instead of the element count, packing this wrong value into the object's header reserved bits. That field is read back in the DRC collector's `trace_gc_ref` (crates/wasmtime/src/runtime/vm/gc/enabled/drc.rs) to bound a byte-slice of the object enumerating its outgoing GC-ref edges whenever the object's refcount hits zero. Since the stored value is the byte size rather than the element count, the computed slice end overruns the object's real allocation \u2014 an out-of-bounds read matching the OutOfBoundsRead label (caught here as a Rust slice-bounds panic rather than raw memory corruption only because Rust's safe indexing interposes a bounds check before any unsafe byte access/pointer interpretation of the overrun region occurs) \u2014 reliably triggered whenever a Wasm module allocates and lets a GC-ref array get collected.\n\nThis requires actually executing the Cranelift-JIT-compiled `array.new_fixed` instruction; the equivalent host-API call (`ArrayRef::new_fixed`, as used e.g. by tests/all/gc.rs's drc_transitive_drop_nested_arrays_tree) goes through a separate, correct, native computation of num_gc_refs and does not reproduce the bug \u2014 explaining why the deterministic fast-path reproduction did not crash on any revision. I built a small harness crate against the in-tree `wasmtime` library (ASan-instrumented via target-scoped RUSTFLAGS) that runs real Wasm bytecode performing the array allocation, roots and unroots the result, forces a GC, and converts any panic surfacing from the target's own GC code into a hard process abort, then ran it with run_poc unmodified across all three revisions:\n\n- pre_intro (406d00bb): clean dealloc, no panic, exit 0 (`GC_DONE_NO_PANIC`) \u2014 object size 32, this header/tracing mechanism's current form didn't yet exist.\n- post_intro (0a29578f): deterministic crash, exit 134 (SIGABRT), target panic `range end index 188 out of range for slice of length 40` at drc.rs:265:40 \u2014 exactly the labelled out-of-bounds read.\n- post_benign (04eee218, the fix): clean dealloc, no panic, exit 0 (`GC_DONE_NO_PANIC`) \u2014 object size 40 matching post_intro, confirming num_gc_refs is now correctly 3 (not the byte size).\n\nThis cleanly establishes bug introduction at 0a29578f and resolution at 04eee218, using the identical reproducer across all three revisions via run_poc."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-final (initial source: poc-watch)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/11a18f55feb5d7c62cdf/attempts/01/pocs/wasmtime/GH-10453",
+    "input_file": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/11a18f55feb5d7c62cdf/attempts/01/pocs/wasmtime/GH-10453/array-new-fixed-of-gc-refs.wat",
+    "input_name": "array-new-fixed-of-gc-refs.wat",
+    "size": 7928,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "406d00bb5afe8e361d90bf6699657f476bb566f6",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=1\n\nError: failed to parse WebAssembly module\n\nCaused by:\n    array indexed types not supported without the gc feature (at offset 0xb)\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate_payload\n   2: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate\n   3: wasmtime::compile::build_artifacts\n   4: core::ops::function::FnOnce::call_once\n   5: wasmtime::compile::runtime::<impl wasmtime::compile::code_builder::CodeBuilder>::compile_module\n   6: wasmtime_cli::common::RunCommon::load_module\n   7: wasmtime_cli::commands::run::RunCommand::execute\n   8: wasmtime::main\n   9: std::sys::backtrace::__rust_begin_short_backtrace\n  10: std::rt::lang_start::{{closure}}\n  11: std::rt::lang_start_internal\n  12: std::rt::lang_start\n  13: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  14: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  15: _start\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "8da6aa3f766e52f8a9f8faa5c9e26940aee38ca8b1c1e5050893c079adf19662"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "0a29578f1095679b7b1a84c486cfc338b0b87e7e",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=1\n\nError: failed to parse WebAssembly module\n\nCaused by:\n    array indexed types not supported without the gc feature (at offset 0xb)\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate_payload\n   2: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate\n   3: wasmtime::compile::build_artifacts\n   4: core::ops::function::FnOnce::call_once\n   5: wasmtime::compile::runtime::<impl wasmtime::compile::code_builder::CodeBuilder>::compile_module\n   6: wasmtime_cli::common::RunCommon::load_module\n   7: wasmtime_cli::commands::run::RunCommand::execute\n   8: wasmtime::main\n   9: std::sys::backtrace::__rust_begin_short_backtrace\n  10: std::rt::lang_start::{{closure}}\n  11: std::rt::lang_start_internal\n  12: std::rt::lang_start\n  13: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  14: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  15: _start\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "e082ffb9e6b8ca6ed19b00131b05fcea8109b05dbf26428e0a40815fafefc860"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "406d00bb5afe8e361d90bf6699657f476bb566f6",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=1\n\nError: failed to parse WebAssembly module\n\nCaused by:\n    array indexed types not supported without the gc feature (at offset 0xb)\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate_payload\n   2: wasmtime_environ::compile::module_environ::ModuleEnvironment::translate\n   3: wasmtime::compile::build_artifacts\n   4: core::ops::function::FnOnce::call_once\n   5: wasmtime::compile::runtime::<impl wasmtime::compile::code_builder::CodeBuilder>::compile_module\n   6: wasmtime_cli::common::RunCommon::load_module\n   7: wasmtime_cli::commands::run::RunCommand::execute\n   8: wasmtime::main\n   9: std::sys::backtrace::__rust_begin_short_backtrace\n  10: std::rt::lang_start::{{closure}}\n  11: std::rt::lang_start_internal\n  12: std::rt::lang_start\n  13: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  14: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  15: _start\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "82bf54a019c883d62cd63d70e9ef1007317bf9b256fc232721acd3c06ebb4d58"
+      }
+    }
+  },
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "array-new-fixed-of-gc-refs.wat",
+      "poc_sha256": "1b3a1fd801ad4d426531f4c1ac3ea2cf6ad41c608eae59d52fcb8517ea5a86c0",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "0a29578f1095679b7b1a84c486cfc338b0b87e7e",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e082ffb9e6b8ca6ed19b00131b05fcea8109b05dbf26428e0a40815fafefc860"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "",
+        "stdout_tail": "   Compiling cpufeatures v0.2.7\n   Compiling unicode-width v0.2.0\n   Compiling encoding_rs v0.8.31\n   Compiling rustc-demangle v0.1.24\n   Compiling heck v0.5.0\n   Compiling wasmtime-component-macro v32.0.0 (/work/crates/component-macro)\n   Compiling async-trait v0.1.71\n   Compiling wasmtime-wit-bindgen v32.0.0 (/work/crates/wit-bindgen)\n   Compiling wasmtime-environ v32.0.0 (/work/crates/environ)\n   Compiling wast v239.0.0\n   Compiling sha2 v0.10.2\n   Compiling fxhash v0.2.1\n   Compiling debugid v0.8.0\n   Compiling regex-automata v0.3.3\n   Compiling directories-next v2.0.0\n   Compiling toml v0.8.10\n   Compiling zstd v0.13.0\n   Compiling itertools v0.12.1\n   Compiling cranelift-native v0.119.0 (/work/cranelift/native)\n   Compiling cranelift-frontend v0.119.0 (/work/cranelift/frontend)\n   Compiling wasmtime v32.0.0 (/work/crates/wasmtime)\n   Compiling wasmtime-asm-macros v32.0.0 (/work/crates/asm-macros)\n   Compiling base64 v0.21.0\n   Compiling wasmtime-cranelift v32.0.0 (/work/crates/cranelift)\n   Compiling ittapi v0.4.0\n   Compiling wat v1.239.0\n   Compiling regex v1.9.1\n   Compiling fxprof-processed-profile v0.6.0\n   Compiling addr2line v0.24.1\n   Compiling trait-variant v0.1.2\n   Compiling memfd v0.6.4\n   Compiling is-terminal v0.4.10\n   Compiling wasmtime-jit-icache-coherence v32.0.0 (/work/crates/jit-icache-coherence)\n   Compiling once_cell v1.19.0\n   Compiling sptr v0.3.2\n   Compiling humantime v2.1.0\n   Compiling wasmtime-slab v32.0.0 (/work/crates/slab)\n   Compiling env_logger v0.10.0\n   Compiling poc v0.1.0 (/tmp/pocsrc_run)\n    Finished `release` profile [optimized] target(s) in 1m 15s\n===RUN===\nVERIFY_EXIT=134\n\nCALL_OK\nSCOPE_EXITED_NO_PANIC\n\nthread 'main' panicked at /work/crates/wasmtime/src/runtime/vm/gc/enabled/drc.rs:265:40:\nrange end index 188 out of range for slice of length 40\nstack backtrace:\n   0: rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::slice::index::slice_end_index_len_fail::do_panic::runtime\n   3: core::slice::index::slice_end_index_len_fail\n   4: wasmtime::runtime::vm::gc::enabled::drc::DrcHeap::dec_ref_and_maybe_dealloc\n   5: <wasmtime::runtime::vm::gc::enabled::drc::DrcCollection as wasmtime::runtime::vm::gc::gc_runtime::GarbageCollection>::collect_increment\n   6: wasmtime::runtime::vm::gc::gc_runtime::GarbageCollection::collect\n   7: wasmtime::runtime::vm::gc::GcStore::gc\n   8: wasmtime::runtime::store::StoreOpaque::gc\n   9: std::panicking::try::do_call\n  10: __rust_try\n  11: poc::main\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\nTARGET PANIC (treated as crash): range end index 188 out of range for slice of length 40\n/poc/run.sh: line 10:  3786 Aborted                 RUST_LOG=wasmtime::runtime::vm::gc=trace /tmp/pocbuild_run/x86_64-unknown-linux-gnu/release/poc\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "array-new-fixed-of-gc-refs.wat",
+      "poc_sha256": "1b3a1fd801ad4d426531f4c1ac3ea2cf6ad41c608eae59d52fcb8517ea5a86c0",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "406d00bb5afe8e361d90bf6699657f476bb566f6",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "8da6aa3f766e52f8a9f8faa5c9e26940aee38ca8b1c1e5050893c079adf19662"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "   Compiling unicode-width v0.2.0\n   Compiling rustc-demangle v0.1.24\n   Compiling regex-syntax v0.7.4\n   Compiling async-trait v0.1.71\n   Compiling encoding_rs v0.8.31\n   Compiling wasmtime-component-macro v32.0.0 (/work/crates/component-macro)\n   Compiling heck v0.5.0\n   Compiling wasmtime-wit-bindgen v32.0.0 (/work/crates/wit-bindgen)\n   Compiling regex-automata v0.3.3\n   Compiling wasmtime-environ v32.0.0 (/work/crates/environ)\n   Compiling wast v239.0.0\n   Compiling debugid v0.8.0\n   Compiling sha2 v0.10.2\n   Compiling fxhash v0.2.1\n   Compiling toml v0.8.10\n   Compiling directories-next v2.0.0\n   Compiling zstd v0.13.0\n   Compiling cranelift-native v0.119.0 (/work/cranelift/native)\n   Compiling cranelift-frontend v0.119.0 (/work/cranelift/frontend)\n   Compiling itertools v0.12.1\n   Compiling wasmtime v32.0.0 (/work/crates/wasmtime)\n   Compiling wasmtime-asm-macros v32.0.0 (/work/crates/asm-macros)\n   Compiling base64 v0.21.0\n   Compiling wasmtime-cranelift v32.0.0 (/work/crates/cranelift)\n   Compiling wat v1.239.0\n   Compiling ittapi v0.4.0\n   Compiling fxprof-processed-profile v0.6.0\n   Compiling regex v1.9.1\n   Compiling addr2line v0.24.1\n   Compiling trait-variant v0.1.2\n   Compiling memfd v0.6.4\n   Compiling is-terminal v0.4.10\n   Compiling wasmtime-jit-icache-coherence v32.0.0 (/work/crates/jit-icache-coherence)\n   Compiling humantime v2.1.0\n   Compiling once_cell v1.19.0\n   Compiling sptr v0.3.2\n   Compiling wasmtime-slab v32.0.0 (/work/crates/slab)\n   Compiling env_logger v0.10.0\n   Compiling poc v0.1.0 (/tmp/pocsrc_run)\n    Finished `release` profile [optimized] target(s) in 1m 23s\n===RUN===\nEXIT=0\nVERIFY_EXIT=0\n\nCALL_OK\nSCOPE_EXITED_NO_PANIC\nGC_DONE_NO_PANIC\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": "array-new-fixed-of-gc-refs.wat",
+      "poc_sha256": "1b3a1fd801ad4d426531f4c1ac3ea2cf6ad41c608eae59d52fcb8517ea5a86c0",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "406d00bb5afe8e361d90bf6699657f476bb566f6",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "82bf54a019c883d62cd63d70e9ef1007317bf9b256fc232721acd3c06ebb4d58"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "   Compiling cpufeatures v0.2.7\n   Compiling rustc-demangle v0.1.24\n   Compiling uuid v1.0.0\n   Compiling encoding_rs v0.8.31\n   Compiling regex-syntax v0.7.4\n   Compiling wasmtime-component-macro v32.0.0 (/work/crates/component-macro)\n   Compiling wasmtime-component-util v32.0.0 (/work/crates/component-util)\n   Compiling wasmtime-environ v32.0.0 (/work/crates/environ)\n   Compiling regex-automata v0.3.3\n   Compiling debugid v0.8.0\n   Compiling sha2 v0.10.2\n   Compiling wasmtime-wit-bindgen v32.0.0 (/work/crates/wit-bindgen)\n   Compiling zstd v0.13.0\n   Compiling wast v239.0.0\n   Compiling fxhash v0.2.1\n   Compiling toml v0.8.10\n   Compiling directories-next v2.0.0\n   Compiling itertools v0.12.1\n   Compiling cranelift-frontend v0.119.0 (/work/cranelift/frontend)\n   Compiling cranelift-native v0.119.0 (/work/cranelift/native)\n   Compiling wasmtime v32.0.0 (/work/crates/wasmtime)\n   Compiling wasmtime-asm-macros v32.0.0 (/work/crates/asm-macros)\n   Compiling base64 v0.21.0\n   Compiling wasmtime-cranelift v32.0.0 (/work/crates/cranelift)\n   Compiling wat v1.239.0\n   Compiling ittapi v0.4.0\n   Compiling fxprof-processed-profile v0.6.0\n   Compiling regex v1.9.1\n   Compiling addr2line v0.24.1\n   Compiling trait-variant v0.1.2\n   Compiling memfd v0.6.4\n   Compiling is-terminal v0.4.10\n   Compiling wasmtime-jit-icache-coherence v32.0.0 (/work/crates/jit-icache-coherence)\n   Compiling humantime v2.1.0\n   Compiling once_cell v1.19.0\n   Compiling sptr v0.3.2\n   Compiling wasmtime-slab v32.0.0 (/work/crates/slab)\n   Compiling env_logger v0.10.0\n   Compiling poc v0.1.0 (/tmp/pocsrc_run)\n    Finished `release` profile [optimized] target(s) in 1m 21s\n===RUN===\nEXIT=0\nVERIFY_EXIT=0\n\nCALL_OK\nSCOPE_EXITED_NO_PANIC\nGC_DONE_NO_PANIC\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "TARGET PANIC (treated as crash): range end index 188 out of range for slice of length 40",
+    "pre_marker": "GC_DONE_NO_PANIC",
+    "benign_marker": "GC_DONE_NO_PANIC",
+    "description": "The target's own GC collection code (DrcHeap::dec_ref_and_maybe_dealloc -> trace_gc_ref) panics when slicing the freed object's outgoing-GC-edge byte region using the corrupted `num_gc_refs` header field (set by the intro commit to the array's total byte size instead of its element count); the harness treats this specific panic, propagating out of `store.gc()`, as a crash (process abort) rather than a normal control-flow error.",
+    "target_evidence": "run_poc(post_intro): exit=134, crashed=True. Output shows `CALL_OK`, `SCOPE_EXITED_NO_PANIC`, then `thread 'main' panicked at /work/crates/wasmtime/src/runtime/vm/gc/enabled/drc.rs:265:40: range end index 188 out of range for slice of length 40`, backtrace through `DrcHeap::dec_ref_and_maybe_dealloc` <- `GarbageCollection::collect` <- `GcStore::gc` <- `StoreOpaque::gc` <- `poc::main`, then our harness prints `TARGET PANIC (treated as crash): range end index 188 out of range for slice of length 40` and aborts (SIGABRT, exit 134). Earlier RUST_LOG=trace runs (identical scenario, same build) showed the array is allocated via `FreeList::alloc(Layout{size:40,..})`, ref count goes 1 (alloc) -> 2 (exposed to host on wasm->host return) -> 1 (RootScope exit) -> 0 (bump-chunk sweep during store.gc()), at which point the buggy num_gc_refs=40 (the object's own byte size, reused from `emit_array_size`'s `size` value in crates/cranelift/src/gc/enabled/drc.rs `alloc_array`) makes end_in_obj = start_in_obj(28) + 40*4 = 188, far exceeding the real 40-byte object, producing the panic. run_poc(pre_intro): exit=0, crashed=False, `FreeList::alloc(Layout{size:32,..})` (this header/tracing mechanism's current form predates this revision), clean dealloc, prints GC_DONE_NO_PANIC. run_poc(post_benign): exit=0, crashed=False, `FreeList::alloc(Layout{size:40,..})` (identical object size to post_intro), clean dealloc, prints GC_DONE_NO_PANIC, because num_gc_refs is correctly 3 (end_in_obj=28+3*4=40, exactly matching the real object length)."
+  },
+  "agent_oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

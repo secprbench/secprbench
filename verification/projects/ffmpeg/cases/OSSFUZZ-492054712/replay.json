@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-492054712",
+    "bug_id": "OSSFUZZ-492054712",
+    "bug_type": "BufferOverflow",
+    "intro_commit": "863c748144a1406ce6340c3eb6ce8ee52e715906",
+    "intro_parent": "3607a10dc386fc0d41372ec43f1fa98aa11b5635",
+    "fix_commit": "f84c859ec54d11bd743daafd89f42bb34873d29d",
+    "affected_files": [
+      "libavcodec/bsf/extract_extradata.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json's root cause states that write_lcevc_nalu()'s return value (an ABSOLUTE bytestream2_tell_p position in the shared PutByteContext) is misused as a per-NAL incremental size delta and summed cumulatively (*size += ret) across the NAL loop in extract_extradata_lcevc(), producing a *size far larger than the buffer that was actually allocated (extradata_size, computed correctly as a linear upper bound in the earlier dummy pass). That inflated *size later becomes 'extradata_size' in extract_extradata_filter(), which does `memset(extradata + extradata_size, 0, AV_INPUT_BUFFER_PADDING_SIZE)` \u2014 writing past the end of the av_malloc'd buffer.\n\nReproduction: with N=4 identical qualifying LCEVC NALs (8 bytes of real content each, matching the correct linear allocation), the corrupted cumulative size formula grows quadratically (sum of cumulative positions across iterations) while the allocation stays linear, guaranteeing the reported size exceeds the allocated capacity by a wide margin for N>=2, and I used N=4 for a comfortable margin.\n\n- pre_intro (parent 3607a10dc386): builds fine; running the exact PoC against the built target completes without any crash \u2014 'PoC completed without crash', av_bsf_receive_packet ultimately returns -11 (EAGAIN), no ASan report.\n- post_intro (863c748144a1): the identical PoC reliably crashes: 'AddressSanitizer: heap-buffer-overflow ... WRITE of size 64', stack trace #0 __asan_memset, #1 extract_extradata_filter /work/libavcodec/bsf/extract_extradata.c:603 (the memset padding line), with the overflowing buffer allocated at extract_extradata_lcevc.c:404 (the av_malloc(extradata_size+...) line) \u2014 exactly the function/lines named in the root cause and the fix commit (f84c859ec54d, 'Replace incorrect size accounting').\n- post_benign (fix applied on top of intro): identical PoC again completes cleanly with no crash, same as pre_intro ('PoC completed without crash', receive_packet -> -11).\n\nThe same reproducer command (/poc/run.sh, which compiles poc.c once with ASan and links it against each version's own built static libs, then runs it on the fixed byte input) was used unmodified across all three revisions, and the sanitizer report appears only in post_intro. This is a clean, deterministic, target-code (not reimplemented) reproduction of the exact heap-buffer-overflow described in the bug report and root cause, confirming both introduction and the benign fix."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: incomplete)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/b555657765217f7735ea/attempts/05/pocs/ffmpeg/OSSFUZZ-492054712",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "61f33efd3932d00fea7245297bad9dff8163a5e7c01edbda7efc4adc91162d03",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "863c748144a1406ce6340c3eb6ce8ee52e715906",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "75e8c370fcca82a11398e95114c512b81ece37a8cc75612f5273600cc3ce77f8"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=134\n\nav_bsf_send_packet -> 0\n=================================================================\n==12==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x609000000110 at pc 0x562837e9a94c bp 0x7ffe13f19f30 sp 0x7ffe13f19700\nWRITE of size 64 at 0x609000000110 thread T0\n    #0 0x562837e9a94b in __asan_memset (/tmp/poc+0x4df94b) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98)\n    #1 0x562837eeb28b in extract_extradata_filter /work/libavcodec/bsf/extract_extradata.c:603:9\n    #2 0x562837ed7760 in av_bsf_receive_packet /work/libavcodec/bsf.c:232:12\n    #3 0x562837ed6640 in main /poc/poc.c:96:19\n    #4 0x7fe8a430ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7fe8a430ee3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x562837e184d4 in _start (/tmp/poc+0x45d4d4) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98)\n\n0x609000000110 is located 0 bytes to the right of 96-byte region [0x6090000000b0,0x609000000110)\nallocated by thread T0 here:\n    #0 0x562837e9be97 in posix_memalign (/tmp/poc+0x4e0e97) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98)\n    #1 0x562839633197 in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x562837eed60e in extract_extradata_lcevc /work/libavcodec/bsf/extract_extradata.c:404:21\n    #3 0x562837eeb23a in extract_extradata_filter /work/libavcodec/bsf/extract_extradata.c:598:11\n    #4 0x562837ed7760 in av_bsf_receive_packet /work/libavcodec/bsf.c:232:12\n    #5 0x562837ed6640 in main /poc/poc.c:96:19\n    #6 0x7fe8a430ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (/tmp/poc+0x4df94b) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98) in __asan_memset\nShadow bytes around the buggy address:\n  0x0c127fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff8000: fa fa fa fa 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff8010: fa fa fa fa fa fa 00 00 00 00 00 00 00 00 00 00\n=>0x0c127fff8020: 00 00[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==12==ABORTING\n/poc/run.sh: line 13:    12 Aborted                 /tmp/poc\n",
+        "stdout_tail": "e13f19f30 sp 0x7ffe13f19700\nWRITE of size 64 at 0x609000000110 thread T0\n    #0 0x562837e9a94b in __asan_memset (/tmp/poc+0x4df94b) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98)\n    #1 0x562837eeb28b in extract_extradata_filter /work/libavcodec/bsf/extract_extradata.c:603:9\n    #2 0x562837ed7760 in av_bsf_receive_packet /work/libavcodec/bsf.c:232:12\n    #3 0x562837ed6640 in main /poc/poc.c:96:19\n    #4 0x7fe8a430ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7fe8a430ee3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x562837e184d4 in _start (/tmp/poc+0x45d4d4) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98)\n\n0x609000000110 is located 0 bytes to the right of 96-byte region [0x6090000000b0,0x609000000110)\nallocated by thread T0 here:\n    #0 0x562837e9be97 in posix_memalign (/tmp/poc+0x4e0e97) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98)\n    #1 0x562839633197 in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x562837eed60e in extract_extradata_lcevc /work/libavcodec/bsf/extract_extradata.c:404:21\n    #3 0x562837eeb23a in extract_extradata_filter /work/libavcodec/bsf/extract_extradata.c:598:11\n    #4 0x562837ed7760 in av_bsf_receive_packet /work/libavcodec/bsf.c:232:12\n    #5 0x562837ed6640 in main /poc/poc.c:96:19\n    #6 0x7fe8a430ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow (/tmp/poc+0x4df94b) (BuildId: 4c33a1e278af2cfb840cc04e1dc0689aa286ec98) in __asan_memset\nShadow bytes around the buggy address:\n  0x0c127fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff8000: fa fa fa fa 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c127fff8010: fa fa fa fa fa fa 00 00 00 00 00 00 00 00 00 00\n=>0x0c127fff8020: 00 00[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c127fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==12==ABORTING\n/poc/run.sh: line 13:    12 Aborted                 /tmp/poc\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "61f33efd3932d00fea7245297bad9dff8163a5e7c01edbda7efc4adc91162d03",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "3607a10dc386fc0d41372ec43f1fa98aa11b5635",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "bdcdd5388ebb355101eab46ceb44387fb086ce686fb6da4b4d70e2a62fe4e0b4"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nav_bsf_send_packet -> 0\ngot packet size=32\nav_bsf_receive_packet -> -11 (final)\nPoC completed without crash\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "61f33efd3932d00fea7245297bad9dff8163a5e7c01edbda7efc4adc91162d03",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "3607a10dc386fc0d41372ec43f1fa98aa11b5635",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "2ca49578d91edfd0bca534c4f542efd856f4698f9602ed41bd1ec99d8eb3f6b3"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nav_bsf_send_packet -> 0\ngot packet size=32\nav_bsf_receive_packet -> -11 (final)\nPoC completed without crash\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom poc.c (compiled with clang -fsanitize=address and linked against the target's own libavcodec.a/libavutil.a/libswresample.a) drives the real public av_bsf_* API on the \"extract_extradata\" bitstream filter with par_in->codec_id = AV_CODEC_ID_LCEVC. It feeds an Annex-B packet containing 4 back-to-back 5-byte LCEVC NAL units (type=29 IDR_NUT, each carrying one SEQUENCE_CONFIG (payload_type=0) block), then calls av_bsf_send_packet()/av_bsf_receive_packet(). The same compiled poc binary + same input bytes are run unmodified against pre_intro, post_intro, and post_benign via /poc/run.sh.",
+    "target_evidence": "post_intro: \"AddressSanitizer: heap-buffer-overflow ... WRITE of size 64 ... #1 0x... in extract_extradata_filter /work/libavcodec/bsf/extract_extradata.c:603:9 ... allocated by thread T0 here: ... #2 0x... in extract_extradata_lcevc /work/libavcodec/bsf/extract_extradata.c:404:21\". pre_intro and post_benign: \"av_bsf_send_packet -> 0 / got packet size=32 / av_bsf_receive_packet -> -11 (final) / PoC completed without crash\" with no sanitizer output."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

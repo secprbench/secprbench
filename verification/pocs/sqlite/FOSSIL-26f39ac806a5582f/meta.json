@@ -1,0 +1,40 @@
+{
+  "task_id": "pr_review_FOSSIL-26f39ac806a5582f",
+  "bug_id": "FOSSIL-26f39ac806a5582f",
+  "bug_type": "LogicError",
+  "intro_commit": "4b136ed70a1eb656efca8cc4079e515d6fc33dd6",
+  "intro_parent": "a11499a1566f3e4b351550462e5b2ea7f1e15a82",
+  "fix_commit": "add73c831bfe86288839f6053b7fcc7adfa72a87",
+  "affected_files": [
+    "ext/fts3/fts3.c",
+    "ext/fts3/fts3Int.h",
+    "ext/fts3/fts3_write.c",
+    "src/delete.c",
+    "src/expr.c",
+    "src/select.c",
+    "src/sqlite.h.in",
+    "src/vdbe.h"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "sqlite",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_c98f436b0da4ba9d_fts3comp1.test: test/fts3comp1.test",
+    "- evidence/test_02_a741bc1c29798023_fts4content.test: test/fts4content.test"
+  ],
+  "input_name": null,
+  "root_cause": "SQLite's 'disallow unsafe SQL functions from untrasted schema content' protection was implemented by checking whether the current parse was a nested sub-parse of a top-level statement, or whether a specific expression was parsed directly from schema/DDL text. It did not account for virtual-table modules that, having been granted SQLITE_VTAB_INNOCUOUS status (and thus made usable from untrusted schemas), independently compile their own fresh top-level SQL statements built from schema-derived strings. Those internally-generated statements were indistinguishable, from the enforcement code's point of view, from ordinary trusted top-level user SQL, so the protection silently did not apply to them.",
+  "findings": [
+    "Commit 4b136ed70a marks the FTS3 virtual table as SQLITE_VTAB_INNOCUOUS (ext/fts3/fts3.c, fts3DeclareVtab), lowering its eVtabRisk to zero so that FTS3/4 tables can be created and used even when PRAGMA trusted_schema=OFF (i.e. from untrusted/attacker-influenced schemas, such as those found in an attached or shared database). Before this change, SQLite's virtual-table risk checks (vtabIsReadOnly in"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "6078db235f7311bb4f3519b080c82550cb2a9392e756a052340382c229ace51c",
+  "generated_artifact_sha256": {
+    "reference": "68464161bd27fb40192da84011d3836fa3fadf9b4dfea6cae415332e73ec4bc3",
+    "introducing": "a8f80c8772ee1a6107afc56303454c8943f9c207d0343a85833730966dbbcfe3",
+    "companion": "6d64526b9af76614ee19291852cf151cde0c250e6a3b41e5585d7becade4477e"
+  }
+}

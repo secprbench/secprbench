@@ -1,0 +1,68 @@
+{
+  "bug_id": "REPORTED-582cea9ee1bfa873",
+  "title": "[autofit] Fix handling of invalid GSUB lookup indices.",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "freetype",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public upstream fixing commit https://gitlab.freedesktop.org/freetype/freetype/-/commit/582cea9ee1bfa87344792c5c54657250e9983138\n\n[autofit] Fix handling of invalid GSUB lookup indices.\n\nProblem reported by Marc Schönefeld.\n\nHarfBuzz validates everything while processing OpenType tables in fonts.\nHowever, the data returned by `hb_ot_layout_collect_lookups` is not\nvalidated.  This commit adds proper checks.\n\n* src/autofit/afglobal.h (AF_FaceGlobals): New field `gsub_lookup_count`.\n* src/autofit/afgsub.c (af_parse_gsub): Set it.\n\n* src/autofit/afadjust.c (af_reverse_character_map_new): Test result of\n  `hb_set_next`.\n\n\nA named reporter or linked report is present in the commit. A separate discussion may be unavailable; validate security impact, fixing role, and earliest relevant fix before task construction.",
+  "commit_ids": [
+    "582cea9ee1bfa87344792c5c54657250e9983138"
+  ],
+  "fix_commit_sha": "582cea9ee1bfa87344792c5c54657250e9983138",
+  "fix_date": "2025-11-28T14:23:00+01:00",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "season": "2025H2",
+  "affected_files": [
+    "src/autofit/afadjust.c",
+    "src/autofit/afglobal.h",
+    "src/autofit/afgsub.c"
+  ],
+  "changed_lines": 18,
+  "report_references": [
+    {
+      "id": null,
+      "url": null,
+      "kind": "named_reporter",
+      "evidence": "Problem reported by Marc Schönefeld."
+    }
+  ],
+  "candidate_status": "attributed_git_lead_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_defect_classes": [
+      "font_input_guard"
+    ],
+    "untrusted_input_boundary_proven": false,
+    "fix_role_review_required": true,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_freetype_named_reports_v1",
+    "source_url": "https://gitlab.freedesktop.org/freetype/freetype/-/commit/582cea9ee1bfa87344792c5c54657250e9983138",
+    "public_commit_url": "https://gitlab.freedesktop.org/freetype/freetype/-/commit/582cea9ee1bfa87344792c5c54657250e9983138",
+    "report_details": "not_fetched",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v4-targeted/freetype-named-fix-v3/raw/git/582cea9ee1bfa87344792c5c54657250e9983138.commit",
+      "sha256": "e3f56f8173a95702a7981810f1b05a0083b2f2572171811a2833eba472da3ae5"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v4-targeted/freetype-named-fix-v3/raw/git/582cea9ee1bfa87344792c5c54657250e9983138.patch",
+      "sha256": "0eb03329bafa23c0f346c8e97d68391a9a3dbd5caaf6aa4b9dd0624b72fc4575"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "b6c6934a76fae579fce081b03e2e74aca17e7eeb",
+    "fix_sha": "582cea9ee1bfa87344792c5c54657250e9983138",
+    "report_attribution": [
+      {
+        "id": null,
+        "url": null,
+        "kind": "named_reporter",
+        "evidence": "Problem reported by Marc Schönefeld."
+      }
+    ]
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "poc.ts: a 3-packet MPEG-TS stream (PAT -> PMT declaring PID 0x1001 as stream_type 0x32/JPEG-XS -> one PES packet with stream_id 0xBD whose PES_packet_length matches exactly 8 delivered payload bytes: the big-endian uint32 0xFFFFFF00 followed by ASCII \"jxes\"). Reproducer: a tiny custom harness /poc/poc.c (compiled fresh each run with the exact same clang+ASan flags as the target build, linked against the target's own libavformat/libavcodec/libavutil static libs) that calls avformat_open_input() then a single av_read_frame() on /poc/poc.ts and exits immediately (skipping avformat_close_input, to keep the observation limited to the read path). Identical harness source, compile command and input file were used for pre_intro, post_intro and post_benign.",
+  "explanation": "Source inspection: pre_intro's new_pes_packet() in libavformat/mpegts.c has no JPEG-XS/'jxes' handling at all (grep found zero hits). post_intro (536475ea0582) adds: `if (pes->stream_id==0xbd && pes->stream_type==0x32 && pkt->size>=8 && memcmp(pkt->data+4,\"jxes\",4)==0) { uint32_t header_size = AV_RB32(pkt->data); pkt->data += header_size; pkt->size -= header_size; } memset(pkt->data + pkt->size, 0, AV_INPUT_BUFFER_PADDING_SIZE);` with no validation of header_size against pkt->size - exactly the labelled root cause (unchecked attacker-controlled length field used in pointer arithmetic that feeds a memset destination). post_benign adds the bounds check from the real fix: `if (header_size > pkt->size) { av_log(...); pes->flags |= AV_PKT_FLAG_CORRUPT; return AVERROR_INVALIDDATA; }` before the pointer adjustment/memset.\n\nReproduction: running the harness (single av_read_frame call) on poc.ts:\n- pre_intro: av_read_frame returns 0, packet size=8, no crash (feature doesn't exist yet).\n- post_intro: AddressSanitizer reports SEGV (wild-pointer WRITE) directly at libavformat/mpegts.c:1042 inside new_pes_packet, called via mpegts_push_data:1431 -> handle_packet -> handle_packets -> mpegts_read_packet -> ff_read_packet -> av_read_frame -> main. This is the memset writing through the pointer corrupted by `pkt->data += 0xFFFFFF00`, i.e. exactly the labelled OOB write.\n- post_benign: the guard fires (\"Invalid JPEG-XS header size 4294967040 > packet size 8\"), av_read_frame returns AVERROR_INVALIDDATA, and the process exits cleanly (0) with no sanitizer report - the labelled OOB write no longer occurs.\n\nNote on methodology: I initially reproduced this with the full ffmpeg CLI (-i poc.ts -copy_unknown -map 0 -c copy -f null /dev/null). That command reproduced the SEGV identically in post_intro, but in post_benign it uncovered a second, unrelated defect: new_pes_packet's early-return-on-error path sets pkt->buf = pes->buffer (a raw pointer copy) before the header_size check, and on the error path never does `pes->buffer = NULL`, so pkt->buf and pes->buffer end up aliasing the same AVBufferRef; when the caller later av_packet_unref()s the packet (immediately, or during avformat_find_stream_info's duration-estimation seek/flush, or at close), that buffer is freed while pes->buffer still points at it, producing a heap-use-after-free (ASan: buffer_replace/av_buffer_unref, libavutil/buffer.c:121, via handle_packets mpegts.c:3132) - a different bug in a different function/stack with a different signature (UAF vs wild-pointer SEGV) than the labelled BufferOverflow, and one that is absent from post_intro entirely (it only exists once the fix's error-return path exists). To keep the pre/post_intro/post_benign comparison strictly about the labelled bug, I isolated it with a minimal harness that performs a single av_read_frame and exits without invoking the unrelated cleanup path; this gives a clean, unambiguous, reproducible signal per version using the identical input and invocation logic across all three builds, matching the task's own repro description (stream_id 0xbd, stream_type 0x32, header_size 0xFFFFFF00, 'jxes' marker).",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "poc.ts: a 3-packet MPEG-TS stream (PAT -> PMT declaring PID 0x1001 as stream_type 0x32/JPEG-XS -> one PES packet with stream_id 0xBD whose PES_packet_length matches exactly 8 delivered payload bytes: the big-endian uint32 0xFFFFFF00 followed by ASCII \"jxes\"). Reproducer: a tiny custom harness /poc/poc.c (compiled fresh each run with the exact same clang+ASan flags as the target build, linked against the target's own libavformat/libavcodec/libavutil static libs) that calls avformat_open_input() then a single av_read_frame() on /poc/poc.ts and exits immediately (skipping avformat_close_input, to keep the observation limited to the read path). Identical harness source, compile command and input file were used for pre_intro, post_intro and post_benign.",
+    "target_evidence": "post_intro (run_poc): \"AddressSanitizer: SEGV on unknown address ... WRITE memory access ... #2 new_pes_packet /work/libavformat/mpegts.c:1042:5 ... #3 mpegts_push_data /work/libavformat/mpegts.c:1431:27 ... #9 av_read_frame demux.c:1569\". pre_intro (run_poc): exit=0, \"av_read_frame returned 0\\ngot packet size=8\\nPRE_CLOSE_OK\". post_benign (run_poc): exit=0, \"Invalid JPEG-XS header size 4294967040 > packet size 8\\nav_read_frame returned -1094995529\\nPRE_CLOSE_OK\" (AVERROR_INVALIDDATA, no sanitizer report)."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_binary_file_hex(poc.ts)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=True",
+    "docker_shell(post_benign)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. /poc/poc.c -o /tmp/poc_bin -Llibavformat -Llibavcodec -Llibavutil -Llibswresample -Llibswscale -Llibavfilter -Llibavdevice -lavformat -lavcodec -lavutil -lswresample -lm -lz -pthread -latomic -fsanitize=address && /tmp/poc_bin /poc/poc.ts",
+      "input": null,
+      "poc_sha256": "ce304fd6448f46096a9f784b3e2a9f8a7bd32de94e5e28da89dd821c2603ee40",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "536475ea058245e71f5c2e7f3d5c39b0cad465e5",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "0f92fa507ca8d39087af478eeadbf4fed95b2f173fed55fcf30b50888af11903"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "ERIFY_EXIT=134\n\n[mpegts @ 0x616000000080] Format mpegts detected only with low score of 2, misdetection possible!\n[mpegts @ 0x616000000080] Could not detect TS packet size, defaulting to non-FEC/DVHS\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x60d100000068 (pc 0x7fd5b5e6bfe4 bp 0x7ffce2d9f6f0 sp 0x7ffce2d9eeb8 T0)\n==8==The signal is caused by a WRITE memory access.\n    #0 0x7fd5b5e6bfe4  string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:137\n    #1 0x562f0d118e23 in __asan_memset (/tmp/poc_bin+0x688e23) (BuildId: 5043dbdd481ebe2bb6244f6c8ecdaf96e52ab91e)\n    #2 0x562f0d3d3bf7 in new_pes_packet /work/libavformat/mpegts.c:1042:5\n    #3 0x562f0d3d0ad4 in mpegts_push_data /work/libavformat/mpegts.c:1431:27\n    #4 0x562f0d3c68d5 in handle_packet /work/libavformat/mpegts.c:3014:24\n    #5 0x562f0d3d59c2 in handle_packets /work/libavformat/mpegts.c:3153:15\n    #6 0x562f0d3c89c7 in mpegts_read_packet /work/libavformat/mpegts.c:3395:11\n    #7 0x562f0d15750f in ff_read_packet /work/libavformat/demux.c:649:15\n    #8 0x562f0d1595e7 in read_frame_internal /work/libavformat/demux.c:1370:15\n    #9 0x562f0d158c91 in av_read_frame /work/libavformat/demux.c:1569:17\n    #10 0x562f0d154624 in main /poc/poc.c:14:11\n    #11 0x7fd5b5cf4d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7fd5b5cf4e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x562f0d096974 in _start (/tmp/poc_bin+0x606974) (BuildId: 5043dbdd481ebe2bb6244f6c8ecdaf96e52ab91e)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:137 \n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. /poc/poc.c -o /tmp/poc_bin -Llibavformat -Llibavcodec -Llibavutil -Llibswresample -Llibswscale -Llibavfilter -Llibavdevice -lavformat -lavcodec -lavutil -lswresample -lm -lz -pthread -latomic -fsanitize=address && /tmp/poc_bin /poc/poc.ts'\n",
+        "stdout_tail": "VERIFY_EXIT=134\n\n[mpegts @ 0x616000000080] Format mpegts detected only with low score of 2, misdetection possible!\n[mpegts @ 0x616000000080] Could not detect TS packet size, defaulting to non-FEC/DVHS\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x60d100000068 (pc 0x7fd5b5e6bfe4 bp 0x7ffce2d9f6f0 sp 0x7ffce2d9eeb8 T0)\n==8==The signal is caused by a WRITE memory access.\n    #0 0x7fd5b5e6bfe4  string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:137\n    #1 0x562f0d118e23 in __asan_memset (/tmp/poc_bin+0x688e23) (BuildId: 5043dbdd481ebe2bb6244f6c8ecdaf96e52ab91e)\n    #2 0x562f0d3d3bf7 in new_pes_packet /work/libavformat/mpegts.c:1042:5\n    #3 0x562f0d3d0ad4 in mpegts_push_data /work/libavformat/mpegts.c:1431:27\n    #4 0x562f0d3c68d5 in handle_packet /work/libavformat/mpegts.c:3014:24\n    #5 0x562f0d3d59c2 in handle_packets /work/libavformat/mpegts.c:3153:15\n    #6 0x562f0d3c89c7 in mpegts_read_packet /work/libavformat/mpegts.c:3395:11\n    #7 0x562f0d15750f in ff_read_packet /work/libavformat/demux.c:649:15\n    #8 0x562f0d1595e7 in read_frame_internal /work/libavformat/demux.c:1370:15\n    #9 0x562f0d158c91 in av_read_frame /work/libavformat/demux.c:1569:17\n    #10 0x562f0d154624 in main /poc/poc.c:14:11\n    #11 0x7fd5b5cf4d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7fd5b5cf4e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x562f0d096974 in _start (/tmp/poc_bin+0x606974) (BuildId: 5043dbdd481ebe2bb6244f6c8ecdaf96e52ab91e)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV string/../sysdeps/x86_64/multiarch/memset-vec-unaligned-erms.S:137 \n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. /poc/poc.c -o /tmp/poc_bin -Llibavformat -Llibavcodec -Llibavutil -Llibswresample -Llibswscale -Llibavfilter -Llibavdevice -lavformat -lavcodec -lavutil -lswresample -lm -lz -pthread -latomic -fsanitize=address && /tmp/poc_bin /poc/poc.ts'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. /poc/poc.c -o /tmp/poc_bin -Llibavformat -Llibavcodec -Llibavutil -Llibswresample -Llibswscale -Llibavfilter -Llibavdevice -lavformat -lavcodec -lavutil -lswresample -lm -lz -pthread -latomic -fsanitize=address && /tmp/poc_bin /poc/poc.ts",
+      "input": null,
+      "poc_sha256": "ce304fd6448f46096a9f784b3e2a9f8a7bd32de94e5e28da89dd821c2603ee40",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "3b1214a89767ccd4ccdf0561952c79566cbc5b7d",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "03042adad5cb7c460baaae7d322f2383067b8f967cb4ee7e78713553e27700b5"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n[mpegts @ 0x616000000080] Format mpegts detected only with low score of 2, misdetection possible!\n[mpegts @ 0x616000000080] Could not detect TS packet size, defaulting to non-FEC/DVHS\n[mpegts @ 0x616000000080] probed stream 0 failed\nav_read_frame returned 0\ngot packet size=8\nPRE_CLOSE_OK\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. /poc/poc.c -o /tmp/poc_bin -Llibavformat -Llibavcodec -Llibavutil -Llibswresample -Llibswscale -Llibavfilter -Llibavdevice -lavformat -lavcodec -lavutil -lswresample -lm -lz -pthread -latomic -fsanitize=address && /tmp/poc_bin /poc/poc.ts",
+      "input": null,
+      "poc_sha256": "ce304fd6448f46096a9f784b3e2a9f8a7bd32de94e5e28da89dd821c2603ee40",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "3b1214a89767ccd4ccdf0561952c79566cbc5b7d",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d3240aba4f4f2d22f55867b722f8fd7d056d21a48aa99946902c8cca2a4c2434"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n[mpegts @ 0x616000000080] Format mpegts detected only with low score of 2, misdetection possible!\n[mpegts @ 0x616000000080] Could not detect TS packet size, defaulting to non-FEC/DVHS\n[mpegts @ 0x616000000080] Invalid JPEG-XS header size 4294967040 > packet size 8\nav_read_frame returned -1094995529\nPRE_CLOSE_OK\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

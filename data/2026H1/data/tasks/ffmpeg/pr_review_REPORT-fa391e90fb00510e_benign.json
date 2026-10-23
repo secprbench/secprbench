@@ -1,0 +1,86 @@
+{
+  "task_id": "pr_review_REPORT-fa391e90fb00510e_benign",
+  "bug_id": "REPORT-fa391e90fb00510e",
+  "commit_sha": "fa391e90fb00510e926e305d6f8067cadf0f4153",
+  "commit_message": "fftools/ffmpeg_dec: export subtitle_header in Decoder\n\nThis way the encoder does not need to access the decoder AVCodecContext,\nwhich will allow to make it private in future commits.",
+  "commit_author": "",
+  "commit_date": "2026-09-28T23:11:29.164384",
+  "pr_title": "fftools/ffmpeg_dec: export subtitle_header in Decoder",
+  "pr_description": "fftools/ffmpeg_dec: export subtitle_header in Decoder\n\nThis way the encoder does not need to access the decoder AVCodecContext,\nwhich will allow to make it private in future commits.",
+  "files": [
+    {
+      "path": "fftools/ffmpeg.h",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "diff": "diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h\nindex 429c1aba85..d4848f7813 100644\n--- a/fftools/ffmpeg.h\n+++ b/fftools/ffmpeg.h\n@@ -274,21 +274,22 @@ typedef struct FilterGraph {\n     const AVClass *class;\n     int            index;\n \n     InputFilter   **inputs;\n     int          nb_inputs;\n     OutputFilter **outputs;\n     int         nb_outputs;\n } FilterGraph;\n \n typedef struct Decoder {\n-    char dummy;\n+    uint8_t         *subtitle_header;\n+    int              subtitle_header_size;\n } Decoder;\n \n typedef struct InputStream {\n     const AVClass *class;\n \n     /* parent source */\n     struct InputFile *file;\n \n     int index;\n \n"
+    },
+    {
+      "path": "fftools/ffmpeg_dec.c",
+      "status": "modified",
+      "additions": 12,
+      "deletions": 0,
+      "diff": "diff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c\nindex 16f653d52f..5e23b143d6 100644\n--- a/fftools/ffmpeg_dec.c\n+++ b/fftools/ffmpeg_dec.c\n@@ -79,20 +79,22 @@ void dec_free(Decoder **pdec)\n         return;\n     dp = dp_from_dec(dec);\n \n     av_frame_free(&dp->frame);\n     av_packet_free(&dp->pkt);\n \n     for (int i = 0; i < FF_ARRAY_ELEMS(dp->sub_prev); i++)\n         av_frame_free(&dp->sub_prev[i]);\n     av_frame_free(&dp->sub_heartbeat);\n \n+    av_freep(&dp->dec.subtitle_header);\n+\n     av_freep(pdec);\n }\n \n static int dec_alloc(Decoder **pdec)\n {\n     DecoderPriv *dp;\n \n     *pdec = NULL;\n \n     dp = av_mallocz(sizeof(*dp));\n@@ -962,12 +964,22 @@ int dec_open(InputStream *ist, Scheduler *sch, unsigned sch_idx)\n     if ((ret = avcodec_open2(ist->dec_ctx, codec, &ist->decoder_opts)) < 0) {\n         av_log(ist, AV_LOG_ERROR, \"Error while opening decoder: %s\\n\",\n                av_err2str(ret));\n         return ret;\n     }\n \n     ret = check_avoptions(ist->decoder_opts);\n     if (ret < 0)\n         return ret;\n \n+    if (ist->dec_ctx->subtitle_header) {\n+        /* ASS code assumes this buffer is null terminated so add extra byte. */\n+        dp->dec.subtitle_header = av_mallocz(ist->dec_ctx->subtitle_header_size + 1);\n+        if (!dp->dec.subtitle_header)\n+            return AVERROR(ENOMEM);\n+        memcpy(dp->dec.subtitle_header, ist->dec_ctx->subtitle_header,\n+               ist->dec_ctx->subtitle_header_size);\n+        dp->dec.subtitle_header_size = ist->dec_ctx->subtitle_header_size;\n+    }\n+\n     return 0;\n }\n"
+    },
+    {
+      "path": "fftools/ffmpeg_enc.c",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 9,
+      "diff": "diff --git a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c\nindex 2a7fba0c51..bbd86a6fe1 100644\n--- a/fftools/ffmpeg_enc.c\n+++ b/fftools/ffmpeg_enc.c\n@@ -164,21 +164,21 @@ static int set_encoder_id(OutputFile *of, OutputStream *ost)\n \n     return 0;\n }\n \n int enc_open(void *opaque, const AVFrame *frame)\n {\n     OutputStream *ost = opaque;\n     InputStream *ist = ost->ist;\n     Encoder              *e = ost->enc;\n     AVCodecContext *enc_ctx = ost->enc_ctx;\n-    AVCodecContext *dec_ctx = NULL;\n+    Decoder            *dec;\n     const AVCodec      *enc = enc_ctx->codec;\n     OutputFile          *of = ost->file;\n     FrameData *fd;\n     int frame_samples = 0;\n     int ret;\n \n     if (e->opened)\n         return 0;\n \n     // frame is always non-NULL for audio and video\n@@ -186,23 +186,22 @@ int enc_open(void *opaque, const AVFrame *frame)\n \n     if (frame) {\n         av_assert0(frame->opaque_ref);\n         fd = (FrameData*)frame->opaque_ref->data;\n     }\n \n     ret = set_encoder_id(of, ost);\n     if (ret < 0)\n         return ret;\n \n-    if (ist) {\n-        dec_ctx = ist->dec_ctx;\n-    }\n+    if (ist)\n+        dec = ist->decoder;\n \n     // the timebase is chosen by filtering code\n     if (ost->type == AVMEDIA_TYPE_AUDIO || ost->type == AVMEDIA_TYPE_VIDEO) {\n         enc_ctx->time_base      = frame->time_base;\n         enc_ctx->framerate      = fd->frame_rate_filter;\n         ost->st->avg_frame_rate = fd->frame_rate_filter;\n     }\n \n     switch (enc_ctx->codec_type) {\n     case AVMEDIA_TYPE_AUDIO:\n@@ -272,28 +271,30 @@ int enc_open(void *opaque, const AVFrame *frame)\n     case AVMEDIA_TYPE_SUBTITLE:\n         if (ost->enc_timebase.num)\n             av_log(ost, AV_LOG_WARNING,\n                    \"-enc_time_base not supported for subtitles, ignoring\\n\");\n         enc_ctx->time_base = AV_TIME_BASE_Q;\n \n         if (!enc_ctx->width) {\n             enc_ctx->width     = ost->ist->par->width;\n             enc_ctx->height    = ost->ist->par->height;\n         }\n-        if (dec_ctx && dec_ctx->subtitle_header) {\n+\n+        av_assert0(dec);\n+        if (dec->subtitle_header) {\n             /* ASS code assumes this buffer is null terminated so add extra byte. */\n-            enc_ctx->subtitle_header = av_mallocz(dec_ctx->subtitle_header_size + 1);\n+            enc_ctx->subtitle_header = av_mallocz(dec->subtitle_header_size + 1);\n             if (!enc_ctx->subtitle_header)\n                 return AVERROR(ENOMEM);\n-            memcpy(enc_ctx->subtitle_header, dec_ctx->subtitle_header,\n-                   dec_ctx->subtitle_header_size);\n-            enc_ctx->subtitle_header_size = dec_ctx->subtitle_header_size;\n+            memcpy(enc_ctx->subtitle_header, dec->subtitle_header,\n+                   dec->subtitle_header_size);\n+            enc_ctx->subtitle_header_size = dec->subtitle_header_size;\n         }\n \n         break;\n     default:\n         av_assert0(0);\n         break;\n     }\n \n     if (ost->bitexact)\n         enc_ctx->flags |= AV_CODEC_FLAG_BITEXACT;\n"
+    }
+  ],
+  "full_diff": "diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h\nindex 429c1aba85..d4848f7813 100644\n--- a/fftools/ffmpeg.h\n+++ b/fftools/ffmpeg.h\n@@ -274,21 +274,22 @@ typedef struct FilterGraph {\n     const AVClass *class;\n     int            index;\n \n     InputFilter   **inputs;\n     int          nb_inputs;\n     OutputFilter **outputs;\n     int         nb_outputs;\n } FilterGraph;\n \n typedef struct Decoder {\n-    char dummy;\n+    uint8_t         *subtitle_header;\n+    int              subtitle_header_size;\n } Decoder;\n \n typedef struct InputStream {\n     const AVClass *class;\n \n     /* parent source */\n     struct InputFile *file;\n \n     int index;\n \ndiff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c\nindex 16f653d52f..5e23b143d6 100644\n--- a/fftools/ffmpeg_dec.c\n+++ b/fftools/ffmpeg_dec.c\n@@ -79,20 +79,22 @@ void dec_free(Decoder **pdec)\n         return;\n     dp = dp_from_dec(dec);\n \n     av_frame_free(&dp->frame);\n     av_packet_free(&dp->pkt);\n \n     for (int i = 0; i < FF_ARRAY_ELEMS(dp->sub_prev); i++)\n         av_frame_free(&dp->sub_prev[i]);\n     av_frame_free(&dp->sub_heartbeat);\n \n+    av_freep(&dp->dec.subtitle_header);\n+\n     av_freep(pdec);\n }\n \n static int dec_alloc(Decoder **pdec)\n {\n     DecoderPriv *dp;\n \n     *pdec = NULL;\n \n     dp = av_mallocz(sizeof(*dp));\n@@ -962,12 +964,22 @@ int dec_open(InputStream *ist, Scheduler *sch, unsigned sch_idx)\n     if ((ret = avcodec_open2(ist->dec_ctx, codec, &ist->decoder_opts)) < 0) {\n         av_log(ist, AV_LOG_ERROR, \"Error while opening decoder: %s\\n\",\n                av_err2str(ret));\n         return ret;\n     }\n \n     ret = check_avoptions(ist->decoder_opts);\n     if (ret < 0)\n         return ret;\n \n+    if (ist->dec_ctx->subtitle_header) {\n+        /* ASS code assumes this buffer is null terminated so add extra byte. */\n+        dp->dec.subtitle_header = av_mallocz(ist->dec_ctx->subtitle_header_size + 1);\n+        if (!dp->dec.subtitle_header)\n+            return AVERROR(ENOMEM);\n+        memcpy(dp->dec.subtitle_header, ist->dec_ctx->subtitle_header,\n+               ist->dec_ctx->subtitle_header_size);\n+        dp->dec.subtitle_header_size = ist->dec_ctx->subtitle_header_size;\n+    }\n+\n     return 0;\n }\ndiff --git a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c\nindex 2a7fba0c51..bbd86a6fe1 100644\n--- a/fftools/ffmpeg_enc.c\n+++ b/fftools/ffmpeg_enc.c\n@@ -164,21 +164,21 @@ static int set_encoder_id(OutputFile *of, OutputStream *ost)\n \n     return 0;\n }\n \n int enc_open(void *opaque, const AVFrame *frame)\n {\n     OutputStream *ost = opaque;\n     InputStream *ist = ost->ist;\n     Encoder              *e = ost->enc;\n     AVCodecContext *enc_ctx = ost->enc_ctx;\n-    AVCodecContext *dec_ctx = NULL;\n+    Decoder            *dec;\n     const AVCodec      *enc = enc_ctx->codec;\n     OutputFile          *of = ost->file;\n     FrameData *fd;\n     int frame_samples = 0;\n     int ret;\n \n     if (e->opened)\n         return 0;\n \n     // frame is always non-NULL for audio and video\n@@ -186,23 +186,22 @@ int enc_open(void *opaque, const AVFrame *frame)\n \n     if (frame) {\n         av_assert0(frame->opaque_ref);\n         fd = (FrameData*)frame->opaque_ref->data;\n     }\n \n     ret = set_encoder_id(of, ost);\n     if (ret < 0)\n         return ret;\n \n-    if (ist) {\n-        dec_ctx = ist->dec_ctx;\n-    }\n+    if (ist)\n+        dec = ist->decoder;\n \n     // the timebase is chosen by filtering code\n     if (ost->type == AVMEDIA_TYPE_AUDIO || ost->type == AVMEDIA_TYPE_VIDEO) {\n         enc_ctx->time_base      = frame->time_base;\n         enc_ctx->framerate      = fd->frame_rate_filter;\n         ost->st->avg_frame_rate = fd->frame_rate_filter;\n     }\n \n     switch (enc_ctx->codec_type) {\n     case AVMEDIA_TYPE_AUDIO:\n@@ -272,28 +271,30 @@ int enc_open(void *opaque, const AVFrame *frame)\n     case AVMEDIA_TYPE_SUBTITLE:\n         if (ost->enc_timebase.num)\n             av_log(ost, AV_LOG_WARNING,\n                    \"-enc_time_base not supported for subtitles, ignoring\\n\");\n         enc_ctx->time_base = AV_TIME_BASE_Q;\n \n         if (!enc_ctx->width) {\n             enc_ctx->width     = ost->ist->par->width;\n             enc_ctx->height    = ost->ist->par->height;\n         }\n-        if (dec_ctx && dec_ctx->subtitle_header) {\n+\n+        av_assert0(dec);\n+        if (dec->subtitle_header) {\n             /* ASS code assumes this buffer is null terminated so add extra byte. */\n-            enc_ctx->subtitle_header = av_mallocz(dec_ctx->subtitle_header_size + 1);\n+            enc_ctx->subtitle_header = av_mallocz(dec->subtitle_header_size + 1);\n             if (!enc_ctx->subtitle_header)\n                 return AVERROR(ENOMEM);\n-            memcpy(enc_ctx->subtitle_header, dec_ctx->subtitle_header,\n-                   dec_ctx->subtitle_header_size);\n-            enc_ctx->subtitle_header_size = dec_ctx->subtitle_header_size;\n+            memcpy(enc_ctx->subtitle_header, dec->subtitle_header,\n+                   dec->subtitle_header_size);\n+            enc_ctx->subtitle_header_size = dec->subtitle_header_size;\n         }\n \n         break;\n     default:\n         av_assert0(0);\n         break;\n     }\n \n     if (ost->bitexact)\n         enc_ctx->flags |= AV_CODEC_FLAG_BITEXACT;\n",
+  "ground_truth": {
+    "bug_id": "REPORT-fa391e90fb00510e",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "b43d4a06925867fbbc0dbe21d63a3593253f672a",
+    "fix_commit": "fa391e90fb00510e926e305d6f8067cadf0f4153"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "b43d4a06925867fbbc0dbe21d63a3593253f672a",
+  "fix_commit_sha": "fa391e90fb00510e926e305d6f8067cadf0f4153",
+  "intro_commit_message": "fftools/ffmpeg_dec: export subtitle_header in Decoder\n\nThis way the encoder does not need to access the decoder AVCodecContext,\nwhich will allow to make it private in future commits.",
+  "fix_commit_message": "fftools/ffmpeg_dec: deep-copy subtitle_header to fix use-after-free\n\nFound-by: Zhen Yan\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "agent_reasoning": "The bug-introducing commit added Decoder.subtitle_header as a shallow pointer copy of AVCodecContext->subtitle_header, creating a use-after-free once the AVCodecContext is closed/freed while the Decoder (and any consumer of dec.subtitle_header) may outlive it. The fix deep-copies the buffer into memory owned by the Decoder, changes the field to a non-const uint8_t* to reflect ownership, and frees it in dec_free(). I applied these exact changes to fftools/ffmpeg.h and fftools/ffmpeg_dec.c, matching the intro-commit's variable names (ist->dec_ctx rather than dp->dec_ctx, since that refactor hadn't landed yet in this snapshot) while preserving the same semantics as the upstream fix.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "b43d4a06925867fbbc0dbe21d63a3593253f672a",
+    "fix_revision": "fa391e90fb00510e926e305d6f8067cadf0f4153",
+    "fix_parent_revision": "d2dd0a0a8f3d5540ffff9353a3898914c97b2b6b",
+    "inspected_paths": [
+      "fftools/ffmpeg.h",
+      "fftools/ffmpeg_dec.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "fftools/ffmpeg_dec.c",
+        "symbol": "AVERROR",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "fftools/ffmpeg_dec.c",
+        "symbol": "av_freep",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "fftools/ffmpeg_dec.c",
+        "symbol": "av_mallocz",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "fftools/ffmpeg_dec.c",
+        "symbol": "memcpy",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

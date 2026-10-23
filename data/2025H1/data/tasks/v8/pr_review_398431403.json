@@ -1,0 +1,96 @@
+{
+  "task_id": "pr_review_398431403",
+  "bug_id": "398431403",
+  "commit_sha": "65beb80d9cd6da4cca447a3a8857b59035412417",
+  "commit_message": "[turbofan] Fix related to the TypedArray type\n\nObjectIsArrayBufferView was not expecting it.\n\nBug: 388844115, 394650781\nChange-Id: I6bc6214f6367e76b956a759842771a325d54b175\nFixed: 394650781\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6243195\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCommit-Queue: Marja Hölttä <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98574}",
+  "commit_author": "Marja Hölttä",
+  "commit_date": "2025-02-07T10:36:04+01:00",
+  "pr_title": "[turbofan] Fix related to the TypedArray type",
+  "pr_description": "ObjectIsArrayBufferView was not expecting it.\n\nBug: 388844115, 394650781\nChange-Id: I6bc6214f6367e76b956a759842771a325d54b175\nFixed: 394650781\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6243195\nReviewed-by: Darius Mercadier <dmercadier@chromium.org>\nCommit-Queue: Marja Hölttä <marja@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98574}\n",
+  "files": [
+    {
+      "path": "src/compiler/turbofan-typer.cc",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/src/compiler/turbofan-typer.cc b/src/compiler/turbofan-typer.cc\nindex fafa4bf90bd..8d46d871220 100644\n--- a/src/compiler/turbofan-typer.cc\n+++ b/src/compiler/turbofan-typer.cc\n@@ -719,10 +719,11 @@ Type Typer::Visitor::ToString(Type type, Typer* t) {\n // Type checks.\n \n Type Typer::Visitor::ObjectIsArrayBufferView(Type type, Typer* t) {\n   // TODO(turbofan): Introduce a Type::ArrayBufferView?\n   CHECK(!type.IsNone());\n+  if (type.Is(Type::TypedArray())) return t->singleton_true_;\n   if (!type.Maybe(Type::OtherObject())) return t->singleton_false_;\n   return Type::Boolean();\n }\n \n Type Typer::Visitor::ObjectIsBigInt(Type type, Typer* t) {\n"
+    },
+    {
+      "path": "test/mjsunit/compiler/regress-394650781.js",
+      "status": "added",
+      "additions": 14,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/compiler/regress-394650781.js b/test/mjsunit/compiler/regress-394650781.js\nnew file mode 100644\nindex 00000000000..11042a5e34c\n--- /dev/null\n+++ b/test/mjsunit/compiler/regress-394650781.js\n@@ -0,0 +1,14 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax --turbofan --no-always-turbofan\n+\n+const a = new Uint8Array();\n+function foo() {\n+  return ArrayBuffer.isView(a);\n+}\n+assertTrue(foo());\n+%PrepareFunctionForOptimization(foo);\n+%OptimizeFunctionOnNextCall(foo);\n+assertTrue(foo());\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/compiler/turbofan-typer.cc b/src/compiler/turbofan-typer.cc\nindex fafa4bf90bd..8d46d871220 100644\n--- a/src/compiler/turbofan-typer.cc\n+++ b/src/compiler/turbofan-typer.cc\n@@ -719,10 +719,11 @@ Type Typer::Visitor::ToString(Type type, Typer* t) {\n // Type checks.\n \n Type Typer::Visitor::ObjectIsArrayBufferView(Type type, Typer* t) {\n   // TODO(turbofan): Introduce a Type::ArrayBufferView?\n   CHECK(!type.IsNone());\n+  if (type.Is(Type::TypedArray())) return t->singleton_true_;\n   if (!type.Maybe(Type::OtherObject())) return t->singleton_false_;\n   return Type::Boolean();\n }\n \n Type Typer::Visitor::ObjectIsBigInt(Type type, Typer* t) {\ndiff --git a/test/mjsunit/compiler/regress-394650781.js b/test/mjsunit/compiler/regress-394650781.js\nnew file mode 100644\nindex 00000000000..11042a5e34c\n--- /dev/null\n+++ b/test/mjsunit/compiler/regress-394650781.js\n@@ -0,0 +1,14 @@\n+// Copyright 2025 the V8 project authors. All rights reserved.\n+// Use of this source code is governed by a BSD-style license that can be\n+// found in the LICENSE file.\n+\n+// Flags: --allow-natives-syntax --turbofan --no-always-turbofan\n+\n+const a = new Uint8Array();\n+function foo() {\n+  return ArrayBuffer.isView(a);\n+}\n+assertTrue(foo());\n+%PrepareFunctionForOptimization(foo);\n+%OptimizeFunctionOnNextCall(foo);\n+assertTrue(foo());\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "65beb80d9cd6da4cca447a3a8857b59035412417",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "398431403",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Incorrect type guard in ObjectIsArrayBufferView uses OtherObject instead of TypedArray",
+        "message": "In `Typer::Visitor::ObjectIsArrayBufferView`, after a parent commit changed `TypeJSCreateTypedArray` to return `Type::TypedArray()` instead of `Type::OtherObject()`, commit 65beb80d9cd added an early true-return for pure TypedArray inputs but failed to update the false-return guard on the next line. The condition `!type.Maybe(Type::OtherObject())` is still checked to decide whether to return `singleton_false_`. Because typed arrays are now typed as `TypedArray` (not `OtherObject`) in the type lattice, a union type like `TypedArray | Boolean` satisfies `!type.Maybe(Type::OtherObject())` (neither TypedArray nor Boolean overlaps OtherObject), so the function incorrectly returns `singleton_false_` — asserting that the value *cannot* be an ArrayBufferView even when it is a typed array. This incorrect type annotation creates a type contradiction in Turbofan's incremental type-propagation loop, triggering a FATAL assertion at line 451 (`UpdateType error`) when the propagated type widens unexpectedly.",
+        "bug_type": "LogicError",
+        "severity": "critical",
+        "cwe_ids": [
+          "CWE-697"
+        ],
+        "location": {
+          "file": "src/compiler/turbofan-typer.cc",
+          "function": "Typer::Visitor::ObjectIsArrayBufferView",
+          "start_line": 721,
+          "end_line": 727,
+          "snippet": "Type Typer::Visitor::ObjectIsArrayBufferView(Type type, Typer* t) {\n  // TODO(turbofan): Introduce a Type::ArrayBufferView?\n  CHECK(!type.IsNone());\n  if (type.Is(Type::TypedArray())) return t->singleton_true_;\n  if (!type.Maybe(Type::OtherObject())) return t->singleton_false_;\n  return Type::Boolean();\n}"
+        },
+        "related_locations": [
+          {
+            "file": "src/compiler/turbofan-typer.cc",
+            "start_line": 447,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Typer::Visitor::UpdateType (FATAL assertion site)",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Change the false-return guard from `Type::OtherObject()` to `Type::TypedArray()` so that any type that could possibly be a TypedArray is not prematurely ruled out as a non-ArrayBufferView.",
+        "rule_id": "sec-logicerror-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "src/compiler/turbofan-typer.cc",
+      "test/mjsunit/compiler/regress-394650781.js"
+    ],
+    "root_cause": "A preceding commit (c95eccc3885) changed `TypeJSCreateTypedArray` to return `Type::TypedArray()` rather than `Type::OtherObject()`, making TypedArrays a distinct type in the Turbofan type lattice. Commit 65beb80d9cd partially adapted `ObjectIsArrayBufferView` by adding a true-return for pure TypedArray types, but left the false-return guard checking `Type::OtherObject()`. Since `TypedArray` is disjoint from `OtherObject`, any union type containing `TypedArray` (e.g., `TypedArray | Boolean`, which arises in `reduceRight` where the accumulator starts as a TypedArray and subsequent iterations pass in a boolean) satisfies `!type.Maybe(Type::OtherObject())`, incorrectly causing the function to return `singleton_false_` and assert that the value can never be an ArrayBufferView.",
+    "must_cover": [
+      {
+        "file": "src/compiler/turbofan-typer.cc",
+        "function": "Typer::Visitor::ObjectIsArrayBufferView",
+        "reason": "Primary location of finding: Incorrect type guard in ObjectIsArrayBufferView uses OtherObject instead of TypedArray"
+      },
+      {
+        "file": "src/compiler/turbofan-typer.cc",
+        "function": "Typer::Visitor::UpdateType (FATAL assertion site)",
+        "reason": "Related location for: Incorrect type guard in ObjectIsArrayBufferView uses OtherObject instead of TypedArray"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__398431403__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "85920bfb53ca45396895f23d332901c7e02a9911",
+    "diff_stats": {
+      "files_changed": 2,
+      "lines_changed": 15
+    }
+  }
+}

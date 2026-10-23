@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-515703905",
+  "bug_id": "OSSFUZZ-515703905",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+  "intro_parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+  "fix_commit": "69c9f1158c153b2dc260aa724e5dc285286079b2",
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The binomial coefficient C(k,p) is computed via successive multiplication followed by division (`c *= (k-p+h); c /= h;`), which can transiently produce a much larger intermediate value than the final coefficient before the division reduces it, allowing the running product to exceed the range representable by int64_t when the bitstream supplies large nb_slots/nb_tr_slots values that lead to numerous large h/k/p iterations. No overflow guard or early termination existed to keep intermediate products bounded.",
+  "findings": [
+    "decode_tsd() incrementally computes the binomial coefficient c = C(k, p) using a multiply-then-divide loop: `c *= k - p + h; c /= h;`. Although c is declared as int64_t, the intermediate product `c * (k - p + h)` computed before the division by h can grow very large (unbounded multiplicatively before being reduced), and with attacker-controlled nb_tr_slots/nb_slots values derived from the bitstrea"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "112613bc56c866451cf1a48159ff0890de6937849ad06700052ecbbb7e0e814d",
+  "generated_artifact_sha256": {
+    "reference": "f504a83189a70ce1ecd4eb4a0760fe2d17f470891508d331af6260c10f805f06",
+    "introducing": "dad8fdb782fea9256d50ed4c674394c62d7b3a3d1f7f3d79846dbf82080923a3",
+    "companion": "bbd8bec8bf27a4d84ed09d296c5e966b56b139174b618ebdb7ce31802d0a90fa"
+  }
+}

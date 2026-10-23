@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_TESTCASE-e41b1ba1b6253578",
+    "bug_id": "TESTCASE-e41b1ba1b6253578",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "6d0c89980c78ffd3b112676186786334c915ace7",
+    "intro_parent": "6def8e3923f838a217c5e4567435b0e975b9aee7",
+    "fix_commit": "f435ce22e10e2c93fc8027cc72eeb09eba50ab8d",
+    "affected_files": [
+      "libavcodec/h2645_sei.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Root cause confirmed by source diff: in post_intro's h2645_sei_to_side_data(), for the Ambient Viewing Environment SEI, a new AVAmbientViewingEnvironment (dst_env) is allocated, wrapped in an AVBufferRef (buf), and buf is handed to ff_frame_new_side_data_from_buf_ext() BEFORE dst_env's fields are written. ff_frame_new_side_data_from_buf_ext() (decode.c) unconditionally av_buffer_unref()s its buf argument once it decides not to add it (the side_data_pref() 'already exists, prefer existing' path, taken when the frame already has AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT side data and side_data_pref_mask has that bit set), yet returns success (0) in that case. The caller's `if (ret < 0) return ret;` guard therefore does not fire, and code proceeds to write dst_env->ambient_illuminance/ambient_light_x/ambient_light_y into the just-freed buffer. In post_benign (the fix), the three field writes are moved to occur before the call to ff_frame_new_side_data_from_buf_ext(), so by the time the buffer can be freed the struct is already fully initialized and never written to again. In pre_intro (the code before the intro commit), this code path did not exist in this form at all (it used av_ambient_viewing_environment_create_side_data(frame) directly, with no separate buffer hand-off/free window). I verified this with a harness that directly drives the shared, exported ff_h2645_sei_to_frame() function (used identically by both the HEVC and H264 decoders once per decoded frame) with the precise state a real decode of a crafted mp4 would create (container-level 'amve' box side data already on the frame + side_data_prefer_packet=-1 + an Ambient Viewing Environment SEI in the bitstream). This drives the real compiled library code through its actual production entry point, reaching and executing the vulnerable statement; it is not a source-level assertion, grep, or unexecuted path. The identical command, run via run_poc, crashes only under post_intro and completes cleanly under both pre_intro and post_benign -- exactly the discriminating behavior required. A full end-to-end mp4-container-plus-valid-HEVC-bitstream PoC could not be produced in this environment (the sanitizer build has no software H.264/HEVC encoder configured, so no compliant bitstream could be authored via the ffmpeg CLI), so the harness reproduces the same code path via the library's own exported API instead."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/d7fa80044f0cef12d06e/attempts/01/pocs/ffmpeg/TESTCASE-e41b1ba1b6253578",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": false,
+    "note": "poc dir has neither run.sh nor a recognizable input file"
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c libavcodec/libavcodec.a libavformat/libavformat.a libavutil/libavutil.a libswresample/libswresample.a -fsanitize=address -pthread -lm -latomic -lz && /tmp/poc",
+      "input": null,
+      "poc_sha256": "2ed2aa4479151f356d04cf71f97542a5b234c5e9a23769a34da36e229ea5d67c",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "6d0c89980c78ffd3b112676186786334c915ace7",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a3f59e51eabd31216acca2972965d8601408c59da787fdae913a0bfc5e0255bd"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=134\n\ncalling ff_h2645_sei_to_frame...\n=================================================================\n==8==ERROR: AddressSanitizer: heap-use-after-free on address 0x604000000110 at pc 0x556991c7448a bp 0x7ffe566776f0 sp 0x7ffe566776e8\nWRITE of size 8 at 0x604000000110 thread T0\n    #0 0x556991c74489 in h2645_sei_to_side_data /work/libavcodec/h2645_sei.c:572:40\n    #1 0x556991c723c7 in ff_h2645_sei_to_frame /work/libavcodec/h2645_sei.c:741:11\n    #2 0x55699186bbfd in main /poc/poc.c:106:11\n    #3 0x7f70fb77fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #4 0x7f70fb77fe3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #5 0x5569917adbd4 in _start (/tmp/poc+0x433bd4) (BuildId: 5b8680e1e929e070e78dc9f6276d30a9c8a4cab7)\n\n0x604000000110 is located 0 bytes inside of 24-byte region [0x604000000110,0x604000000128)\nfreed by thread T0 here:\n    #0 0x556991830772 in free (/tmp/poc+0x4b6772) (BuildId: 5b8680e1e929e070e78dc9f6276d30a9c8a4cab7)\n    #1 0x556992f1b6b8 in av_free /work/libavutil/mem.c:243:5\n    #2 0x556992ee504b in av_buffer_default_free /work/libavutil/buffer.c:74:5\n    #3 0x556992ee5501 in buffer_replace /work/libavutil/buffer.c:133:9\n    #4 0x556992ee5501 in av_buffer_unref /work/libavutil/buffer.c:144:5\n    #5 0x556991ab012a in ff_frame_new_side_data_from_buf_ext /work/libavcodec/decode.c:1837:5\n    #6 0x556991c735d8 in h2645_sei_to_side_data /work/libavcodec/h2645_sei.c:566:15\n    #7 0x556991c723c7 in ff_h2645_sei_to_frame /work/libavcodec/h2645_sei.c:741:11\n    #8 0x55699186bbfd in main /poc/poc.c:106:11\n    #9 0x7f70fb77fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\npreviously allocated by thread T0 here:\n    #0 0x556991831597 in posix_memalign (/tmp/poc+0x4b7597) (BuildId: 5b8680e1e929e070e78dc9f6276d30a9c8a4cab7)\n    #1 0x556992f1be8b in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x556992f1be8b in av_mallocz /work/libavutil/mem.c:258:17\n    #3 0x556992ed8302 in av_ambient_viewing_environment_alloc /work/libavutil/ambient_viewing_environment.c:27:9\n    #4 0x556991c7355f in h2645_sei_to_side_data /work/libavcodec/h2645_sei.c:556:13\n    #5 0x556991c723c7 in ff_h2645_sei_to_frame /work/libavcodec/h2645_sei.c:741:11\n    #6 0x55699186bbfd in main /poc/poc.c:106:11\n    #7 0x7f70fb77fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-use-after-free /work/libavcodec/h2645_sei.c:572:40 in h2645_sei_to_side_data\nShadow bytes around the buggy address:\n  0x0c087fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c087fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c087fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c087fff8000: fa fa fd fd fd fd fd fd fa fa 00 00 00 00 00 03\n  0x0c087fff8010: fa fa 00 00 00 fa fa fa fa fa 00 00 00 fa fa fa\n=>0x0c087fff8020: fa fa[fd]fd fd fa fa fa fa fa fd fd fd fa fa fa\n  0x0c087fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:     ",
+        "stdout_tail": "2ee5501 in av_buffer_unref /work/libavutil/buffer.c:144:5\n    #5 0x556991ab012a in ff_frame_new_side_data_from_buf_ext /work/libavcodec/decode.c:1837:5\n    #6 0x556991c735d8 in h2645_sei_to_side_data /work/libavcodec/h2645_sei.c:566:15\n    #7 0x556991c723c7 in ff_h2645_sei_to_frame /work/libavcodec/h2645_sei.c:741:11\n    #8 0x55699186bbfd in main /poc/poc.c:106:11\n    #9 0x7f70fb77fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\npreviously allocated by thread T0 here:\n    #0 0x556991831597 in posix_memalign (/tmp/poc+0x4b7597) (BuildId: 5b8680e1e929e070e78dc9f6276d30a9c8a4cab7)\n    #1 0x556992f1be8b in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x556992f1be8b in av_mallocz /work/libavutil/mem.c:258:17\n    #3 0x556992ed8302 in av_ambient_viewing_environment_alloc /work/libavutil/ambient_viewing_environment.c:27:9\n    #4 0x556991c7355f in h2645_sei_to_side_data /work/libavcodec/h2645_sei.c:556:13\n    #5 0x556991c723c7 in ff_h2645_sei_to_frame /work/libavcodec/h2645_sei.c:741:11\n    #6 0x55699186bbfd in main /poc/poc.c:106:11\n    #7 0x7f70fb77fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-use-after-free /work/libavcodec/h2645_sei.c:572:40 in h2645_sei_to_side_data\nShadow bytes around the buggy address:\n  0x0c087fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c087fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c087fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c087fff8000: fa fa fd fd fd fd fd fd fa fa 00 00 00 00 00 03\n  0x0c087fff8010: fa fa 00 00 00 fa fa fa fa fa 00 00 00 fa fa fa\n=>0x0c087fff8020: fa fa[fd]fd fd fa fa fa fa fa fd fd fd fa fa fa\n  0x0c087fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c087fff8070: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c libavcodec/libavcodec.a libavformat/libavformat.a libavutil/libavutil.a libswresample/libswresample.a -fsanitize=address -pthread -lm -latomic -lz && /tmp/poc'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c libavcodec/libavcodec.a libavformat/libavformat.a libavutil/libavutil.a libswresample/libswresample.a -fsanitize=address -pthread -lm -latomic -lz && /tmp/poc",
+      "input": null,
+      "poc_sha256": "2ed2aa4479151f356d04cf71f97542a5b234c5e9a23769a34da36e229ea5d67c",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "6def8e3923f838a217c5e4567435b0e975b9aee7",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "c8d68328a0eaf102b9f2273ffa1978a78579431c7b8b2fee1d08ec731306f26b"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\ncalling ff_h2645_sei_to_frame...\nff_h2645_sei_to_frame returned 0 (no crash)\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c libavcodec/libavcodec.a libavformat/libavformat.a libavutil/libavutil.a libswresample/libswresample.a -fsanitize=address -pthread -lm -latomic -lz && /tmp/poc",
+      "input": null,
+      "poc_sha256": "2ed2aa4479151f356d04cf71f97542a5b234c5e9a23769a34da36e229ea5d67c",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "6def8e3923f838a217c5e4567435b0e975b9aee7",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3404b84054c7d31318010c6d6a9e22f7f138a8ce8a9eecced7bae70fb3d294a3"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\ncalling ff_h2645_sei_to_frame...\nff_h2645_sei_to_frame returned 0 (no crash)\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "other",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom poc.c harness (compiled and linked, via run_poc, directly against each version's built libavcodec/libavutil/libavformat static libs) that calls the exported ff_h2645_sei_to_frame() entry point with the exact preconditions a real HEVC decode of a crafted mp4 (container 'amve' box + in-bitstream Ambient Viewing Environment SEI, decoded with `-side_data_prefer_packet -1`) would produce: (1) avcodec_open2() on the HEVC decoder with option side_data_prefer_packet=-1, which sets DecodeContext.side_data_pref_mask=~0ULL; (2) an AVFrame that already carries AV_FRAME_DATA_AMBIENT_VIEWING_ENVIRONMENT side data (simulating ff_decode_frame_props() copying it from stream-level coded_side_data, e.g. an mp4 'amve' box, before SEI parsing runs); (3) an H2645SEI with ambient_viewing_environment.present=1 (simulating a real SEI payload type 148 in the bitstream). Calling ff_h2645_sei_to_frame() with these inputs reaches h2645_sei_to_side_data() in libavcodec/h2645_sei.c, exercising the exact introduced code path. Same command run via run_poc on pre_intro, post_intro, post_benign.",
+    "target_evidence": "run_poc post_intro: exit=134, crashed=True, AddressSanitizer heap-use-after-free WRITE of size 8, in h2645_sei_to_side_data at /work/libavcodec/h2645_sei.c:572:40 (the `dst_env->ambient_illuminance = ...` write), freed by ff_frame_new_side_data_from_buf_ext (decode.c:1837) via av_buffer_unref two frames up the same call stack, allocated by av_ambient_viewing_environment_alloc at h2645_sei.c:556. run_poc pre_intro: exit=0, crashed=False, \"ff_h2645_sei_to_frame returned 0 (no crash)\". run_poc post_benign: exit=0, crashed=False, same clean completion."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

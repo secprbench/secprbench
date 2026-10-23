@@ -1,0 +1,27 @@
+{
+  "bug_id": "416302802",
+  "project": "v8",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "d4c91a3691d0bf5273642279964381f1fb7d288b",
+    "parent": "efc6a8a8793300409aea280aa2fd792d5bb47b4c",
+    "fix": "ec594c3ebe0de0154936d8d900beeec9e35b68e6"
+  },
+  "affected_files": [
+    "src/builtins/builtins-definitions.h",
+    "src/builtins/builtins-typed-array.cc",
+    "src/init/bootstrapper.cc",
+    "src/objects/simd.cc",
+    "src/objects/simd.h",
+    "test/test262/test262.status"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured ASan builds completed. Using the identical command `/work/out.gn/verify/d8 --js-base-64 /poc/poc.js` with `new Uint8Array(new SharedArrayBuffer(0)).setFromHex(\"00\")`, pre_intro exited 0 because setFromHex was absent; post_intro exited 133 with SIGTRAP and V8 fatal `unimplemented code`; and post_benign exited 0 with `read=0 written=0`. Address resolution places the fatal frame in Builtin_Impl_Uint8ArrayPrototypeSetFromHex. This verifies that the intro added the zero-length cr",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

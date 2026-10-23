@@ -1,0 +1,36 @@
+{
+  "task_id": "pr_review_OSSFUZZ-505900175_benign",
+  "bug_id": "OSSFUZZ-505900175",
+  "commit_sha": "7d600a022e1d813e85a8c94ffd395f6135872267",
+  "commit_message": "[Merged] * src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.\n\nFixes #1419 and #1420, as well as\n    https://issues.oss-fuzz.com/issues/499455833",
+  "commit_author": "",
+  "commit_date": "2026-09-15T00:51:16.952343",
+  "pr_title": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.",
+  "pr_description": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.\n\nFixes #1419 and #1420, as well as\n    https://issues.oss-fuzz.com/issues/499455833",
+  "files": [
+    {
+      "path": "src/truetype/ttinterp.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 4,
+      "diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex fc7fccdf3..44400fbe2 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -5125,27 +5125,27 @@\n         exc->error = FT_THROW( Invalid_Reference );\n       return;\n     }\n \n     if ( Compute_Point_Displacement( exc, &dx, &dy, &zp, &refp ) )\n       return;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */\n     /*      Twilight zone has no real contours, so use `n_points'. */\n     /*      Normal zone's `n_points' includes phantoms, so must    */\n-    /*      use end of last contour.                               */\n+    /*      subtract them.                                         */\n     if ( exc->GS.gep2 == 0 )\n       limit = exc->zp2.n_points;\n-    else if ( exc->GS.gep2 == 1 && exc->zp2.n_contours > 0 )\n-      limit = exc->zp2.contours[exc->zp2.n_contours - 1] + 1;\n+    else if ( exc->zp2.n_points > 4U )\n+      limit = exc->zp2.n_points - 4U;\n     else\n-      limit = 0;\n+      return;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n     for ( i = 0; i < limit; i++ )\n     {\n       if ( zp.cur != exc->zp2.cur || refp != i )\n         Move_Zp2_Point( exc, i, dx, dy, FALSE );\n     }\n   }\n \n \n"
+    }
+  ],
+  "full_diff": "diff --git a/src/truetype/ttinterp.c b/src/truetype/ttinterp.c\nindex fc7fccdf3..44400fbe2 100644\n--- a/src/truetype/ttinterp.c\n+++ b/src/truetype/ttinterp.c\n@@ -5125,27 +5125,27 @@\n         exc->error = FT_THROW( Invalid_Reference );\n       return;\n     }\n \n     if ( Compute_Point_Displacement( exc, &dx, &dy, &zp, &refp ) )\n       return;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't move the phantom points.     */\n     /*      Twilight zone has no real contours, so use `n_points'. */\n     /*      Normal zone's `n_points' includes phantoms, so must    */\n-    /*      use end of last contour.                               */\n+    /*      subtract them.                                         */\n     if ( exc->GS.gep2 == 0 )\n       limit = exc->zp2.n_points;\n-    else if ( exc->GS.gep2 == 1 && exc->zp2.n_contours > 0 )\n-      limit = exc->zp2.contours[exc->zp2.n_contours - 1] + 1;\n+    else if ( exc->zp2.n_points > 4U )\n+      limit = exc->zp2.n_points - 4U;\n     else\n-      limit = 0;\n+      return;\n \n     /* XXX: UNDOCUMENTED! SHZ doesn't touch the points */\n     for ( i = 0; i < limit; i++ )\n     {\n       if ( zp.cur != exc->zp2.cur || refp != i )\n         Move_Zp2_Point( exc, i, dx, dy, FALSE );\n     }\n   }\n \n \n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-505900175",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+    "fix_commit": "7d600a022e1d813e85a8c94ffd395f6135872267"
+  },
+  "task_type": "benign",
+  "intro_commit_sha": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+  "fix_commit_sha": "7d600a022e1d813e85a8c94ffd395f6135872267",
+  "intro_commit_message": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit.\n\nFixes #1419 and #1420, as well as\n    https://issues.oss-fuzz.com/issues/499455833",
+  "fix_commit_message": "* src/truetype/ttinterp.c (Ins_SHZ): Fix the range limit (cont'd).\n\nFixes\n    https://issues.oss-fuzz.com/issues/505900175",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 7d600a022e1d on top of intro 1803559c4ee4 via git's 3-way merge. Vulnerability (IntegerOverflow): The TrueType interpreter's SHZ instruction handler (`Ins_SHZ`) computes an iteration limit by subtracting 4 from the unsigned `n_points` field of zone pointer 2 in order to skip phantom points. No prior range check ensures that `n_points >= 4`. When a crafted font provides a glyph zone with fewer than 4 points, the unsigned subtraction wraps around to a very large value, causing the point-shifting loop to walk far outside the allocated point arrays. Root cause: The introducing commit (1803559c) replaced a prior bounds check (`exc->zp2.n_contours > 0` + contours array lookup) with a simpler but unchecked unsigned subtraction `exc->zp2.n_points - 4U`. Because `n_points` is an unsigned type, no negative result is possible; instead, underflow silently produces a huge positive limit.",
+  "composed_via": "mechanical",
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

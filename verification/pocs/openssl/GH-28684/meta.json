@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-28684",
+  "bug_id": "GH-28684",
+  "bug_type": "LogicError",
+  "intro_commit": "03ce37e11729bbe9964bd613c0eed6156b920208",
+  "intro_parent": "7cbca5a6d6e792c75c414e1f3fb22e2afae67988",
+  "fix_commit": "22417bc14d6bde173425ba4f87c68be0cf394fa4",
+  "affected_files": [
+    "crypto/chacha/chacha_riscv.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "openssl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The feature-detection-based dispatch logic for selecting the RISC-V vector ChaCha20 implementation checked only CPU capability flags (RISCV_HAS_ZBB, riscv_vlen, RISCV_HAS_ZVKB) and input length, but never validated pointer alignment of the `out`/`inp` buffers before invoking vector load/store based assembly routines that require (or strongly prefer) aligned accesses on real hardware.",
+  "findings": [
+    "ChaCha20_ctr32() on riscv64 selects the vector/Zbb (and optionally Zvkb) assembly implementations of ChaCha20 purely based on length and CPU feature flags (RISCV_HAS_ZBB(), riscv_vlen() >= 128, RISCV_HAS_ZVKB()). It never checks whether the `out` and `inp` buffer pointers are aligned to the machine word size. The RISC-V vector assembly routines (ChaCha20_ctr32_v_zbb / ChaCha20_ctr32_v_zbb_zvkb) us"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "3fac3560ef454c7edf4a2e0934dc68724aaa74a6dc1f9ebc9bb727fc89503961",
+  "generated_artifact_sha256": {
+    "reference": "18fbd0deeaa7889ce211cd900fb02c08f45d2f1c7aea41b5b9f08257299364e7",
+    "introducing": "01a52e2012599e2dd06fb2302399f4bb01892bd341bab3015b916c3dc092802e",
+    "companion": "59a04250d8c41606399ef0d2e7feead19083e476a554e27605197de0a901c1e7"
+  }
+}

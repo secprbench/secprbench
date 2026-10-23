@@ -1,0 +1,25 @@
+{
+  "bug_id": "35ea45835484",
+  "project": "ffmpeg",
+  "bug_type": "BufferOverflow",
+  "commits": {
+    "intro": "f8d429e0c569d4f4ffd87af80e7375b3a6278869",
+    "parent": "232b8a5a438ae1eb9efc7e535d9c1809ac164e5c",
+    "fix": null
+  },
+  "affected_files": [
+    "doc/filters.texi",
+    "libavfilter/avf_showcqt.c",
+    "libavfilter/avf_showcqt.h",
+    "libavfilter/version.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The intro commit (f8d429e0c569) rewrote the showcqt filter, changing the `fps` option from a bounded integer [10\u2013100] to AV_OPT_TYPE_VIDEO_RATE with no enforced bounds. This allows fps=1, which produces step = sample_rate / (fps * count) = 44100 / (1*1) = 44100, far exceeding fft_len = 8192. After the first CQT plot, remaining_fill is set to step (44100). On the next filter_frame call, j = fft_len - remaining_fill = 8192 - 44100 = -35908, and the loop writes to fft_data[j+m] \u2014 a massive OOB heap",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "freetype/REPORTED-582cea9ee1bfa873",
+  "case_id": "e625dad20e6fc5bb39d1",
+  "project": "freetype",
+  "bug_id": "REPORTED-582cea9ee1bfa873",
+  "season": "2025H2",
+  "source_sha256": "be58a193230e5c722dc52453c4a2e010e3aabcb5d6b447f426357d31ca5345d5",
+  "generated_artifact_sha256": {
+    "reference": "e4ed752d4c683fef468d09da0352ac611417fdf1b8f38e716e0ff5688cffa562",
+    "introducing": "156b8c866fd77c0af10b19f9aac364b6de4a5e0efa3666985f405f4e095af810",
+    "companion": "25deb0b217047a025fe35ea46b8f65f14f0be938a48342ae9696c5e0c52e67ea"
+  },
+  "poc_status": "no_poc",
+  "fingerprint": "45dbdde609b7395b45dbea7877400355d5a5e976da47b05d591a9d0db6e51551",
+  "recipe_source_sha256": "12a8e4b900c825bdce2b57629025e62b30aacb177a12eead7d3ea391c27a08b3",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/freetype/e625dad20e6fc5bb39d1/attempts/01",
+      "started_at": "2026-10-01T23:43:51.433078+00:00",
+      "status": "inconclusive",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/freetype/e625dad20e6fc5bb39d1/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/freetype/e625dad20e6fc5bb39d1/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-01T23:55:06.002512+00:00"
+    }
+  ],
+  "updated_at": "2026-10-01T23:55:06.002512+00:00",
+  "case_record": "/research-data/secprbench/season100-balanced-20261001/verification-v2/verification/projects/freetype/cases/REPORTED-582cea9ee1bfa873/case.json",
+  "report": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/freetype/e625dad20e6fc5bb39d1/attempts/01/replay/pr_review_REPORTED-582cea9ee1bfa873.report.md",
+  "agent_used": true,
+  "recipe_sha256": "05028d61be190a5bd8c5",
+  "final_poc_sha256": "e00ef21dff885a07ebf56cc91874c60a33bb5bb8f897ae3200c00eda1efae494"
+}

@@ -1,0 +1,141 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "logic-error",
+  "poc_summary": "The .wat module from the GH-11749 issue (testcase0.wat: many `unreachable` stub functions plus a recursive `$f2` that stack-overflows when called from the exported `entry` function), run via `wasmtime run -Ccache=n --target pulley64 -Oopt-level=0 -Wfunction-references=y -Wgc=y -Wunknown-imports-default --invoke entry $INPUT` (run through run_poc identically on pre_intro, post_intro, post_benign). The large function count across the sparse `FuncKey` namespaces, combined with trap-backtrace symbolication, exercises the reverse PC->FuncKey lookup (`CompiledFunctionsTable::func_by_text_offset`) in crates/environ/src/module_artifacts.rs.",
+  "explanation": "Built pre_intro (625a3e3fd995), post_intro (1806c26562ec), and post_benign (fix applied on the parent) in Docker and ran the byte-identical reproducer command/input against all three via run_poc. post_intro deterministically panics (exit=101) with `thread 'main' panicked at crates/environ/src/builtin.rs:346:1: assertion failed: i < Self::len()`; the full backtrace (cross-checked via docker_shell on the same binary/command) shows the panic originates in `wasmtime_environ::builtin::BuiltinFunctionIndex::from_u32 <- wasmtime_environ::key::FuncKey::from_raw_parts <- wasmtime_environ::module_artifacts::CompiledFunctionsTable::func_by_text_offset <- wasmtime::runtime::trap::FrameInfo::new`, exactly the reverse-lookup code path in the task's root cause (a namespace-local sparse offset used directly as the global SparseIndex, producing an out-of-range raw index). Both pre_intro and post_benign, run with the exact same command/input, show no such panic and no sanitizer report: full-log inspection confirms both cleanly catch the wasm `call stack exhausted` trap and print a fully-symbolicated backtrace (frames resolved as `!f2`/`!f1`), with identical exit=134/SIGABRT in both cases \u2014 an unrelated artifact of host-side recursion/stack-overflow recovery that is present identically in both unaffected builds (no panic text, no ASan ERROR/SUMMARY banner) and therefore does not indicate the labelled bug. The presence of the assertion-panic string is the sole distinguishing signal, appearing only in post_intro, confirming intro_verified=yes and benign_verified=yes.",
+  "oracle": {
+    "kind": "behavioral",
+    "bug_marker": "thread 'main' panicked at crates/environ/src/builtin.rs:346:1: assertion failed: i < Self::len()",
+    "pre_marker": "...wasm backtrace ... frames resolved as !f2/!f1 ... 2: wasm trap: call stack exhausted (no panic text; clean error path)",
+    "benign_marker": "...wasm backtrace ... frames resolved as !f2/!f1 ... 2: wasm trap: call stack exhausted (no panic text; clean error path)",
+    "description": "Deterministic Rust-level assertion panic (not merely a wasm-level trap) raised while symbolicating a captured trap's backtrace via the reverse PC->FuncKey lookup in module_artifacts.rs; present only in post_intro under the identical reproducer command/input, replaced by clean, correctly-symbolicated trap output in pre_intro and post_benign.",
+    "target_evidence": "post_intro full backtrace (docker_shell, same command/input): `3: wasmtime_environ::builtin::BuiltinFunctionIndex::from_u32 / 4: wasmtime_environ::key::FuncKey::from_raw_parts / 5: wasmtime_environ::module_artifacts::CompiledFunctionsTable::func_by_text_offset / 6: wasmtime::runtime::trap::FrameInfo::new / 7: wasmtime::runtime::module::registry::ModuleRegistry::lookup_frame_info / 8: wasmtime::runtime::trap::WasmBacktrace::from_captured`"
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "write_file(testcase0.wat)",
+    "build_version(pre_intro)->True",
+    "build_version(post_intro)->True",
+    "build_version(post_benign)->True",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "run_poc(pre_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=True",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(pre_intro)->crashed=True",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=True"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "/work/target/x86_64-unknown-linux-gnu/release/wasmtime run -Ccache=n --target pulley64 -Oopt-level=0 -Wfunction-references=y -Wgc=y -Wunknown-imports-default --invoke entry $INPUT",
+      "input": "testcase0.wat",
+      "poc_sha256": "fde40afdcbb20c22e0d73fac3f71515101b726bd39b031f7e75be65089887cf9",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "1806c26562ec2eabbf3eaefbe038b75e90f61b59",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f0eade3b6dbf2217766249b83d848d733aaff0f21a5ce327a3068aaff2edbde9"
+        }
+      },
+      "run": {
+        "exit_code": 101,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=101\n\n\nthread 'main' panicked at crates/environ/src/builtin.rs:346:1:\nassertion failed: i < Self::len()\nstack backtrace:\n   0: __rustc::rust_begin_unwind\n   1: core::panicking::panic_fmt\n   2: core::panicking::panic\n   3: wasmtime_environ::builtin::BuiltinFunctionIndex::from_u32\n   4: wasmtime_environ::key::FuncKey::from_raw_parts\n   5: wasmtime_environ::module_artifacts::CompiledFunctionsTable::func_by_text_offset\n   6: wasmtime::runtime::trap::FrameInfo::new\n   7: wasmtime::runtime::module::registry::ModuleRegistry::lookup_frame_info\n   8: wasmtime::runtime::trap::WasmBacktrace::from_captured\n   9: wasmtime::runtime::trap::from_runtime_box\n  10: wasmtime::runtime::vm::traphandlers::catch_traps\n  11: wasmtime::runtime::func::invoke_wasm_and_catch_traps\n  12: wasmtime::runtime::func::Func::call_impl_do_call\n  13: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n  14: std::panicking::catch_unwind::do_call\n  15: __rust_try\n  16: wasmtime_internal_fiber::Suspend<Resume,Yield,Return>::execute\n  17: wasmtime_internal_fiber::unix::fiber_start\n  18: wasmtime_fiber_start_38_0_0\n  19: wasmtime_internal_fiber::unix::asan::fiber_switch\n  20: wasmtime_internal_fiber::unix::Fiber::resume\n  21: wasmtime::runtime::fiber::resume_fiber\n  22: <wasmtime::runtime::fiber::FiberFuture as core::future::future::Future>::poll\n  23: wasmtime_cli::commands::run::RunCommand::load_main_module::{{closure}}\n  24: <tokio::time::timeout::Timeout<T> as core::future::future::Future>::poll\n  25: tokio::runtime::context::runtime::enter_runtime\n  26: tokio::runtime::runtime::Runtime::block_on\n  27: wasmtime_cli::commands::run::RunCommand::execute\n  28: wasmtime::main\nnote: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.\n"
+      }
+    },
+    "pre_intro": {
+      "command": "/work/target/x86_64-unknown-linux-gnu/release/wasmtime run -Ccache=n --target pulley64 -Oopt-level=0 -Wfunction-references=y -Wgc=y -Wunknown-imports-default --invoke entry $INPUT",
+      "input": "testcase0.wat",
+      "poc_sha256": "fde40afdcbb20c22e0d73fac3f71515101b726bd39b031f7e75be65089887cf9",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "625a3e3fd9958f4bfb2445b4aea90588d08719b8",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a97aea950134adb8e2b3cf6acb858f5a0a1b0d62b79182a0f435a9947181276e"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "",
+        "stdout_tail": "- <unknown>!f2\n         10883:     0x9e - <unknown>!f2\n         10884:     0x9e - <unknown>!f2\n         10885:     0x9e - <unknown>!f2\n         10886:     0x9e - <unknown>!f2\n         10887:     0x9e - <unknown>!f2\n         10888:     0x9e - <unknown>!f2\n         10889:     0x9e - <unknown>!f2\n         10890:     0x9e - <unknown>!f2\n         10891:     0x9e - <unknown>!f2\n         10892:     0x9e - <unknown>!f2\n         10893:     0x9e - <unknown>!f2\n         10894:     0x9e - <unknown>!f2\n         10895:     0x9e - <unknown>!f2\n         10896:     0x9e - <unknown>!f2\n         10897:     0x9e - <unknown>!f2\n         10898:     0x9e - <unknown>!f2\n         10899:     0x9e - <unknown>!f2\n         10900:     0x9e - <unknown>!f2\n         10901:     0x9e - <unknown>!f2\n         10902:     0x9e - <unknown>!f2\n         10903:     0x9e - <unknown>!f2\n         10904:     0x9e - <unknown>!f2\n         10905:     0x9e - <unknown>!f2\n         10906:     0x9e - <unknown>!f2\n         10907:     0x9e - <unknown>!f2\n         10908:     0x9e - <unknown>!f2\n         10909:     0x9e - <unknown>!f2\n         10910:     0x9e - <unknown>!f2\n         10911:     0x9e - <unknown>!f2\n         10912:     0x9e - <unknown>!f2\n         10913:     0x9e - <unknown>!f2\n         10914:     0x9e - <unknown>!f2\n         10915:     0x9e - <unknown>!f2\n         10916:    0x178 - <unknown>!f1\n         10917:    0x165 - <unknown>!<wasm function 58>\n    2: wasm trap: call stack exhausted\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime::runtime::trap::from_runtime_box\n   2: wasmtime::runtime::vm::traphandlers::catch_traps\n   3: wasmtime::runtime::func::invoke_wasm_and_catch_traps\n   4: wasmtime::runtime::func::Func::call_impl_do_call\n   5: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n   6: std::panicking::catch_unwind::do_call\n   7: __rust_try\n   8: wasmtime_internal_fiber::Suspend<Resume,Yield,Return>::execute\n   9: wasmtime_internal_fiber::unix::fiber_start\n  10: wasmtime_fiber_start_38_0_0\n  11: wasmtime_internal_fiber::unix::asan::fiber_switch\n  12: wasmtime_internal_fiber::Fiber<Resume,Yield,Return>::resume\n  13: wasmtime::runtime::fiber::resume_fiber\n  14: <wasmtime::runtime::fiber::FiberFuture as core::future::future::Future>::poll\n  15: wasmtime_cli::commands::run::RunCommand::load_main_module::{{closure}}\n  16: <tokio::time::timeout::Timeout<T> as core::future::future::Future>::poll\n  17: tokio::runtime::context::runtime::enter_runtime\n  18: tokio::runtime::runtime::Runtime::block_on\n  19: wasmtime_cli::commands::run::RunCommand::execute\n  20: wasmtime::main\n  21: std::sys::backtrace::__rust_begin_short_backtrace\n  22: std::rt::lang_start::{{closure}}\n  23: std::rt::lang_start_internal\n  24: std::rt::lang_start\n  25: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  26: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  27: _start\n"
+      }
+    },
+    "post_benign": {
+      "command": "/work/target/x86_64-unknown-linux-gnu/release/wasmtime run -Ccache=n --target pulley64 -Oopt-level=0 -Wfunction-references=y -Wgc=y -Wunknown-imports-default --invoke entry $INPUT",
+      "input": "testcase0.wat",
+      "poc_sha256": "fde40afdcbb20c22e0d73fac3f71515101b726bd39b031f7e75be65089887cf9",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "625a3e3fd9958f4bfb2445b4aea90588d08719b8",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "526415922b0b9ab0f346fe3160700425b2c5c17f9bf156beae1b812ad3d86a26"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "",
+        "stdout_tail": "0882:     0x9e - <unknown>!f2\n         10883:     0x9e - <unknown>!f2\n         10884:     0x9e - <unknown>!f2\n         10885:     0x9e - <unknown>!f2\n         10886:     0x9e - <unknown>!f2\n         10887:     0x9e - <unknown>!f2\n         10888:     0x9e - <unknown>!f2\n         10889:     0x9e - <unknown>!f2\n         10890:     0x9e - <unknown>!f2\n         10891:     0x9e - <unknown>!f2\n         10892:     0x9e - <unknown>!f2\n         10893:     0x9e - <unknown>!f2\n         10894:     0x9e - <unknown>!f2\n         10895:     0x9e - <unknown>!f2\n         10896:     0x9e - <unknown>!f2\n         10897:     0x9e - <unknown>!f2\n         10898:     0x9e - <unknown>!f2\n         10899:     0x9e - <unknown>!f2\n         10900:     0x9e - <unknown>!f2\n         10901:     0x9e - <unknown>!f2\n         10902:     0x9e - <unknown>!f2\n         10903:     0x9e - <unknown>!f2\n         10904:     0x9e - <unknown>!f2\n         10905:     0x9e - <unknown>!f2\n         10906:     0x9e - <unknown>!f2\n         10907:     0x9e - <unknown>!f2\n         10908:     0x9e - <unknown>!f2\n         10909:     0x9e - <unknown>!f2\n         10910:     0x9e - <unknown>!f2\n         10911:     0x9e - <unknown>!f2\n         10912:     0x9e - <unknown>!f2\n         10913:     0x9e - <unknown>!f2\n         10914:     0x9e - <unknown>!f2\n         10915:     0x9e - <unknown>!f2\n         10916:    0x178 - <unknown>!f1\n         10917:    0x165 - <unknown>!<wasm function 58>\n    2: wasm trap: call stack exhausted\n\nStack backtrace:\n   0: anyhow::error::<impl core::convert::From<E> for anyhow::Error>::from\n   1: wasmtime::runtime::trap::from_runtime_box\n   2: wasmtime::runtime::vm::traphandlers::catch_traps\n   3: wasmtime::runtime::func::invoke_wasm_and_catch_traps\n   4: wasmtime::runtime::func::Func::call_impl_do_call\n   5: <alloc::boxed::Box<F,A> as core::ops::function::FnOnce<Args>>::call_once\n   6: std::panicking::catch_unwind::do_call\n   7: __rust_try\n   8: wasmtime_internal_fiber::Suspend<Resume,Yield,Return>::execute\n   9: wasmtime_internal_fiber::unix::fiber_start\n  10: wasmtime_fiber_start_38_0_0\n  11: wasmtime_internal_fiber::unix::asan::fiber_switch\n  12: wasmtime_internal_fiber::unix::Fiber::resume\n  13: wasmtime::runtime::fiber::resume_fiber\n  14: <wasmtime::runtime::fiber::FiberFuture as core::future::future::Future>::poll\n  15: wasmtime_cli::commands::run::RunCommand::load_main_module::{{closure}}\n  16: <tokio::time::timeout::Timeout<T> as core::future::future::Future>::poll\n  17: tokio::runtime::context::runtime::enter_runtime\n  18: tokio::runtime::runtime::Runtime::block_on\n  19: wasmtime_cli::commands::run::RunCommand::execute\n  20: wasmtime::main\n  21: std::sys::backtrace::__rust_begin_short_backtrace\n  22: std::rt::lang_start::{{closure}}\n  23: std::rt::lang_start_internal\n  24: std::rt::lang_start\n  25: __libc_start_call_main\n             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n  26: __libc_start_main_impl\n             at ./csu/../csu/libc-start.c:392:3\n  27: _start\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

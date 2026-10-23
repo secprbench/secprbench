@@ -1,0 +1,123 @@
+{
+  "task_id": "pr_review_OSSFUZZ-471509958",
+  "bug_id": "OSSFUZZ-471509958",
+  "commit_sha": "30fc5b1baaa0823f134768823ab6695211d0fe21",
+  "commit_message": "avcodec: add ADPCM IMA Magix decoder\n\n(cherry picked from commit 2ec3ad2122484ce2c84f6ba055c5ebc1661c5b14)",
+  "commit_author": "Paul B Mahol",
+  "commit_date": "2025-01-21T17:29:45Z",
+  "pr_title": "avcodec: add ADPCM IMA Magix decoder",
+  "pr_description": "(cherry picked from commit 2ec3ad2122484ce2c84f6ba055c5ebc1661c5b14)\n",
+  "files": [
+    {
+      "path": "libavcodec/Makefile",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/Makefile b/libavcodec/Makefile\nindex 5963d0f73e..485be1a0f2 100644\n--- a/libavcodec/Makefile\n+++ b/libavcodec/Makefile\n@@ -987,10 +987,11 @@ OBJS-$(CONFIG_ADPCM_IMA_DK4_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_EA_EACS_DECODER)  += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_EA_SEAD_DECODER)  += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_HVQM2_DECODER)    += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_HVQM4_DECODER)    += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_ISS_DECODER)      += adpcm.o adpcm_data.o\n+OBJS-$(CONFIG_ADPCM_IMA_MAGIX_DECODER)    += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_MOFLEX_DECODER)   += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_MTF_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_PDA_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_OKI_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_QT_DECODER)       += adpcm.o adpcm_data.o\n"
+    },
+    {
+      "path": "libavcodec/adpcm.c",
+      "status": "modified",
+      "additions": 24,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/adpcm.c b/libavcodec/adpcm.c\nindex b78b86d905..9f7070b701 100644\n--- a/libavcodec/adpcm.c\n+++ b/libavcodec/adpcm.c\n@@ -1161,10 +1161,11 @@ static int get_nb_samples(AVCodecContext *avctx, GetByteContext *gb,\n     switch (avctx->codec->id) {\n         case AV_CODEC_ID_ADPCM_4XM:\n         case AV_CODEC_ID_ADPCM_AGM:\n         case AV_CODEC_ID_ADPCM_IMA_ACORN:\n         case AV_CODEC_ID_ADPCM_IMA_DAT4:\n+        case AV_CODEC_ID_ADPCM_IMA_MAGIX:\n         case AV_CODEC_ID_ADPCM_IMA_MOFLEX:\n         case AV_CODEC_ID_ADPCM_IMA_ISS:     header_size = 4 * ch;      break;\n         case AV_CODEC_ID_ADPCM_IMA_SMJPEG:  header_size = 4 * ch;      break;\n     }\n     if (header_size > 0)\n@@ -1724,10 +1725,32 @@ static int adpcm_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n         }\n \n         if ((bytestream2_tell(&gb) & 1))\n             bytestream2_skip(&gb, 1);\n         ) /* End of CASE */\n+    CASE(ADPCM_IMA_MAGIX,\n+        for (int channel = 0; channel < channels; channel++) {\n+            ADPCMChannelStatus *cs = &c->status[channel];\n+            cs->predictor  = sign_extend(bytestream2_get_le16u(&gb), 16);\n+            cs->step_index = sign_extend(bytestream2_get_le16u(&gb), 16);\n+            if (cs->step_index > 88u){\n+                av_log(avctx, AV_LOG_ERROR, \"ERROR: step_index[%d] = %i\\n\",\n+                       channel, cs->step_index);\n+                return AVERROR_INVALIDDATA;\n+            }\n+        }\n+\n+        for (int m = 0; m < avctx->block_align-8; m += 8) {\n+            uint32_t v0 = bytestream2_get_le32u(&gb);\n+            uint32_t v1 = bytestream2_get_le32u(&gb);\n+\n+            for (int n = 8; n > 0; n--, v0 >>= 4, v1 >>= 4, samples += 2) {\n+                samples[0] = adpcm_ima_expand_nibble(&c->status[0], v0 & 15, 3);\n+                samples[1] = adpcm_ima_expand_nibble(&c->status[1], v1 & 15, 3);\n+            }\n+        }\n+        ) /* End of CASE */\n     CASE(ADPCM_IMA_ISS,\n         for (int channel = 0; channel < channels; channel++) {\n             ADPCMChannelStatus *cs = &c->status[channel];\n             cs->predictor  = sign_extend(bytestream2_get_le16u(&gb), 16);\n             cs->step_index = sign_extend(bytestream2_get_le16u(&gb), 16);\n@@ -2860,10 +2883,11 @@ ADPCM_DECODER(ADPCM_IMA_DK4,     sample_fmts_s16,  adpcm_ima_dk4,     \"ADPCM IMA\n ADPCM_DECODER(ADPCM_IMA_EA_EACS, sample_fmts_s16,  adpcm_ima_ea_eacs, \"ADPCM IMA Electronic Arts EACS\")\n ADPCM_DECODER(ADPCM_IMA_EA_SEAD, sample_fmts_s16,  adpcm_ima_ea_sead, \"ADPCM IMA Electronic Arts SEAD\")\n ADPCM_DECODER(ADPCM_IMA_HVQM2,   sample_fmts_s16,  adpcm_ima_hvqm2,   \"ADPCM IMA HVQM2\")\n ADPCM_DECODER(ADPCM_IMA_HVQM4,   sample_fmts_s16,  adpcm_ima_hvqm4,   \"ADPCM IMA HVQM4\")\n ADPCM_DECODER(ADPCM_IMA_ISS,     sample_fmts_s16,  adpcm_ima_iss,     \"ADPCM IMA Funcom ISS\")\n+ADPCM_DECODER(ADPCM_IMA_MAGIX,   sample_fmts_s16,  adpcm_ima_magix,   \"ADPCM IMA Magix\")\n ADPCM_DECODER(ADPCM_IMA_MOFLEX,  sample_fmts_s16p, adpcm_ima_moflex,  \"ADPCM IMA MobiClip MOFLEX\")\n ADPCM_DECODER(ADPCM_IMA_MTF,     sample_fmts_s16,  adpcm_ima_mtf,     \"ADPCM IMA Capcom's MT Framework\")\n ADPCM_DECODER(ADPCM_IMA_OKI,     sample_fmts_s16,  adpcm_ima_oki,     \"ADPCM IMA Dialogic OKI\")\n ADPCM_DECODER(ADPCM_IMA_PDA,     sample_fmts_s16,  adpcm_ima_pda,     \"ADPCM IMA PlayDate\")\n ADPCM_DECODER(ADPCM_IMA_QT,      sample_fmts_s16p, adpcm_ima_qt,      \"ADPCM IMA QuickTime\")\n"
+    },
+    {
+      "path": "libavcodec/allcodecs.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/allcodecs.c b/libavcodec/allcodecs.c\nindex 5891c04211..9064e470d3 100644\n--- a/libavcodec/allcodecs.c\n+++ b/libavcodec/allcodecs.c\n@@ -678,10 +678,11 @@ extern const FFCodec ff_adpcm_ima_dk4_decoder;\n extern const FFCodec ff_adpcm_ima_ea_eacs_decoder;\n extern const FFCodec ff_adpcm_ima_ea_sead_decoder;\n extern const FFCodec ff_adpcm_ima_hvqm2_decoder;\n extern const FFCodec ff_adpcm_ima_hvqm4_decoder;\n extern const FFCodec ff_adpcm_ima_iss_decoder;\n+extern const FFCodec ff_adpcm_ima_magix_decoder;\n extern const FFCodec ff_adpcm_ima_moflex_decoder;\n extern const FFCodec ff_adpcm_ima_mtf_decoder;\n extern const FFCodec ff_adpcm_ima_oki_decoder;\n extern const FFCodec ff_adpcm_ima_pda_decoder;\n extern const FFCodec ff_adpcm_ima_qt_encoder;\n"
+    },
+    {
+      "path": "libavcodec/codec_desc.c",
+      "status": "modified",
+      "additions": 7,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/codec_desc.c b/libavcodec/codec_desc.c\nindex b3d0a2b601..f6aa863c4a 100644\n--- a/libavcodec/codec_desc.c\n+++ b/libavcodec/codec_desc.c\n@@ -2660,10 +2660,17 @@ static const AVCodecDescriptor codec_descriptors[] = {\n         .type      = AVMEDIA_TYPE_AUDIO,\n         .name      = \"adpcm_ima_hvqm2\",\n         .long_name = NULL_IF_CONFIG_SMALL(\"ADPCM IMA HVQM2\"),\n         .props     = AV_CODEC_PROP_LOSSY,\n     },\n+    {\n+        .id        = AV_CODEC_ID_ADPCM_IMA_MAGIX,\n+        .type      = AVMEDIA_TYPE_AUDIO,\n+        .name      = \"adpcm_ima_magix\",\n+        .long_name = NULL_IF_CONFIG_SMALL(\"ADPCM IMA Magix\"),\n+        .props     = AV_CODEC_PROP_INTRA_ONLY | AV_CODEC_PROP_LOSSY,\n+    },\n \n     /* AMR */\n     {\n         .id        = AV_CODEC_ID_AMR_NB,\n         .type      = AVMEDIA_TYPE_AUDIO,\n"
+    },
+    {
+      "path": "libavcodec/codec_id.h",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/codec_id.h b/libavcodec/codec_id.h\nindex cc22f24ba9..c69e81582a 100644\n--- a/libavcodec/codec_id.h\n+++ b/libavcodec/codec_id.h\n@@ -429,10 +429,11 @@ enum AVCodecID {\n     AV_CODEC_ID_ADPCM_SANYO,\n     AV_CODEC_ID_ADPCM_IMA_HVQM4,\n     AV_CODEC_ID_ADPCM_IMA_PDA,\n     AV_CODEC_ID_ADPCM_N64,\n     AV_CODEC_ID_ADPCM_IMA_HVQM2,\n+    AV_CODEC_ID_ADPCM_IMA_MAGIX,\n \n     /* AMR */\n     AV_CODEC_ID_AMR_NB = 0x12000,\n     AV_CODEC_ID_AMR_WB,\n \n"
+    },
+    {
+      "path": "libavcodec/utils.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/utils.c b/libavcodec/utils.c\nindex c5230e646a..039315a2ce 100644\n--- a/libavcodec/utils.c\n+++ b/libavcodec/utils.c\n@@ -463,10 +463,11 @@ int av_get_exact_bits_per_sample(enum AVCodecID codec_id)\n     case AV_CODEC_ID_ADPCM_IMA_ALP:\n     case AV_CODEC_ID_ADPCM_IMA_AMV:\n     case AV_CODEC_ID_ADPCM_IMA_APC:\n     case AV_CODEC_ID_ADPCM_IMA_APM:\n     case AV_CODEC_ID_ADPCM_IMA_EA_SEAD:\n+    case AV_CODEC_ID_ADPCM_IMA_MAGIX:\n     case AV_CODEC_ID_ADPCM_IMA_OKI:\n     case AV_CODEC_ID_ADPCM_IMA_WS:\n     case AV_CODEC_ID_ADPCM_IMA_SSI:\n     case AV_CODEC_ID_ADPCM_G722:\n     case AV_CODEC_ID_ADPCM_YAMAHA:\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/Makefile b/libavcodec/Makefile\nindex 5963d0f73e..485be1a0f2 100644\n--- a/libavcodec/Makefile\n+++ b/libavcodec/Makefile\n@@ -987,10 +987,11 @@ OBJS-$(CONFIG_ADPCM_IMA_DK4_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_EA_EACS_DECODER)  += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_EA_SEAD_DECODER)  += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_HVQM2_DECODER)    += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_HVQM4_DECODER)    += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_ISS_DECODER)      += adpcm.o adpcm_data.o\n+OBJS-$(CONFIG_ADPCM_IMA_MAGIX_DECODER)    += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_MOFLEX_DECODER)   += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_MTF_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_PDA_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_OKI_DECODER)      += adpcm.o adpcm_data.o\n OBJS-$(CONFIG_ADPCM_IMA_QT_DECODER)       += adpcm.o adpcm_data.o\ndiff --git a/libavcodec/adpcm.c b/libavcodec/adpcm.c\nindex b78b86d905..9f7070b701 100644\n--- a/libavcodec/adpcm.c\n+++ b/libavcodec/adpcm.c\n@@ -1161,10 +1161,11 @@ static int get_nb_samples(AVCodecContext *avctx, GetByteContext *gb,\n     switch (avctx->codec->id) {\n         case AV_CODEC_ID_ADPCM_4XM:\n         case AV_CODEC_ID_ADPCM_AGM:\n         case AV_CODEC_ID_ADPCM_IMA_ACORN:\n         case AV_CODEC_ID_ADPCM_IMA_DAT4:\n+        case AV_CODEC_ID_ADPCM_IMA_MAGIX:\n         case AV_CODEC_ID_ADPCM_IMA_MOFLEX:\n         case AV_CODEC_ID_ADPCM_IMA_ISS:     header_size = 4 * ch;      break;\n         case AV_CODEC_ID_ADPCM_IMA_SMJPEG:  header_size = 4 * ch;      break;\n     }\n     if (header_size > 0)\n@@ -1724,10 +1725,32 @@ static int adpcm_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n         }\n \n         if ((bytestream2_tell(&gb) & 1))\n             bytestream2_skip(&gb, 1);\n         ) /* End of CASE */\n+    CASE(ADPCM_IMA_MAGIX,\n+        for (int channel = 0; channel < channels; channel++) {\n+            ADPCMChannelStatus *cs = &c->status[channel];\n+            cs->predictor  = sign_extend(bytestream2_get_le16u(&gb), 16);\n+            cs->step_index = sign_extend(bytestream2_get_le16u(&gb), 16);\n+            if (cs->step_index > 88u){\n+                av_log(avctx, AV_LOG_ERROR, \"ERROR: step_index[%d] = %i\\n\",\n+                       channel, cs->step_index);\n+                return AVERROR_INVALIDDATA;\n+            }\n+        }\n+\n+        for (int m = 0; m < avctx->block_align-8; m += 8) {\n+            uint32_t v0 = bytestream2_get_le32u(&gb);\n+            uint32_t v1 = bytestream2_get_le32u(&gb);\n+\n+            for (int n = 8; n > 0; n--, v0 >>= 4, v1 >>= 4, samples += 2) {\n+                samples[0] = adpcm_ima_expand_nibble(&c->status[0], v0 & 15, 3);\n+                samples[1] = adpcm_ima_expand_nibble(&c->status[1], v1 & 15, 3);\n+            }\n+        }\n+        ) /* End of CASE */\n     CASE(ADPCM_IMA_ISS,\n         for (int channel = 0; channel < channels; channel++) {\n             ADPCMChannelStatus *cs = &c->status[channel];\n             cs->predictor  = sign_extend(bytestream2_get_le16u(&gb), 16);\n             cs->step_index = sign_extend(bytestream2_get_le16u(&gb), 16);\n@@ -2860,10 +2883,11 @@ ADPCM_DECODER(ADPCM_IMA_DK4,     sample_fmts_s16,  adpcm_ima_dk4,     \"ADPCM IMA\n ADPCM_DECODER(ADPCM_IMA_EA_EACS, sample_fmts_s16,  adpcm_ima_ea_eacs, \"ADPCM IMA Electronic Arts EACS\")\n ADPCM_DECODER(ADPCM_IMA_EA_SEAD, sample_fmts_s16,  adpcm_ima_ea_sead, \"ADPCM IMA Electronic Arts SEAD\")\n ADPCM_DECODER(ADPCM_IMA_HVQM2,   sample_fmts_s16,  adpcm_ima_hvqm2,   \"ADPCM IMA HVQM2\")\n ADPCM_DECODER(ADPCM_IMA_HVQM4,   sample_fmts_s16,  adpcm_ima_hvqm4,   \"ADPCM IMA HVQM4\")\n ADPCM_DECODER(ADPCM_IMA_ISS,     sample_fmts_s16,  adpcm_ima_iss,     \"ADPCM IMA Funcom ISS\")\n+ADPCM_DECODER(ADPCM_IMA_MAGIX,   sample_fmts_s16,  adpcm_ima_magix,   \"ADPCM IMA Magix\")\n ADPCM_DECODER(ADPCM_IMA_MOFLEX,  sample_fmts_s16p, adpcm_ima_moflex,  \"ADPCM IMA MobiClip MOFLEX\")\n ADPCM_DECODER(ADPCM_IMA_MTF,     sample_fmts_s16,  adpcm_ima_mtf,     \"ADPCM IMA Capcom's MT Framework\")\n ADPCM_DECODER(ADPCM_IMA_OKI,     sample_fmts_s16,  adpcm_ima_oki,     \"ADPCM IMA Dialogic OKI\")\n ADPCM_DECODER(ADPCM_IMA_PDA,     sample_fmts_s16,  adpcm_ima_pda,     \"ADPCM IMA PlayDate\")\n ADPCM_DECODER(ADPCM_IMA_QT,      sample_fmts_s16p, adpcm_ima_qt,      \"ADPCM IMA QuickTime\")\ndiff --git a/libavcodec/allcodecs.c b/libavcodec/allcodecs.c\nindex 5891c04211..9064e470d3 100644\n--- a/libavcodec/allcodecs.c\n+++ b/libavcodec/allcodecs.c\n@@ -678,10 +678,11 @@ extern const FFCodec ff_adpcm_ima_dk4_decoder;\n extern const FFCodec ff_adpcm_ima_ea_eacs_decoder;\n extern const FFCodec ff_adpcm_ima_ea_sead_decoder;\n extern const FFCodec ff_adpcm_ima_hvqm2_decoder;\n extern const FFCodec ff_adpcm_ima_hvqm4_decoder;\n extern const FFCodec ff_adpcm_ima_iss_decoder;\n+extern const FFCodec ff_adpcm_ima_magix_decoder;\n extern const FFCodec ff_adpcm_ima_moflex_decoder;\n extern const FFCodec ff_adpcm_ima_mtf_decoder;\n extern const FFCodec ff_adpcm_ima_oki_decoder;\n extern const FFCodec ff_adpcm_ima_pda_decoder;\n extern const FFCodec ff_adpcm_ima_qt_encoder;\ndiff --git a/libavcodec/codec_desc.c b/libavcodec/codec_desc.c\nindex b3d0a2b601..f6aa863c4a 100644\n--- a/libavcodec/codec_desc.c\n+++ b/libavcodec/codec_desc.c\n@@ -2660,10 +2660,17 @@ static const AVCodecDescriptor codec_descriptors[] = {\n         .type      = AVMEDIA_TYPE_AUDIO,\n         .name      = \"adpcm_ima_hvqm2\",\n         .long_name = NULL_IF_CONFIG_SMALL(\"ADPCM IMA HVQM2\"),\n         .props     = AV_CODEC_PROP_LOSSY,\n     },\n+    {\n+        .id        = AV_CODEC_ID_ADPCM_IMA_MAGIX,\n+        .type      = AVMEDIA_TYPE_AUDIO,\n+        .name      = \"adpcm_ima_magix\",\n+        .long_name = NULL_IF_CONFIG_SMALL(\"ADPCM IMA Magix\"),\n+        .props     = AV_CODEC_PROP_INTRA_ONLY | AV_CODEC_PROP_LOSSY,\n+    },\n \n     /* AMR */\n     {\n         .id        = AV_CODEC_ID_AMR_NB,\n         .type      = AVMEDIA_TYPE_AUDIO,\ndiff --git a/libavcodec/codec_id.h b/libavcodec/codec_id.h\nindex cc22f24ba9..c69e81582a 100644\n--- a/libavcodec/codec_id.h\n+++ b/libavcodec/codec_id.h\n@@ -429,10 +429,11 @@ enum AVCodecID {\n     AV_CODEC_ID_ADPCM_SANYO,\n     AV_CODEC_ID_ADPCM_IMA_HVQM4,\n     AV_CODEC_ID_ADPCM_IMA_PDA,\n     AV_CODEC_ID_ADPCM_N64,\n     AV_CODEC_ID_ADPCM_IMA_HVQM2,\n+    AV_CODEC_ID_ADPCM_IMA_MAGIX,\n \n     /* AMR */\n     AV_CODEC_ID_AMR_NB = 0x12000,\n     AV_CODEC_ID_AMR_WB,\n \ndiff --git a/libavcodec/utils.c b/libavcodec/utils.c\nindex c5230e646a..039315a2ce 100644\n--- a/libavcodec/utils.c\n+++ b/libavcodec/utils.c\n@@ -463,10 +463,11 @@ int av_get_exact_bits_per_sample(enum AVCodecID codec_id)\n     case AV_CODEC_ID_ADPCM_IMA_ALP:\n     case AV_CODEC_ID_ADPCM_IMA_AMV:\n     case AV_CODEC_ID_ADPCM_IMA_APC:\n     case AV_CODEC_ID_ADPCM_IMA_APM:\n     case AV_CODEC_ID_ADPCM_IMA_EA_SEAD:\n+    case AV_CODEC_ID_ADPCM_IMA_MAGIX:\n     case AV_CODEC_ID_ADPCM_IMA_OKI:\n     case AV_CODEC_ID_ADPCM_IMA_WS:\n     case AV_CODEC_ID_ADPCM_IMA_SSI:\n     case AV_CODEC_ID_ADPCM_G722:\n     case AV_CODEC_ID_ADPCM_YAMAHA:\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-471509958",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "65fd5167686e8cf8489a271bf22fa9dc8c818a70",
+      "short_sha": "65fd516",
+      "message": "avcodec/adpcm: handle ADPCM_IMA_MAGIX like other similar codecs",
+      "author": "Michael Niedermayer",
+      "date": "2026-02-08T01:28:16+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-001",
+        "title": "Out-of-bounds write in ADPCM_IMA_MAGIX decoding assumes stereo and mis-sized output loop",
+        "message": "The ADPCM_IMA_MAGIX decode case unconditionally decodes into two channel status structs (c->status[0] and c->status[1]) inside its inner sample-expansion loop, regardless of the actual number of channels (mono streams only have status[0] initialized/valid, and the output 'samples' buffer for mono has half the per-iteration capacity that the loop assumes). In addition, the outer loop bound `for (int m = 0; m < avctx->block_align-8; m += 8)` is derived purely from block_align rather than from the actual number of samples computed earlier by get_nb_samples() for this codec (get_nb_samples() also lacked a dedicated case for ADPCM_IMA_MAGIX, falling through to a generic header_size=4*ch calculation that does not match the two 4-byte predictor/step_index headers per channel actually consumed here). This mismatch between the number of samples the output frame was sized for and the number of samples actually written by this loop allows the decoder to write past the end of the allocated 'samples' output buffer when the input is a mono ADPCM IMA Magix stream (or when block_align does not evenly correspond to the number of samples requested), resulting in an out-of-array/heap buffer overflow, as found by OSS-Fuzz.",
+        "location": {
+          "file": "libavcodec/adpcm.c",
+          "start_line": 1730,
+          "end_line": 1751,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": "    CASE(ADPCM_IMA_MAGIX,\n        for (int channel = 0; channel < channels; channel++) {\n            ADPCMChannelStatus *cs = &c->status[channel];\n            cs->predictor  = sign_extend(bytestream2_get_le16u(&gb), 16);\n            cs->step_index = sign_extend(bytestream2_get_le16u(&gb), 16);\n            if (cs->step_index > 88u){\n                av_log(avctx, AV_LOG_ERROR, \"ERROR: step_index[%d] = %i\\n\",\n                       channel, cs->step_index);\n                return AVERROR_INVALIDDATA;\n            }\n        }\n\n        for (int m = 0; m < avctx->block_align-8; m += 8) {\n            uint32_t v0 = bytestream2_get_le32u(&gb);\n            uint32_t v1 = bytestream2_get_le32u(&gb);\n\n            for (int n = 8; n > 0; n--, v0 >>= 4, v1 >>= 4, samples += 2) {\n                samples[0] = adpcm_ima_expand_nibble(&c->status[0], v0 & 15, 3);\n                samples[1] = adpcm_ima_expand_nibble(&c->status[1], v1 & 15, 3);\n            }\n        }\n        ) /* End of CASE */",
+          "snippet_hash": "ea3cae2afaa7cf023a928359e31654c580b87d22b1f00468a28f4ecaf0d3765a",
+          "description": null,
+          "snippet_start_line": 1730,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "BufferOverflow",
+        "confidence": 0.85,
+        "suggestion": "Compute nb_samples for ADPCM_IMA_MAGIX with a dedicated case in get_nb_samples() that accounts for the codec's actual per-block header (4 bytes per channel) and reject/patch-welcome mono streams whose implementation is incomplete, then bound the inner decode loop by `channels*nb_samples/16` (i.e., the actual sample count) instead of a raw block_align-derived byte count. This ensures samples written never exceeds the frame buffer sized from nb_samples, and prevents unhandled mono input from writing through uninitialized/undersized per-channel buffers.",
+        "suggestion_code": "case AV_CODEC_ID_ADPCM_IMA_MAGIX:\n    if (avctx->block_align > 0)\n        buf_size = FFMIN(buf_size, avctx->block_align);\n    nb_samples = (buf_size - 4 * ch) * 2 / ch;\n    if (ch == 1) {\n        avpriv_request_sample(avctx, \"mono ADPCM Magix\");\n        return AVERROR_PATCHWELCOME;\n    }\n    break;\n...\nfor (int m = 0; m < channels*nb_samples/16; m++) {\n    uint32_t v0 = bytestream2_get_le32u(&gb);\n    uint32_t v1 = bytestream2_get_le32u(&gb);\n    ...\n}",
+        "tags": [
+          "security",
+          "memory-safety",
+          "buffer-overflow",
+          "audio-decoder"
+        ],
+        "cwe_ids": [
+          "CWE-787",
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "BufferOverflow",
+    "affected_files": [
+      "libavcodec/adpcm.c"
+    ],
+    "root_cause": "The decoder assumed the ADPCM_IMA_MAGIX bitstream always has two channels and derived its inner loop bound from avctx->block_align directly instead of from the sample count computed consistently with the output frame's allocation (get_nb_samples). No explicit handling/rejection of mono streams was added, despite the implementation only being correct for stereo.",
+    "must_cover": [
+      {
+        "file": "libavcodec/adpcm.c",
+        "function": null,
+        "start_line": 1730,
+        "end_line": 1751,
+        "role": "primary",
+        "reason": "Primary location of finding: Out-of-bounds write in ADPCM_IMA_MAGIX decoding assumes stereo and mis-sized output loop"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "30fc5b1baaa0823f134768823ab6695211d0fe21",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

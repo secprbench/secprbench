@@ -1,0 +1,33 @@
+{
+  "bug_id": "1970095",
+  "project": "firefox",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "aa2d6702bbe16c894c054278c0983d909785b206",
+    "parent": "188fc26373c6ecc9ad4078252c7bf7a2af880adb",
+    "fix": "d578778fe18e3ffb6fb60af046cc488507f5dd99"
+  },
+  "affected_files": [
+    "js/src/builtin/OrderedHashTableObject-inl.h",
+    "js/src/builtin/OrderedHashTableObject.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, None)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": null,
+    "poc_source": "saved/era-harness",
+    "reason": "",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1970095.json"
+  },
+  "final_disposition": "verified"
+}

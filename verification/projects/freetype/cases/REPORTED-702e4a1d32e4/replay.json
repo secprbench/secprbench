@@ -1,0 +1,93 @@
+{
+  "summary": {
+    "task_id": "pr_review_REPORTED-702e4a1d32e4",
+    "bug_id": "REPORTED-702e4a1d32e4",
+    "bug_type": "BufferOverflow",
+    "intro_commit": "582de1a4b6f6269bdb358605f9b23406988cd5b5",
+    "intro_parent": "fd92af79d801880faf070c84d0c274081369eb76",
+    "fix_commit": "702e4a1d32e4b911e85cc7df84b3ba395c28dab3",
+    "affected_files": [
+      "src/truetype/ttgxvar.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "poc-watch",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/freetype/c86466d69ddc039c06d4/attempts/01/pocs/freetype/REPORTED-702e4a1d32e4",
+    "input_file": "/research-data/secprbench/season100-balanced-20261001/verification-v3/cases/freetype/c86466d69ddc039c06d4/attempts/01/pocs/freetype/REPORTED-702e4a1d32e4/controlled_gvar_256axis.ttf",
+    "input_name": "controlled_gvar_256axis.ttf",
+    "size": 796580,
+    "has_run_sh": false,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "fd92af79d801880faf070c84d0c274081369eb76",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "8d096b461480830abbefb7fc002ad40e4ebaad8c0c10a36551ad9c4bc063c6b9"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "582de1a4b6f6269bdb358605f9b23406988cd5b5",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 134,
+      "crashed": true,
+      "sanitizer_report": "VERIFY_EXIT=134\n\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x61a0000e2d08 at pc 0x5653865e51df bp 0x7ffde8e431b0 sp 0x7ffde8e431a8\nWRITE of size 8 at 0x61a0000e2d08 thread T0\n    #0 0x5653865e51de in TT_Vary_Apply_Glyph_Deltas /work/src/truetype/ttgxvar.c:4216:26\n    #1 0x5653865e590e in TT_Process_Simple_Glyph /work/src/truetype/ttgload.c:905:15\n    #2 0x5653865d9f2e in load_truetype_glyph /work/src/truetype/ttgload.c:1652:15\n    #3 0x5653865a3531 in TT_Load_Glyph /work/src/truetype/ttgload.c:2621:13\n    #4 0x5653865a3531 in tt_glyph_load /work/src/truetype/ttdriver.c:502:13\n    #5 0x56538645a456 in FT_Load_Glyph /work/src/base/ftobjs.c:1066:15\n    #6 0x565386458a78 in exercise_face /work/harness.c:90:13\n    #7 0x56538645833f in main /work/harness.c:147:5\n    #8 0x7f55f2a70d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #9 0x7f55f2a70e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #10 0x56538639a3d4 in _start (/work/harness_bin+0x1483d4) (BuildId: b94f2ab0c079ee49d69c30cb8132943d64b5856c)\n\n0x61a0000e2d08 is located 0 bytes to the right of 1160-byte region [0x61a0000e2880,0x61a0000e2d08)\nallocated by thread T0 here:\n    #0 0x56538641d21e in __interceptor_malloc (/work/harness_bin+0x1cb21e) (BuildId: b94f2ab0c079ee49d69c30cb8132943d64b5856c)\n    #1 0x56538662960b in ft_alloc /work/builds/unix/ftsystem.c:113:12\n    #2 0x56538645be14 in ft_mem_qalloc /work/src/base/ftutil.c:75:15\n    #3 0x56538645be14 in ft_mem_alloc /work/src/base/ftutil.c:54:25\n    #4 0x5653865e285c in TT_Vary_Apply_Glyph_Deltas /work/src/truetype/ttgxvar.c:4164:10\n    #5 0x5653865e590e in TT_Process_Simple_Glyph /work/src/truetype/ttgload.c:905:15\n    #6 0x5653865d9f2e in load_truetype_glyph /work/src/truetype/ttgload.c:1652:15\n    #7 0x5653865a3531 in TT_Load_Glyph /work/src/truetype/ttgload.c:2621:13\n    #8 0x5653865a3531 in tt_glyph_load /work/src/truetype/ttdriver.c:502:13\n    #9 0x56538645a456 in FT_Load_Glyph /work/src/base/ftobjs.c:1066:15\n    #10 0x565386458a78 in exercise_face /work/harness.c:90:13\n    #11 0x56538645833f in main /work/harness.c:147:5\n    #12 0x7f55f2a70d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/src/truetype/ttgxvar.c:4216:26 in TT_Vary_Apply_Glyph_Deltas\nShadow bytes around the buggy address:\n  0x0c3480014550: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014560: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014570: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014580: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014590: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c34800145a0: 00[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145c0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145d0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145e0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  S",
+      "build_log_tail": "",
+      "run_log_tail": "h /work/src/truetype/ttgload.c:2621:13\n    #8 0x5653865a3531 in tt_glyph_load /work/src/truetype/ttdriver.c:502:13\n    #9 0x56538645a456 in FT_Load_Glyph /work/src/base/ftobjs.c:1066:15\n    #10 0x565386458a78 in exercise_face /work/harness.c:90:13\n    #11 0x56538645833f in main /work/harness.c:147:5\n    #12 0x7f55f2a70d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/src/truetype/ttgxvar.c:4216:26 in TT_Vary_Apply_Glyph_Deltas\nShadow bytes around the buggy address:\n  0x0c3480014550: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014560: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014570: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014580: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c3480014590: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c34800145a0: 00[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145c0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145d0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145e0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c34800145f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c './harness_bin \"$INPUT\"'\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "4a1e676bab850ba488866403fe92c0a6033848a6a3d8e32f8f692cf97608761a"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "fd92af79d801880faf070c84d0c274081369eb76",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "90f0e34850d7fc8aec3287e1608e38160db9d8462a59d51a535d63d44a07c469"
+      }
+    }
+  }
+}

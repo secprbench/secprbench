@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-8f384febcc9b",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "a7751a871bdcb5e88a3f61da8e2bc9ac7ffbe0d9",
+    "parent": "7317e00f90c2e4948968a3e2cb3de61f04f4f719",
+    "fix": "8f384febcc9b7ce36b740cd04ffaf40de2f1baf7"
+  },
+  "affected_files": [
+    "ext/fts5/fts5_index.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the identical poc.sql and command for all versions, pre_intro exited 1 with only the expected FTS5 corruption error and crashed=False. post_intro exited 1 with crashed=True and UBSan reported signed integer overflow at fts5_index.c:8543 in fts5IndexIntegrityCheckSegment: 9 + 2147483647 cannot be represented in int. post_benign again exited 1 with only the FTS5 corruption error and crashed=False. Thus intro commit a7751a871bdc introduced the sanitizer-detectable overflow in its new native-i",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

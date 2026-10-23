@@ -1,0 +1,23 @@
+{
+  "bug_id": "GH-29518",
+  "project": "openssl",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "3a69b1902892883d81c41747b2230c5168511026",
+    "parent": "6f73fe1c688dc3e4c3815e8f33e5b672abeb28d3",
+    "fix": "a27b2ca26a8ceb87e6042cc9f0c32f0db8f8fb1d"
+  },
+  "affected_files": [
+    "crypto/evp/enc_b64_scalar.c",
+    "crypto/evp/encode.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured builds succeeded. Using the identical /poc/poc.c and command (`cc -fsanitize=address,undefined -I/work/include /poc/poc.c /work/libcrypto.a -ldl -pthread -o /tmp/gh29518 && /tmp/gh29518`), pre_intro exited 0 with `read=-1 retry=8` and `flush=1`, with no sanitizer report. post_intro exited 1 and UBSan reported `runtime error: division by zero` at crypto/evp/enc_b64_scalar.c:269 in evp_encodeblock_int, with the stack EVP_EncodeFinal -> b64_ctrl -> BIO_ctrl/main. post_benign ag",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

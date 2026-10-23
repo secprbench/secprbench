@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "wasmtime/GH-10453",
+  "case_id": "11a18f55feb5d7c62cdf",
+  "project": "wasmtime",
+  "bug_id": "GH-10453",
+  "season": "2025H1",
+  "source_sha256": "271d55d4251aa81ae03b9310531012db00ad2a9e10559a4e4bae3c7c72e9511d",
+  "generated_artifact_sha256": {
+    "reference": "bad1f47ddc14694282afec765433607baa258b1b83a2758e18308610f036fe57",
+    "introducing": "9c54045a5edf0ce8fc335ffc1a2db502e2592c7061e72c01b224eaf0879feb41",
+    "companion": "3f98acd7c0a7695c7a5c92b542df02a86081bf6ba1026633801b4d6111f9f769"
+  },
+  "poc_status": "poc_fetched",
+  "fingerprint": "1ad5dd8ec19f036566ba33efc1e10dfb4145663917ceaa41cf9d5298a22f7095",
+  "recipe_source_sha256": "5aa53094d116bd574096bda0592efa110378568b83e825ad88d3c593688009fa",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/11a18f55feb5d7c62cdf/attempts/01",
+      "started_at": "2026-10-02T04:34:16.201487+00:00",
+      "status": "inconclusive",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/11a18f55feb5d7c62cdf/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/11a18f55feb5d7c62cdf/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-02T05:23:38.703026+00:00"
+    }
+  ],
+  "updated_at": "2026-10-02T05:23:38.703026+00:00",
+  "case_record": "/research-data/secprbench/season100-balanced-20261001/verification/verification/projects/wasmtime/cases/GH-10453/case.json",
+  "report": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/11a18f55feb5d7c62cdf/attempts/01/replay/pr_review_GH-10453.report.md",
+  "agent_used": true,
+  "recipe_sha256": "463d78b654c438b8c66c",
+  "final_poc_sha256": "1b3a1fd801ad4d426531f4c1ac3ea2cf6ad41c608eae59d52fcb8517ea5a86c0"
+}

@@ -1,0 +1,56 @@
+{
+  "task_id": "pr_review_OSSFUZZ-421954767_benign",
+  "bug_id": "OSSFUZZ-421954767",
+  "commit_sha": "909229b880d5f2c2277ab10915954b18d5162322",
+  "commit_message": "avcodec/shorten: Fix discard of ‘const’ qualifier\n\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "commit_author": "",
+  "commit_date": "2026-09-28T20:51:06.702331",
+  "pr_title": "avcodec/shorten: Fix discard of ‘const’ qualifier",
+  "pr_description": "avcodec/shorten: Fix discard of ‘const’ qualifier\n\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "files": [
+    {
+      "path": "libavcodec/shorten.c",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 5,
+      "diff": "diff --git a/libavcodec/shorten.c b/libavcodec/shorten.c\nindex 12a179156a..b846aa2486 100644\n--- a/libavcodec/shorten.c\n+++ b/libavcodec/shorten.c\n@@ -556,52 +556,52 @@ static int shorten_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n         memmove(s->bitstream, &s->bitstream[s->bitstream_index],\n                 s->bitstream_size);\n         s->bitstream_index = 0;\n     }\n     if (buf)\n         memcpy(&s->bitstream[s->bitstream_index + s->bitstream_size], buf,\n                buf_size);\n     buf               = &s->bitstream[s->bitstream_index];\n     buf_size         += s->bitstream_size;\n     s->bitstream_size = buf_size;\n-    memset(buf + buf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);\n \n     /* do not decode until buffer has at least max_framesize bytes or\n      * the end of the file has been reached */\n     if (buf_size < s->max_framesize && avpkt->data) {\n         *got_frame_ptr = 0;\n         return input_buf_size;\n     }\n     /* init and position bitstream reader */\n     if ((ret = init_get_bits8(&s->gb, buf, buf_size)) < 0)\n         return ret;\n     skip_bits(&s->gb, s->bitindex);\n \n     /* process header or next subblock */\n     if (!s->got_header) {\n \n         if ((ret = read_header(s)) < 0)\n             return ret;\n \n         if (avpkt->size) {\n-            int max_framesize;\n+            int max_framesize = s->blocksize * s->channels * 8;\n             void *tmp_ptr;\n-\n-            max_framesize = FFMAX(s->max_framesize, s->blocksize * s->channels * 8);\n+            unsigned old_allocated_bitstream_size = s->allocated_bitstream_size;\n             tmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,\n                                       max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);\n             if (!tmp_ptr) {\n                 av_log(avctx, AV_LOG_ERROR, \"error allocating bitstream buffer\\n\");\n                 return AVERROR(ENOMEM);\n             }\n             s->bitstream = tmp_ptr;\n-            s->max_framesize = max_framesize;\n+            if (s->allocated_bitstream_size > old_allocated_bitstream_size)\n+                memset(s->bitstream + old_allocated_bitstream_size, 0, s->allocated_bitstream_size - old_allocated_bitstream_size);\n+            s->max_framesize = FFMAX(s->max_framesize, max_framesize);\n             *got_frame_ptr = 0;\n             goto finish_frame;\n         }\n     }\n \n     /* if quit command was read previously, don't decode anything */\n     if (s->got_quit_command) {\n         *got_frame_ptr = 0;\n         return avpkt->size;\n     }\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/shorten.c b/libavcodec/shorten.c\nindex 12a179156a..b846aa2486 100644\n--- a/libavcodec/shorten.c\n+++ b/libavcodec/shorten.c\n@@ -556,52 +556,52 @@ static int shorten_decode_frame(AVCodecContext *avctx, AVFrame *frame,\n         memmove(s->bitstream, &s->bitstream[s->bitstream_index],\n                 s->bitstream_size);\n         s->bitstream_index = 0;\n     }\n     if (buf)\n         memcpy(&s->bitstream[s->bitstream_index + s->bitstream_size], buf,\n                buf_size);\n     buf               = &s->bitstream[s->bitstream_index];\n     buf_size         += s->bitstream_size;\n     s->bitstream_size = buf_size;\n-    memset(buf + buf_size, 0, AV_INPUT_BUFFER_PADDING_SIZE);\n \n     /* do not decode until buffer has at least max_framesize bytes or\n      * the end of the file has been reached */\n     if (buf_size < s->max_framesize && avpkt->data) {\n         *got_frame_ptr = 0;\n         return input_buf_size;\n     }\n     /* init and position bitstream reader */\n     if ((ret = init_get_bits8(&s->gb, buf, buf_size)) < 0)\n         return ret;\n     skip_bits(&s->gb, s->bitindex);\n \n     /* process header or next subblock */\n     if (!s->got_header) {\n \n         if ((ret = read_header(s)) < 0)\n             return ret;\n \n         if (avpkt->size) {\n-            int max_framesize;\n+            int max_framesize = s->blocksize * s->channels * 8;\n             void *tmp_ptr;\n-\n-            max_framesize = FFMAX(s->max_framesize, s->blocksize * s->channels * 8);\n+            unsigned old_allocated_bitstream_size = s->allocated_bitstream_size;\n             tmp_ptr = av_fast_realloc(s->bitstream, &s->allocated_bitstream_size,\n                                       max_framesize + AV_INPUT_BUFFER_PADDING_SIZE);\n             if (!tmp_ptr) {\n                 av_log(avctx, AV_LOG_ERROR, \"error allocating bitstream buffer\\n\");\n                 return AVERROR(ENOMEM);\n             }\n             s->bitstream = tmp_ptr;\n-            s->max_framesize = max_framesize;\n+            if (s->allocated_bitstream_size > old_allocated_bitstream_size)\n+                memset(s->bitstream + old_allocated_bitstream_size, 0, s->allocated_bitstream_size - old_allocated_bitstream_size);\n+            s->max_framesize = FFMAX(s->max_framesize, max_framesize);\n             *got_frame_ptr = 0;\n             goto finish_frame;\n         }\n     }\n \n     /* if quit command was read previously, don't decode anything */\n     if (s->got_quit_command) {\n         *got_frame_ptr = 0;\n         return avpkt->size;\n     }\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-421954767",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "80606442377a7bca9501e2612e9a44b5044316ca",
+    "fix_commit": "909229b880d5f2c2277ab10915954b18d5162322"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "80606442377a7bca9501e2612e9a44b5044316ca",
+  "fix_commit_sha": "909229b880d5f2c2277ab10915954b18d5162322",
+  "intro_commit_message": "avcodec/shorten: Fix discard of ‘const’ qualifier\n\nSigned-off-by: James Almer <jamrial@gmail.com>",
+  "fix_commit_message": "avcodec/shorten: Clear the additionally allocated space on realloc\n\nFixes: use of uninitialized memory\nFixes: 421954767/clusterfuzz-testcase-minimized-ffmpeg_AV_CODEC_ID_SHORTEN_fuzzer-515682786246656\n\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 909229b880d5 on top of intro 80606442377a via git's 3-way merge. Vulnerability (UninitializedMemory): The shorten decoder's bitstream buffer reallocation logic in shorten_decode_frame() cleared only the delta between the old and new *requested* frame sizes (s->max_framesize vs max_framesize) after calling av_fast_realloc(). Because av_fast_realloc() can allocate more space than requested and tracks the true allocated size separately (s->allocated_bitstream_size), the memset based on the requested sizes does not reliably cover all newly-accessible bytes of the buffer, leaving some region uninitialized. Later bitstream parsing code reads from this buffer (including the padding area used by the bit reader), leading to a use of uninitialized memory, detected by OSS-Fuzz/MemorySanitizer. Root cause: The clearing logic used the wrong reference values (requested max_framesize sizes) instead of the actual allocated buffer size tracked by av_fast_realloc (s->allocated_bitstream_size) to determine which bytes are newly allocated and need zeroing, causing a mismatch between the assumed and real newly-allocated memory region.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "80606442377a7bca9501e2612e9a44b5044316ca",
+    "fix_revision": "909229b880d5f2c2277ab10915954b18d5162322",
+    "fix_parent_revision": "1b7a327b3a43df6ab82885cea5ae02bf9dd899a9",
+    "inspected_paths": [
+      "libavcodec/shorten.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "libavcodec/shorten.c",
+        "symbol": "memset",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

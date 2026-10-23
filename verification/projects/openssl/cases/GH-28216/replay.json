@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-28216",
+    "bug_id": "GH-28216",
+    "bug_type": "LogicError",
+    "intro_commit": "3d254b31344e82b8f10fda8bab196757a377eb63",
+    "intro_parent": "643f542a89bee93e043d0899b2a1ca700d1cc418",
+    "fix_commit": "c0527256d2e6a148931e1d8b9b0ff4af7564caae",
+    "affected_files": [
+      "crypto/encode_decode/decoder_pkey.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "Exact bug and unaffected output lines matched the shared three-version Docker replay.",
+      "Root cause confirmed by source diff and by a targeted, self-checking dynamic PoC. The PoC forces the specific allocation performed inside lh_DECODER_CACHE_ENTRY_insert() to fail (via a malloc hook matched by exact call-site file:line, touching no other allocation), driving OSSL_DECODER_CTX_new_for_pkey() into the intro commit's newly-added error branch while cache->lock is held for write. A subsequent, ordinary call to the same API (no induced failure) serves as the oracle: it must succeed promptly if the lock was released. Running the identical sequence against all three built revisions (3 repetitions each, fully reproducible) gives a clean 3-way split: pre_intro never reaches the buggy branch at all (no error handling on insert failure existed) and the lock is always released, so the probe call always succeeds; post_intro takes the new error branch, leaks cache->lock, and the probe call fails every time (fast failure rather than a hang, matching the original reporter's account of an EBUSY-style same-thread re-lock failure); post_benign takes the same error branch but its added CRYPTO_THREAD_unlock() releases the lock, so the probe call succeeds every time, exactly matching the fix commit message (\"never unlocked a write lock we were holding ... Fix it by ensuring the lock is released in the error path\"). intro_verified=yes and benign_verified=yes with high confidence."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/openssl/dd55af30b4b514a3ca2f/attempts/02/pocs/openssl/GH-28216",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": false,
+    "note": "poc dir has neither run.sh nor a recognizable input file"
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /tmp && cc -O0 -g -fsanitize=address,undefined -pthread -I/work/include -o poc /poc/poc.c /work/libcrypto.a -ldl && for i in 1 2 3; do timeout 15 ./poc; echo \"EXIT=$?\"; done",
+      "input": null,
+      "poc_sha256": "6aee8a8b67a9805cb648cdfe6b4252430a590e3c3da9f65d657566e42ced0de5",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "3d254b31344e82b8f10fda8bab196757a377eb63",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "a31e4bb8cf35d2fb027726ef9706d965c7e9a31b0e384fc07b9d93230ce1b83d"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "EXIT=1\nEXIT=1\nEXIT=1\nVERIFY_EXIT=0\n\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned (nil), hit_count=1, fail_done=1\n[poc] triggering call failed as expected (insert error path checked/taken)\n[poc] RESULT: PROBE_FAIL (probe call returned NULL although no failure was induced for it; consistent with a leaked cache->lock causing the write-lock re-acquisition to fail)\n00583C44997F0000:error:078C0100:common libcrypto routines::malloc failure:crypto/lhash/lhash.c:114:\n00583C44997F0000:error:1E08000F:DECODER routines:OSSL_DECODER_CTX_new_for_pkey:CRYPTO lib:crypto/encode_decode/decoder_pkey.c:847:\n00583C44997F0000:error:1E08000F:DECODER routines:OSSL_DECODER_CTX_new_for_pkey:CRYPTO lib:crypto/encode_decode/decoder_pkey.c:765:\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned (nil), hit_count=1, fail_done=1\n[poc] triggering call failed as expected (insert error path checked/taken)\n[poc] RESULT: PROBE_FAIL (probe call returned NULL although no failure was induced for it; consistent with a leaked cache->lock causing the write-lock re-acquisition to fail)\n0048C769EF7F0000:error:078C0100:common libcrypto routines::malloc failure:crypto/lhash/lhash.c:114:\n0048C769EF7F0000:error:1E08000F:DECODER routines:OSSL_DECODER_CTX_new_for_pkey:CRYPTO lib:crypto/encode_decode/decoder_pkey.c:847:\n0048C769EF7F0000:error:1E08000F:DECODER routines:OSSL_DECODER_CTX_new_for_pkey:CRYPTO lib:crypto/encode_decode/decoder_pkey.c:765:\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned (nil), hit_count=1, fail_done=1\n[poc] triggering call failed as expected (insert error path checked/taken)\n[poc] RESULT: PROBE_FAIL (probe call returned NULL although no failure was induced for it; consistent with a leaked cache->lock causing the write-lock re-acquisition to fail)\n00687CBCAA7F0000:error:078C0100:common libcrypto routines::malloc failure:crypto/lhash/lhash.c:114:\n00687CBCAA7F0000:error:1E08000F:DECODER routines:OSSL_DECODER_CTX_new_for_pkey:CRYPTO lib:crypto/encode_decode/decoder_pkey.c:847:\n00687CBCAA7F0000:error:1E08000F:DECODER routines:OSSL_DECODER_CTX_new_for_pkey:CRYPTO lib:crypto/encode_decode/decoder_pkey.c:765:\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /tmp && cc -O0 -g -fsanitize=address,undefined -pthread -I/work/include -o poc /poc/poc.c /work/libcrypto.a -ldl && for i in 1 2 3; do timeout 15 ./poc; echo \"EXIT=$?\"; done",
+      "input": null,
+      "poc_sha256": "6aee8a8b67a9805cb648cdfe6b4252430a590e3c3da9f65d657566e42ced0de5",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "643f542a89bee93e043d0899b2a1ca700d1cc418",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "06d15ea420c3c6474738151db26c67c0b5e6213c242ce833d4baa09798c642b6"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "EXIT=0\nEXIT=0\nEXIT=0\nVERIFY_EXIT=0\n\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned 0x50b000002610, hit_count=1, fail_done=1\n[poc] triggering call succeeded despite forced allocation failure (insert error not checked by this revision)\n[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned 0x50b000002610, hit_count=1, fail_done=1\n[poc] triggering call succeeded despite forced allocation failure (insert error not checked by this revision)\n[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned 0x50b000002610, hit_count=1, fail_done=1\n[poc] triggering call succeeded despite forced allocation failure (insert error not checked by this revision)\n[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /tmp && cc -O0 -g -fsanitize=address,undefined -pthread -I/work/include -o poc /poc/poc.c /work/libcrypto.a -ldl && for i in 1 2 3; do timeout 15 ./poc; echo \"EXIT=$?\"; done",
+      "input": null,
+      "poc_sha256": "6aee8a8b67a9805cb648cdfe6b4252430a590e3c3da9f65d657566e42ced0de5",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "643f542a89bee93e043d0899b2a1ca700d1cc418",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9e7ac87213be2cd30c19d21339cbc7864275794e6a6ac32d089c3c5f66edeb5d"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "EXIT=0\nEXIT=0\nEXIT=0\nVERIFY_EXIT=0\n\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned (nil), hit_count=1, fail_done=1\n[poc] triggering call failed as expected (insert error path checked/taken)\n[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned (nil), hit_count=1, fail_done=1\n[poc] triggering call failed as expected (insert error path checked/taken)\n[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)\n[poc] warm-up call returned 0x50b000002400\n[poc] forcing malloc failure at crypto/lhash/lhash.c:114 (hit #1)\n[poc] triggering call returned (nil), hit_count=1, fail_done=1\n[poc] triggering call failed as expected (insert error path checked/taken)\n[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "behavioral",
+    "bug_marker": "[poc] RESULT: PROBE_FAIL (probe call returned NULL although no failure was induced for it; consistent with a leaked cache->lock causing the write-lock re-acquisition to fail)",
+    "pre_marker": "[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)",
+    "benign_marker": "[poc] RESULT: PROBE_OK (probe call returned a valid ctx promptly; cache->lock was correctly released)",
+    "description": "Custom poc.c linked against libcrypto: installs a CRYPTO_set_mem_functions malloc hook that fails exactly one allocation, matched precisely by call-site file:line (crypto/lhash/lhash.c:114, the node allocation inside OPENSSL_LH_insert). It (1) warms up caches with OSSL_DECODER_CTX_new_for_pkey(keytype=\"RSA\", selection=EVP_PKEY_KEYPAIR); (2) makes a \"triggering\" call with selection=EVP_PKEY_PUBLIC_KEY (a new cache key) with the failing allocator armed, forcing lh_DECODER_CACHE_ENTRY_insert() to fail while cache->lock is held for write; (3) makes a third \"probe\" call identical to the triggering call but with no induced failure (bounded by alarm(8)). On a correct build the probe call must promptly return a non-NULL OSSL_DECODER_CTX because cache->lock must have been released after the triggering call regardless of its outcome. Same binary/same 3-call sequence run unmodified against pre_intro, post_intro, and post_benign builds (ASan+UBSan), 3 repetitions each, fully deterministic.",
+    "target_evidence": "Source diff: post_intro (3d254b31344e) added in OSSL_DECODER_CTX_new_for_pkey() (crypto/encode_decode/decoder_pkey.c), after CRYPTO_THREAD_write_lock(cache->lock) and lh_DECODER_CACHE_ENTRY_insert(): `if (lh_DECODER_CACHE_ENTRY_error(cache->hashtable)) { ctx = NULL; ERR_raise(...); goto err; }`, and the shared `err:` label never calls CRYPTO_THREAD_unlock(cache->lock) (only decoder_cache_entry_free()/OSSL_DECODER_CTX_free()) -- a genuine lock leak, unlike every earlier goto-err site in the function which precedes the lock acquisition. post_benign (fix tree, same as parent 643f542a89be) inserts `CRYPTO_THREAD_unlock(cache->lock);` immediately before that ERR_raise/goto err. pre_intro (643f542a89be) lacks this check/branch entirely; insert failures are silently ignored and the lock is always released at the function's normal unlock. Dynamic evidence: identical 3-call PoC sequence, run 3x per version under ASan/UBSan. post_intro: triggering call returns NULL (error branch taken); probe call (no induced failure) also returns NULL every time, with libcrypto error queue pointing at decoder_pkey.c:847/765 -- consistent with the still-held write lock causing the re-lock attempt to fail, matching the reporter's own description of an EBUSY/assert on re-locking in the same thread. pre_intro: triggering call returns non-NULL (insert failure silently ignored, since the check doesn't exist yet); probe call succeeds every time. post_benign: triggering call returns NULL (same error handling as post_intro) but probe call succeeds every time (lock correctly released by the added unlock call)."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "behavioral",
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+  }
+}

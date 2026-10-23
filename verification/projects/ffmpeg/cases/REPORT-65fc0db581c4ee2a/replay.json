@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_REPORT-65fc0db581c4ee2a",
+    "bug_id": "REPORT-65fc0db581c4ee2a",
+    "bug_type": "LogicError",
+    "intro_commit": "425c3234206c042273e001c8865391a53ce5855e",
+    "intro_parent": "de976eaf30df33e86c58c8c9af9905c1d8441934",
+    "fix_commit": "65fc0db581c4ee2a891b7b72f6056357ceb3b0bd",
+    "affected_files": [
+      "libavformat/hlsenc.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json/discussion.md describe a format-string vulnerability introduced in libavformat/hlsenc.c's parse_playlist(), where the VTT basename (derived from the user-supplied output filename/template) is passed directly as the fmt argument to snprintf() instead of being treated as opaque data. Code inspection confirmed: pre_intro (de976eaf30df) has no vtt-handling code at all in parse_playlist (the has_subtitle branch does not exist there). post_intro (425c3234206c) adds exactly the vulnerable line `snprintf(vtt_file, len, vtt_basename, vtt_index);` at hlsenc.c:1324, where vtt_basename = av_basename(vs->vtt_basename) and vs->vtt_basename is built from vs->m3u8_name (derived from the output path given on the command line) concatenated with \"%d.vtt\"/\".vtt\". post_benign (the fix, mechanically composed) replaces this with `replace_int_data_in_filename(&vtt_file, vtt_basename, 'd', vtt_index)`, a controlled substitution that never treats the basename as a printf-style format string. I built all three revisions with ASan and ran the identical two-pass ffmpeg HLS+webvtt reproduction command via run_poc (output path crafted with several \"%s\" placeholders; -hls_flags append_list on the exec'd second pass makes parse_playlist() re-parse the just-written playlist and reach the vtt branch). run_poc reported post_intro: exit=134, crashed=True, with a clear AddressSanitizer \"unknown-crash\" / wild-pointer READ report inside printf_common <- __interceptor_snprintf <- parse_playlist (hlsenc.c:1324:21) <- hls_init (hlsenc.c:3155:13) <- init_muxer/avformat_write_header -- exactly the labelled bug's location and mechanism. run_poc reported pre_intro: exit=0, crashed=False, and post_benign: exit=0, crashed=False, both completing the full two-pass sequence and writing output files normally, with the byte-identical command/PoC. This satisfies the required invariance and directly reproduces introduction and the companion fix's removal of the defect. (The task's \"LogicError\" label is imprecise; per the ground rules, the sanitizer report establishes the observed regression regardless of the label, so bug_class is recorded as memory-safety to match the actual, directly-reproduced defect.)"
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/889f7e3ff5d69416e7e6/attempts/04/pocs/ffmpeg/REPORT-65fc0db581c4ee2a",
+    "input_file": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/889f7e3ff5d69416e7e6/attempts/04/pocs/ffmpeg/REPORT-65fc0db581c4ee2a/sub.srt",
+    "input_name": "sub.srt",
+    "size": 89,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "479f02dedfaff5c1acf18efc58359684dbfd42ca552b6e168abb146cf640f32a",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "425c3234206c042273e001c8865391a53ce5855e",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7c1a06150de9ee78558cf7b8da6c4269bb4593bed35f7302df1db66de3d4d252"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": " (srt) -> webvtt (native))\nPress [q] to stop, [?] for help\n[mpeg4 @ 0x618000002480] too many threads/slices (16), reducing to 15\n=================================================================\n==8==ERROR: AddressSanitizer: unknown-crash on address 0x7f07ccf2bb40 at pc 0x55e273b09a2d bp 0x7f07c2be9470 sp 0x7f07c2be8bf8\nREAD of size 7 at 0x7f07ccf2bb40 thread T18 (vf#0:0)\n    #0 0x55e273b09a2c in printf_common(void*, char const*, __va_list_tag*) asan_interceptors.cpp.o\n    #1 0x55e273b0b350 in __interceptor_snprintf (/work/ffmpeg+0x8d7350) (BuildId: 6c67c410ea65724be6ff0e152e159228655342f5)\n    #2 0x55e2743c7683 in parse_playlist /work/libavformat/hlsenc.c:1324:21\n    #3 0x55e2743c7683 in hls_init /work/libavformat/hlsenc.c:3155:13\n    #4 0x55e27451586e in init_muxer /work/libavformat/mux.c:388:20\n    #5 0x55e27451586e in avformat_init_output /work/libavformat/mux.c:471:16\n    #6 0x55e27451628b in avformat_write_header /work/libavformat/mux.c:495:20\n    #7 0x55e273bdac59 in mux_check_init /work/fftools/ffmpeg_mux.c:562:11\n    #8 0x55e273c0266d in mux_init /work/fftools/ffmpeg_sched.c:1143:11\n    #9 0x55e273c024f8 in sch_mux_stream_ready /work/fftools/ffmpeg_sched.c:1209:15\n    #10 0x55e273bdb2cd in of_stream_init /work/fftools/ffmpeg_mux.c:647:16\n    #11 0x55e273bbf270 in enc_open /work/fftools/ffmpeg_enc.c:354:11\n    #12 0x55e273c0964f in enc_open /work/fftools/ffmpeg_sched.c:1666:11\n    #13 0x55e273c0964f in send_to_enc /work/fftools/ffmpeg_sched.c:1786:19\n    #14 0x55e273c09308 in sch_filter_send /work/fftools/ffmpeg_sched.c:2452:12\n    #15 0x55e273bd5eac in fg_output_frame /work/fftools/ffmpeg_filter.c:2464:15\n    #16 0x55e273bd4158 in fg_output_step /work/fftools/ffmpeg_filter.c:2565:11\n    #17 0x55e273bd4158 in read_frames /work/fftools/ffmpeg_filter.c:2626:23\n    #18 0x55e273bc7a90 in filter_thread /work/fftools/ffmpeg_filter.c:3043:15\n    #19 0x55e273c0a89a in task_wrapper /work/fftools/ffmpeg_sched.c:2514:11\n    #20 0x7f07ccfc4ac2 in start_thread nptl/./nptl/pthread_create.c:442:8\n    #21 0x7f07cd055a83 in __clone misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100\n\nAddress 0x7f07ccf2bb40 is a wild pointer inside of access range of size 0x000000000007.\nSUMMARY: AddressSanitizer: unknown-crash asan_interceptors.cpp.o in printf_common(void*, char const*, __va_list_tag*)\nShadow bytes around the buggy address:\n  0x0fe1799dd710: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd720: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd730: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd740: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd750: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n=>0x0fe1799dd760: fe fe fe fe fe fe fe fe[fe]fe fe fe fe fe fe fe\n  0x0fe1799dd770: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd780: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd790: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd7a0: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd7b0: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Po",
+        "stdout_tail": "4:11\n    #12 0x55e273c0964f in enc_open /work/fftools/ffmpeg_sched.c:1666:11\n    #13 0x55e273c0964f in send_to_enc /work/fftools/ffmpeg_sched.c:1786:19\n    #14 0x55e273c09308 in sch_filter_send /work/fftools/ffmpeg_sched.c:2452:12\n    #15 0x55e273bd5eac in fg_output_frame /work/fftools/ffmpeg_filter.c:2464:15\n    #16 0x55e273bd4158 in fg_output_step /work/fftools/ffmpeg_filter.c:2565:11\n    #17 0x55e273bd4158 in read_frames /work/fftools/ffmpeg_filter.c:2626:23\n    #18 0x55e273bc7a90 in filter_thread /work/fftools/ffmpeg_filter.c:3043:15\n    #19 0x55e273c0a89a in task_wrapper /work/fftools/ffmpeg_sched.c:2514:11\n    #20 0x7f07ccfc4ac2 in start_thread nptl/./nptl/pthread_create.c:442:8\n    #21 0x7f07cd055a83 in __clone misc/../sysdeps/unix/sysv/linux/x86_64/clone.S:100\n\nAddress 0x7f07ccf2bb40 is a wild pointer inside of access range of size 0x000000000007.\nSUMMARY: AddressSanitizer: unknown-crash asan_interceptors.cpp.o in printf_common(void*, char const*, __va_list_tag*)\nShadow bytes around the buggy address:\n  0x0fe1799dd710: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd720: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd730: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd740: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd750: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n=>0x0fe1799dd760: fe fe fe fe fe fe fe fe[fe]fe fe fe fe fe fe fe\n  0x0fe1799dd770: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd780: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd790: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd7a0: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\n  0x0fe1799dd7b0: fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe fe\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\nThread T18 (vf#0:0) created by T0 here:\n    #0 0x55e273b5409c in pthread_create (/work/ffmpeg+0x92009c) (BuildId: 6c67c410ea65724be6ff0e152e159228655342f5)\n    #1 0x55e273c04e6a in task_start /work/fftools/ffmpeg_sched.c:422:11\n    #2 0x55e273c0467c in sch_start /work/fftools/ffmpeg_sched.c:1601:15\n    #3 0x55e273c25b2f in transcode /work/fftools/ffmpeg.c:864:11\n    #4 0x55e273c25b2f in main /work/fftools/ffmpeg.c:992:11\n    #5 0x7f07ccf59d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "479f02dedfaff5c1acf18efc58359684dbfd42ca552b6e168abb146cf640f32a",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "de976eaf30df33e86c58c8c9af9905c1d8441934",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "04dcfc92316c2c64aec0cfaa2ff8aea09d8dbdda2e6c865faa0079efeae595be"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nffmpeg version 7.1.git Copyright (c) 2000-2024 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 42.100 / 59. 42.100\n  libavcodec     61. 22.100 / 61. 22.100\n  libavformat    61.  9.100 / 61.  9.100\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.100 / 10.  6.100\n  libswscale      8.  5.100 /  8.  5.100\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\nInput #0, lavfi, from 'color=size=320x240:rate=1:duration=3':\n  Duration: N/A, start: 0.000000, bitrate: N/A\n  Stream #0:0: Video: wrapped_avframe, yuv420p, 320x240 [SAR 1:1 DAR 4:3], 1 fps, 1 tbr, 1 tbn\nInput #1, srt, from 'sub.srt':\n  Duration: N/A, bitrate: N/A\n  Stream #1:0: Subtitle: subrip (srt)\nStream mapping:\n  Stream #0:0 -> #0:0 (wrapped_avframe (native) -> mpeg4 (native))\n  Stream #1:0 -> #0:1 (subrip (srt) -> webvtt (native))\nPress [q] to stop, [?] for help\n[mpeg4 @ 0x618000002480] too many threads/slices (16), reducing to 15\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s1.vtt' for writing\nOutput #0, hls, to 'out%s%s%s%s%s%s%s%s.m3u8':\n  Metadata:\n    encoder         : Lavf61.9.100\n  Stream #0:0: Video: mpeg4, yuv420p(tv, progressive), 320x240 [SAR 1:1 DAR 4:3], q=2-31, 200 kb/s, 1 fps, 90k tbn\n    Metadata:\n      encoder         : Lavc61.22.100 mpeg4\n    Side data:\n      cpb: bitrate max/min/avg: 0/0/200000 buffer size: 0 vbv_delay: N/A\n  Stream #0:1: Subtitle: webvtt\n    Metadata:\n      encoder         : Lavc61.22.100 webvtt\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s1.ts' for writing\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s.m3u8.tmp' for writing\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s_vtt.m3u8.tmp' for writing\n[out#0/hls @ 0x611000001a80] video:1KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown\nframe=    3 fps=0.0 q=2.0 Lsize=N/A time=00:00:02.00 bitrate=N/A speed= 116x    \n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "479f02dedfaff5c1acf18efc58359684dbfd42ca552b6e168abb146cf640f32a",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "de976eaf30df33e86c58c8c9af9905c1d8441934",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "71c88a2a71f76905826f0413aaf12843e7a6028c57f4789f7cf1b7e1f35f86b3"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\nffmpeg version 7.1.git Copyright (c) 2000-2024 the FFmpeg developers\n  built with Ubuntu clang version 14.0.0-1ubuntu1.1\n  configuration: --cc=clang --cxx=clang++ --extra-cflags='-g -O1 -fsanitize=address -fno-omit-frame-pointer' --extra-ldflags='-fsanitize=address' --enable-gpl --disable-stripping --disable-optimizations --disable-asm --disable-doc\n  libavutil      59. 42.100 / 59. 42.100\n  libavcodec     61. 22.100 / 61. 22.100\n  libavformat    61.  9.100 / 61.  9.100\n  libavdevice    61.  4.100 / 61.  4.100\n  libavfilter    10.  6.100 / 10.  6.100\n  libswscale      8.  5.100 /  8.  5.100\n  libswresample   5.  4.100 /  5.  4.100\n  libpostproc    58.  4.100 / 58.  4.100\nInput #0, lavfi, from 'color=size=320x240:rate=1:duration=3':\n  Duration: N/A, start: 0.000000, bitrate: N/A\n  Stream #0:0: Video: wrapped_avframe, yuv420p, 320x240 [SAR 1:1 DAR 4:3], 1 fps, 1 tbr, 1 tbn\nInput #1, srt, from 'sub.srt':\n  Duration: N/A, bitrate: N/A\n  Stream #1:0: Subtitle: subrip (srt)\nStream mapping:\n  Stream #0:0 -> #0:0 (wrapped_avframe (native) -> mpeg4 (native))\n  Stream #1:0 -> #0:1 (subrip (srt) -> webvtt (native))\nPress [q] to stop, [?] for help\n[mpeg4 @ 0x618000002480] too many threads/slices (16), reducing to 15\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s1.vtt' for writing\nOutput #0, hls, to 'out%s%s%s%s%s%s%s%s.m3u8':\n  Metadata:\n    encoder         : Lavf61.9.100\n  Stream #0:0: Video: mpeg4, yuv420p(tv, progressive), 320x240 [SAR 1:1 DAR 4:3], q=2-31, 200 kb/s, 1 fps, 90k tbn\n    Metadata:\n      encoder         : Lavc61.22.100 mpeg4\n    Side data:\n      cpb: bitrate max/min/avg: 0/0/200000 buffer size: 0 vbv_delay: N/A\n  Stream #0:1: Subtitle: webvtt\n    Metadata:\n      encoder         : Lavc61.22.100 webvtt\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s1.ts' for writing\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s.m3u8.tmp' for writing\n[hls @ 0x616000000980] Opening 'out%s%s%s%s%s%s%s%s_vtt.m3u8.tmp' for writing\n[out#0/hls @ 0x611000001a80] video:1KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown\nframe=    3 fps=0.0 q=2.0 Lsize=N/A time=00:00:02.00 bitrate=N/A speed= 128x    \n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Two-pass HLS mux with subtitles: /poc/run.sh runs /work/ffmpeg twice against an output m3u8 path containing repeated \"%s\" tokens (out%s%s%s%s%s%s%s%s.m3u8), with a lavfi color video input, mpeg4 video encoder, and an .srt subtitle input encoded to webvtt. First pass (no special flags) creates the playlist/segments normally. Second pass (exec'd, so its exit/signal is the script's result) adds -hls_flags append_list, causing hls_init -> parse_playlist to re-parse the just-written m3u8 and, for the subtitle segment line, format vtt_file via snprintf(vtt_file, len, vtt_basename, vtt_index) where vtt_basename (derived from the user-controlled output path) still contains the stray %s specifiers.",
+    "target_evidence": "run_poc post_intro: exit=134 crashed=True; AddressSanitizer: unknown-crash on address ...; READ of size 7; #0 printf_common; #1 __interceptor_snprintf; #2 parse_playlist /work/libavformat/hlsenc.c:1324:21; #3 hls_init /work/libavformat/hlsenc.c:3155:13; #4 init_muxer /work/libavformat/mux.c:388:20; ==8==ABORTING. run_poc pre_intro: exit=0 crashed=False (clean, full playlist written). run_poc post_benign: exit=0 crashed=False (clean, full playlist written). Same run.sh/input used for all three."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

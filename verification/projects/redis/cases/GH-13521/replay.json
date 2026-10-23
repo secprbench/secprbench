@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-13521",
+    "bug_id": "GH-13521",
+    "bug_type": "NullPointerDereference",
+    "intro_commit": "701f06657d20ec42f0cf78de0ac9d7197e44c00c",
+    "intro_parent": "cf838038802b6d5049e3368953a3a737dd3aaee5",
+    "fix_commit": "08d714d0e5d59f1c1ca37cff1724849220fb6daf",
+    "affected_files": [
+      "src/server.c",
+      "src/networking.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json/discussion.md describe GH-13521 introducing a cron-based client->argv release: clientsCronFreeArgvIfIdle() frees argv and zeroes argv_len whenever c->argc==0 and the client has been idle 2s, without checking c->multibulklen, so a client that sent only a multibulk header (args still pending) is wrongly treated as idle. The upstream fix (08d714d0e5d5) adds the multibulklen check (confirmed present in post_benign's clientsCronFreeArgvIfIdle: \"if (!c->argv || c->multibulklen || c->argc) return 0;\") and also fixes argv_len bookkeeping. I built pre_intro (cf838038, which predates the cron-argv-free feature entirely -- it has no clientsCronFreeArgvIfIdle function at all), post_intro (701f0665, the buggy version), and post_benign (base + the fix patch applied, confirmed by grepping server.c) with sanitizers in Docker. I wrote a run.sh that launches redis-server in the background, waits for readiness, runs the python poc client that performs the exact socket sequence above, then (crucially) uses `wait $SRV_PID` to propagate the server's own exit/signal status as run.sh's exit code so crash detection is unambiguous. Running the identical reproducer via run_poc against all three builds: post_intro -> exit=1, crashed=True, UndefinedBehaviorSanitizer reported \"applying non-zero offset 8 to null pointer\" in processMultibulkBuffer (networking.c:2516), immediately followed by an ASan abort (\"nested bug in the same thread\"), stack trace processMultibulkBuffer -> processInputBuffer -> readQueryFromClient -> connSocketEventHandler -> aeProcessEvents -> aeMain -> main -- exactly the argv-after-cron-free code path named in the bug/fix commit. pre_intro -> exit=0, crashed=False, server alive, SET returned \"+OK\\r\\n\" as expected. post_benign -> exit=0, crashed=False, server alive, SET returned \"+OK\\r\\n\" as expected. The same command/input was used across all three builds, satisfying the invariance requirement. This conclusively confirms introduction by the intro commit and resolution by the benign/fix commit."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: candidate_only)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification/cases/redis/f7a07153a2141a66711c/attempts/01/pocs/redis/GH-13521",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "11d28fec10cf111e312f3b9c09908de7f85f53dcc219c354947aeed0cbec6cea",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "701f06657d20ec42f0cf78de0ac9d7197e44c00c",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d4ac8d400628cd28ec58dad3c61a4ae2dd373008c57a4adc061508f308e1148c"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": " (12288 bytes)\n*** Preparing to test memory region 7f5ace87a000 (24576 bytes)\n*** Preparing to test memory region 7f5ace8b7000 (4096 bytes)\n.server exit status: 1\nVERIFY_EXIT=1\n\nnetworking.c:2516:17: runtime error: applying non-zero offset 8 to null pointer\n    #0 0x55797efa3322 in processMultibulkBuffer /work/src/networking.c:2516:36\n    #1 0x55797efa4087 in processInputBuffer /work/src/networking.c:2673:17\n    #2 0x55797ef8fdbc in readQueryFromClient /work/src/networking.c:2863:9\n    #3 0x55797f211c19 in callHandler /work/src/./connhelpers.h:58:18\n    #4 0x55797f20fb12 in connSocketEventHandler /work/src/socket.c:277:14\n    #5 0x55797ef17489 in aeProcessEvents /work/src/ae.c:417:17\n    #6 0x55797ef187dc in aeMain /work/src/ae.c:477:9\n    #7 0x55797ef6c828 in main /work/src/server.c:7343:5\n    #8 0x7f5ace347d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #9 0x7f5ace347e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #10 0x55797ee49af4 in _start (/work/src/redis-server+0x322af4) (BuildId: aa554a093733910251953ac29b3627fdcb2a4808)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior networking.c:2516:17 in \nAddressSanitizer: nested bug in the same thread, aborting.\n",
+        "stdout_tail": "ing to test memory region 625000000000 (65536 bytes)\n*** Preparing to test memory region 625e00000000 (65536 bytes)\n*** Preparing to test memory region 629000000000 (131072 bytes)\n*** Preparing to test memory region 629e00000000 (65536 bytes)\n*** Preparing to test memory region 631000000000 (131072 bytes)\n*** Preparing to test memory region 631e00000000 (65536 bytes)\n*** Preparing to test memory region 632000000000 (131072 bytes)\n*** Preparing to test memory region 632e00000000 (65536 bytes)\n*** Preparing to test memory region 634000000000 (131072 bytes)\n*** Preparing to test memory region 634e00000000 (65536 bytes)\n*** Preparing to test memory region 640000000000 (8192 bytes)\n*** Preparing to test memory region 7f5aca560000 (2752512 bytes)\n*** Preparing to test memory region 7f5aca900000 (1048576 bytes)\n*** Preparing to test memory region 7f5acaa60000 (2752512 bytes)\n*** Preparing to test memory region 7f5acadfe000 (8388608 bytes)\n*** Preparing to test memory region 7f5acb5ff000 (8388608 bytes)\n*** Preparing to test memory region 7f5acbe00000 (8388608 bytes)\n*** Preparing to test memory region 7f5acc600000 (8388608 bytes)\n*** Preparing to test memory region 7f5acce00000 (131072 bytes)\n*** Preparing to test memory region 7f5acd600000 (1048576 bytes)\n*** Preparing to test memory region 7f5acd800000 (1048576 bytes)\n*** Preparing to test memory region 7f5acda00000 (1048576 bytes)\n*** Preparing to test memory region 7f5acdb82000 (81920 bytes)\n*** Preparing to test memory region 7f5acdbae000 (3481600 bytes)\n*** Preparing to test memory region 7f5acdf2f000 (241664 bytes)\n*** Preparing to test memory region 7f5acdf6c000 (3874816 bytes)\n*** Preparing to test memory region 7f5ace53a000 (53248 bytes)\n*** Preparing to test memory region 7f5ace790000 (12288 bytes)\n*** Preparing to test memory region 7f5ace87a000 (24576 bytes)\n*** Preparing to test memory region 7f5ace8b7000 (4096 bytes)\n.server exit status: 1\nVERIFY_EXIT=1\n\nnetworking.c:2516:17: runtime error: applying non-zero offset 8 to null pointer\n    #0 0x55797efa3322 in processMultibulkBuffer /work/src/networking.c:2516:36\n    #1 0x55797efa4087 in processInputBuffer /work/src/networking.c:2673:17\n    #2 0x55797ef8fdbc in readQueryFromClient /work/src/networking.c:2863:9\n    #3 0x55797f211c19 in callHandler /work/src/./connhelpers.h:58:18\n    #4 0x55797f20fb12 in connSocketEventHandler /work/src/socket.c:277:14\n    #5 0x55797ef17489 in aeProcessEvents /work/src/ae.c:417:17\n    #6 0x55797ef187dc in aeMain /work/src/ae.c:477:9\n    #7 0x55797ef6c828 in main /work/src/server.c:7343:5\n    #8 0x7f5ace347d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #9 0x7f5ace347e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #10 0x55797ee49af4 in _start (/work/src/redis-server+0x322af4) (BuildId: aa554a093733910251953ac29b3627fdcb2a4808)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior networking.c:2516:17 in \nAddressSanitizer: nested bug in the same thread, aborting.\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "11d28fec10cf111e312f3b9c09908de7f85f53dcc219c354947aeed0cbec6cea",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "cf838038802b6d5049e3368953a3a737dd3aaee5",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "79e217c4502240815fb1eb365f4f604919a5f1f0f83f831010152948607981d5"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "POC_RESULT: got response: b'+OK\\r\\n'\nPOC_RESULT: OK_AS_EXPECTED\nSERVER_STILL_ALIVE (poc rc=0)\n---- redis log ----\n10:C 01 Oct 2026 21:32:24.523 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n10:C 01 Oct 2026 21:32:24.523 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n10:C 01 Oct 2026 21:32:24.523 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=10, just started\n10:C 01 Oct 2026 21:32:24.523 * Configuration loaded\n10:M 01 Oct 2026 21:32:24.526 * monotonic clock: POSIX clock_gettime\n10:M 01 Oct 2026 21:32:24.528 * Running mode=standalone, port=7799.\n10:M 01 Oct 2026 21:32:24.529 * Server initialized\n10:M 01 Oct 2026 21:32:24.529 * Ready to accept connections tcp\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "11d28fec10cf111e312f3b9c09908de7f85f53dcc219c354947aeed0cbec6cea",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "cf838038802b6d5049e3368953a3a737dd3aaee5",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e17d8081ea94ed5efe61f3db2e37f47988ee6e6dc2959ab1054f6ae8f4c90f7a"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "POC_RESULT: got response: b'+OK\\r\\n'\nPOC_RESULT: OK_AS_EXPECTED\nSERVER_STILL_ALIVE (poc rc=0)\n---- redis log ----\n10:C 01 Oct 2026 21:32:33.273 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n10:C 01 Oct 2026 21:32:33.273 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n10:C 01 Oct 2026 21:32:33.273 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=10, just started\n10:C 01 Oct 2026 21:32:33.273 * Configuration loaded\n10:M 01 Oct 2026 21:32:33.277 * monotonic clock: POSIX clock_gettime\n10:M 01 Oct 2026 21:32:33.280 * Running mode=standalone, port=7799.\n10:M 01 Oct 2026 21:32:33.281 * Server initialized\n10:M 01 Oct 2026 21:32:33.282 * Ready to accept connections tcp\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Python socket client connects to redis-server, sends only a multibulk header \"*3\\r\\n\" (leaving c->argc==0 but c->multibulklen==3, i.e. the client is mid-command-parse), sleeps 3.5s so that clientsCronFreeArgvIfIdle (which only checked c->argc, not c->multibulklen) treats the client as idle and frees c->argv while resetting c->argv_len to 0, then sends the remainder of a SET command (\"$3\\r\\nSET\\r\\n$3\\r\\nkey\\r\\n$1\\r\\n0\\r\\n\"). On fixed builds redis responds \"+OK\\r\\n\" and stays alive; on the buggy intro build processMultibulkBuffer dereferences/offsets into the freed/NULL argv.",
+    "target_evidence": "post_intro run_poc: exit=1 crashed=True. \"networking.c:2516:17: runtime error: applying non-zero offset 8 to null pointer\" in processMultibulkBuffer; \"SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior networking.c:2516:17\"; \"AddressSanitizer: nested bug in the same thread, aborting.\" pre_intro run_poc: exit=0 crashed=False; log shows \"POC_RESULT: got response: b'+OK\\\\r\\\\n'\", \"POC_RESULT: OK_AS_EXPECTED\", \"SERVER_STILL_ALIVE\". post_benign run_poc: exit=0 crashed=False; log shows \"POC_RESULT: got response: b'+OK\\\\r\\\\n'\", \"POC_RESULT: OK_AS_EXPECTED\", \"SERVER_STILL_ALIVE\"."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

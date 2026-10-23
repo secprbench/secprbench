@@ -1,0 +1,32 @@
+{
+  "bug_id": "1945318",
+  "project": "firefox",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "2c17d3b90e3884463663f2867a68ad2e6af5b686",
+    "parent": "ab4b380f2da881e3fc9f758f2e76d4ee751bbccb",
+    "fix": "ea3513a38b03c9c7021ef8cf4026cdb453881358"
+  },
+  "affected_files": [
+    "js/src/vm/SavedStacks.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, None)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": null,
+    "poc_source": "saved/era-harness",
+    "reason": "",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1945318.json"
+  },
+  "final_disposition": "verified"
+}

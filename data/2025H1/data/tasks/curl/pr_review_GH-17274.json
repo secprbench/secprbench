@@ -1,0 +1,87 @@
+{
+  "task_id": "pr_review_GH-17274",
+  "bug_id": "GH-17274",
+  "commit_sha": "ebd9d67b8a4fb50673b8a255ee3b14180d7313c2",
+  "commit_message": "vtls: convert pubkey_pem_to_der to use dynbuf\n\n... instead of malloc and \"manual\" buffer stuffing\n\nCloses #15126",
+  "commit_author": "Daniel Stenberg",
+  "commit_date": "2024-10-02T14:14:18+02:00",
+  "pr_title": "vtls: convert pubkey_pem_to_der to use dynbuf",
+  "pr_description": "... instead of malloc and \"manual\" buffer stuffing\n\nCloses #15126\n",
+  "files": [
+    {
+      "path": "lib/vtls/vtls.c",
+      "status": "modified",
+      "additions": 12,
+      "deletions": 12,
+      "diff": "diff --git a/lib/vtls/vtls.c b/lib/vtls/vtls.c\nindex a5cb7b0ffa..13c46b8c7a 100644\n--- a/lib/vtls/vtls.c\n+++ b/lib/vtls/vtls.c\n@@ -939,18 +939,21 @@ CURLcode Curl_ssl_random(struct Curl_easy *data,\n  */\n \n static CURLcode pubkey_pem_to_der(const char *pem,\n                                   unsigned char **der, size_t *der_len)\n {\n-  char *stripped_pem, *begin_pos, *end_pos;\n-  size_t pem_count, stripped_pem_count = 0, pem_len;\n+  char *begin_pos, *end_pos;\n+  size_t pem_count, pem_len;\n   CURLcode result;\n+  struct dynbuf pbuf;\n \n   /* if no pem, exit. */\n   if(!pem)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n+  Curl_dyn_init(&pbuf, MAX_PINNED_PUBKEY_SIZE);\n+\n   begin_pos = strstr(pem, \"-----BEGIN PUBLIC KEY-----\");\n   if(!begin_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_count = begin_pos - pem;\n@@ -966,30 +969,27 @@ static CURLcode pubkey_pem_to_der(const char *pem,\n   if(!end_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_len = end_pos - pem;\n \n-  stripped_pem = malloc(pem_len - pem_count + 1);\n-  if(!stripped_pem)\n-    return CURLE_OUT_OF_MEMORY;\n-\n   /*\n    * Here we loop through the pem array one character at a time between the\n    * correct indices, and place each character that is not '\\n' or '\\r'\n    * into the stripped_pem array, which should represent the raw base64 string\n    */\n   while(pem_count < pem_len) {\n-    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count])\n-      stripped_pem[stripped_pem_count++] = pem[pem_count];\n+    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count]) {\n+      result = Curl_dyn_addn(&pbuf, &pem[pem_count], 1);\n+      if(result)\n+        return result;\n+    }\n     ++pem_count;\n   }\n-  /* Place the null terminator in the correct place */\n-  stripped_pem[stripped_pem_count] = '\\0';\n \n-  result = Curl_base64_decode(stripped_pem, der, der_len);\n+  result = Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len);\n \n-  Curl_safefree(stripped_pem);\n+  Curl_dyn_free(&pbuf);\n \n   return result;\n }\n \n /*\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/vtls/vtls.c b/lib/vtls/vtls.c\nindex a5cb7b0ffa..13c46b8c7a 100644\n--- a/lib/vtls/vtls.c\n+++ b/lib/vtls/vtls.c\n@@ -939,18 +939,21 @@ CURLcode Curl_ssl_random(struct Curl_easy *data,\n  */\n \n static CURLcode pubkey_pem_to_der(const char *pem,\n                                   unsigned char **der, size_t *der_len)\n {\n-  char *stripped_pem, *begin_pos, *end_pos;\n-  size_t pem_count, stripped_pem_count = 0, pem_len;\n+  char *begin_pos, *end_pos;\n+  size_t pem_count, pem_len;\n   CURLcode result;\n+  struct dynbuf pbuf;\n \n   /* if no pem, exit. */\n   if(!pem)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n+  Curl_dyn_init(&pbuf, MAX_PINNED_PUBKEY_SIZE);\n+\n   begin_pos = strstr(pem, \"-----BEGIN PUBLIC KEY-----\");\n   if(!begin_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_count = begin_pos - pem;\n@@ -966,30 +969,27 @@ static CURLcode pubkey_pem_to_der(const char *pem,\n   if(!end_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_len = end_pos - pem;\n \n-  stripped_pem = malloc(pem_len - pem_count + 1);\n-  if(!stripped_pem)\n-    return CURLE_OUT_OF_MEMORY;\n-\n   /*\n    * Here we loop through the pem array one character at a time between the\n    * correct indices, and place each character that is not '\\n' or '\\r'\n    * into the stripped_pem array, which should represent the raw base64 string\n    */\n   while(pem_count < pem_len) {\n-    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count])\n-      stripped_pem[stripped_pem_count++] = pem[pem_count];\n+    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count]) {\n+      result = Curl_dyn_addn(&pbuf, &pem[pem_count], 1);\n+      if(result)\n+        return result;\n+    }\n     ++pem_count;\n   }\n-  /* Place the null terminator in the correct place */\n-  stripped_pem[stripped_pem_count] = '\\0';\n \n-  result = Curl_base64_decode(stripped_pem, der, der_len);\n+  result = Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len);\n \n-  Curl_safefree(stripped_pem);\n+  Curl_dyn_free(&pbuf);\n \n   return result;\n }\n \n /*\n",
+  "ground_truth": {
+    "bug_id": "GH-17274",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "3a2689712afb0c8e2b489bf17d17cbd392c6aa7b",
+      "short_sha": "3a26897",
+      "message": "vtls: avoid NULL deref on bad PEM input",
+      "author": "Daniel Stenberg",
+      "date": "2025-05-07T16:09:55+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullptr-01",
+        "title": "NULL pointer dereference in pubkey_pem_to_der() on empty PEM body",
+        "message": "pubkey_pem_to_der() strips newlines/CRs from the base64 body found between the '-----BEGIN PUBLIC KEY-----' and '-----END PUBLIC KEY-----' markers by appending each non-newline character into a dynbuf (pbuf) via Curl_dyn_addn(). If the PEM content between the markers consists solely of '\\n'/'\\r' characters (or is empty), Curl_dyn_addn() is never called, so pbuf's internal buffer (bufr) is never allocated and remains NULL. The code then unconditionally calls 'Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len)'. Curl_dyn_ptr() simply returns s->bufr, i.e. NULL in this case, which is then passed as the source string into the base64 decoder, which dereferences it (e.g. to compute strlen/read characters), causing a NULL pointer dereference. This is reachable via CURLOPT_PINNEDPUBLICKEY when an attacker-controlled or malformed PEM-format public key file/pinned key value is supplied that contains an empty or whitespace-only body between the BEGIN/END markers.",
+        "location": {
+          "file": "lib/vtls/vtls.c",
+          "start_line": 988,
+          "end_line": 990,
+          "start_column": null,
+          "end_column": null,
+          "function": "pubkey_pem_to_der",
+          "snippet": "  result = Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len);\n\n  Curl_dyn_free(&pbuf);\n\n  return result;",
+          "snippet_hash": "bf57e7bf7ae1ef0a065d05a9e6ec15d60d5c8082d63fff8a4b1ff874801b7380",
+          "description": null,
+          "snippet_start_line": 988,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.85,
+        "suggestion": "Before calling Curl_base64_decode(), check whether any data was actually written into pbuf (e.g. via Curl_dyn_len(&pbuf) == 0) and return CURLE_BAD_CONTENT_ENCODING in that case instead of passing a possibly-NULL pointer into the decoder.",
+        "suggestion_code": "  if(Curl_dyn_len(&pbuf)) {\n    result = Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len);\n    Curl_dyn_free(&pbuf);\n  }\n  else\n    result = CURLE_BAD_CONTENT_ENCODING;\n\n  return result;",
+        "tags": [
+          "security",
+          "null-deref",
+          "tls",
+          "input-validation"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "lib/vtls/vtls.c"
+    ],
+    "root_cause": "When pubkey_pem_to_der() was converted from a fixed malloc'd buffer (which was always allocated to at least 1 byte, guaranteeing a valid, if empty, C string) to a lazily-allocated dynbuf (struct dynbuf), the code failed to account for the case where zero bytes are ever appended to the dynbuf. In that case Curl_dyn_ptr()/curlx_dyn_ptr() legitimately returns NULL (mirroring the dynbuf's internal unallocated state), but the caller did not check for this before handing the pointer to the base64 decoder.",
+    "must_cover": [
+      {
+        "file": "lib/vtls/vtls.c",
+        "function": "pubkey_pem_to_der",
+        "start_line": 988,
+        "end_line": 990,
+        "role": "primary",
+        "reason": "Primary location of finding: NULL pointer dereference in pubkey_pem_to_der() on empty PEM body"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "ebd9d67b8a4fb50673b8a255ee3b14180d7313c2",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

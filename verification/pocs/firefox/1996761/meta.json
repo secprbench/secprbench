@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_1996761",
+  "bug_id": "1996761",
+  "bug_type": "LogicError",
+  "intro_commit": "2c22bbfb8ce709cb8679672fd836f9f03161568b",
+  "intro_parent": "12dad6c903945d4503c2d5a819f17bec987ee752",
+  "fix_commit": "5c7b1adb9c3f08f3402dc3402cd4ddc959984e5e",
+  "affected_files": [
+    "devtools/client/shared/curl.js"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "firefox",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The character class used to decide which characters are safe to leave un-escaped in the Windows cmd.exe/curl escaping function (`escapeStringWin`) used the regex shorthand `\\s`, which matches a broader set of characters (tab, form feed, vertical tab, various Unicode whitespace) than just the printable ASCII space the developers intended to allow through unescaped. This over-broad allow-list let control characters that cmd.exe/CRT can interpret as token/argument separators slip through unescaped into the generated command line.",
+  "findings": [
+    "The Windows cmd.exe escaping routine used by the Network Monitor's \"Copy as cURL\" feature (CurlUtils.escapeStringWin) builds a character class of characters that are considered 'safe' and therefore NOT escaped with the cmd.exe caret (^) escape character. This character class includes the JavaScript regex shorthand `\\s`, which matches not only the space character but also other whitespace-like cont"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "391bc291322edfcab5d280a5ffdcc84b08796587905c975887df63c35e9aaa69",
+  "generated_artifact_sha256": {
+    "reference": "cd6f8c8c5c8c4d867b7270b607f34a3dd29c8fe104e303d31315f775c42e4e15",
+    "introducing": "6b1469f3a9f09b4c4e9d59d5973fd0a967754edf3a3efeb21f15bc32758f6efa",
+    "companion": "49dcc233ac9025ec58292628013a87c51ebd512c1b56135ea90e2d41cdff36fa"
+  }
+}

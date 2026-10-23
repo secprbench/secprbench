@@ -1,0 +1,103 @@
+{
+  "task_id": "pr_review_GH-16823_benign",
+  "bug_id": "GH-16823",
+  "commit_sha": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+  "commit_message": "mqtt: free any leftover when done\n\nOss-fuzz found an issue when the \"sendleftovers\" pointer could leak memory.\nFix this by always freeing it (if still assigned) in the done function.\n\nBug: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=43515\nCloses #8274",
+  "commit_author": "",
+  "commit_date": "2026-10-02T12:06:26.773458",
+  "pr_title": "mqtt: free any leftover when done",
+  "pr_description": "mqtt: free any leftover when done\n\nOss-fuzz found an issue when the \"sendleftovers\" pointer could leak memory.\nFix this by always freeing it (if still assigned) in the done function.\n\nBug: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=43515\nCloses #8274",
+  "files": [
+    {
+      "path": "lib/mqtt.c",
+      "status": "modified",
+      "additions": 21,
+      "deletions": 3,
+      "diff": "diff --git a/lib/mqtt.c b/lib/mqtt.c\nindex fcd40b41e6..4112b75702 100644\n--- a/lib/mqtt.c\n+++ b/lib/mqtt.c\n@@ -1,18 +1,18 @@\n /***************************************************************************\n  *                                  _   _ ____  _\n  *  Project                     ___| | | |  _ \\| |\n  *                             / __| | | | |_) | |\n  *                            | (__| |_| |  _ <| |___\n  *                             \\___|\\___/|_| \\_\\_____|\n  *\n- * Copyright (C) 2020 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.\n+ * Copyright (C) 2020 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.\n  * Copyright (C) 2019, Björn Stenberg, <bjorn@haxx.se>\n  *\n  * This software is licensed as described in the file COPYING, which\n  * you should have received as part of this distribution. The terms\n  * are also available at https://curl.se/docs/copyright.html.\n  *\n  * You may opt to use, copy, modify, merge, publish, distribute and/or sell\n  * copies of the Software, and permit persons to whom the Software is\n  * furnished to do so, under the terms of the COPYING file.\n  *\n@@ -53,35 +53,37 @@\n \n #define MQTT_CONNACK_LEN 2\n #define MQTT_SUBACK_LEN 3\n #define MQTT_CLIENTID_LEN 12 /* \"curl0123abcd\" */\n \n /*\n  * Forward declarations.\n  */\n \n static CURLcode mqtt_do(struct Curl_easy *data, bool *done);\n+static CURLcode mqtt_done(struct Curl_easy *data,\n+                          CURLcode status, bool premature);\n static CURLcode mqtt_doing(struct Curl_easy *data, bool *done);\n static int mqtt_getsock(struct Curl_easy *data, struct connectdata *conn,\n                         curl_socket_t *sock);\n static CURLcode mqtt_setup_conn(struct Curl_easy *data,\n                                 struct connectdata *conn);\n \n /*\n  * MQTT protocol handler.\n  */\n \n const struct Curl_handler Curl_handler_mqtt = {\n   \"MQTT\",                             /* scheme */\n   mqtt_setup_conn,                    /* setup_connection */\n   mqtt_do,                            /* do_it */\n-  ZERO_NULL,                          /* done */\n+  mqtt_done,                          /* done */\n   ZERO_NULL,                          /* do_more */\n   ZERO_NULL,                          /* connect_it */\n   ZERO_NULL,                          /* connecting */\n   mqtt_doing,                         /* doing */\n   ZERO_NULL,                          /* proto_getsock */\n   mqtt_getsock,                       /* doing_getsock */\n   ZERO_NULL,                          /* domore_getsock */\n   ZERO_NULL,                          /* perform_getsock */\n   ZERO_NULL,                          /* disconnect */\n   ZERO_NULL,                          /* readwrite */\n@@ -685,37 +687,53 @@ static CURLcode mqtt_do(struct Curl_easy *data, bool *done)\n \n   result = mqtt_connect(data);\n   if(result) {\n     failf(data, \"Error %d sending MQTT CONN request\", result);\n     return result;\n   }\n   mqstate(data, MQTT_FIRST, MQTT_CONNACK);\n   return CURLE_OK;\n }\n \n+static CURLcode mqtt_done(struct Curl_easy *data,\n+                          CURLcode status, bool premature)\n+{\n+  struct MQTT *mq = data->req.p.mqtt;\n+  (void)status;\n+  (void)premature;\n+  Curl_safefree(mq->sendleftovers);\n+  return CURLE_OK;\n+}\n+\n static CURLcode mqtt_doing(struct Curl_easy *data, bool *done)\n {\n   CURLcode result = CURLE_OK;\n   struct connectdata *conn = data->conn;\n   struct mqtt_conn *mqtt = &conn->proto.mqtt;\n   struct MQTT *mq = data->req.p.mqtt;\n   ssize_t nread;\n   curl_socket_t sockfd = conn->sock[FIRSTSOCKET];\n   unsigned char *pkt = (unsigned char *)data->state.buffer;\n   unsigned char byte;\n \n   *done = FALSE;\n \n   if(mq->nsend) {\n     /* send the remainder of an outgoing packet */\n     char *ptr = mq->sendleftovers;\n-    result = mqtt_send(data, mq->sendleftovers, mq->nsend);\n+    size_t nsend = mq->nsend;\n+    /* detach the leftover from the MQTT struct before attempting to send\n+       it again, so that mqtt_send() cannot end up leaving this same\n+       (now freed) pointer behind on error */\n+    mq->sendleftovers = NULL;\n+    mq->nsend = 0;\n+    result = mqtt_send(data, ptr, nsend);\n     free(ptr);\n     if(result)\n       return result;\n   }\n \n   infof(data, \"mqtt_doing: state [%d]\", (int) mqtt->state);\n   switch(mqtt->state) {\n   case MQTT_FIRST:\n     /* Read the initial byte only */\n     result = Curl_read(data, sockfd, (char *)&mq->firstbyte, 1, &nread);\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/mqtt.c b/lib/mqtt.c\nindex fcd40b41e6..4112b75702 100644\n--- a/lib/mqtt.c\n+++ b/lib/mqtt.c\n@@ -1,18 +1,18 @@\n /***************************************************************************\n  *                                  _   _ ____  _\n  *  Project                     ___| | | |  _ \\| |\n  *                             / __| | | | |_) | |\n  *                            | (__| |_| |  _ <| |___\n  *                             \\___|\\___/|_| \\_\\_____|\n  *\n- * Copyright (C) 2020 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.\n+ * Copyright (C) 2020 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.\n  * Copyright (C) 2019, Björn Stenberg, <bjorn@haxx.se>\n  *\n  * This software is licensed as described in the file COPYING, which\n  * you should have received as part of this distribution. The terms\n  * are also available at https://curl.se/docs/copyright.html.\n  *\n  * You may opt to use, copy, modify, merge, publish, distribute and/or sell\n  * copies of the Software, and permit persons to whom the Software is\n  * furnished to do so, under the terms of the COPYING file.\n  *\n@@ -53,35 +53,37 @@\n \n #define MQTT_CONNACK_LEN 2\n #define MQTT_SUBACK_LEN 3\n #define MQTT_CLIENTID_LEN 12 /* \"curl0123abcd\" */\n \n /*\n  * Forward declarations.\n  */\n \n static CURLcode mqtt_do(struct Curl_easy *data, bool *done);\n+static CURLcode mqtt_done(struct Curl_easy *data,\n+                          CURLcode status, bool premature);\n static CURLcode mqtt_doing(struct Curl_easy *data, bool *done);\n static int mqtt_getsock(struct Curl_easy *data, struct connectdata *conn,\n                         curl_socket_t *sock);\n static CURLcode mqtt_setup_conn(struct Curl_easy *data,\n                                 struct connectdata *conn);\n \n /*\n  * MQTT protocol handler.\n  */\n \n const struct Curl_handler Curl_handler_mqtt = {\n   \"MQTT\",                             /* scheme */\n   mqtt_setup_conn,                    /* setup_connection */\n   mqtt_do,                            /* do_it */\n-  ZERO_NULL,                          /* done */\n+  mqtt_done,                          /* done */\n   ZERO_NULL,                          /* do_more */\n   ZERO_NULL,                          /* connect_it */\n   ZERO_NULL,                          /* connecting */\n   mqtt_doing,                         /* doing */\n   ZERO_NULL,                          /* proto_getsock */\n   mqtt_getsock,                       /* doing_getsock */\n   ZERO_NULL,                          /* domore_getsock */\n   ZERO_NULL,                          /* perform_getsock */\n   ZERO_NULL,                          /* disconnect */\n   ZERO_NULL,                          /* readwrite */\n@@ -685,37 +687,53 @@ static CURLcode mqtt_do(struct Curl_easy *data, bool *done)\n \n   result = mqtt_connect(data);\n   if(result) {\n     failf(data, \"Error %d sending MQTT CONN request\", result);\n     return result;\n   }\n   mqstate(data, MQTT_FIRST, MQTT_CONNACK);\n   return CURLE_OK;\n }\n \n+static CURLcode mqtt_done(struct Curl_easy *data,\n+                          CURLcode status, bool premature)\n+{\n+  struct MQTT *mq = data->req.p.mqtt;\n+  (void)status;\n+  (void)premature;\n+  Curl_safefree(mq->sendleftovers);\n+  return CURLE_OK;\n+}\n+\n static CURLcode mqtt_doing(struct Curl_easy *data, bool *done)\n {\n   CURLcode result = CURLE_OK;\n   struct connectdata *conn = data->conn;\n   struct mqtt_conn *mqtt = &conn->proto.mqtt;\n   struct MQTT *mq = data->req.p.mqtt;\n   ssize_t nread;\n   curl_socket_t sockfd = conn->sock[FIRSTSOCKET];\n   unsigned char *pkt = (unsigned char *)data->state.buffer;\n   unsigned char byte;\n \n   *done = FALSE;\n \n   if(mq->nsend) {\n     /* send the remainder of an outgoing packet */\n     char *ptr = mq->sendleftovers;\n-    result = mqtt_send(data, mq->sendleftovers, mq->nsend);\n+    size_t nsend = mq->nsend;\n+    /* detach the leftover from the MQTT struct before attempting to send\n+       it again, so that mqtt_send() cannot end up leaving this same\n+       (now freed) pointer behind on error */\n+    mq->sendleftovers = NULL;\n+    mq->nsend = 0;\n+    result = mqtt_send(data, ptr, nsend);\n     free(ptr);\n     if(result)\n       return result;\n   }\n \n   infof(data, \"mqtt_doing: state [%d]\", (int) mqtt->state);\n   switch(mqtt->state) {\n   case MQTT_FIRST:\n     /* Read the initial byte only */\n     result = Curl_read(data, sockfd, (char *)&mq->firstbyte, 1, &nread);\n",
+  "ground_truth": {
+    "bug_id": "GH-16823",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "84853d94f2b8ac1cfd2ed3e3849e2af0f464d22c",
+    "fix_commit": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "84853d94f2b8ac1cfd2ed3e3849e2af0f464d22c",
+  "fix_commit_sha": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+  "intro_commit_message": "mqtt: free any leftover when done\n\nOss-fuzz found an issue when the \"sendleftovers\" pointer could leak memory.\nFix this by always freeing it (if still assigned) in the done function.\n\nBug: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=43515\nCloses #8274",
+  "fix_commit_message": "mqtt: convert sendleftovers to dynbuf\n\nAvoid frequent strdups/free calls, including the double-free risk.\n\nReported-by: Ronald Crane\nCloses #16823",
+  "agent_reasoning": "Without this change, mqtt_doing() captures `mq->sendleftovers` into a local `ptr`, calls mqtt_send(data, ptr, ...), and unconditionally frees `ptr` afterward. mqtt_send() only rewrites `mq->sendleftovers`/`mq->nsend` on the full-send or partial-send-with-successful-memdup paths; if Curl_memdup() returns NULL (OOM) it returns CURLE_OUT_OF_MEMORY while `mq->sendleftovers` still references the original (soon to be double-freed) allocation. mqtt_doing() then frees `ptr` (the same address), so `mq->sendleftovers` becomes a dangling pointer rather than NULL. Because mqtt_done() (added to free any leftover at completion) also calls Curl_safefree(mq->sendleftovers), the dangling pointer gets freed a second time — a double-free reachable via a transfer that experiences a short write followed by an allocation failure, matching the oss-fuzz report. The fix detaches `mq->sendleftovers`/`mq->nsend` (setting them to NULL/0) before the retry call, so mqtt_send() can only ever leave `mq->sendleftovers` as NULL or a newly, distinctly allocated buffer — never the same pointer that mqtt_doing() is about to free — eliminating the double-free while preserving normal send/retry behavior.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "84853d94f2b8ac1cfd2ed3e3849e2af0f464d22c",
+    "fix_revision": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+    "fix_parent_revision": "38b94c80f354be434aa32a68ab6f918da603ead5",
+    "inspected_paths": [
+      "lib/dynbuf.h",
+      "lib/mqtt.c",
+      "lib/mqtt.h"
+    ],
+    "call_candidates": [
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_addn",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_free",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_init",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_len",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_ptr",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_reset",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_dyn_tail",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "Curl_xfer_send",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "DEBUGASSERT",
+        "status": "available_or_unproven"
+      },
+      {
+        "path": "lib/mqtt.c",
+        "symbol": "mqtt_send",
+        "status": "available_or_unproven"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

@@ -1,0 +1,50 @@
+{
+  "task_id": "pr_review_GH-21652_benign",
+  "bug_id": "GH-21652",
+  "commit_sha": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+  "commit_message": "urlapi: consume trailing dots after IPv4 numerical addresses\n\nIf the hostname is specified as an IPv4 numerical address and it is\nfollowed by a single dot, acccept that as a valid IPv4 and remove the\ndot when normalizing.\n\nThis prevents otherwise legitimate IPv4 hostnames to have trailing dots.\nSeems to match what browsers do.\n\nExtended test 1560 to verify.\n\nCloses #21635",
+  "commit_author": "",
+  "commit_date": "2026-10-04T16:04:22.323993",
+  "pr_title": "urlapi: consume trailing dots after IPv4 numerical addresses",
+  "pr_description": "urlapi: consume trailing dots after IPv4 numerical addresses\n\nIf the hostname is specified as an IPv4 numerical address and it is\nfollowed by a single dot, acccept that as a valid IPv4 and remove the\ndot when normalizing.\n\nThis prevents otherwise legitimate IPv4 hostnames to have trailing dots.\nSeems to match what browsers do.\n\nExtended test 1560 to verify.\n\nCloses #21635",
+  "files": [
+    {
+      "path": "lib/urlapi.c",
+      "status": "modified",
+      "additions": 22,
+      "deletions": 8,
+      "diff": "diff --git a/lib/urlapi.c b/lib/urlapi.c\nindex a3111f9db6..0aedff97f8 100644\n--- a/lib/urlapi.c\n+++ b/lib/urlapi.c\n@@ -489,20 +489,23 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,\n /*\n  * Handle partial IPv4 numerical addresses and different bases, like\n  * '16843009', '0x7f', '0x7f.1' '0177.1.1.1' etc.\n  *\n  * If the given input string is syntactically wrong IPv4 or any part for\n  * example is too big, this function returns HOST_NAME.\n  *\n  * Output the \"normalized\" version of that input string in plain quad decimal\n  * integers.\n  *\n+ * A single dot following the numerical address is accepted and \"swallowed\" as\n+ * if it was never there.\n+ *\n  * Returns the host type.\n  *\n  * @unittest 1675\n  */\n \n UNITTEST int ipv4_normalize(struct dynbuf *host);\n UNITTEST int ipv4_normalize(struct dynbuf *host)\n {\n   bool done = FALSE;\n   int n = 0;\n@@ -513,38 +516,49 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)\n   if(*c == '[')\n     return HOST_IPV6;\n \n   while(!done) {\n     int rc;\n     curl_off_t l;\n     if(*c == '0') {\n       if(c[1] == 'x') {\n         c += 2; /* skip the prefix */\n         rc = curlx_str_hex(&c, &l, UINT_MAX);\n+        if(rc)\n+          return HOST_NAME;\n       }\n       else\n         rc = curlx_str_octal(&c, &l, UINT_MAX);\n     }\n     else\n       rc = curlx_str_number(&c, &l, UINT_MAX);\n \n-    if(rc)\n-      return HOST_NAME;\n-\n-    parts[n] = (unsigned int)l;\n+    if(rc) {\n+      if(!n || (rc != STRE_NO_NUM) || *c)\n+        return HOST_NAME;\n+      n--;\n+    }\n+    else\n+      parts[n] = (unsigned int)l;\n \n     switch(*c) {\n     case '.':\n-      if(n == 3)\n-        return HOST_NAME;\n-      n++;\n-      c++;\n+      if(n == 3) {\n+        if(c[1])\n+          /* something follows this dot */\n+          return HOST_NAME;\n+        done = TRUE;\n+      }\n+      else {\n+        n++;\n+        c++;\n+      }\n       break;\n \n     case '\\0':\n       done = TRUE;\n       break;\n \n     default:\n       return HOST_NAME;\n     }\n   }\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/urlapi.c b/lib/urlapi.c\nindex a3111f9db6..0aedff97f8 100644\n--- a/lib/urlapi.c\n+++ b/lib/urlapi.c\n@@ -489,20 +489,23 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,\n /*\n  * Handle partial IPv4 numerical addresses and different bases, like\n  * '16843009', '0x7f', '0x7f.1' '0177.1.1.1' etc.\n  *\n  * If the given input string is syntactically wrong IPv4 or any part for\n  * example is too big, this function returns HOST_NAME.\n  *\n  * Output the \"normalized\" version of that input string in plain quad decimal\n  * integers.\n  *\n+ * A single dot following the numerical address is accepted and \"swallowed\" as\n+ * if it was never there.\n+ *\n  * Returns the host type.\n  *\n  * @unittest 1675\n  */\n \n UNITTEST int ipv4_normalize(struct dynbuf *host);\n UNITTEST int ipv4_normalize(struct dynbuf *host)\n {\n   bool done = FALSE;\n   int n = 0;\n@@ -513,38 +516,49 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)\n   if(*c == '[')\n     return HOST_IPV6;\n \n   while(!done) {\n     int rc;\n     curl_off_t l;\n     if(*c == '0') {\n       if(c[1] == 'x') {\n         c += 2; /* skip the prefix */\n         rc = curlx_str_hex(&c, &l, UINT_MAX);\n+        if(rc)\n+          return HOST_NAME;\n       }\n       else\n         rc = curlx_str_octal(&c, &l, UINT_MAX);\n     }\n     else\n       rc = curlx_str_number(&c, &l, UINT_MAX);\n \n-    if(rc)\n-      return HOST_NAME;\n-\n-    parts[n] = (unsigned int)l;\n+    if(rc) {\n+      if(!n || (rc != STRE_NO_NUM) || *c)\n+        return HOST_NAME;\n+      n--;\n+    }\n+    else\n+      parts[n] = (unsigned int)l;\n \n     switch(*c) {\n     case '.':\n-      if(n == 3)\n-        return HOST_NAME;\n-      n++;\n-      c++;\n+      if(n == 3) {\n+        if(c[1])\n+          /* something follows this dot */\n+          return HOST_NAME;\n+        done = TRUE;\n+      }\n+      else {\n+        n++;\n+        c++;\n+      }\n       break;\n \n     case '\\0':\n       done = TRUE;\n       break;\n \n     default:\n       return HOST_NAME;\n     }\n   }\n",
+  "ground_truth": {
+    "bug_id": "GH-21652",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+    "fix_commit": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+  "fix_commit_sha": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+  "intro_commit_message": "urlapi: consume trailing dots after IPv4 numerical addresses\n\nIf the hostname is specified as an IPv4 numerical address and it is\nfollowed by a single dot, acccept that as a valid IPv4 and remove the\ndot when normalizing.\n\nThis prevents otherwise legitimate IPv4 hostnames to have trailing dots.\nSeems to match what browsers do.\n\nExtended test 1560 to verify.\n\nCloses #21635",
+  "fix_commit_message": "urlapi: prevent a terminal `.0x` component to normalize IPv4\n\nExtend test 1560 to verify\n\nFollow-up to 831a1514843bfa4d4d006627\n\nSpotted by Codex Security\nCloses #21652",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix d74c0ada4e31 on top of intro 831a1514843b via git's 3-way merge. Vulnerability (LogicError): curl's urlapi host normalization code (ipv4_normalize in lib/urlapi.c) can be tricked into accepting and normalizing a hostname whose final component is a malformed hex literal consisting only of the '0x' prefix with no digits (e.g. '127.1.0x', '127.0x', '127.0x.1', '127.1.1.0x') as if it were a valid, fully specified IPv4 address, due to an overly broad 'swallow a trailing dot' leniency check introduced to support legitimate trailing-dot IPv4 addresses (e.g. '127.1.'). Root cause: Commit 831a1514843bfa4d4d006627 (urlapi: consume trailing dots after IPv4 numerical addresses) replaced the previous unconditional 'if(rc) return HOST_NAME;' check after the number-parsing dispatch with a conditional that allows a failed parse to be tolerated when n is nonzero, rc == STRE_NO_NUM, and the cursor is at the end of the string -- intending to permit a trailing dot after the last IPv4 octet to be silently dropped. However this same lenient path is also reachable when the component begins with the '0x' prefix (handled by curlx_str_hex) but contains no hex digits at all, because curlx_str_hex also returns STRE_NO_NUM and leaves the cursor at end-of-string in that scenario. The code did not special-case the hex-prefix branch to reject rc failures immediately, so a hex-prefixed-but-empty terminal component is misclassified as the 'trailing dot was swallowed' case.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+    "fix_revision": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+    "fix_parent_revision": "7bde6cb9fcdfbb58531d5ac39e7b236ce15c52bf",
+    "inspected_paths": [
+      "lib/urlapi.c"
+    ],
+    "call_candidates": [],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

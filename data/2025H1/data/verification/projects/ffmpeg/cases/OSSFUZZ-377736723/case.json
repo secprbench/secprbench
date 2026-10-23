@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-377736723",
+  "project": "ffmpeg",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "9cfc7a244052dced520776ff0ecc6f0a9390f62b",
+    "parent": "6b7e4de0dbc78a630bfea27e917798b4d5b61abf",
+    "fix": "02958ab7156b4e14f1918f2b72c6d3678852698f"
+  },
+  "affected_files": [
+    "libavformat/mov.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay.; Root cause confirmed by direct code diff: mov_read_stts() in libavformat/mov.c (added by intro commit 9cfc7a244052, absent in parent 6b7e4de0dbc7) accumulates current_dts/corrected_dts (int64_t) from file-controlled 32-bit stts fields and computes `int64_t drift = (current_dts - corrected_dts)/FFMAX(sample_count,1);` via a plain signed subtraction. The fix commit 02958ab7156b changes only this one line to `av_sat_sub64(current_dts, corrected_dts)`, leaving the surrounding accumulation (`corrected_dts += ...`, `current_dts += ...`) untouched in both intro and benign builds -- matching the oss-fuzz report 'signed integer overflow: 7803923888585309955 - -3407677434275325337 cannot be represented in type int64_t'.\nBecause this verification build is ASan-only (confirmed via `./configure --extra-cflags='-fsanitize=address ...'`, no -fsanitize=undefined, and no sanitizer abort observed when the overflow fires), the UB manifests as silent value corruption rather than a trap. I used a behavioral oracle instead: a tiny harness (poc.c) linked against each version's built libavformat/libavcodec/libavutil calls avformat_open_input() on the crafted file and prints AVStream.duration.\nExact same target invocation used for all three versions: `bash /poc/run.sh >/dev/null 2>&1 && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lz -lpthread -fsanitize=address && /tmp/poc /tmp/poc.mov`. run.sh deterministically builds /tmp/poc.mov from fixed embedded header/tail bytes plus a programmatically-built stts table of 4474 entries (4473 entries of sample_count=0xFFFFFFFF/sample_duration=0xFFF8AD00, then one tuning entry sample_count=0xEC9C7D99/sample_duration=0xFFF8AD00) chosen so current_dts-corrected_dts crosses INT64_MAX exactly on the last entry without either accumulator overflowing first.\nResults (identical command, identical crafted input, all three revisions):\n  pre_intro  (6b7e4de0dbc7, feature absent): STREAM 0 duration=10240 (=1.000000s, sane).\n  post_intro (9cfc7a244052, buggy):          STREAM 0 duration=-9223372027293542051 (=-900719924540385.0s, garbage from the wrapped overflow).\n  post_benign(fix applied, av_sat_sub64):    STREAM 0 duration=10240 (=1.000000s, sane again, matches pre_intro).\nReproduced consistently across repeated builds/runs (deterministic). This establishes the bug is introduced by 9cfc7a244052 (absent in parent), present in post_intro, and removed by the paired fix/benign commit -- confirming the labelled IntegerOverflow in mov_read_stts's drift calculation, surfaced here as corrupted output because this build's sanitizer configuration lacks UBSan.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/198b67856ad28f7d1f8b/attempts/02/replay/pr_review_OSSFUZZ-377736723.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/198b67856ad28f7d1f8b/attempts/02/replay/pr_review_OSSFUZZ-377736723.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/198b67856ad28f7d1f8b/attempts/02/replay/pr_review_OSSFUZZ-377736723.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "bash /poc/run.sh >/dev/null 2>&1 && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lz -lpthread -fsanitize=address && /tmp/poc /tmp/poc.mov",
+          "input": null,
+          "poc_sha256": "56e8ad15389747d03cef20db78fb837158ccd4ee6e6629bc3304831d3597591a",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "9cfc7a244052dced520776ff0ecc6f0a9390f62b",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "e78ee1c8c8229265b1eebd64ec0477e4a3e7bc1dada4e2bfec02f0d43d141e27"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "STREAM 0 duration=-9223372027293542051 time_base=1/10240 tb_num_duration_sec=-900719924540385.000000\nFORMAT duration=1000000\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "pre_intro": {
+          "command": "bash /poc/run.sh >/dev/null 2>&1 && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lz -lpthread -fsanitize=address && /tmp/poc /tmp/poc.mov",
+          "input": null,
+          "poc_sha256": "56e8ad15389747d03cef20db78fb837158ccd4ee6e6629bc3304831d3597591a",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "6b7e4de0dbc78a630bfea27e917798b4d5b61abf",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "c881241b98ef55516e8562408cdf3dd5b336b63c8464b1461e46b0aca2a6c543"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "STREAM 0 duration=10240 time_base=1/10240 tb_num_duration_sec=1.000000\nFORMAT duration=1000000\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "bash /poc/run.sh >/dev/null 2>&1 && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lz -lpthread -fsanitize=address && /tmp/poc /tmp/poc.mov",
+          "input": null,
+          "poc_sha256": "56e8ad15389747d03cef20db78fb837158ccd4ee6e6629bc3304831d3597591a",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "6b7e4de0dbc78a630bfea27e917798b4d5b61abf",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "33d26f52dc6dad95ce7d66d159b1c50a10053b59de6a9ddc6d4769f9cf9c9226"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "STREAM 0 duration=10240 time_base=1/10240 tb_num_duration_sec=1.000000\nFORMAT duration=1000000\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "STREAM 0 duration=-9223372027293542051 time_base=1/10240 tb_num_duration_sec=-900719924540385.000000",
+        "pre_marker": "STREAM 0 duration=10240 time_base=1/10240 tb_num_duration_sec=1.000000",
+        "benign_marker": "STREAM 0 duration=10240 time_base=1/10240 tb_num_duration_sec=1.000000",
+        "description": "Custom-crafted .mov file (/poc/run.sh generates it deterministically via python3 into /tmp/poc.mov) whose 'stts' atom contains 4474 entries chosen so that, inside mov_read_stts()'s per-entry accumulation of `current_dts`/`corrected_dts` (int64_t trackers introduced by the max_stts_delta feature in commit 9cfc7a244052), the final entry's `current_dts - corrected_dts` computation mathematically exceeds INT64_MAX while neither accumulator's own += has overflowed yet. A companion harness (/poc/poc.c) is compiled against each version's already-built libavformat/libavcodec/libavutil static libs (same exact command for every version) and calls avformat_open_input() on the crafted file, then prints AVStream->duration. This build only has ASan (no UBSan), so the signed-overflow itself does not abort the process; instead it silently wraps (well-defined two's-complement behavior of this clang/-O1 build) and corrupts the derived `drift`/`correction`/`duration` values, which propagate into the reported stream duration -- giving a clean, deterministic, version-differentiating behavioral oracle for the same overflow the fix commit targets.",
+        "target_evidence": "Command (identical for all 3 versions): `bash /poc/run.sh >/dev/null 2>&1 && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lz -lpthread -fsanitize=address && /tmp/poc /tmp/poc.mov`.\npre_intro  -> \"STREAM 0 duration=10240 time_base=1/10240 tb_num_duration_sec=1.000000\" / \"FORMAT duration=1000000\".\npost_intro -> \"STREAM 0 duration=-9223372027293542051 time_base=1/10240 tb_num_duration_sec=-900719924540385.000000\" / \"FORMAT duration=1000000\" (only the per-stream duration, derived from mov_read_stts's drift/duration accumulation, is corrupted; container-level mvhd duration is untouched, pinpointing the corruption to mov_read_stts).\npost_benign -> \"STREAM 0 duration=10240 time_base=1/10240 tb_num_duration_sec=1.000000\" (matches pre_intro)."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "behavioral",
+        "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+      },
+      "explanation": "Root cause confirmed by direct code diff: mov_read_stts() in libavformat/mov.c (added by intro commit 9cfc7a244052, absent in parent 6b7e4de0dbc7) accumulates current_dts/corrected_dts (int64_t) from file-controlled 32-bit stts fields and computes `int64_t drift = (current_dts - corrected_dts)/FFMAX(sample_count,1);` via a plain signed subtraction. The fix commit 02958ab7156b changes only this one line to `av_sat_sub64(current_dts, corrected_dts)`, leaving the surrounding accumulation (`corrected_dts += ...`, `current_dts += ...`) untouched in both intro and benign builds -- matching the oss-fuzz report 'signed integer overflow: 7803923888585309955 - -3407677434275325337 cannot be represented in type int64_t'.\nBecause this verification build is ASan-only (confirmed via `./configure --extra-cflags='-fsanitize=address ...'`, no -fsanitize=undefined, and no sanitizer abort observed when the overflow fires), the UB manifests as silent value corruption rather than a trap. I used a behavioral oracle instead: a tiny harness (poc.c) linked against each version's built libavformat/libavcodec/libavutil calls avformat_open_input() on the crafted file and prints AVStream.duration.\nExact same target invocation used for all three versions: `bash /poc/run.sh >/dev/null 2>&1 && clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I/work -o /tmp/poc /poc/poc.c /work/libavformat/libavformat.a /work/libavcodec/libavcodec.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lz -lpthread -fsanitize=address && /tmp/poc /tmp/poc.mov`. run.sh deterministically builds /tmp/poc.mov from fixed embedded header/tail bytes plus a programmatically-built stts table of 4474 entries (4473 entries of sample_count=0xFFFFFFFF/sample_duration=0xFFF8AD00, then one tuning entry sample_count=0xEC9C7D99/sample_duration=0xFFF8AD00) chosen so current_dts-corrected_dts crosses INT64_MAX exactly on the last entry without either accumulator overflowing first.\nResults (identical command, identical crafted input, all three revisions):\n  pre_intro  (6b7e4de0dbc7, feature absent): STREAM 0 duration=10240 (=1.000000s, sane).\n  post_intro (9cfc7a244052, buggy):          STREAM 0 duration=-9223372027293542051 (=-900719924540385.0s, garbage from the wrapped overflow).\n  post_benign(fix applied, av_sat_sub64):    STREAM 0 duration=10240 (=1.000000s, sane again, matches pre_intro).\nReproduced consistently across repeated builds/runs (deterministic). This establishes the bug is introduced by 9cfc7a244052 (absent in parent), present in post_intro, and removed by the paired fix/benign commit -- confirming the labelled IntegerOverflow in mov_read_stts's drift calculation, surfaced here as corrupted output because this build's sanitizer configuration lacks UBSan."
+    }
+  },
+  "task_hashes": {
+    "buggy": "23c18983bd856888272fe354804b0203fcf5bfa29b112484429088146e5de05e",
+    "benign": "de652bf86a511a6d154c15308e94d363ddd7ac7cb86fae3fbaf1f0c4f36d94c5"
+  }
+}

@@ -1,0 +1,169 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "other",
+  "poc_summary": "No PoC existed, so /poc/poc.c + /poc/run.sh were crafted: a standalone libavcodec-API harness opens the AV_CODEC_ID_ADPCM_N64 decoder with attacker-controlled extradata (version=1, order=2, entries=8, 128 be16 filter coefficients, only coefs[8]=0x7FFF, rest 0) and feeds one 9-byte ADPCM_N64 block (scale nibble=0xF -> scale=32768, first code nibble=7 -> codes[0]=229376, all other nibbles 0). This isolates the single predictor multiplication 'sf_codes[(i-1)-k] * coefs[(o*8)+k]' (i=1,k=0: 229376*32767=7515963392) that overflows a 32-bit signed int. run.sh: (1) detects if AV_CODEC_ID_ADPCM_N64 exists at all (it does not in pre_intro), (2) runs the officially-built (ASan-only) target libs for a value-level check, and (3) recompiles the SAME unmodified libavcodec/adpcm.c of that revision adding -fsanitize=undefined (the configured target build only enables ASan, not UBSan), swaps the resulting object into a copy of the prebuilt libavcodec.a, relinks and runs it, to get a direct sanitizer verdict on the exact shipped source of each revision; the script's exit code is the sanitizer run's exit code so run_poc's crash detection reflects it directly.",
+  "explanation": "All three revisions were exercised via run_poc with the identical crafted input/script. pre_intro: crashed=False, output RESULT:NO_DECODER_ENUM - AV_CODEC_ID_ADPCM_N64 does not exist anywhere in libavcodec (grep of codec_id.h finds nothing), so the whole N64 ADPCM decoder, including its arithmetic, is newly added by the intro commit; the flaw cannot pre-exist. post_intro: crashed=True, exit=134. The ASan-only build (matching the target's actual sanitizer config) does not crash outright, since signed overflow is UB rather than a memory-safety fault, but it does show the practical consequence: decoded sample index 1 comes out as -32768 instead of the mathematically-correct +32767 (computed independently with 64-bit arithmetic), i.e. the overflow silently corrupts decoder output. Recompiling the identical, unmodified post_intro libavcodec/adpcm.c with -fsanitize=address,undefined and relinking gives a direct verdict: UndefinedBehaviorSanitizer aborts with 'libavcodec/adpcm.c:2501:5: runtime error: signed integer overflow: 229376 * 32767 cannot be represented in type 'int'' inside adpcm_decode_frame (reached via avcodec_send_packet -> decode_simple_internal), exactly matching the documented root cause of coefs[] from untrusted extradata multiplied against sf_codes[] decoded sample codes in plain signed 'int' arithmetic. post_benign: crashed=False, exit=0. The exact same reproducer against the unmodified post_benign adpcm.c (which casts one multiplicand to unsigned: 'sf_codes[(i-1)-k] * (unsigned)coefs[(o*8)+k]'), rebuilt the same way with -fsanitize=address,undefined, completes cleanly with no UndefinedBehaviorSanitizer report - the signed-overflow UB is eliminated because the multiplication/accumulation is now performed in well-defined unsigned arithmetic. (Note: because two's-complement wraparound at this optimization level produces the identical bit pattern as the unsigned computation, the plain ASan-only run of post_benign still prints the same numeric sample value, -32768 rather than the 'mathematically correct' +32767 - the companion patch removes the specific undefined-behavior class named by the report without changing the decoder's numeric output for this exact input. The labelled defect, an unchecked signed-integer-overflow, is present only in post_intro's source and absent in post_benign's source under the identical reproducer and identical recompilation methodology, satisfying the required intro/benign invariant: the report appears only in post_intro and pre_intro/post_benign complete without it.)",
+  "oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "libavcodec/adpcm.c:2501:5: runtime error: signed integer overflow: 229376 * 32767 cannot be represented in type 'int' (UndefinedBehaviorSanitizer, in adpcm_decode_frame; run_poc reports exit=134 crashed=True)",
+    "pre_marker": "RESULT:NO_DECODER_ENUM (AV_CODEC_ID_ADPCM_N64 absent in this revision - ADPCM_N64 decoder was not introduced yet); run_poc reports exit=0 crashed=False",
+    "benign_marker": "UBSAN_EXIT:0; run_poc reports exit=0 crashed=False, no UndefinedBehaviorSanitizer report; RESULT:SAMPLES:32767,-32768,0,... RESULT:MATCH:0 (signed-overflow UB no longer triggered, though numeric output for this input is unchanged from post_intro)",
+    "description": "No PoC existed, so /poc/poc.c + /poc/run.sh were crafted: a standalone libavcodec-API harness opens the AV_CODEC_ID_ADPCM_N64 decoder with attacker-controlled extradata (version=1, order=2, entries=8, 128 be16 filter coefficients, only coefs[8]=0x7FFF, rest 0) and feeds one 9-byte ADPCM_N64 block (scale nibble=0xF -> scale=32768, first code nibble=7 -> codes[0]=229376, all other nibbles 0). This isolates the single predictor multiplication 'sf_codes[(i-1)-k] * coefs[(o*8)+k]' (i=1,k=0: 229376*32767=7515963392) that overflows a 32-bit signed int. run.sh: (1) detects if AV_CODEC_ID_ADPCM_N64 exists at all (it does not in pre_intro), (2) runs the officially-built (ASan-only) target libs for a value-level check, and (3) recompiles the SAME unmodified libavcodec/adpcm.c of that revision adding -fsanitize=undefined (the configured target build only enables ASan, not UBSan), swaps the resulting object into a copy of the prebuilt libavcodec.a, relinks and runs it, to get a direct sanitizer verdict on the exact shipped source of each revision; the script's exit code is the sanitizer run's exit code so run_poc's crash detection reflects it directly.",
+    "target_evidence": "post_intro run_poc: exit=134 crashed=True, SANITIZER tail: \"libavcodec/adpcm.c:2501:5: runtime error: signed integer overflow: 229376 * 32767 cannot be represented in type 'int' ... #0 adpcm_decode_frame ... SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/adpcm.c:2501:5\". post_benign run_poc for the identical reproducer/recompilation: exit=0 crashed=False, \"UBSAN_EXIT:0\", no sanitizer report. pre_intro run_poc: exit=0 crashed=False, \"RESULT:NO_DECODER_ENUM\"."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(pre_intro)->True",
+    "build_version(post_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_benign)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_benign)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(pre_intro)",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b9f69921424568b9ebfff241e977f2f1e286f6565efeec97eb1dd67b37a2a66e",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "648b5d017d0478a0cd30f3753ab556b7721ff2b6",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9728c6f731f5f22742105462172f46cc07dd81c14ec1847f0cdda4162f8f2e39"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "RESULT:NO_DECODER_ENUM (AV_CODEC_ID_ADPCM_N64 absent in this revision - ADPCM_N64 decoder was not introduced yet)\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b9f69921424568b9ebfff241e977f2f1e286f6565efeec97eb1dd67b37a2a66e",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "5fc9c79f53d799f76a8f69e5821ad0a5867512b0",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d08aef92f4b6babe50096ba8dcd94b6f4e8acd26823b7e736e4f0ab40bae0535"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "ision ==\n== with -fsanitize=undefined added (target build only enables ASan), ==\n== swap into a copy of the prebuilt archive, relink, run ==\nUBSAN_EXIT:134\nVERIFY_EXIT=134\n\nlibavcodec/adpcm.c:2501:5: runtime error: signed integer overflow: 229376 * 32767 cannot be represented in type 'int'\n    #0 0x5603f9afd54a in adpcm_decode_frame /work/libavcodec/adpcm.c:2501:5\n    #1 0x5603f8d7a679 in decode_simple_internal /work/libavcodec/decode.c:440:16\n    #2 0x5603f8d7a679 in decode_simple_receive_frame /work/libavcodec/decode.c:600:15\n    #3 0x5603f8d7a679 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:636:15\n    #4 0x5603f8d7c0b8 in decode_receive_frame_internal /work/libavcodec/decode.c:653:15\n    #5 0x5603f8d7bf48 in avcodec_send_packet /work/libavcodec/decode.c:729:15\n    #6 0x5603f8b17c41 in main /tmp/run/poc.c:67:15\n    #7 0x7f5cd9d37d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #8 0x7f5cd9d37e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #9 0x5603f8a58ac4 in _start (/tmp/run/poc_ubsan+0x465ac4) (BuildId: e219c2f839b83e860aab87d2121d75b56bb05c4f)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/adpcm.c:2501:5 in \n/poc/run.sh: line 29:    23 Aborted                 /tmp/run/poc_ubsan\n",
+        "stdout_tail": "== ASan run against the officially-built target libs (value-level check) ==\nRESULT:SAMPLES:32767,-32768,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\nRESULT:EXPECTED_I1:32767 ACTUAL_I1:-32768\nRESULT:MATCH:0\nASAN_EXIT:0\n== UBSan run: recompile the SAME unmodified adpcm.c from this revision ==\n== with -fsanitize=undefined added (target build only enables ASan), ==\n== swap into a copy of the prebuilt archive, relink, run ==\nUBSAN_EXIT:134\nVERIFY_EXIT=134\n\nlibavcodec/adpcm.c:2501:5: runtime error: signed integer overflow: 229376 * 32767 cannot be represented in type 'int'\n    #0 0x5603f9afd54a in adpcm_decode_frame /work/libavcodec/adpcm.c:2501:5\n    #1 0x5603f8d7a679 in decode_simple_internal /work/libavcodec/decode.c:440:16\n    #2 0x5603f8d7a679 in decode_simple_receive_frame /work/libavcodec/decode.c:600:15\n    #3 0x5603f8d7a679 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:636:15\n    #4 0x5603f8d7c0b8 in decode_receive_frame_internal /work/libavcodec/decode.c:653:15\n    #5 0x5603f8d7bf48 in avcodec_send_packet /work/libavcodec/decode.c:729:15\n    #6 0x5603f8b17c41 in main /tmp/run/poc.c:67:15\n    #7 0x7f5cd9d37d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #8 0x7f5cd9d37e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #9 0x5603f8a58ac4 in _start (/tmp/run/poc_ubsan+0x465ac4) (BuildId: e219c2f839b83e860aab87d2121d75b56bb05c4f)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/adpcm.c:2501:5 in \n/poc/run.sh: line 29:    23 Aborted                 /tmp/run/poc_ubsan\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "b9f69921424568b9ebfff241e977f2f1e286f6565efeec97eb1dd67b37a2a66e",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "648b5d017d0478a0cd30f3753ab556b7721ff2b6",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7cdd008cd99a2741c5ee27c2112ed30d8c5ce147d414816fdada049cf9126bcf"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "== ASan run against the officially-built target libs (value-level check) ==\nRESULT:SAMPLES:32767,-32768,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\nRESULT:EXPECTED_I1:32767 ACTUAL_I1:-32768\nRESULT:MATCH:0\nASAN_EXIT:0\n== UBSan run: recompile the SAME unmodified adpcm.c from this revision ==\n== with -fsanitize=undefined added (target build only enables ASan), ==\n== swap into a copy of the prebuilt archive, relink, run ==\nRESULT:SAMPLES:32767,-32768,0,0,0,0,0,0,0,0,0,0,0,0,0,0,\nRESULT:EXPECTED_I1:32767 ACTUAL_I1:-32768\nRESULT:MATCH:0\nUBSAN_EXIT:0\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

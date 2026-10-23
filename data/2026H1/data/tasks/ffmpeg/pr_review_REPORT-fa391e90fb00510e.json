@@ -1,0 +1,101 @@
+{
+  "task_id": "pr_review_REPORT-fa391e90fb00510e",
+  "bug_id": "REPORT-fa391e90fb00510e",
+  "commit_sha": "b43d4a06925867fbbc0dbe21d63a3593253f672a",
+  "commit_message": "fftools/ffmpeg_dec: export subtitle_header in Decoder\n\nThis way the encoder does not need to access the decoder AVCodecContext,\nwhich will allow to make it private in future commits.",
+  "commit_author": "Anton Khirnov",
+  "commit_date": "2024-01-10T12:20:32+01:00",
+  "pr_title": "fftools/ffmpeg_dec: export subtitle_header in Decoder",
+  "pr_description": "This way the encoder does not need to access the decoder AVCodecContext,\nwhich will allow to make it private in future commits.\n",
+  "files": [
+    {
+      "path": "fftools/ffmpeg.h",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "diff": "diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h\nindex 429c1aba85..4c9424d02f 100644\n--- a/fftools/ffmpeg.h\n+++ b/fftools/ffmpeg.h\n@@ -279,11 +279,12 @@ typedef struct FilterGraph {\n     OutputFilter **outputs;\n     int         nb_outputs;\n } FilterGraph;\n \n typedef struct Decoder {\n-    char dummy;\n+    const uint8_t   *subtitle_header;\n+    int              subtitle_header_size;\n } Decoder;\n \n typedef struct InputStream {\n     const AVClass *class;\n \n"
+    },
+    {
+      "path": "fftools/ffmpeg_dec.c",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0,
+      "diff": "diff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c\nindex 16f653d52f..74f85f2ff7 100644\n--- a/fftools/ffmpeg_dec.c\n+++ b/fftools/ffmpeg_dec.c\n@@ -967,7 +967,10 @@ int dec_open(InputStream *ist, Scheduler *sch, unsigned sch_idx)\n \n     ret = check_avoptions(ist->decoder_opts);\n     if (ret < 0)\n         return ret;\n \n+    dp->dec.subtitle_header      = ist->dec_ctx->subtitle_header;\n+    dp->dec.subtitle_header_size = ist->dec_ctx->subtitle_header_size;\n+\n     return 0;\n }\n"
+    },
+    {
+      "path": "fftools/ffmpeg_enc.c",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 9,
+      "diff": "diff --git a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c\nindex 2a7fba0c51..bbd86a6fe1 100644\n--- a/fftools/ffmpeg_enc.c\n+++ b/fftools/ffmpeg_enc.c\n@@ -169,11 +169,11 @@ int enc_open(void *opaque, const AVFrame *frame)\n {\n     OutputStream *ost = opaque;\n     InputStream *ist = ost->ist;\n     Encoder              *e = ost->enc;\n     AVCodecContext *enc_ctx = ost->enc_ctx;\n-    AVCodecContext *dec_ctx = NULL;\n+    Decoder            *dec;\n     const AVCodec      *enc = enc_ctx->codec;\n     OutputFile          *of = ost->file;\n     FrameData *fd;\n     int frame_samples = 0;\n     int ret;\n@@ -191,13 +191,12 @@ int enc_open(void *opaque, const AVFrame *frame)\n \n     ret = set_encoder_id(of, ost);\n     if (ret < 0)\n         return ret;\n \n-    if (ist) {\n-        dec_ctx = ist->dec_ctx;\n-    }\n+    if (ist)\n+        dec = ist->decoder;\n \n     // the timebase is chosen by filtering code\n     if (ost->type == AVMEDIA_TYPE_AUDIO || ost->type == AVMEDIA_TYPE_VIDEO) {\n         enc_ctx->time_base      = frame->time_base;\n         enc_ctx->framerate      = fd->frame_rate_filter;\n@@ -277,18 +276,20 @@ int enc_open(void *opaque, const AVFrame *frame)\n \n         if (!enc_ctx->width) {\n             enc_ctx->width     = ost->ist->par->width;\n             enc_ctx->height    = ost->ist->par->height;\n         }\n-        if (dec_ctx && dec_ctx->subtitle_header) {\n+\n+        av_assert0(dec);\n+        if (dec->subtitle_header) {\n             /* ASS code assumes this buffer is null terminated so add extra byte. */\n-            enc_ctx->subtitle_header = av_mallocz(dec_ctx->subtitle_header_size + 1);\n+            enc_ctx->subtitle_header = av_mallocz(dec->subtitle_header_size + 1);\n             if (!enc_ctx->subtitle_header)\n                 return AVERROR(ENOMEM);\n-            memcpy(enc_ctx->subtitle_header, dec_ctx->subtitle_header,\n-                   dec_ctx->subtitle_header_size);\n-            enc_ctx->subtitle_header_size = dec_ctx->subtitle_header_size;\n+            memcpy(enc_ctx->subtitle_header, dec->subtitle_header,\n+                   dec->subtitle_header_size);\n+            enc_ctx->subtitle_header_size = dec->subtitle_header_size;\n         }\n \n         break;\n     default:\n         av_assert0(0);\n"
+    }
+  ],
+  "full_diff": "diff --git a/fftools/ffmpeg.h b/fftools/ffmpeg.h\nindex 429c1aba85..4c9424d02f 100644\n--- a/fftools/ffmpeg.h\n+++ b/fftools/ffmpeg.h\n@@ -279,11 +279,12 @@ typedef struct FilterGraph {\n     OutputFilter **outputs;\n     int         nb_outputs;\n } FilterGraph;\n \n typedef struct Decoder {\n-    char dummy;\n+    const uint8_t   *subtitle_header;\n+    int              subtitle_header_size;\n } Decoder;\n \n typedef struct InputStream {\n     const AVClass *class;\n \ndiff --git a/fftools/ffmpeg_dec.c b/fftools/ffmpeg_dec.c\nindex 16f653d52f..74f85f2ff7 100644\n--- a/fftools/ffmpeg_dec.c\n+++ b/fftools/ffmpeg_dec.c\n@@ -967,7 +967,10 @@ int dec_open(InputStream *ist, Scheduler *sch, unsigned sch_idx)\n \n     ret = check_avoptions(ist->decoder_opts);\n     if (ret < 0)\n         return ret;\n \n+    dp->dec.subtitle_header      = ist->dec_ctx->subtitle_header;\n+    dp->dec.subtitle_header_size = ist->dec_ctx->subtitle_header_size;\n+\n     return 0;\n }\ndiff --git a/fftools/ffmpeg_enc.c b/fftools/ffmpeg_enc.c\nindex 2a7fba0c51..bbd86a6fe1 100644\n--- a/fftools/ffmpeg_enc.c\n+++ b/fftools/ffmpeg_enc.c\n@@ -169,11 +169,11 @@ int enc_open(void *opaque, const AVFrame *frame)\n {\n     OutputStream *ost = opaque;\n     InputStream *ist = ost->ist;\n     Encoder              *e = ost->enc;\n     AVCodecContext *enc_ctx = ost->enc_ctx;\n-    AVCodecContext *dec_ctx = NULL;\n+    Decoder            *dec;\n     const AVCodec      *enc = enc_ctx->codec;\n     OutputFile          *of = ost->file;\n     FrameData *fd;\n     int frame_samples = 0;\n     int ret;\n@@ -191,13 +191,12 @@ int enc_open(void *opaque, const AVFrame *frame)\n \n     ret = set_encoder_id(of, ost);\n     if (ret < 0)\n         return ret;\n \n-    if (ist) {\n-        dec_ctx = ist->dec_ctx;\n-    }\n+    if (ist)\n+        dec = ist->decoder;\n \n     // the timebase is chosen by filtering code\n     if (ost->type == AVMEDIA_TYPE_AUDIO || ost->type == AVMEDIA_TYPE_VIDEO) {\n         enc_ctx->time_base      = frame->time_base;\n         enc_ctx->framerate      = fd->frame_rate_filter;\n@@ -277,18 +276,20 @@ int enc_open(void *opaque, const AVFrame *frame)\n \n         if (!enc_ctx->width) {\n             enc_ctx->width     = ost->ist->par->width;\n             enc_ctx->height    = ost->ist->par->height;\n         }\n-        if (dec_ctx && dec_ctx->subtitle_header) {\n+\n+        av_assert0(dec);\n+        if (dec->subtitle_header) {\n             /* ASS code assumes this buffer is null terminated so add extra byte. */\n-            enc_ctx->subtitle_header = av_mallocz(dec_ctx->subtitle_header_size + 1);\n+            enc_ctx->subtitle_header = av_mallocz(dec->subtitle_header_size + 1);\n             if (!enc_ctx->subtitle_header)\n                 return AVERROR(ENOMEM);\n-            memcpy(enc_ctx->subtitle_header, dec_ctx->subtitle_header,\n-                   dec_ctx->subtitle_header_size);\n-            enc_ctx->subtitle_header_size = dec_ctx->subtitle_header_size;\n+            memcpy(enc_ctx->subtitle_header, dec->subtitle_header,\n+                   dec->subtitle_header_size);\n+            enc_ctx->subtitle_header_size = dec->subtitle_header_size;\n         }\n \n         break;\n     default:\n         av_assert0(0);\n",
+  "ground_truth": {
+    "bug_id": "REPORT-fa391e90fb00510e",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "fa391e90fb00510e926e305d6f8067cadf0f4153",
+      "short_sha": "fa391e9",
+      "message": "fftools/ffmpeg_dec: deep-copy subtitle_header to fix use-after-free",
+      "author": "Zhen Yan",
+      "date": "2026-06-04T01:49:41+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-uaf-001",
+        "title": "Decoder.subtitle_header stores a borrowed pointer into the AVCodecContext, leading to use-after-free",
+        "message": "In dec_open(), the newly introduced Decoder.subtitle_header field is assigned directly from ist->dec_ctx->subtitle_header (a pointer owned/managed by the decoder's AVCodecContext, i.e. by libavcodec). No copy of the underlying buffer is made; Decoder.subtitle_header is simply an alias to memory owned by the AVCodecContext. When the AVCodecContext is later closed/freed (avcodec_free_context, e.g. during decoder teardown or dec_free), the buffer that subtitle_header points to can be released or reallocated by libavcodec, while consumers of Decoder.subtitle_header (e.g. the subtitle encoder path which reads dec->subtitle_header/subtitle_header_size to initialize its own codec context) may still read from it afterward, resulting in a use-after-free / dangling pointer read. The field was also declared as `const uint8_t *`, further indicating the intent was only to reference, not own, the memory, with no corresponding free path.",
+        "location": {
+          "file": "fftools/ffmpeg_dec.c",
+          "start_line": 972,
+          "end_line": 973,
+          "start_column": null,
+          "end_column": null,
+          "function": "dec_open",
+          "snippet": "    ret = check_avoptions(ist->decoder_opts);\n    if (ret < 0)\n        return ret;\n\n    dp->dec.subtitle_header      = ist->dec_ctx->subtitle_header;\n    dp->dec.subtitle_header_size = ist->dec_ctx->subtitle_header_size;\n\n    return 0;",
+          "snippet_hash": "448b946ff6c6e2b96bfb759b3ea1802eb27ce4e92ca3a91bb1ec2edef8412eb6",
+          "description": null,
+          "snippet_start_line": 968,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "UseAfterFree",
+        "confidence": 0.85,
+        "suggestion": "Deep-copy the subtitle_header buffer into memory owned by the Decoder struct instead of storing a raw pointer into the AVCodecContext. Allocate a buffer of subtitle_header_size (+1 for NUL termination, since ASS code assumes a null-terminated buffer), memcpy the contents, and free it explicitly when the Decoder is destroyed (dec_free). Change the field type from `const uint8_t *` to a mutable, decoder-owned `uint8_t *` so ownership is clear.",
+        "suggestion_code": "if (ist->dec_ctx->subtitle_header) {\n    /* ASS code assumes this buffer is null terminated so add extra byte. */\n    dp->dec.subtitle_header = av_mallocz(ist->dec_ctx->subtitle_header_size + 1);\n    if (!dp->dec.subtitle_header)\n        return AVERROR(ENOMEM);\n    memcpy(dp->dec.subtitle_header, ist->dec_ctx->subtitle_header,\n           ist->dec_ctx->subtitle_header_size);\n    dp->dec.subtitle_header_size = ist->dec_ctx->subtitle_header_size;\n}",
+        "tags": [
+          "security",
+          "memory-safety",
+          "use-after-free"
+        ],
+        "cwe_ids": [
+          "CWE-416"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "UseAfterFree",
+    "affected_files": [
+      "fftools/ffmpeg_dec.c",
+      "fftools/ffmpeg.h"
+    ],
+    "root_cause": "A pointer-only copy (shallow copy) of a buffer owned by another object's lifetime (AVCodecContext) is stored in a longer-lived structure (Decoder) without duplicating the buffer or establishing correct ownership/lifetime semantics, and no corresponding free/retain mechanism exists.",
+    "must_cover": [
+      {
+        "file": "fftools/ffmpeg_dec.c",
+        "function": "dec_open",
+        "start_line": 972,
+        "end_line": 973,
+        "role": "primary",
+        "reason": "Primary location of finding: Decoder.subtitle_header stores a borrowed pointer into the AVCodecContext, leading to use-after-free"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "b43d4a06925867fbbc0dbe21d63a3593253f672a",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

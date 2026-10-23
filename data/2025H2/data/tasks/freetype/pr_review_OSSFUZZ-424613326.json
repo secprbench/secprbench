@@ -1,0 +1,119 @@
+{
+  "task_id": "pr_review_OSSFUZZ-424613326",
+  "bug_id": "OSSFUZZ-424613326",
+  "commit_sha": "5a07f41d0eddddcae927957c6434c4174bae4e6a",
+  "commit_message": "[sfnt] `FT_Load_Sfnt_Table` can now also load a font's table directory.\n\nCloses issue #1263.\n\n* src/sfnt/ttload.c (tt_face_load_any): Implement it.",
+  "commit_author": "Werner Lemberg",
+  "commit_date": "2025-05-28T09:52:44+02:00",
+  "pr_title": "[sfnt] `FT_Load_Sfnt_Table` can now also load a font's table directory.",
+  "pr_description": "Closes issue #1263.\n\n* src/sfnt/ttload.c (tt_face_load_any): Implement it.\n",
+  "files": [
+    {
+      "path": "docs/CHANGES",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "diff": "diff --git a/docs/CHANGES b/docs/CHANGES\nindex ea62d3c8c..a06df26ee 100644\n--- a/docs/CHANGES\n+++ b/docs/CHANGES\n@@ -54,10 +54,12 @@ CHANGES BETWEEN 2.13.3 and 2.14.0 (2025-Mmm-DD)\n     of `FT_Face` (i.e., the  macro `FT_IS_VARIATION` will return true)\n     also  if any  of the  provided coordinates  is different  from the\n     face's default value for the  corresponding axis, that is, the set\n     up face is not at its default position.\n \n+  - `FT_Load_Sfnt_Table` can now also load a font's table directory.\n+\n   - The TrueType instruction interpreter  was optimized to produce 15%\n     gain in the glyph loading speed.\n \n   - Handling of Variation Fonts is now considerably faster,  thanks to\n     contributions by Behdad Esfahbod.\n"
+    },
+    {
+      "path": "include/freetype/tttables.h",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0,
+      "diff": "diff --git a/include/freetype/tttables.h b/include/freetype/tttables.h\nindex 2cf0ff1bc..ae9553386 100644\n--- a/include/freetype/tttables.h\n+++ b/include/freetype/tttables.h\n@@ -703,10 +703,13 @@ FT_BEGIN_HEADER\n    *     The four-byte tag of the table to load.  Use value~0 if you want to\n    *     access the whole font file.  Otherwise, you can use one of the\n    *     definitions found in the @FT_TRUETYPE_TAGS_H file, or forge a new\n    *     one with @FT_MAKE_TAG.\n    *\n+   *     [Since 2.14] Use value~1 if you want to access the table directory\n+   *     of the (currently selected) font.\n+   *\n    *   offset ::\n    *     The starting offset in the table (or file if tag~==~0).\n    *\n    * @output:\n    *   buffer ::\n"
+    },
+    {
+      "path": "src/sfnt/ttload.c",
+      "status": "modified",
+      "additions": 14,
+      "deletions": 5,
+      "diff": "diff --git a/src/sfnt/ttload.c b/src/sfnt/ttload.c\nindex c3a5fae2c..f64ce8890 100644\n--- a/src/sfnt/ttload.c\n+++ b/src/sfnt/ttload.c\n@@ -533,11 +533,12 @@\n    *\n    *   tag ::\n    *     The tag of table to load.  Use the value 0 if you want\n    *     to access the whole font file, else set this parameter\n    *     to a valid TrueType table tag that you can forge with\n-   *     the MAKE_TT_TAG macro.\n+   *     the MAKE_TT_TAG macro.  Use value 1 to access the table\n+   *     directory.\n    *\n    *   offset ::\n    *     The starting offset in the table (or the file if\n    *     tag == 0).\n    *\n@@ -575,11 +576,22 @@\n     FT_Stream  stream;\n     TT_Table   table;\n     FT_ULong   size;\n \n \n-    if ( tag != 0 )\n+    if ( tag == 0 )\n+    {\n+      /* The whole font file. */\n+      size = face->root.stream->size;\n+    }\n+    else if ( tag == 1 )\n+    {\n+      /* The currently selected font's table directory. */\n+      offset += face->ttc_header.offsets[face->root.face_index & 0xFFFF];\n+      size    = 4 + 8 + 16 * face->num_tables;\n+    }\n+    else\n     {\n       /* look for tag in font directory */\n       table = tt_face_lookup_table( face, tag );\n       if ( !table )\n       {\n@@ -588,13 +600,10 @@\n       }\n \n       offset += table->Offset;\n       size    = table->Length;\n     }\n-    else\n-      /* tag == 0 -- the user wants to access the font file directly */\n-      size = face->root.stream->size;\n \n     if ( length && *length == 0 )\n     {\n       *length = size;\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/docs/CHANGES b/docs/CHANGES\nindex ea62d3c8c..a06df26ee 100644\n--- a/docs/CHANGES\n+++ b/docs/CHANGES\n@@ -54,10 +54,12 @@ CHANGES BETWEEN 2.13.3 and 2.14.0 (2025-Mmm-DD)\n     of `FT_Face` (i.e., the  macro `FT_IS_VARIATION` will return true)\n     also  if any  of the  provided coordinates  is different  from the\n     face's default value for the  corresponding axis, that is, the set\n     up face is not at its default position.\n \n+  - `FT_Load_Sfnt_Table` can now also load a font's table directory.\n+\n   - The TrueType instruction interpreter  was optimized to produce 15%\n     gain in the glyph loading speed.\n \n   - Handling of Variation Fonts is now considerably faster,  thanks to\n     contributions by Behdad Esfahbod.\ndiff --git a/include/freetype/tttables.h b/include/freetype/tttables.h\nindex 2cf0ff1bc..ae9553386 100644\n--- a/include/freetype/tttables.h\n+++ b/include/freetype/tttables.h\n@@ -703,10 +703,13 @@ FT_BEGIN_HEADER\n    *     The four-byte tag of the table to load.  Use value~0 if you want to\n    *     access the whole font file.  Otherwise, you can use one of the\n    *     definitions found in the @FT_TRUETYPE_TAGS_H file, or forge a new\n    *     one with @FT_MAKE_TAG.\n    *\n+   *     [Since 2.14] Use value~1 if you want to access the table directory\n+   *     of the (currently selected) font.\n+   *\n    *   offset ::\n    *     The starting offset in the table (or file if tag~==~0).\n    *\n    * @output:\n    *   buffer ::\ndiff --git a/src/sfnt/ttload.c b/src/sfnt/ttload.c\nindex c3a5fae2c..f64ce8890 100644\n--- a/src/sfnt/ttload.c\n+++ b/src/sfnt/ttload.c\n@@ -533,11 +533,12 @@\n    *\n    *   tag ::\n    *     The tag of table to load.  Use the value 0 if you want\n    *     to access the whole font file, else set this parameter\n    *     to a valid TrueType table tag that you can forge with\n-   *     the MAKE_TT_TAG macro.\n+   *     the MAKE_TT_TAG macro.  Use value 1 to access the table\n+   *     directory.\n    *\n    *   offset ::\n    *     The starting offset in the table (or the file if\n    *     tag == 0).\n    *\n@@ -575,11 +576,22 @@\n     FT_Stream  stream;\n     TT_Table   table;\n     FT_ULong   size;\n \n \n-    if ( tag != 0 )\n+    if ( tag == 0 )\n+    {\n+      /* The whole font file. */\n+      size = face->root.stream->size;\n+    }\n+    else if ( tag == 1 )\n+    {\n+      /* The currently selected font's table directory. */\n+      offset += face->ttc_header.offsets[face->root.face_index & 0xFFFF];\n+      size    = 4 + 8 + 16 * face->num_tables;\n+    }\n+    else\n     {\n       /* look for tag in font directory */\n       table = tt_face_lookup_table( face, tag );\n       if ( !table )\n       {\n@@ -588,13 +600,10 @@\n       }\n \n       offset += table->Offset;\n       size    = table->Length;\n     }\n-    else\n-      /* tag == 0 -- the user wants to access the font file directly */\n-      size = face->root.stream->size;\n \n     if ( length && *length == 0 )\n     {\n       *length = size;\n \n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-424613326",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "d3668e00da732654b50e4e81f982544ed6e26390",
+      "short_sha": "d3668e0",
+      "message": "src/sfnt/ttload.c (tt_face_load_any): Correctly handle font containers.",
+      "author": "Werner Lemberg",
+      "date": "2025-09-05T20:21:27+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-read-001",
+        "title": "Out-of-Bounds Read in tt_face_load_any via unchecked face_index into ttc_header.offsets",
+        "message": "In `tt_face_load_any`, when `tag == 1` (table directory access), the code directly uses `face->root.face_index & 0xFFFF` as an index into `face->ttc_header.offsets[]` without first verifying the index is within bounds (`< face->ttc_header.count`). The `face_index` field is also used to enumerate elements of font containers such as Mac Resource files, which are not TTC collections and may therefore have `ttc_header.count == 0` or a very small count. An attacker supplying a crafted font container can cause the index to exceed the allocated `offsets` array, resulting in an out-of-bounds read and potential information disclosure or crash.",
+        "location": {
+          "file": "src/sfnt/ttload.c",
+          "start_line": 586,
+          "end_line": 590,
+          "start_column": null,
+          "end_column": null,
+          "function": "tt_face_load_any",
+          "snippet": "    else if ( tag == 1 )\n    {\n      /* The currently selected font's table directory. */\n      offset += face->ttc_header.offsets[face->root.face_index & 0xFFFF];\n      size    = 4 + 8 + 16 * face->num_tables;",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/sfnt/sfobjs.c",
+            "start_line": 579,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "sfnt_init_face",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "medium",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.95,
+        "suggestion": "Before using `face->root.face_index & 0xFFFF` as an index into `face->ttc_header.offsets[]`, check whether the index is less than `face->ttc_header.count`. If the font is not a TTC (or the index is out of range), default to index 0.",
+        "suggestion_code": "FT_Long  idx = face->root.face_index & 0xFFFF;\n\nif ( idx >= face->ttc_header.count )\n  idx = 0;\n\noffset += face->ttc_header.offsets[idx];",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "memory-safety",
+          "oob-read"
+        ],
+        "cwe_ids": [
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "src/sfnt/ttload.c",
+      "src/sfnt/sfobjs.c"
+    ],
+    "root_cause": "The code introduced to implement table-directory access (tag == 1) assumed the face is always part of a TTC and that `face_index` is always a valid index into `ttc_header.offsets`. However, `face_index` is also used for non-TTC container formats (e.g., Mac Resource), and no bounds check was added before dereferencing the `offsets` array. The same oversight exists in `sfobjs.c` where a similar condition (`face_index >= face->ttc_header.count`) needed a comment clarifying the context.",
+    "must_cover": [
+      {
+        "file": "src/sfnt/ttload.c",
+        "function": "tt_face_load_any",
+        "start_line": 586,
+        "end_line": 590,
+        "role": "primary",
+        "reason": "Primary location of finding: Out-of-Bounds Read in tt_face_load_any via unchecked face_index into ttc_header.offsets"
+      },
+      {
+        "file": "src/sfnt/sfobjs.c",
+        "function": "sfnt_init_face",
+        "start_line": 579,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Out-of-Bounds Read in tt_face_load_any via unchecked face_index into ttc_header.offsets"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "5a07f41d0eddddcae927957c6434c4174bae4e6a",
+  "fix_commit_sha": null
+}

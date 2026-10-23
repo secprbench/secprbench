@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_OSSFUZZ-437528618",
+    "bug_id": "OSSFUZZ-437528618",
+    "bug_type": "NullPointerDereference",
+    "intro_commit": "d9fed9df2a9e70c9375d3b2591db35c09303d369",
+    "intro_parent": "202a35ecdb44849953c61dc1fba9643c69b3d5e5",
+    "fix_commit": "a28e01a6c16430da689340d0af6eec094020b719",
+    "affected_files": [
+      "libavformat/mov.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "The single 'infe' entry makes mov_read_infe() call heif_add_stream(), which creates the sole AVStream and allocates a 1-element sc->sample_sizes/sc->chunk_offsets array for it (this is fc->streams[nb_streams-1]). The following top-level 'stsz' box is dispatched by mov_read_stsz() against that same (only) stream; because its declared 100-entry table is truncated to 0 actual bytes, ffio_read_size() fails and mov_read_stsz() executes av_freep(&sc->sample_sizes) then returns 0 (non-fatal). Later, mov_read_header()'s HEIF-finalization loop unconditionally executes `sc->sample_sizes[0] = item->extent_length;` for the item, dereferencing the now-NULL pointer. Running the identical command/input against all three builds: post_intro (d9fed9df2a9e) crashes on every run with AddressSanitizer \"SEGV on unknown address 0x000000000000 ... WRITE memory access ... #0 mov_read_header /work/libavformat/mov.c:8856:34\" via avformat_open_input -> ifile_open -> main (exit 134/SIGABRT) - this is exactly the labelled NullPointerDereference, matching the OSS-Fuzz report's \"Crash Type: Null-dereference WRITE, Crash Address: 0x000000000000\" with the identical stack root. pre_intro (202a35ecdb44) runs to full completion with exit 0 and no sanitizer activity whatsoever on the exact same input/command: its heif_add_stream() performs the array allocation, the sample_sizes[0]/chunk_offsets[0] write, and mov_build_index() all synchronously within the single call made while processing the 'meta' box, fully completing before the sibling 'stsz' box is ever reached, so there is no window in which the array can be freed before the write occurs; consequently the file demuxes and remuxes cleanly (exit 0). post_benign (companion fix applying a28e01a6c164) also runs to full completion with exit 0 and no sanitizer activity, because the fix removes the sc->sample_sizes/chunk_offsets heap array for HEIF items entirely, replacing it with scalar sc->sample_size/sc->stsz_sample_size fields that mov_read_stsz's free-on-truncated-read path cannot NULL out. This 3-way comparison (crash only in post_intro; fully clean, identical exit-0 success in both pre_intro and post_benign) using the exact same reproducer confirms both the introduction and the benign fix."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: incomplete)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/fdaf0a0e91b69169b9a6/attempts/01/pocs/ffmpeg/OSSFUZZ-437528618",
+    "input_file": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/fdaf0a0e91b69169b9a6/attempts/01/pocs/ffmpeg/OSSFUZZ-437528618/poc.mov",
+    "input_name": "poc.mov",
+    "size": 155,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "d660df8205ebeb358e1ebb35079dcf2e9429456dbc8e3010ba8cf1f221acdec2",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "d9fed9df2a9e70c9375d3b2591db35c09303d369",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "274326e13998faab4ec8ec8a4fe2335cf6f4611cf9a8c76f148c62b70aba0c2e"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==9==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x55bf4eb9763d bp 0x7ffd9fdbbe50 sp 0x7ffd9fdbba80 T0)\n==9==The signal is caused by a WRITE memory access.\n==9==Hint: address points to the zero page.\n    #0 0x55bf4eb9763d in mov_read_header /work/libavformat/mov.c:8856:34\n    #1 0x55bf4ea79c28 in avformat_open_input /work/libavformat/demux.c:316:20\n    #2 0x55bf4e2e4489 in ifile_open /work/fftools/ffmpeg_demux.c:1452:11\n    #3 0x55bf4e336d86 in open_files /work/fftools/ffmpeg_opt.c:1308:15\n    #4 0x55bf4e336d86 in ffmpeg_parse_options /work/fftools/ffmpeg_opt.c:1348:11\n    #5 0x55bf4e35eec9 in main /work/fftools/ffmpeg.c:1032:11\n    #6 0x7f08a8907d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #7 0x7f08a8907e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #8 0x55bf4e21ed04 in _start (/work/ffmpeg+0x8a7d04) (BuildId: c472d622a4f96dfa437908c922ca45768990379d)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavformat/mov.c:8856:34 in mov_read_header\n==9==ABORTING\n/poc/run.sh: line 2:     9 Aborted                 ./ffmpeg -nostdin -hide_banner -loglevel error -i /poc/poc.mov -c copy -f mpegts /tmp/verify_out.ts\n",
+        "stdout_tail": "VERIFY_EXIT=134\n\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==9==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x55bf4eb9763d bp 0x7ffd9fdbbe50 sp 0x7ffd9fdbba80 T0)\n==9==The signal is caused by a WRITE memory access.\n==9==Hint: address points to the zero page.\n    #0 0x55bf4eb9763d in mov_read_header /work/libavformat/mov.c:8856:34\n    #1 0x55bf4ea79c28 in avformat_open_input /work/libavformat/demux.c:316:20\n    #2 0x55bf4e2e4489 in ifile_open /work/fftools/ffmpeg_demux.c:1452:11\n    #3 0x55bf4e336d86 in open_files /work/fftools/ffmpeg_opt.c:1308:15\n    #4 0x55bf4e336d86 in ffmpeg_parse_options /work/fftools/ffmpeg_opt.c:1348:11\n    #5 0x55bf4e35eec9 in main /work/fftools/ffmpeg.c:1032:11\n    #6 0x7f08a8907d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #7 0x7f08a8907e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #8 0x55bf4e21ed04 in _start (/work/ffmpeg+0x8a7d04) (BuildId: c472d622a4f96dfa437908c922ca45768990379d)\n\nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/libavformat/mov.c:8856:34 in mov_read_header\n==9==ABORTING\n/poc/run.sh: line 2:     9 Aborted                 ./ffmpeg -nostdin -hide_banner -loglevel error -i /poc/poc.mov -c copy -f mpegts /tmp/verify_out.ts\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "d660df8205ebeb358e1ebb35079dcf2e9429456dbc8e3010ba8cf1f221acdec2",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "202a35ecdb44849953c61dc1fba9643c69b3d5e5",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "296d8e5b657d713bc2131166685e7c2c0ebeb8519b46fbb43ae30f4855b9baf4"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "d660df8205ebeb358e1ebb35079dcf2e9429456dbc8e3010ba8cf1f221acdec2",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "202a35ecdb44849953c61dc1fba9643c69b3d5e5",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3a2de8bebc9a0b88091946eb66f46992a9b6dad4171637774ea12c50e19a9ee2"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "155-byte crafted MOV/HEIF file: ftyp(major_brand='mif1') + meta{hdlr, pitm(item_id=1), iinf{one infe: item_id=1, item_type='av01'}, iloc{item_id=1, extent_offset=0, extent_length=100}} + a top-level 'stsz' box declaring sample_size=0, entries=100, with its 400-byte sample-size table truncated to 0 bytes (file ends right after the stsz header). Command: `ffmpeg -i poc.mov -c copy -f mpegts /tmp/verify_out.ts`.",
+    "target_evidence": "post_intro: exit=134, crashed=True. AddressSanitizer: SEGV on unknown address 0x000000000000 (WRITE memory access) at libavformat/mov.c:8856:34 in mov_read_header, called from avformat_open_input -> ifile_open -> main. pre_intro: exit=0, crashed=False, no sanitizer output, no stderr output at all (fully clean run). post_benign: exit=0, crashed=False, no sanitizer output, no stderr output at all (fully clean run, identical to pre_intro)."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

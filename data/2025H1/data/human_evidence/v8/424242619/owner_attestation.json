@@ -1,0 +1,18 @@
+{
+  "reviewer": "benchmark owner",
+  "attested_at": "2026-10-05T21:30:41Z",
+  "method": "explicit_user_attestation",
+  "reason": "The benchmark owner explicitly requested that these exact cases be marked human_reviewed and included in the final benchmark.",
+  "authorization": "please help me refine the result directory and the benchmark. help me mark these inconclusive cases to human_reviewed; help me move these out of inconclusive to human reviewed and put them to final benchmark",
+  "identity": "v8/424242619",
+  "season": "2025H1",
+  "stage": "human_reviewed",
+  "task_hashes": {
+    "buggy": "d535a00bdfdbfa4828b2a1389cfb79893de3de9d7b67e2b84b4f502b4b1dae3d",
+    "benign": "4b40c389bbd8a684633c3a82f7b9017caaad5968ddef7e3281dfa243c442358d"
+  },
+  "caveat": "Legacy target Maglev crash is unbound to current task hashes; wrapper conditionally enables newly introduced --maglev-poly-calls. Owner approval is not a fresh invariant-configuration replay.",
+  "catalog_effective_verification": "inconclusive",
+  "original_case_disposition": "verified",
+  "automated_replay_performed": false
+}

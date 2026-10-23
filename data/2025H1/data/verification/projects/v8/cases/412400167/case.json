@@ -1,0 +1,49 @@
+{
+  "bug_id": "412400167",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "e7c147b65c4f5c1013a0b45cf25fa291d176d111",
+    "parent": "71f1eca52987700aad1bb86ff0a9b3405c5383fa",
+    "fix": "11872e471e2cea8f44a41b508cb4b4153a252eab"
+  },
+  "affected_files": [
+    "include/v8-internal.h",
+    "src/codegen/external-reference.cc",
+    "src/codegen/external-reference.h",
+    "src/compiler/backend/arm/code-generator-arm.cc",
+    "src/compiler/backend/arm64/code-generator-arm64.cc",
+    "src/compiler/backend/code-generator.cc",
+    "src/compiler/backend/code-generator.h",
+    "src/compiler/backend/ia32/code-generator-ia32.cc",
+    "src/compiler/backend/instruction-codes.h",
+    "src/compiler/backend/instruction-scheduler.cc",
+    "src/compiler/backend/instruction-selector.cc",
+    "src/compiler/backend/x64/code-generator-x64.cc",
+    "src/compiler/js-call-reducer.cc",
+    "src/compiler/schedule.cc",
+    "src/compiler/scheduler.cc",
+    "src/compiler/simplified-operator.cc",
+    "src/compiler/turboshaft/assembler.h",
+    "src/compiler/turboshaft/fast-api-call-lowering-reducer.h",
+    "src/compiler/turboshaft/graph-builder.cc",
+    "src/compiler/turboshaft/operations.cc",
+    "src/compiler/turboshaft/operations.h",
+    "src/compiler/turboshaft/runtime-call-descriptors.h",
+    "src/d8/d8-test.cc",
+    "src/execution/frames.cc",
+    "src/execution/isolate-data.h",
+    "src/execution/isolate-inl.h",
+    "test/mjsunit/compiler/fast-api-calls-throw.js",
+    "test/mjsunit/mjsunit.status"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured ASan V8 builds completed. With the identical PoC and command, pre_intro exited 0 with ORACLE_CLEAN: ArchCallCFunctionWithFrameState was absent (legacy C calls did not require descriptor flags). post_intro exited 1, crashed=False, with ORACLE_BUG: the newly introduced ArchCallCFunctionWithFrameState was present but V8's actual IsCallWithDescriptorFlags predicate rejected it, so its MiscField cannot carry CallDescriptor flags. post_benign exited 0 with ORACLE_CLEAN: the separa",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,877 @@
+{
+  "schema_version": 1,
+  "description": "Frozen paper human exceptions plus the twelve owner-attested v7 pairs",
+  "entries": [
+    {
+      "project": "ffmpeg",
+      "bug_id": "7f9c7f9849a2",
+      "source": "human_cat1",
+      "fix_sha": "7f9c7f9849a2155224711f0ff57ecdac6e4bfb57",
+      "fix_date": "2025-01-10T14:56:03-03:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/ffmpeg/pr_review_7f9c7f9849a2.json",
+        "sha256": "2728d0ca80c98541773a0dabee65b832050fec625ce6831de8b774d013ec0c4e"
+      },
+      "benign": {
+        "path": "tasks/ffmpeg/pr_review_7f9c7f9849a2_benign.json",
+        "sha256": "7d81bab4b6f2f8ee9b82d771a4da09fd6efbab42189b84a27b48ff74a3aef057"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_verified": true,
+      "recorded_fix_sha": "7f9c7f9849a2155224711f0ff57ecdac6e4bfb57",
+      "recorded_fix_date": "2025-01-10T14:56:03-03:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "firefox",
+      "bug_id": "1948111",
+      "source": "human_cat1",
+      "fix_sha": "6dbdf1fff1e0c09c70d3b21299862e8a30951f16",
+      "fix_date": "2025-02-20T08:35:22Z",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/firefox/pr_review_1948111.json",
+        "sha256": "d00a28ba5e4b9fd97470df242c5238b29bad9413b51b9858b37a75079f342abc"
+      },
+      "benign": {
+        "path": "tasks/firefox/pr_review_1948111_benign.json",
+        "sha256": "e9b15f4895292d2896c89b689f1eb6f7c16767043acc4b1e00f5371b43fb0a27"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "6dbdf1fff1e0c09c70d3b21299862e8a30951f16",
+      "recorded_fix_date": "2025-02-20T08:35:22Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "firefox",
+      "bug_id": "1951554",
+      "source": "human_cat1",
+      "fix_sha": "d3c35516e9e88c81007543f4f7541b6d25ff86f3",
+      "fix_date": "2025-03-28T17:56:38Z",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/firefox/pr_review_1951554.json",
+        "sha256": "60b2bbbacb4221b516fcb7a23addf61ccf17dba36e8d57c181d163550d39018c"
+      },
+      "benign": {
+        "path": "tasks/firefox/pr_review_1951554_benign.json",
+        "sha256": "62e0c9fa7a9c6b9b559d9cc24ef6cc67f1028a87a446793a6b7f2334aaef3a86"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "d3c35516e9e88c81007543f4f7541b6d25ff86f3",
+      "recorded_fix_date": "2025-03-28T17:56:38Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "firefox",
+      "bug_id": "1970764",
+      "source": "human_cat1",
+      "fix_sha": "31b320354b8cec123c27ae426b673c2304e67f73",
+      "fix_date": "2025-06-10T16:26:35Z",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/firefox/pr_review_1970764.json",
+        "sha256": "ce1976af8298378c42052a65407dbfc01f487f001a4fe7cb2454dfbddb98e842"
+      },
+      "benign": {
+        "path": "tasks/firefox/pr_review_1970764_benign.json",
+        "sha256": "1a80b63ab3dfdf551ed3aff76612a39f94156529e3ae132689b10b307d227e88"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "31b320354b8cec123c27ae426b673c2304e67f73",
+      "recorded_fix_date": "2025-06-10T16:26:35Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "firefox",
+      "bug_id": "1974596",
+      "source": "human_cat1",
+      "fix_sha": "94bca7f8515fa1b68abf50ad89520bdf650837b3",
+      "fix_date": "2025-07-03T15:53:09Z",
+      "date_source": "local_git_committer_date",
+      "season": "2025H2",
+      "buggy": {
+        "path": "tasks/firefox/pr_review_1974596.json",
+        "sha256": "25f88474853614cff240483c17fdf24bb56a3cd7aadc673b72dda23d4a9cbc3c"
+      },
+      "benign": {
+        "path": "tasks/firefox/pr_review_1974596_benign.json",
+        "sha256": "092913e21ede700a7d007b41ec8cd8fe1c2590fff3e5eb9ada230cf2d1eb8249"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "94bca7f8515fa1b68abf50ad89520bdf650837b3",
+      "recorded_fix_date": "2025-07-03T15:53:09Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "freetype",
+      "bug_id": "OSSFUZZ-499455833",
+      "source": "human_cat1",
+      "fix_sha": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+      "fix_date": "2026-04-22T20:49:51-04:00",
+      "date_source": "local_git_committer_date",
+      "season": "2026H1",
+      "buggy": {
+        "path": "tasks/freetype/pr_review_OSSFUZZ-499455833.json",
+        "sha256": "9a9730f3a7bf126bc835cfaf8615921754841f109f516d448be6ee36746c4e69"
+      },
+      "benign": {
+        "path": "tasks/freetype/pr_review_OSSFUZZ-499455833_benign.json",
+        "sha256": "ba5662e4627a844d2ca8308d0f8d70d0026d285629ff5772dae53c67ed721a29"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_verified": true,
+      "recorded_fix_sha": "1803559c4ee407d0bcbf2a67dbe96690cee869d2",
+      "recorded_fix_date": "2026-04-22T20:49:51-04:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "redis",
+      "bug_id": "CVE-2024-46981",
+      "source": "human_cat1",
+      "fix_sha": "342ee426ad0d0731b2272553bd4db2cd78e24772",
+      "fix_date": "2025-01-13T21:20:19+02:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/redis/pr_review_CVE-2024-46981.json",
+        "sha256": "e609814a6639accae39874051939490839dcb631f0f43cac244680d6d5a4fcac"
+      },
+      "benign": {
+        "path": "tasks/redis/pr_review_CVE-2024-46981_benign.json",
+        "sha256": "25a2023e204171a4eb4a15f11fefb6642bd5718c8075425e4123f45a46c2cfac"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/unstable",
+      "mainline_verified": true,
+      "recorded_fix_sha": "342ee426ad0d0731b2272553bd4db2cd78e24772",
+      "recorded_fix_date": "2025-01-13T21:20:19+02:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "redis",
+      "bug_id": "CVE-2025-46818",
+      "source": "human_cat1",
+      "fix_sha": "a3ae6cb0d6e7acf9b5f4c9a1f0943913140d7527",
+      "fix_date": "2025-10-30T13:02:49+08:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H2",
+      "buggy": {
+        "path": "tasks/redis/pr_review_CVE-2025-46818.json",
+        "sha256": "8292ca5a43f64e5e0d309f390c601614a503c3b48f6f510bb9ee320e5ec67aa4"
+      },
+      "benign": {
+        "path": "tasks/redis/pr_review_CVE-2025-46818_benign.json",
+        "sha256": "54723f998d55808fa801e79f1076c3516fa17805b403a7ed6c3cac511831c5e3"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/unstable",
+      "mainline_verified": true,
+      "recorded_fix_sha": "45eac0262028c771b6f5307372814b75f49f7a9e",
+      "recorded_fix_date": "2025-10-03T00:06:58+03:00",
+      "mainline_candidates": [
+        {
+          "sha": "a3ae6cb0d6e7acf9b5f4c9a1f0943913140d7527",
+          "date": "2025-10-30T13:02:49+08:00",
+          "source": "git_commit_committer_date",
+          "subject": "Lua script can be executed in the context of another user (CVE-2025-46818)",
+          "alias_evidence": "identical_stable_patch_id"
+        }
+      ],
+      "alias_evidence": "identical_stable_patch_id"
+    },
+    {
+      "project": "sqlite",
+      "bug_id": "FORUM-03380a55a521",
+      "source": "human_cat1",
+      "fix_sha": "03380a55a521b0eb616a31bbed6dd44ecfd0aa55",
+      "fix_date": "2025-12-31T01:01:14Z",
+      "date_source": "local_git_committer_date",
+      "season": "2025H2",
+      "buggy": {
+        "path": "tasks/sqlite/pr_review_FORUM-03380a55a521.json",
+        "sha256": "e6fdfdd8df76f2959e586b501f3025d4a633ab2972f45ef07bc3313dad8f2b2f"
+      },
+      "benign": {
+        "path": "tasks/sqlite/pr_review_FORUM-03380a55a521_benign.json",
+        "sha256": "fe22f725e48244b9d6d1a3ac92a1e71e6ef1b4e28495212d47b9239a2c484664"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_verified": true,
+      "recorded_fix_sha": "03380a55a521b0eb616a31bbed6dd44ecfd0aa55",
+      "recorded_fix_date": "2025-12-31T01:01:14Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "sqlite",
+      "bug_id": "FORUM-61523e22f955",
+      "source": "human_cat1",
+      "fix_sha": "61523e22f9556db003f075ce44f815717596226b",
+      "fix_date": "2026-06-03T15:29:59Z",
+      "date_source": "local_git_committer_date",
+      "season": "2026H1",
+      "buggy": {
+        "path": "tasks/sqlite/pr_review_FORUM-61523e22f955.json",
+        "sha256": "b6596153acb4adf9444079aae8346075f460370ad8a56efa75bf320487a8291c"
+      },
+      "benign": {
+        "path": "tasks/sqlite/pr_review_FORUM-61523e22f955_benign.json",
+        "sha256": "b01433ea60a5860df3a3548ffc25072119063492f746837ece7380d6596e493c"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_verified": true,
+      "recorded_fix_sha": "61523e22f9556db003f075ce44f815717596226b",
+      "recorded_fix_date": "2026-06-03T15:29:59Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "sqlite",
+      "bug_id": "FORUM-a20f63e0ef79",
+      "source": "human_cat1",
+      "fix_sha": "a20f63e0ef79a3c6fc4353ad7b0f01ddf59a4510",
+      "fix_date": "2026-05-18T20:43:15Z",
+      "date_source": "local_git_committer_date",
+      "season": "2026H1",
+      "buggy": {
+        "path": "tasks/sqlite/pr_review_FORUM-a20f63e0ef79.json",
+        "sha256": "411167c2daa8c49a4db7aea5485254da56f4ef4de0423705958c4684db694f67"
+      },
+      "benign": {
+        "path": "tasks/sqlite/pr_review_FORUM-a20f63e0ef79_benign.json",
+        "sha256": "63a10ba50e7f106742180e8dda09afdbe2384151ac91b0a7f73622e8d664e15f"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_verified": true,
+      "recorded_fix_sha": "a20f63e0ef79a3c6fc4353ad7b0f01ddf59a4510",
+      "recorded_fix_date": "2026-05-18T20:43:15Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "sqlite",
+      "bug_id": "FORUM-a2d992a000bb",
+      "source": "human_cat1",
+      "fix_sha": "a2d992a000bb343b23612df491edb3edb23386fa",
+      "fix_date": "2026-05-18T20:27:57Z",
+      "date_source": "local_git_committer_date",
+      "season": "2026H1",
+      "buggy": {
+        "path": "tasks/sqlite/pr_review_FORUM-a2d992a000bb.json",
+        "sha256": "5e4ffcc3b84a3f151ae2f2c2da98c35471c85d21146136a6d0dffed6cb4e64ac"
+      },
+      "benign": {
+        "path": "tasks/sqlite/pr_review_FORUM-a2d992a000bb_benign.json",
+        "sha256": "3dbbdbeec080d2a99855bd3830529534530edd53393c30d16e826a39e3b240cb"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/master",
+      "mainline_verified": true,
+      "recorded_fix_sha": "a2d992a000bb343b23612df491edb3edb23386fa",
+      "recorded_fix_date": "2026-05-18T20:27:57Z",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "396460426",
+      "source": "human_cat1",
+      "fix_sha": "a2e2bfb709552759b73df606647ce28ab89ca862",
+      "fix_date": "2025-02-14T07:26:52-08:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_396460426.json",
+        "sha256": "6e8628e7ee1491d3a2ddf379be38a67dc1783048837f2f546afde5943437e63d"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_396460426_benign.json",
+        "sha256": "6539d131f121c1ac318b0de029c85672da3a7f6812297740d6217dda5fc81c6d"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "a2e2bfb709552759b73df606647ce28ab89ca862",
+      "recorded_fix_date": "2025-02-14T07:26:52-08:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "413419840",
+      "source": "human_cat1",
+      "fix_sha": "b04613a41917440bdf1253e8463a014bdd2872d1",
+      "fix_date": "2025-04-28T09:13:01-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_413419840.json",
+        "sha256": "d94515713480adfcdc725ee33e44952e8a4902fdce533d0d29afe961934e8a0a"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_413419840_benign.json",
+        "sha256": "0b97236070661f0e672c4b30bdce450b2b5ca2f573c0693f69442613d90c4b57"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "b04613a41917440bdf1253e8463a014bdd2872d1",
+      "recorded_fix_date": "2025-04-28T09:13:01-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "414840455",
+      "source": "human_cat1",
+      "fix_sha": "afb07f0823289806411c630604a77f632a5e26c3",
+      "fix_date": "2025-05-05T01:30:27-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_414840455.json",
+        "sha256": "b318ec1945f00a8de4972a737c0f527ab78a1cd058f63f36566474606e9b46e4"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_414840455_benign.json",
+        "sha256": "5a78b66cda485cef6c6e0ca98cdab85c469c27da6bc56cc17ee1b1aadaf867c0"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "afb07f0823289806411c630604a77f632a5e26c3",
+      "recorded_fix_date": "2025-05-05T01:30:27-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "416179216",
+      "source": "human_cat1",
+      "fix_sha": "1cf6af44b01727570818a681c52ba67e1f605e3b",
+      "fix_date": "2025-05-12T05:34:19-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_416179216.json",
+        "sha256": "310120eca93a6ecc5d0303fa464ef947a712002483272f5fa09fa9882e8dec6b"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_416179216_benign.json",
+        "sha256": "84e1214f46a385309f6862dbb53a79ae200b067b27cba573d001479c93c1f4cf"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "1cf6af44b01727570818a681c52ba67e1f605e3b",
+      "recorded_fix_date": "2025-05-12T05:34:19-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "419323068",
+      "source": "human_cat1",
+      "fix_sha": "229da5091bd3eca5708c6833413d472fb334f286",
+      "fix_date": "2025-06-17T02:05:26-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_419323068.json",
+        "sha256": "266805a09e1865157b38a0950c7e05b0d47094347798487b83816d74ccfa9802"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_419323068_benign.json",
+        "sha256": "a23e9a983f38fc76e485765545a1fe7255755bb3e2eae5a465144e708dc05820"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "229da5091bd3eca5708c6833413d472fb334f286",
+      "recorded_fix_date": "2025-06-17T02:05:26-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "420401642",
+      "source": "human_cat1",
+      "fix_sha": "65bbfbb9ce2739c12dd3a761a12c518be042cdee",
+      "fix_date": "2025-05-27T02:44:58-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_420401642.json",
+        "sha256": "e7171c7f029b274c35d1d2205f03fac820e02221e71a9de78f5fc60a75dff499"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_420401642_benign.json",
+        "sha256": "42ef388090e5dc5ae8197a78968a7ea4a37bfb481e2792590574e53d41f76890"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "65bbfbb9ce2739c12dd3a761a12c518be042cdee",
+      "recorded_fix_date": "2025-05-27T02:44:58-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "421227542",
+      "source": "human_cat1",
+      "fix_sha": "1836961b564e977ecbc84d9954e6cc0fa545b6f3",
+      "fix_date": "2025-06-03T08:17:05-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_421227542.json",
+        "sha256": "6da59e771660a99a7990a17a3a58680eb966e2d24dc57ca98d74aa3eee9980fb"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_421227542_benign.json",
+        "sha256": "c310019498952a5d76561b5ff2b72778af4b8200e004e391c180aa4ba719bb75"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "1836961b564e977ecbc84d9954e6cc0fa545b6f3",
+      "recorded_fix_date": "2025-06-03T08:17:05-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "423955533",
+      "source": "human_cat1",
+      "fix_sha": "edd034ab0cf44cdab8e8d03d2f5f424f743a77d3",
+      "fix_date": "2025-06-12T01:52:31-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_423955533.json",
+        "sha256": "5dd094817d8fd58838aaae64877ec90ebc9acef00fcc2e446cd981bd2c3dd0de"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_423955533_benign.json",
+        "sha256": "db6f70b75473a83c612e24acb432f037915a2a28cb386a4615beb43b36b7bc34"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "edd034ab0cf44cdab8e8d03d2f5f424f743a77d3",
+      "recorded_fix_date": "2025-06-12T01:52:31-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "v8",
+      "bug_id": "424245314",
+      "source": "human_cat1",
+      "fix_sha": "a7220b894a984937436a1409b95cf1756f5e374b",
+      "fix_date": "2025-06-12T03:41:34-07:00",
+      "date_source": "local_git_committer_date",
+      "season": "2025H1",
+      "buggy": {
+        "path": "tasks/v8/pr_review_424245314.json",
+        "sha256": "398696399c9c3526fb5d21bd88c942f8977e53eb2e88cc26c369fde933e094dc"
+      },
+      "benign": {
+        "path": "tasks/v8/pr_review_424245314_benign.json",
+        "sha256": "a4321bb45e39144a54834f6493265f28560cf05396ebea7ef53cbd080680152b"
+      },
+      "date_basis": "earliest_mainline_fix",
+      "mainline_ref": "refs/remotes/origin/main",
+      "mainline_verified": true,
+      "recorded_fix_sha": "a7220b894a984937436a1409b95cf1756f5e374b",
+      "recorded_fix_date": "2025-06-12T03:41:34-07:00",
+      "alias_evidence": "recorded_fix_on_mainline"
+    },
+    {
+      "project": "curl",
+      "bug_id": "GH-17978",
+      "source": "human_verified",
+      "season": "2025H2",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Independent bounded Telnet replay accepted the current target oracle.",
+        "evidence": [
+          {
+            "path": "human_evidence/curl/GH-17978/generation_status.json",
+            "sha256": "6fa5985b607b2057840d5f454a129d25e59f46d7b8ebf7c852ab0a9eecc756ed"
+          },
+          {
+            "path": "verification/projects/curl/cases/GH-17978/case.json",
+            "sha256": "8ab629c82be9e126434227a9a3dff62c7b03568211f61717f50a78fac56ac298"
+          }
+        ],
+        "automated_disposition": "inconclusive"
+      },
+      "buggy": {
+        "sha256": "e971260a13f1cbeb950b4ce0e2fa7a9b037e81d824bf0d5b56d196f8ee072c6e"
+      },
+      "benign": {
+        "sha256": "abbf03b834a529682434f2a120103d36af809715ce753b2cb4183470bfc0e03a"
+      }
+    },
+    {
+      "project": "openssl",
+      "bug_id": "CVE-2026-42768",
+      "source": "human_verified",
+      "season": "2026H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Independent CMS behavioral replay accepted the current target oracle.",
+        "evidence": [
+          {
+            "path": "human_evidence/openssl/CVE-2026-42768/generation_status.json",
+            "sha256": "9362a41ef39b4d618565de7e635a177896f9f0225e04e8df51d05edda9049a8c"
+          },
+          {
+            "path": "verification/projects/openssl/cases/CVE-2026-42768/case.json",
+            "sha256": "4bdbc104ff769a103d778e7946527c17c0dc1182bf571be94e66fb81b1550f37"
+          }
+        ],
+        "automated_disposition": "inconclusive"
+      },
+      "buggy": {
+        "sha256": "5400e6eb58ca9035b22989aee6777d200a2aac3311f028088e5800f1a79f3cc4"
+      },
+      "benign": {
+        "sha256": "9a5b40dde6889428113e3f6cbf62c3bb0829b1876f65cfd5bec27dfa1f6bf875"
+      }
+    },
+    {
+      "project": "ffmpeg",
+      "bug_id": "OSSFUZZ-416811958",
+      "source": "human_verified",
+      "season": "2025H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Introduced HEIF parser sanitizer failure; parent and repaired versions reject the input.",
+        "evidence": [
+          {
+            "path": "human_evidence/ffmpeg/OSSFUZZ-416811958/generation_status.json",
+            "sha256": "1e59eba0b09ee8aeea0e61a0d859241ae8a63634bf0598846e6f2f82a98c57c3"
+          },
+          {
+            "path": "verification/projects/ffmpeg/cases/OSSFUZZ-416811958/case.json",
+            "sha256": "29163c058d28e8d6ddb459ef230799080f8a89e2f7836f3abc0c43644064f1b9"
+          }
+        ],
+        "automated_disposition": "inconclusive"
+      },
+      "buggy": {
+        "sha256": "253b7a1874b26b71d1c70d52c49f431e7ad33878ea64e6aa1c2739295517d972"
+      },
+      "benign": {
+        "sha256": "4a2826651fc3b8cbe9d35c73265c61c9c88f40a14d5cf5acfa1d24afbceabbb5"
+      }
+    },
+    {
+      "project": "ffmpeg",
+      "bug_id": "OSSFUZZ-485866440",
+      "source": "human_verified",
+      "season": "2026H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Introduced EXR heap out-of-bounds sanitizer failure; parent and repaired versions reject the input.",
+        "evidence": [
+          {
+            "path": "human_evidence/ffmpeg/OSSFUZZ-485866440/generation_status.json",
+            "sha256": "8fe2de4e6786539b3e18734c5f89aa31f5c482b175ef3d782fe362877eeec7e4"
+          },
+          {
+            "path": "verification/projects/ffmpeg/cases/OSSFUZZ-485866440/case.json",
+            "sha256": "814ccfe065a3dea64617b7435752b172caadc0133a4f9ef4f336dbbd2f616b94"
+          }
+        ],
+        "automated_disposition": "inconclusive"
+      },
+      "buggy": {
+        "sha256": "4b237ff10563ae86edf01b34d63b0cab14d6a4f9f5767c05e18d7148fa247cd3"
+      },
+      "benign": {
+        "sha256": "e0ae38860be9d7540f2a1c486a52b1dd8f66cd0d75d8ccf329cc7ab880a59081"
+      }
+    },
+    {
+      "project": "ffmpeg",
+      "bug_id": "OSSFUZZ-428055715",
+      "source": "human_verified",
+      "season": "2025H2",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Signed-overflow sanitizer failure in audio conversion; concrete security consequence beyond sanitizer abort remains to be documented.",
+        "evidence": [
+          {
+            "path": "human_evidence/ffmpeg/OSSFUZZ-428055715/generation_status.json",
+            "sha256": "a46ed69de82cec18c648bd9c817551863ea6da9b4f6c4f2aa8f24bf25081e720"
+          },
+          {
+            "path": "verification/projects/ffmpeg/cases/OSSFUZZ-428055715/case.json",
+            "sha256": "0c16f3917e5133636dc74fe5063fa0fdb00f533439ff3e2aa533f3111f22d104"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "security_impact_not_yet_demonstrated"
+      },
+      "buggy": {
+        "sha256": "7ed5a061ca30c78a4f7bee012518d743cddebf7d1e3539f25ee3d3fc682ff00d"
+      },
+      "benign": {
+        "sha256": "04b47b89306c1147ed05e21ea9976ca4c4d2f41e054ef72a0b49ff6aa9f86e9c"
+      }
+    },
+    {
+      "project": "ffmpeg",
+      "bug_id": "OSSFUZZ-471569982",
+      "source": "human_verified",
+      "season": "2026H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Introduced ProRes RAW negative shift; the feature is absent on the parent. Security consequence beyond sanitizer abort needs a stated oracle.",
+        "evidence": [
+          {
+            "path": "human_evidence/ffmpeg/OSSFUZZ-471569982/generation_status.json",
+            "sha256": "2753f4cbca9bdae505934bd4ba950e3205d853c8c9bca19029f995ead42d05fa"
+          },
+          {
+            "path": "verification/projects/ffmpeg/cases/OSSFUZZ-471569982/case.json",
+            "sha256": "1667b6f0739e8c0152ec1d85f756838dc475c4c1c2acd158451ee4ace635a57b"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "feature_absent_parent_and_impact_review"
+      },
+      "buggy": {
+        "sha256": "eca9a8d5c1ea12417fda135b640d31a28cab5e654163907b9b88e00bc7f4b99a"
+      },
+      "benign": {
+        "sha256": "4bb49c6cc12ce91367861fa03506bf90af6d3b168debd880deb87d66a297fe9a"
+      }
+    },
+    {
+      "project": "firefox",
+      "bug_id": "2013562",
+      "source": "human_verified",
+      "season": "2026H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Already has an automated verified disposition; human review is additional.",
+        "evidence": [
+          {
+            "path": "human_evidence/firefox/2013562/generation_status.json",
+            "sha256": "4dab04d2f090f4c2b7db15a8ab86c32dec5a0288acf17400b1af3af72d8682b0"
+          },
+          {
+            "path": "verification/projects/firefox/cases/2013562/case.json",
+            "sha256": "b1445773118438a09b5af87fdec275bb78a2d917fd071463933a78ffe9af9723"
+          }
+        ],
+        "automated_disposition": "verified"
+      },
+      "buggy": {
+        "sha256": "28981b18bebe67edcda47f66da6b8f8ac410300c1172535d08a224729c613315"
+      },
+      "benign": {
+        "sha256": "c0161b2d29ba99361a6e7ed155801e487a0f5e96f35d75176d9c815fe7192a91"
+      }
+    },
+    {
+      "project": "ffmpeg",
+      "bug_id": "TESTCASE-4015241140b49b26",
+      "source": "human_verified",
+      "season": "2025H2",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Malformed local command-line invocation crashes the introduction; an untrusted-input boundary has not been demonstrated.",
+        "evidence": [
+          {
+            "path": "human_evidence/ffmpeg/TESTCASE-4015241140b49b26/generation_status.json",
+            "sha256": "a8bbdae6d8e24163df9c91a9366767a4cb39d17eebc2a35285210b28e41f4faf"
+          },
+          {
+            "path": "verification/projects/ffmpeg/cases/TESTCASE-4015241140b49b26/case.json",
+            "sha256": "714d758948e7ada7ad8216e6ab629b4f3c69b44576bfabd7779a069f719211ac"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "untrusted_input_boundary_not_yet_demonstrated"
+      },
+      "buggy": {
+        "sha256": "232651ebed469b10fb0a12b93c8c1d94e866156bd5fad31eefcce4888428bb39"
+      },
+      "benign": {
+        "sha256": "8eeb662c1e42ebdea7ebe69bbc9dffd6558ef7e47dae600fb6894107fcfa81e7"
+      }
+    },
+    {
+      "project": "curl",
+      "bug_id": "CVE-2025-0167",
+      "source": "human_verified",
+      "season": "2025H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Saved same-input credential-leak replay is positive on parent and introduction; the generated introducing revision differs from the advisory's stated introduction.",
+        "evidence": [
+          {
+            "path": "human_evidence/curl/CVE-2025-0167/generation_status.json",
+            "sha256": "74c7fc70fcfb92647e7428b1d0e0057de4b58dc23ba6994be623d66deda8a715"
+          },
+          {
+            "path": "verification/projects/curl/cases/CVE-2025-0167/case.json",
+            "sha256": "b60afe51fbc67b5338009adf78a8489baad15d11cedf20eaabec15cd003e08da"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "parent_positive_and_intro_mismatch"
+      },
+      "buggy": {
+        "sha256": "0e6591cdd73e918d842788dc408b8e630a3c9c63d69b1c6248054f2a0e3ba1e1"
+      },
+      "benign": {
+        "sha256": "3cd66f10a629086294ae4799f662ef870e3bff7bf5c7424427d1a0f3963b75c1"
+      }
+    },
+    {
+      "project": "curl",
+      "bug_id": "CVE-2026-11586",
+      "source": "human_verified",
+      "season": "2026H1",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Saved same-input memory-growth replay is positive on parent and introduction; this needs a partial-fix or differentiating-oracle policy.",
+        "evidence": [
+          {
+            "path": "human_evidence/curl/CVE-2026-11586/generation_status.json",
+            "sha256": "0e2c01238ee5f1a370be71c5e5b5b74271146190631af22dea4bddd348b1c8f4"
+          },
+          {
+            "path": "verification/projects/curl/cases/CVE-2026-11586/case.json",
+            "sha256": "e1766fe5b5b410e6128482f455b2c667384103c2e2031e6709f14fd2d498bcc8"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "parent_positive_partial_fix"
+      },
+      "buggy": {
+        "sha256": "e8fe690169826468f49c28ee3654d6a248debcdca21b28e8d81ef850fb766883"
+      },
+      "benign": {
+        "sha256": "48b0af58550d1a610ef544c5e9939b25adb8f31d0b2d6dce343ec333847ac14f"
+      }
+    },
+    {
+      "project": "ffmpeg",
+      "bug_id": "OSSFUZZ-422217206",
+      "source": "human_verified",
+      "season": "2025H2",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Introduced MSan uninitialized read in DXV encoding; information disclosure is possible but not established by the saved replay.",
+        "evidence": [
+          {
+            "path": "human_evidence/ffmpeg/OSSFUZZ-422217206/generation_status.json",
+            "sha256": "9d9fab54cc56938115999dd579f23bfa8b772119d5a2506e9af5713cc4dcf04a"
+          },
+          {
+            "path": "verification/projects/ffmpeg/cases/OSSFUZZ-422217206/case.json",
+            "sha256": "7a2fc30b28e4b88e93c65bbb1e27c03537a7f0ef8f9390b633aae7d687d9518c"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "security_impact_review"
+      },
+      "buggy": {
+        "sha256": "e80ee8544ef9d4c0af42a68cec0ec2cf9ecb38d9821c623386ea9a8d34573f89"
+      },
+      "benign": {
+        "sha256": "91fa1bef080d730595a3194069fd2cccaa7bc5b66da8ed272c0d0b245cacc491"
+      }
+    },
+    {
+      "project": "firefox",
+      "bug_id": "1992130",
+      "source": "human_verified",
+      "season": "2025H2",
+      "review": {
+        "reviewer": "benchmark_owner",
+        "attested_at": "2026-10-01",
+        "recorded_at": "2026-10-01T20:44:35.494062+00:00",
+        "method": "user_attestation",
+        "reason": "Benchmark owner identified these twelve cases as human verified in the 2026-10-01 conversation. This records the owner's assertion, not a new automated replay.",
+        "case_note": "Introduced ASan stack-buffer-overflow differs from the parent's unrelated OOM crash; requires a target-specific parent exception.",
+        "evidence": [
+          {
+            "path": "human_evidence/firefox/1992130/generation_status.json",
+            "sha256": "bd2430035bdc4f30af40d9ae6b2af6e61e67612593c7cc8ee54a49d89eb526a0"
+          },
+          {
+            "path": "verification/projects/firefox/cases/1992130/case.json",
+            "sha256": "2bd858f9a583128fa2cf94dd3b33a90099282f88e2e3c4ae42486d8205767282"
+          }
+        ],
+        "automated_disposition": "inconclusive",
+        "main_roster_exception": "unrelated_parent_failure"
+      },
+      "buggy": {
+        "sha256": "ab09d3fd236eaf6382cc5c7f3b0ad6e886fef0a92765bd08c8404b702a11ad50"
+      },
+      "benign": {
+        "sha256": "27cf3818529ccf3e2798a8e9f788f4112fb9be48816f346d30702e892fa9aee1"
+      }
+    }
+  ]
+}

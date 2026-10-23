@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-11704",
+  "bug_id": "GH-11704",
+  "bug_type": "LogicError",
+  "intro_commit": "a7e1150019bdeb4675ebe4c67cbb0f3469803a72",
+  "intro_parent": "046a51cac25e0a6679548a0cf5501da057b6a154",
+  "fix_commit": "136500ed555ea7665a50a9222c6bf1f29a6a3c13",
+  "affected_files": [
+    "crates/wasi-nn/src/wit.rs"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "wasmtime",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The refactor of the wasi-nn WIT bindings (commit a7e1150019) rewrote the compute() function to iterate `inputs.iter()` and fetch tensors via `self.table.get(&tensor_resource)` (a non-consuming borrow) rather than removing them from the table, despite the function taking ownership of the `Vec<NamedTensor>` (and thus the associated Resource handles) by value. This created a mismatch between resource ownership semantics (values fully consumed by the call) and the actual table cleanup performed (none), resulting in an unbounded resource-table growth / memory leak for every compute() invocation.",
+  "findings": [
+    "In the HostGraphExecutionContext::compute implementation, the incoming `inputs: Vec<NamedTensor>` contains `Resource<Tensor>` handles that were previously pushed into `self.table` by the guest (via a resource-creating call such as load-tensor). The compute() function iterates the inputs with `inputs.iter()` and calls `self.table.get(&tensor_resopurce)` to obtain a cloned reference to the underlyin"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "83abc71d89f110235e15e6d3e85ee1eaa96cffb66e9ebb06cd916f761661d2fc",
+  "generated_artifact_sha256": {
+    "reference": "2ec2d31bd4337170a612251e7dfb71b1cddbf19c20edd6e897ca30eb9ea61e8e",
+    "introducing": "1e9702fe98f06c68df2f6d67678ebf5a1535431508d8fadd7840e103d6ddfe88",
+    "companion": "30db1b5b3b8ef83d65cec0fb7434ed31ddf0febe5cd91d8a0db70d6080c9bfea"
+  }
+}

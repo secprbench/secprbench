@@ -1,0 +1,141 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "logic-error",
+  "poc_summary": "run.sh compiles /poc/poc.c (a small C program) against the target's built static libcurlu with matching ASan/UBSan flags and runs it. poc.c calls curl_url_set(CURLUPART_URL, \"http://1.2.3.0x/\") then curl_url_get(CURLUPART_HOST) and prints the resulting host string, exercising lib/urlapi.c's ipv4_normalize().",
+  "explanation": "Root cause confirmed by source inspection and dynamic reproduction via run_poc on all three versions. ipv4_normalize() in lib/urlapi.c parses dot-separated host components; when parsing the 4th component \"0x\" (hex prefix with no following hex digits), curlx_str_hex returns STRE_NO_NUM with the cursor already at end-of-string. Commit 831a1514843b (intro) added a lenient fallback `if(!n || (rc != STRE_NO_NUM) || *c) return HOST_NAME; n--;` intended only to swallow a genuine trailing dot after the last real IPv4 octet, but this same lenient path is also taken for the hex-prefix-with-no-digits case, since it produces the identical (rc==STRE_NO_NUM, *c=='\\\\0') signature. As a result a non-IPv4 hostname like \"1.2.3.0x\" is misclassified as IPv4 and silently renormalized to \"1.2.0.3\". The fix commit d74c0ada4e31 adds an immediate `if(rc) return HOST_NAME;` right after the curlx_str_hex call (confirmed present in post_benign source, absent in post_intro), rejecting the hex-prefix failure before it can reach the shared lenient-trailing-dot check. pre_intro lacks the lenient trailing-dot feature altogether (any rc failure returns HOST_NAME unconditionally), so \"1.2.3.0x\" is also correctly left untouched there, for a different reason, matching post_benign's externally observable behavior.",
+  "oracle": {
+    "kind": "behavioral",
+    "bug_marker": "OBSERVATION: host NORMALIZED to [1.2.0.3] (treated as IPv4, BUG)",
+    "pre_marker": "OBSERVATION: host unchanged (not treated as IPv4)",
+    "benign_marker": "OBSERVATION: host unchanged (not treated as IPv4)",
+    "description": "Same PoC source (rebuilt per-version against each version's static libcurlu, identical ASan/UBSan flags via run.sh) run via run_poc against the fixed host string \"http://1.2.3.0x/\". Observe the printed CURLUPART_HOST value after curl_url_set+curl_url_get.",
+    "target_evidence": "run_poc(pre_intro): exit=0, output includes \"get rc=0 host=[1.2.3.0x]\" then \"OBSERVATION: host unchanged (not treated as IPv4)\". run_poc(post_intro): exit=0, output includes \"get rc=0 host=[1.2.0.3]\" then \"OBSERVATION: host NORMALIZED to [1.2.0.3] (treated as IPv4, BUG)\". run_poc(post_benign): exit=0, output includes \"get rc=0 host=[1.2.3.0x]\" then \"OBSERVATION: host unchanged (not treated as IPv4)\". Invocation exercises lib/urlapi.c's ipv4_normalize() via the public CURLU API (curl_url_set/curl_url_get on CURLUPART_HOST). Source diff confirmed: post_intro's ipv4_normalize is missing the `if(rc) return HOST_NAME;` guard immediately after the curlx_str_hex() call that is present in post_benign, matching fix commit d74c0ada4e31's content."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "read_context(evidence/test_01_67301bd1ec8adf7e_lib1560.c)",
+    "build_version(pre_intro)->True",
+    "build_version(post_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_benign)",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "70b1606adfdbce4fd49f1a19d21a3bb43b7cc2113faa8177efc2e9c8ff74719a",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "aafbe089a88c42bf81ff8cf868f20263661ad3e4",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e7c5b357c6182ed8494ebe6519f8b55769e59df0e0bf0e0a1475f8a36fed267d"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "set rc=0\nget rc=0 host=[1.2.3.0x]\nOBSERVATION: host unchanged (not treated as IPv4)\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "70b1606adfdbce4fd49f1a19d21a3bb43b7cc2113faa8177efc2e9c8ff74719a",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "df1f43e05527a1cbd5eda07e1dddb9f71961ae38c2c494d9578eef67810d0378"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "set rc=0\nget rc=0 host=[1.2.0.3]\nOBSERVATION: host NORMALIZED to [1.2.0.3] (treated as IPv4, BUG)\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "70b1606adfdbce4fd49f1a19d21a3bb43b7cc2113faa8177efc2e9c8ff74719a",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "aafbe089a88c42bf81ff8cf868f20263661ad3e4",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9f30682634d66d7922bec235e6ee4dd95be647089c59778dda4f4c8d223c968e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "set rc=0\nget rc=0 host=[1.2.3.0x]\nOBSERVATION: host unchanged (not treated as IPv4)\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "behavioral",
+    "reason": "Exact bug and unaffected output lines matched the shared three-version Docker replay."
+  }
+}

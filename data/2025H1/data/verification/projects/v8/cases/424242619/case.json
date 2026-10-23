@@ -1,0 +1,27 @@
+{
+  "bug_id": "424242619",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "1af713dbe9344e057c55ee3a45d2f3045cf36f67",
+    "parent": "6ff5d39690b896606d9db5dceb5a7ba02faddc2a",
+    "fix": "34b8267de18e1b24c3af71f9496a461704ea3ca0"
+  },
+  "affected_files": [
+    "src/flags/flag-definitions.h",
+    "src/interpreter/bytecodes.h",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h",
+    "test/mjsunit/maglev/poly-calls-1.js",
+    "test/mjsunit/maglev/poly-calls-2.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All configured builds succeeded. Using the same /bin/bash /poc/run.sh command and /poc/poc.js input on every revision, pre_intro exited 0 with no warning/error, post_intro reproducibly exited 139 with SIGSEGV (SEGV_MAPERR at 0x10), and post_benign exited 0. Symbolization tied the post_intro fault to Maglev loop-state handling: MergePointInterpreterFrameState::MergeLoop at maglev-interpreter-frame-state.cc:838, called by MaglevGraphBuilder::VisitJumpLoop. The PoC is the exact regression program a",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

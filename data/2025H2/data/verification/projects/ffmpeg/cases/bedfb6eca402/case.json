@@ -1,0 +1,22 @@
+{
+  "bug_id": "bedfb6eca402",
+  "project": "ffmpeg",
+  "bug_type": "BufferOverflow",
+  "commits": {
+    "intro": "d55f83de4d419d22d2fd2c0b9ff4ce6bf93847d6",
+    "parent": "b32e989e6c65ec9ec206ad938a1decdf2e0da07b",
+    "fix": "bedfb6eca402037f5cbb115fa767d106b8c14f1c"
+  },
+  "affected_files": [
+    "libavcodec/aacenc_tns.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The default decode-only run did not exercise the affected encoder. Using the same encoder command on every version (`./ffmpeg -nostdin -hide_banner -loglevel error -y -i /poc/poc -c:a aac -aac_pred true -profile:a aac_low -f adts /tmp/output.aac`) produced the required differential: pre_intro exited 0 without a sanitizer crash; post_intro exited 134 and AddressSanitizer reported a stack-buffer-overflow READ of size 4 in ff_aac_search_for_tns at libavcodec/aacenc_tns.c:205, immediately past stack",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

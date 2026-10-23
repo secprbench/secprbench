@@ -1,0 +1,263 @@
+{
+  "task": {
+    "task_id": "pr_review_CVE-2026-1965",
+    "bug_id": "CVE-2026-1965",
+    "commit_sha": "34fa034d9a390c4bd65e2d05262755ec8646ac12",
+    "commit_message": "url: fix reuse of connections using HTTP Negotiate\n\nAssume Negotiate means connection-based\n\nReported-by: Zhicheng Chen\nCloses #20534",
+    "commit_author": "Daniel Stenberg",
+    "commit_date": "2026-02-05T08:34:21+01:00",
+    "pr_title": "url: fix reuse of connections using HTTP Negotiate",
+    "pr_description": "Assume Negotiate means connection-based\n\nReported-by: Zhicheng Chen\nCloses #20534\n",
+    "files": [
+      {
+        "path": "lib/url.c",
+        "status": "modified",
+        "additions": 82,
+        "deletions": 5,
+        "diff": "diff --git a/lib/url.c b/lib/url.c\nindex fac8cea732..cfe398de8b 100644\n--- a/lib/url.c\n+++ b/lib/url.c\n@@ -762,10 +762,12 @@ struct url_conn_match {\n   struct Curl_easy *data;\n   struct connectdata *needle;\n   BIT(may_multiplex);\n   BIT(want_ntlm_http);\n   BIT(want_proxy_ntlm_http);\n+  BIT(want_nego_http);\n+  BIT(want_proxy_nego_http);\n \n   BIT(wait_pipe);\n   BIT(force_reuse);\n   BIT(seen_pending_conn);\n   BIT(seen_single_use_conn);\n@@ -1183,10 +1185,67 @@ static bool url_match_auth_ntlm(struct connectdata *conn,\n }\n #else\n #define url_match_auth_ntlm(c, m) ((void)c, (void)m, TRUE)\n #endif\n \n+#ifdef USE_SPNEGO\n+static bool url_match_auth_nego(struct connectdata *conn,\n+                                struct url_conn_match *m)\n+{\n+  /* If we are looking for an HTTP+Negotiate connection, check if this is\n+     already authenticating with the right credentials. If not, keep looking\n+     so that we can reuse Negotiate connections if possible. */\n+  if(m->want_nego_http) {\n+    if(Curl_timestrcmp(m->needle->user, conn->user) ||\n+       Curl_timestrcmp(m->needle->passwd, conn->passwd))\n+      return FALSE;\n+  }\n+  else if(conn->http_negotiate_state != GSS_AUTHNONE) {\n+    /* Connection is using Negotiate auth but we do not want Negotiate */\n+    return FALSE;\n+  }\n+\n+#ifndef CURL_DISABLE_PROXY\n+  /* Same for Proxy Negotiate authentication */\n+  if(m->want_proxy_nego_http) {\n+    /* Both conn->http_proxy.user and conn->http_proxy.passwd can be\n+     * NULL */\n+    if(!conn->http_proxy.user || !conn->http_proxy.passwd)\n+      return FALSE;\n+\n+    if(Curl_timestrcmp(m->needle->http_proxy.user,\n+                       conn->http_proxy.user) ||\n+       Curl_timestrcmp(m->needle->http_proxy.passwd,\n+                       conn->http_proxy.passwd))\n+      return FALSE;\n+  }\n+  else if(conn->proxy_negotiate_state != GSS_AUTHNONE) {\n+    /* Proxy connection is using Negotiate auth but we do not want Negotiate */\n+    return FALSE;\n+  }\n+#endif\n+  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {\n+    /* Credentials are already checked, we may use this connection. We MUST\n+     * use a connection where it has already been fully negotiated. If it has\n+     * not, we keep on looking for a better one. */\n+    m->found = conn;\n+    if((m->want_nego_http &&\n+        (conn->http_negotiate_state != GSS_AUTHNONE)) ||\n+       (m->want_proxy_nego_http &&\n+        (conn->proxy_negotiate_state != GSS_AUTHNONE))) {\n+      /* We must use this connection, no other */\n+      m->force_reuse = TRUE;\n+      return TRUE;\n+    }\n+    return FALSE; /* get another */\n+  }\n+  return TRUE;\n+}\n+#else\n+#define url_match_auth_nego(c, m) ((void)c, (void)m, TRUE)\n+#endif\n+\n static bool url_match_conn(struct connectdata *conn, void *userdata)\n {\n   struct url_conn_match *m = userdata;\n   /* Check if `conn` can be used for transfer `m->data` */\n \n@@ -1226,10 +1285,15 @@ static bool url_match_conn(struct connectdata *conn, void *userdata)\n   if(!url_match_auth_ntlm(conn, m))\n     return FALSE;\n   else if(m->force_reuse)\n     return TRUE;\n \n+  if(!url_match_auth_nego(conn, m))\n+    return FALSE;\n+  else if(m->force_reuse)\n+    return TRUE;\n+\n   if(!url_match_multiplex_limits(conn, m))\n     return FALSE;\n \n   if(!CONN_INUSE(conn) && Curl_conn_seems_dead(conn, m->data)) {\n     /* remove and disconnect. */\n@@ -1288,17 +1352,30 @@ static bool url_attach_existing(struct Curl_easy *data,\n   match.data = data;\n   match.needle = needle;\n   match.may_multiplex = xfer_may_multiplex(data, needle);\n \n #ifdef USE_NTLM\n-  match.want_ntlm_http = ((data->state.authhost.want & CURLAUTH_NTLM) &&\n-                          (needle->scheme->protocol & PROTO_FAMILY_HTTP));\n+  match.want_ntlm_http =\n+    (data->state.authhost.want & CURLAUTH_NTLM) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n #ifndef CURL_DISABLE_PROXY\n   match.want_proxy_ntlm_http =\n-    (needle->bits.proxy_user_passwd &&\n-     (data->state.authproxy.want & CURLAUTH_NTLM) &&\n-     (needle->scheme->protocol & PROTO_FAMILY_HTTP));\n+    needle->bits.proxy_user_passwd &&\n+    (data->state.authproxy.want & CURLAUTH_NTLM) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n+#endif\n+#endif\n+\n+#if !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)\n+  match.want_nego_http =\n+    (data->state.authhost.want & CURLAUTH_NEGOTIATE) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n+#ifndef CURL_DISABLE_PROXY\n+  match.want_proxy_nego_http =\n+    needle->bits.proxy_user_passwd &&\n+    (data->state.authproxy.want & CURLAUTH_NEGOTIATE) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n #endif\n #endif\n \n   /* Find a connection in the pool that matches what \"data + needle\"\n    * requires. If a suitable candidate is found, it is attached to \"data\". */\n"
+      }
+    ],
+    "full_diff": "diff --git a/lib/url.c b/lib/url.c\nindex fac8cea732..cfe398de8b 100644\n--- a/lib/url.c\n+++ b/lib/url.c\n@@ -762,10 +762,12 @@ struct url_conn_match {\n   struct Curl_easy *data;\n   struct connectdata *needle;\n   BIT(may_multiplex);\n   BIT(want_ntlm_http);\n   BIT(want_proxy_ntlm_http);\n+  BIT(want_nego_http);\n+  BIT(want_proxy_nego_http);\n \n   BIT(wait_pipe);\n   BIT(force_reuse);\n   BIT(seen_pending_conn);\n   BIT(seen_single_use_conn);\n@@ -1183,10 +1185,67 @@ static bool url_match_auth_ntlm(struct connectdata *conn,\n }\n #else\n #define url_match_auth_ntlm(c, m) ((void)c, (void)m, TRUE)\n #endif\n \n+#ifdef USE_SPNEGO\n+static bool url_match_auth_nego(struct connectdata *conn,\n+                                struct url_conn_match *m)\n+{\n+  /* If we are looking for an HTTP+Negotiate connection, check if this is\n+     already authenticating with the right credentials. If not, keep looking\n+     so that we can reuse Negotiate connections if possible. */\n+  if(m->want_nego_http) {\n+    if(Curl_timestrcmp(m->needle->user, conn->user) ||\n+       Curl_timestrcmp(m->needle->passwd, conn->passwd))\n+      return FALSE;\n+  }\n+  else if(conn->http_negotiate_state != GSS_AUTHNONE) {\n+    /* Connection is using Negotiate auth but we do not want Negotiate */\n+    return FALSE;\n+  }\n+\n+#ifndef CURL_DISABLE_PROXY\n+  /* Same for Proxy Negotiate authentication */\n+  if(m->want_proxy_nego_http) {\n+    /* Both conn->http_proxy.user and conn->http_proxy.passwd can be\n+     * NULL */\n+    if(!conn->http_proxy.user || !conn->http_proxy.passwd)\n+      return FALSE;\n+\n+    if(Curl_timestrcmp(m->needle->http_proxy.user,\n+                       conn->http_proxy.user) ||\n+       Curl_timestrcmp(m->needle->http_proxy.passwd,\n+                       conn->http_proxy.passwd))\n+      return FALSE;\n+  }\n+  else if(conn->proxy_negotiate_state != GSS_AUTHNONE) {\n+    /* Proxy connection is using Negotiate auth but we do not want Negotiate */\n+    return FALSE;\n+  }\n+#endif\n+  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {\n+    /* Credentials are already checked, we may use this connection. We MUST\n+     * use a connection where it has already been fully negotiated. If it has\n+     * not, we keep on looking for a better one. */\n+    m->found = conn;\n+    if((m->want_nego_http &&\n+        (conn->http_negotiate_state != GSS_AUTHNONE)) ||\n+       (m->want_proxy_nego_http &&\n+        (conn->proxy_negotiate_state != GSS_AUTHNONE))) {\n+      /* We must use this connection, no other */\n+      m->force_reuse = TRUE;\n+      return TRUE;\n+    }\n+    return FALSE; /* get another */\n+  }\n+  return TRUE;\n+}\n+#else\n+#define url_match_auth_nego(c, m) ((void)c, (void)m, TRUE)\n+#endif\n+\n static bool url_match_conn(struct connectdata *conn, void *userdata)\n {\n   struct url_conn_match *m = userdata;\n   /* Check if `conn` can be used for transfer `m->data` */\n \n@@ -1226,10 +1285,15 @@ static bool url_match_conn(struct connectdata *conn, void *userdata)\n   if(!url_match_auth_ntlm(conn, m))\n     return FALSE;\n   else if(m->force_reuse)\n     return TRUE;\n \n+  if(!url_match_auth_nego(conn, m))\n+    return FALSE;\n+  else if(m->force_reuse)\n+    return TRUE;\n+\n   if(!url_match_multiplex_limits(conn, m))\n     return FALSE;\n \n   if(!CONN_INUSE(conn) && Curl_conn_seems_dead(conn, m->data)) {\n     /* remove and disconnect. */\n@@ -1288,17 +1352,30 @@ static bool url_attach_existing(struct Curl_easy *data,\n   match.data = data;\n   match.needle = needle;\n   match.may_multiplex = xfer_may_multiplex(data, needle);\n \n #ifdef USE_NTLM\n-  match.want_ntlm_http = ((data->state.authhost.want & CURLAUTH_NTLM) &&\n-                          (needle->scheme->protocol & PROTO_FAMILY_HTTP));\n+  match.want_ntlm_http =\n+    (data->state.authhost.want & CURLAUTH_NTLM) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n #ifndef CURL_DISABLE_PROXY\n   match.want_proxy_ntlm_http =\n-    (needle->bits.proxy_user_passwd &&\n-     (data->state.authproxy.want & CURLAUTH_NTLM) &&\n-     (needle->scheme->protocol & PROTO_FAMILY_HTTP));\n+    needle->bits.proxy_user_passwd &&\n+    (data->state.authproxy.want & CURLAUTH_NTLM) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n+#endif\n+#endif\n+\n+#if !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)\n+  match.want_nego_http =\n+    (data->state.authhost.want & CURLAUTH_NEGOTIATE) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n+#ifndef CURL_DISABLE_PROXY\n+  match.want_proxy_nego_http =\n+    needle->bits.proxy_user_passwd &&\n+    (data->state.authproxy.want & CURLAUTH_NEGOTIATE) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n #endif\n #endif\n \n   /* Find a connection in the pool that matches what \"data + needle\"\n    * requires. If a suitable candidate is found, it is attached to \"data\". */\n",
+    "ground_truth": {
+      "bug_id": "CVE-2026-1965",
+      "expected_finding": true,
+      "fix_commit": {
+        "sha": "f1a39f221d57354990e3eeeddc3404aede2aff70",
+        "short_sha": "f1a39f2",
+        "message": "url: fix copy and paste url_match_auth_nego mistake",
+        "author": "Daniel Stenberg",
+        "date": "2026-02-21"
+      },
+      "findings": [
+        {
+          "rule_id": "sec-logicerror-001",
+          "title": "Copy-paste error: NTLM flags checked in Negotiate connection-reuse function",
+          "message": "In `url_match_auth_nego()`, the condition `if(m->want_ntlm_http || m->want_proxy_ntlm_http)` was copied verbatim from `url_match_auth_ntlm()` but never updated for Negotiate. Because `want_ntlm_http` and `want_proxy_ntlm_http` are always FALSE when the request uses Negotiate auth, the entire block that: (1) records the connection candidate via `m->found = conn`, (2) checks whether the GSS/Kerberos negotiation is already complete, and (3) sets `m->force_reuse` or returns FALSE to keep searching for a better connection \u2014 is dead code for Negotiate. As a result the function falls through to `return TRUE` unconditionally for any Negotiate connection that passes the credential string comparison, bypassing the state-machine check that is essential because Negotiate authenticates *connections*, not individual requests. A subsequent HTTP request with different user credentials that targets the same server can therefore wrongfully reuse a connection that is already fully authenticated under a different user's Kerberos/SPNEGO context.",
+          "location": {
+            "file": "lib/url.c",
+            "start_line": 1226,
+            "end_line": 1240,
+            "start_column": null,
+            "end_column": null,
+            "function": "url_match_auth_nego",
+            "snippet": "  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {\n    /* Credentials are already checked, we may use this connection. We MUST\n     * use a connection where it has already been fully negotiated. If it has\n     * not, we keep on looking for a better one. */\n    m->found = conn;\n    if((m->want_nego_http &&\n        (conn->http_negotiate_state != GSS_AUTHNONE)) ||\n       (m->want_proxy_nego_http &&\n        (conn->proxy_negotiate_state != GSS_AUTHNONE))) {\n      /* We must use this connection, no other */\n      m->force_reuse = TRUE;\n      return TRUE;\n    }\n    return FALSE; /* get another */\n  }\n  return TRUE;",
+            "snippet_hash": null,
+            "description": null
+          },
+          "related_locations": [
+            {
+              "file": "lib/url.c",
+              "start_line": 1160,
+              "end_line": null,
+              "start_column": null,
+              "end_column": null,
+              "function": "url_match_auth_ntlm",
+              "snippet": null,
+              "snippet_hash": null,
+              "description": null
+            }
+          ],
+          "severity": "medium",
+          "bug_type": "LogicError",
+          "confidence": 0.98,
+          "suggestion": "Replace `m->want_ntlm_http || m->want_proxy_ntlm_http` with `m->want_nego_http || m->want_proxy_nego_http` so the guard condition matches the authentication method being checked by the surrounding function.",
+          "suggestion_code": "  if(m->want_nego_http || m->want_proxy_nego_http) {",
+          "corroboration": null,
+          "cited_bug_id": null,
+          "tags": [
+            "security",
+            "authentication",
+            "connection-reuse",
+            "http-negotiate",
+            "spnego"
+          ],
+          "cwe_ids": [
+            "CWE-305"
+          ],
+          "references": []
+        }
+      ],
+      "bug_type": "LogicError",
+      "affected_files": [
+        "lib/url.c"
+      ],
+      "root_cause": "When commit 34fa034 added `url_match_auth_nego` as a Negotiate-specific analogue of the existing `url_match_auth_ntlm`, the critical guard `if(m->want_ntlm_http || m->want_proxy_ntlm_http)` was copied from the NTLM function without changing the flag names to their Negotiate counterparts. Since these NTLM flags are never set during a Negotiate-only request, the block that records connection candidates and enforces fully-negotiated-connection selection (`m->found`, `m->force_reuse`, early return FALSE) was effectively unreachable, and the function always returned TRUE for Negotiate connections that passed the credential string comparison.",
+      "must_cover": [
+        {
+          "file": "lib/url.c",
+          "function": "url_match_auth_nego",
+          "start_line": 1226,
+          "end_line": 1240,
+          "role": "primary",
+          "reason": "Primary location of finding: Copy-paste error: NTLM flags checked in Negotiate connection-reuse function"
+        },
+        {
+          "file": "lib/url.c",
+          "function": "url_match_auth_ntlm",
+          "start_line": 1160,
+          "end_line": null,
+          "role": "related",
+          "reason": "Related location for: Copy-paste error: NTLM flags checked in Negotiate connection-reuse function"
+        }
+      ]
+    },
+    "task_type": "buggy",
+    "intro_commit_sha": "34fa034d9a390c4bd65e2d05262755ec8646ac12",
+    "fix_commit_sha": null
+  },
+  "findings": [
+    {
+      "rule_id": "sec-nego-deadcheck-002",
+      "title": "url_match_auth_nego() tests want_ntlm_http instead of want_nego_http, making the whole 'must use the already-negotiated connection' block dead code",
+      "message": "In the newly added url_match_auth_nego() the final block gates on the NTLM flags, not the Negotiate flags (copy/paste from url_match_auth_ntlm()):\n\n  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {      /* lib/url.c:1226 */\n    m->found = conn;\n    if((m->want_nego_http && conn->http_negotiate_state != GSS_AUTHNONE) ||\n       (m->want_proxy_nego_http && conn->proxy_negotiate_state != GSS_AUTHNONE)) {\n      m->force_reuse = TRUE;\n      return TRUE;\n    }\n    return FALSE; /* get another */\n  }\n  return TRUE;\n\nThis condition can never be true at this point: url_match_conn() only reaches url_match_auth_nego() when url_match_auth_ntlm() returned TRUE without force_reuse, and (with USE_NTLM) that only happens when both want_ntlm_http and want_proxy_ntlm_http are FALSE; without USE_NTLM those bits are never set at all (they are only assigned under #ifdef USE_NTLM in url_attach_existing(), lib/url.c:1356-1366). So in every build the block is unreachable and the function degenerates to 'return TRUE' for every Negotiate-wanting transfer whose credentials match.\n\nConsequences:\n1. m->force_reuse is never set for Negotiate, so the comment's requirement 'We MUST use a connection where it has already been fully negotiated' is not enforced. A transfer that wants Negotiate can be matched to a connection that is only partway through a SPNEGO handshake (http_negotiate_state == GSS_AUTHSENT / GSS_AUTHRECV) \u2014 url_match_auth_nego() returns TRUE, url_match_conn() falls through to url_match_multiplex_limits() and sets m->found = conn (line 1305). Injecting a second transfer's request into a connection that is mid-handshake is precisely the situation the analogous NTLM code deliberately avoids, and it lets one transfer's request be sent on a connection whose authentication state was established by another transfer's exchange.\n2. Conversely, an already fully-authenticated Negotiate connection is no longer forcibly preferred, so curl can silently open a fresh unauthenticated connection while an authenticated one exists, defeating the fix's intent.\n\nThe follow-up check 'else if(m->force_reuse) return TRUE;' at lib/url.c:1292 is therefore also dead code.",
+      "location": {
+        "file": "lib/url.c",
+        "start_line": 1226,
+        "end_line": 1241,
+        "start_column": null,
+        "end_column": null,
+        "function": "url_match_auth_nego",
+        "snippet": "  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {\n    /* Credentials are already checked, we may use this connection. We MUST\n     * use a connection where it has already been fully negotiated. If it has\n     * not, we keep on looking for a better one. */\n    m->found = conn;\n    if((m->want_nego_http &&\n        (conn->http_negotiate_state != GSS_AUTHNONE)) ||\n       (m->want_proxy_nego_http &&\n        (conn->proxy_negotiate_state != GSS_AUTHNONE))) {\n      m->force_reuse = TRUE;\n      return TRUE;\n    }\n    return FALSE; /* get another */\n  }",
+        "snippet_hash": null,
+        "description": null
+      },
+      "related_locations": [
+        {
+          "file": "lib/url.c",
+          "start_line": 1166,
+          "end_line": 1184,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        },
+        {
+          "file": "lib/url.c",
+          "start_line": 1285,
+          "end_line": 1293,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        },
+        {
+          "file": "lib/url.c",
+          "start_line": 1356,
+          "end_line": 1378,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        }
+      ],
+      "severity": "medium",
+      "bug_type": "LogicError",
+      "confidence": 0.85,
+      "suggestion": "Gate the block on the Negotiate flags:\n\n  if(m->want_nego_http || m->want_proxy_nego_http) {\n    ...\n  }",
+      "suggestion_code": "  if(m->want_nego_http || m->want_proxy_nego_http) {\n    /* Credentials are already checked, we may use this connection. We MUST\n     * use a connection where it has already been fully negotiated. If it has\n     * not, we keep on looking for a better one. */\n    m->found = conn;\n    if((m->want_nego_http &&\n        (conn->http_negotiate_state != GSS_AUTHNONE)) ||\n       (m->want_proxy_nego_http &&\n        (conn->proxy_negotiate_state != GSS_AUTHNONE))) {\n      /* We must use this connection, no other */\n      m->force_reuse = TRUE;\n      return TRUE;\n    }\n    return FALSE; /* get another */\n  }",
+      "corroboration": null,
+      "cited_bug_id": null,
+      "tags": [
+        "security",
+        "authentication",
+        "connection-reuse",
+        "spnego",
+        "dead-code"
+      ],
+      "cwe_ids": [
+        "CWE-670",
+        "CWE-287"
+      ],
+      "references": []
+    },
+    {
+      "rule_id": "sec-authbypass-nego-001",
+      "title": "New Negotiate connection-reuse check is bypassed when NTLM is also wanted (--anyauth), allowing reuse of a Negotiate-authenticated connection with different credentials",
+      "message": "url_match_conn() runs url_match_auth_ntlm() before the newly added url_match_auth_nego():\n\n  if(!url_match_auth_ntlm(conn, m))\n    return FALSE;          /* <-- returns before nego check ever runs */\n  else if(m->force_reuse)\n    return TRUE;           /* <-- also returns before nego check */\n\n  if(!url_match_auth_nego(conn, m))\n    ...\n\nurl_match_auth_ntlm() returns TRUE only when neither want_ntlm_http nor want_proxy_ntlm_http is set (or when it already set force_reuse). Consequently, whenever the transfer wants NTLM (e.g. CURLOPT_HTTPAUTH = CURLAUTH_ANY / --anyauth, which includes both CURLAUTH_NTLM and CURLAUTH_NEGOTIATE, or an explicit NTLM|NEGOTIATE mask), url_match_auth_nego() is never executed and the new Negotiate credential/state binding is not applied at all.\n\nThat by itself would only mean 'no new protection', but the NTLM helper also records a fallback candidate and returns FALSE:\n\n  if(m->want_ntlm_http) {\n    if(Curl_timestrcmp(m->needle->user, conn->user) ||\n       Curl_timestrcmp(m->needle->passwd, conn->passwd)) {\n      if(conn->http_ntlm_state == NTLMSTATE_NONE)\n        m->found = conn;      /* lib/url.c:1137-1138 */\n      return FALSE;\n    }\n  }\n\nCurl_cpool_find() (lib/conncache.c:598-636) always invokes the done callback url_match_result(), which attaches match->found even though every url_match_conn() call returned FALSE.\n\nConcrete path:\n1. Transfer A: `curl --anyauth -u alice:pw1 https://host/` completes SPNEGO/Negotiate on connection C. C now has conn->user=\"alice\", conn->http_negotiate_state == GSS_AUTHSUCC and conn->http_ntlm_state == NTLMSTATE_NONE (NTLM was never used).\n2. Transfer B: `curl --anyauth -u bob:pw2 https://host/` on the same handle/share. want_ntlm_http is TRUE, so url_match_auth_ntlm() is entered, the credentials differ, http_ntlm_state == NTLMSTATE_NONE, so m->found = C and it returns FALSE. url_match_conn() returns FALSE at lib/url.c:1286 and url_match_auth_nego() (which would have rejected C because m->needle->user != conn->user) is never reached.\n3. url_match_result() attaches C to transfer B.\n\nResult: Bob's request is sent over a connection the server considers authenticated as Alice (Negotiate is connection-bound), i.e. the exact credential-confusion/authentication-bypass this PR claims to fix remains reachable in the most common configuration that actually enables Negotiate (--anyauth). Note HTTP has PROTOPT_CREDSPERREQUEST, so the generic credential comparison in url_match_auth() (lib/url.c:1046) does not apply and cannot catch this.",
+      "location": {
+        "file": "lib/url.c",
+        "start_line": 1285,
+        "end_line": 1293,
+        "start_column": null,
+        "end_column": null,
+        "function": "url_match_conn",
+        "snippet": "  if(!url_match_auth_ntlm(conn, m))\n    return FALSE;\n  else if(m->force_reuse)\n    return TRUE;\n\n  if(!url_match_auth_nego(conn, m))\n    return FALSE;\n  else if(m->force_reuse)\n    return TRUE;",
+        "snippet_hash": null,
+        "description": null
+      },
+      "related_locations": [
+        {
+          "file": "lib/url.c",
+          "start_line": 1131,
+          "end_line": 1140,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        },
+        {
+          "file": "lib/url.c",
+          "start_line": 1190,
+          "end_line": 1206,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        },
+        {
+          "file": "lib/url.c",
+          "start_line": 1309,
+          "end_line": 1332,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        },
+        {
+          "file": "lib/conncache.c",
+          "start_line": 617,
+          "end_line": 633,
+          "start_column": null,
+          "end_column": null,
+          "function": null,
+          "snippet": null,
+          "snippet_hash": null,
+          "description": null
+        }
+      ],
+      "severity": "high",
+      "bug_type": "LogicError",
+      "confidence": 0.75,
+      "suggestion": "Evaluate the Negotiate match unconditionally before any code path that can set m->found or return early for NTLM, or make url_match_auth_ntlm() not set m->found until the Negotiate constraints have also been validated. E.g. run url_match_auth_nego() first (it must be able to veto), and only then run the NTLM matcher:\n\n  if(!url_match_auth_nego(conn, m))\n    return FALSE;\n  else if(m->force_reuse)\n    return TRUE;\n  if(!url_match_auth_ntlm(conn, m))\n    return FALSE;\n  else if(m->force_reuse)\n    return TRUE;\n\nand additionally clear m->found in the nego rejection paths so an NTLM fallback candidate cannot resurrect a Negotiate-bound connection.",
+      "suggestion_code": null,
+      "corroboration": null,
+      "cited_bug_id": null,
+      "tags": [
+        "security",
+        "authentication",
+        "connection-reuse",
+        "spnego"
+      ],
+      "cwe_ids": [
+        "CWE-287",
+        "CWE-863",
+        "CWE-1385"
+      ],
+      "references": []
+    }
+  ],
+  "prompt": "# Criteria-First PR Security Review Evaluation\n\n## Task\n\nEvaluate whether the scanner found the exact ground-truth vulnerability in the evaluated PR snapshot.\n\nFirst derive a compact rubric from the ground truth. Then judge the scanner output against that rubric. Use the same standard for buggy and benign tasks: `detected=true` only when the exact GT vulnerable causal chain is still supported by the evaluated PR/code evidence and by at least one scanner finding.\n\n## Evaluated PR\n\nBug ID: CVE-2026-1965\nTask type: buggy\nTask note: (none)\nPR title: url: fix reuse of connections using HTTP Negotiate\nCommit: 34fa034d9a390c4bd65e2d05262755ec8646ac12\n\n## Ground Truth\n\nBug type: LogicError\nRoot cause: When commit 34fa034 added `url_match_auth_nego` as a Negotiate-specific analogue of the existing `url_match_auth_ntlm`, the critical guard `if(m->want_ntlm_http || m->want_proxy_ntlm_http)` was copied from the NTLM function without changing the flag names to their Negotiate counterparts. Since these NTLM flags are never set during a Negotiate-only request, the block that records connection candidates and enforces fully-negotiated-connection selection (`m->found`, `m->force_reuse`, early return FALSE) was effectively unreachable, and the function always returned TRUE for Negotiate connections that passed the credential string comparison.\nAffected files: lib/url.c\n\nExpected GT findings:\n1. LogicError: Copy-paste error: NTLM flags checked in Negotiate connection-reuse function\n   Location: lib/url.c:1226 url_match_auth_nego\n   Summary: In `url_match_auth_nego()`, the condition `if(m->want_ntlm_http || m->want_proxy_ntlm_http)` was copied verbatim from `url_match_auth_ntlm()` but never updated for Negotiate. Because `want_ntlm_http` and `want_proxy_ntlm_http` are always FALSE when the request uses Negotiate auth, the entire block that: (1) records the connection candidate via `m->found = conn`, (2) checks whether the GSS/Kerberos negotiation is already complete, and (3) sets `m->force_reuse` or returns FALSE to keep searching for a better connection \u2014 is dead code for Negotiate. As a result the function falls through to `return TRUE` unconditionally for any Negotiate connection that passes the credential string comparison, bypassing the state-machine check that is essential because Negotiate authenticates *connections*, not individual requests. A subsequent HTTP request with different user credentials that targets the same server can therefore wrongfully reuse a connection that is already fully authenticated under a different user's Kerberos/SPNEGO context.\n\nMust-cover roles:\n- lib/url.c url_match_auth_nego lines 1226-1240: Primary location of finding: Copy-paste error: NTLM flags checked in Negotiate connection-reuse function\n- lib/url.c url_match_auth_ntlm lines 1160-None: Related location for: Copy-paste error: NTLM flags checked in Negotiate connection-reuse function\n\n## Relevant Evaluated PR Diff\n\ndiff --git a/lib/url.c b/lib/url.c\nindex fac8cea732..cfe398de8b 100644\n--- a/lib/url.c\n+++ b/lib/url.c\n@@ -762,10 +762,12 @@ struct url_conn_match {\n   struct Curl_easy *data;\n   struct connectdata *needle;\n   BIT(may_multiplex);\n   BIT(want_ntlm_http);\n   BIT(want_proxy_ntlm_http);\n+  BIT(want_nego_http);\n+  BIT(want_proxy_nego_http);\n \n   BIT(wait_pipe);\n   BIT(force_reuse);\n   BIT(seen_pending_conn);\n   BIT(seen_single_use_conn);\n@@ -1183,10 +1185,67 @@ static bool url_match_auth_ntlm(struct connectdata *conn,\n }\n #else\n #define url_match_auth_ntlm(c, m) ((void)c, (void)m, TRUE)\n #endif\n \n+#ifdef USE_SPNEGO\n+static bool url_match_auth_nego(struct connectdata *conn,\n+                                struct url_conn_match *m)\n+{\n+  /* If we are looking for an HTTP+Negotiate connection, check if this is\n+     already authenticating with the right credentials. If not, keep looking\n+     so that we can reuse Negotiate connections if possible. */\n+  if(m->want_nego_http) {\n+    if(Curl_timestrcmp(m->needle->user, conn->user) ||\n+       Curl_timestrcmp(m->needle->passwd, conn->passwd))\n+      return FALSE;\n+  }\n+  else if(conn->http_negotiate_state != GSS_AUTHNONE) {\n+    /* Connection is using Negotiate auth but we do not want Negotiate */\n+    return FALSE;\n+  }\n+\n+#ifndef CURL_DISABLE_PROXY\n+  /* Same for Proxy Negotiate authentication */\n+  if(m->want_proxy_nego_http) {\n+    /* Both conn->http_proxy.user and conn->http_proxy.passwd can be\n+     * NULL */\n+    if(!conn->http_proxy.user || !conn->http_proxy.passwd)\n+      return FALSE;\n+\n+    if(Curl_timestrcmp(m->needle->http_proxy.user,\n+                       conn->http_proxy.user) ||\n+       Curl_timestrcmp(m->needle->http_proxy.passwd,\n+                       conn->http_proxy.passwd))\n+      return FALSE;\n+  }\n+  else if(conn->proxy_negotiate_state != GSS_AUTHNONE) {\n+    /* Proxy connection is using Negotiate auth but we do not want Negotiate */\n+    return FALSE;\n+  }\n+#endif\n+  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {\n+    /* Credentials are already checked, we may use this connection. We MUST\n+     * use a connection where it has already been fully negotiated. If it has\n+     * not, we keep on looking for a better one. */\n+    m->found = conn;\n+    if((m->want_nego_http &&\n+        (conn->http_negotiate_state != GSS_AUTHNONE)) ||\n+       (m->want_proxy_nego_http &&\n+        (conn->proxy_negotiate_state != GSS_AUTHNONE))) {\n+      /* We must use this connection, no other */\n+      m->force_reuse = TRUE;\n+      return TRUE;\n+    }\n+    return FALSE; /* get another */\n+  }\n+  return TRUE;\n+}\n+#else\n+#define url_match_auth_nego(c, m) ((void)c, (void)m, TRUE)\n+#endif\n+\n static bool url_match_conn(struct connectdata *conn, void *userdata)\n {\n   struct url_conn_match *m = userdata;\n   /* Check if `conn` can be used for transfer `m->data` */\n \n@@ -1226,10 +1285,15 @@ static bool url_match_conn(struct connectdata *conn, void *userdata)\n   if(!url_match_auth_ntlm(conn, m))\n     return FALSE;\n   else if(m->force_reuse)\n     return TRUE;\n \n+  if(!url_match_auth_nego(conn, m))\n+    return FALSE;\n+  else if(m->force_reuse)\n+    return TRUE;\n+\n   if(!url_match_multiplex_limits(conn, m))\n     return FALSE;\n \n   if(!CONN_INUSE(conn) && Curl_conn_seems_dead(conn, m->data)) {\n     /* remove and disconnect. */\n@@ -1288,17 +1352,30 @@ static bool url_attach_existing(struct Curl_easy *data,\n   match.data = data;\n   match.needle = needle;\n   match.may_multiplex = xfer_may_multiplex(data, needle);\n \n #ifdef USE_NTLM\n-  match.want_ntlm_http = ((data->state.authhost.want & CURLAUTH_NTLM) &&\n-                          (needle->scheme->protocol & PROTO_FAMILY_HTTP));\n+  match.want_ntlm_http =\n+    (data->state.authhost.want & CURLAUTH_NTLM) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n #ifndef CURL_DISABLE_PROXY\n   match.want_proxy_ntlm_http =\n-    (needle->bits.proxy_user_passwd &&\n-     (data->state.authproxy.want & CURLAUTH_NTLM) &&\n-     (needle->scheme->protocol & PROTO_FAMILY_HTTP));\n+    needle->bits.proxy_user_passwd &&\n+    (data->state.authproxy.want & CURLAUTH_NTLM) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n+#endif\n+#endif\n+\n+#if !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)\n+  match.want_nego_http =\n+    (data->state.authhost.want & CURLAUTH_NEGOTIATE) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n+#ifndef CURL_DISABLE_PROXY\n+  match.want_proxy_nego_http =\n+    needle->bits.proxy_user_passwd &&\n+    (data->state.authproxy.want & CURLAUTH_NEGOTIATE) &&\n+    (needle->scheme->protocol & PROTO_FAMILY_HTTP);\n #endif\n #endif\n \n   /* Find a connection in the pool that matches what \"data + needle\"\n    * requires. If a suitable candidate is found, it is attached to \"data\". */\n\n\n## Scanner Output\n\nFound 2 potential issue(s):\n1. Bug type: LogicError\n   Title: url_match_auth_nego() tests want_ntlm_http instead of want_nego_http, making the whole 'must use the already-negotiated connection' block dead code\n   File: lib/url.c:1226 Function: url_match_auth_nego\n   Message: In the newly added url_match_auth_nego() the final block gates on the NTLM flags, not the Negotiate flags (copy/paste from url_match_auth_ntlm()):\n\n  if(m->want_ntlm_http || m->want_proxy_ntlm_http) {      /* lib/url.c:1226 */\n    m->found = conn;\n    if((m->want_nego_http && conn->http_negotiate_state != GSS_AUTHNONE) ||\n       (m->want_proxy_nego_http && conn->proxy_negotiate_state != GSS_AUTHNONE)) {\n      m->force_reuse = TRUE;\n      return TRUE;\n    }\n    return FALSE; /* get another */\n  }\n  return TRUE;\n\nThis condition can never be true at this point: url_match_conn() only reaches url_match_auth_nego() when url_match_auth_ntlm() returned TRUE without force_reuse, and (with USE_NTLM) that only happens when both want_ntlm_http and want_proxy_ntlm_http are FALSE; without USE_NTLM those bits are never set at all (they are only assigned under #ifdef USE_NTLM in url_attach_existing(), lib/url.c:1356-1366). So in every build the block is unreachable and the function degenerates to 'return TRUE' for every Negotiate-wanting transfer whose credentials match.\n\nConsequences:\n1. m->force_reuse is never set for Negotiate, so the comment's requirement 'We MUST use a connection where it has already been fully negotiated' is not enforced. A transfer that wants Negotiate can be matched to a connection that is only partway through a SPNEGO handshake (http_negotiate_state == GSS_AUTHSENT / GSS_AUTHRECV) \u2014 url_match_auth_nego() returns TRUE, url_match_conn() falls through to url_match_multiplex_limits() and sets m->found = conn (line 1305). Injecting a second transfer's request into a connection that is mid-handshake is precisely the situation the analogous NTLM code deliberately avoids, and it lets one transfer's request be sent on a connection whose authentication state was established by another transfer's exchange.\n2. Conversely, an already fully-authenticated Negotiate connection is no longer forcibly preferred, so curl can silently open a fresh unauthenticated connection while an authenticated one exists, defeating the fix's intent.\n\nThe follow-up check 'else if(m->force_reuse) return TRUE;' at lib/url.c:1292 is therefore also dead code.\n2. Bug type: LogicError\n   Title: New Negotiate connection-reuse check is bypassed when NTLM is also wanted (--anyauth), allowing reuse of a Negotiate-authenticated connection with different credentials\n   File: lib/url.c:1285 Function: url_match_conn\n   Message: url_match_conn() runs url_match_auth_ntlm() before the newly added url_match_auth_nego():\n\n  if(!url_match_auth_ntlm(conn, m))\n    return FALSE;          /* <-- returns before nego check ever runs */\n  else if(m->force_reuse)\n    return TRUE;           /* <-- also returns before nego check */\n\n  if(!url_match_auth_nego(conn, m))\n    ...\n\nurl_match_auth_ntlm() returns TRUE only when neither want_ntlm_http nor want_proxy_ntlm_http is set (or when it already set force_reuse). Consequently, whenever the transfer wants NTLM (e.g. CURLOPT_HTTPAUTH = CURLAUTH_ANY / --anyauth, which includes both CURLAUTH_NTLM and CURLAUTH_NEGOTIATE, or an explicit NTLM|NEGOTIATE mask), url_match_auth_nego() is never executed and the new Negotiate credential/state binding is not applied at all.\n\nThat by itself would only mean 'no new protection', but the NTLM helper also records a fallback candidate and returns FALSE:\n\n  if(m->want_ntlm_http) {\n    if(Curl_timestrcmp(m->needle->user, conn->user) ||\n       Curl_timestrcmp(m->needle->passwd, conn->passwd)) {\n      if(conn->http_ntlm_state == NTLMSTATE_NONE)\n        m->found = conn;      /* lib/url.c:1137-1138 */\n      return FALSE;\n    }\n  }\n\nCurl_cpool_find() (lib/conncache.c:598-636) always invokes the done callback url_match_result(), which attaches match->found even though every url_match_conn() call returned FALSE.\n\nConcrete path:\n1. Transfer A: `curl --anyauth -u alice:pw1 https://host/` completes SPNEGO/Negotiate on connection C. C now has conn->user=\"alice\", conn->http_negotiate_state == GSS_AUTHSUCC and conn->http_ntlm_state == NTLMSTATE_NONE (NTLM was never used).\n2. Transfer B: `curl --anyauth -u bob:pw2 https://host/` on the same handle/share. want_ntlm_http is TRUE, so url_match_auth_ntlm() is entered, the credentials differ, http_ntlm_state == NTLMSTATE_NONE, so m->found = C and it returns FALSE. url_match_conn() returns FALSE at lib/url.c:1286 and url_match_auth_nego() (which would have rejected C because m->needle->user != conn->user) is never reached.\n3. url_match_result() attaches C to transfer B.\n\nResult: Bob's request is sent over a connection the server considers authenticated as Alice (Negotiate is connection-bound), i.e. the exact credential-confusion/authentication-bypass this PR claims to fix remains reachable in the most common configuration that actually enables Negotiate (--anyauth). Note HTTP has PROTOPT_CREDSPERREQUEST, so the generic credential comparison in url_match_auth() (lib/url.c:1046) does not apply and cannot catch this.\n\n## Required Evaluation Method\n\n1. Derive 3-6 necessary criteria that define the exact GT root cause. Criteria must be general enough to evaluate any project, but specific enough to reject adjacent bugs in the same file.\n2. Check the scanner output and evaluated PR evidence against those criteria.\n3. Do not output per-finding results. Consider all findings internally and give one overall verdict.\n\n`detected=true` requires all of these:\n- At least one scanner finding identifies the same source/trigger, same vulnerable operation or sink, and same missing/incorrect guard, lifetime rule, bounds rule, state transition, or trust boundary.\n- The vulnerable causal chain is supported in the evaluated PR/code evidence, not only in historical GT text.\n- No PR-added fix, mitigation, ownership transfer, guard, bounds check, idempotency check, synchronization, validation, or invariant breaks the GT causal chain.\n- The finding does not describe the GT as fixed, mitigated, only historical, hypothetical future risk, or not demonstrated.\n\nNear matches must be `detected=false`: same file, same function, same bug class, same sink with a different trigger, same trigger with a different sink, a weaker/adjacent bug, a future-maintenance concern, or a description of what the PR fixed.\n\n## Output Format\n\nRespond with ONLY one compact JSON object:\n\n{\n  \"bug_id\": \"CVE-2026-1965\",\n  \"detected\": true,\n  \"confidence\": \"HIGH\",\n  \"match_score\": 0,\n  \"criteria\": [\"3-6 short necessary GT criteria, no per-finding verdicts\"],\n  \"all_criteria_met\": true,\n  \"current_code_support\": \"present|fixed|unknown\",\n  \"fix_or_mitigation_present\": false,\n  \"finding_contradicts_active_vulnerability\": false,\n  \"reasoning\": \"Overall verdict in <=80 words.\",\n  \"findings_summary\": \"Scanner result summary in <=40 words.\",\n  \"ground_truth_summary\": \"GT summary in <=40 words.\"\n}\n\nUse valid JSON booleans and numbers. Keep the whole response under 900 words.",
+  "response": "```json\n{\n  \"bug_id\": \"CVE-2026-1965\",\n  \"detected\": true,\n  \"confidence\": \"HIGH\",\n  \"match_score\": 97,\n  \"criteria\": [\n    \"Bug is in url_match_auth_nego() in lib/url.c, newly introduced by this commit\",\n    \"Guard condition uses NTLM flags (want_ntlm_http || want_proxy_ntlm_http) instead of Negotiate flags (want_nego_http || want_proxy_nego_http)\",\n    \"NTLM flags are always FALSE during Negotiate-only requests, making the critical block (m->found, m->force_reuse, return FALSE) dead code\",\n    \"Function falls through unconditionally to return TRUE for any Negotiate connection passing credential comparison\",\n    \"GSS/SPNEGO handshake state is not enforced before reuse, enabling wrong-user or mid-handshake connection reuse\"\n  ],\n  \"all_criteria_met\": true,\n  \"current_code_support\": \"present\",\n  \"fix_or_mitigation_present\": false,\n  \"finding_contradicts_active_vulnerability\": false,\n  \"reasoning\": \"Scanner finding 1 precisely identifies the copied NTLM flag guard in url_match_auth_nego() at lib/url.c:1226, explains why the block is unreachable during Negotiate-only flows, and traces the consequence to unconditional return TRUE \u2014 matching the GT causal chain exactly. The buggy line is visible in the PR diff as newly added code.\",\n  \"findings_summary\": \"Finding 1 exactly matches GT: NTLM flags guard in url_match_auth_nego() makes state-enforcement block dead code. Finding 2 identifies a separate --anyauth bypass path.\",\n  \"ground_truth_summary\": \"Copy-paste error: url_match_auth_nego() checks NTLM flags, making the Negotiate connection-state enforcement block unreachable, so the function always returns TRUE.\"\n}\n```"
+}

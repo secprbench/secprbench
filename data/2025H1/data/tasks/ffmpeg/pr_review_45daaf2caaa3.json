@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_45daaf2caaa3",
+  "bug_id": "45daaf2caaa3",
+  "commit_sha": "6e225123d8583fdce55037b85eaef5453f201959",
+  "commit_message": "avcodec/mpeg12enc: Simplify writing bits\n\nSigned-off-by: Andreas Rheinhardt <andreas.rheinhardt@outlook.com>",
+  "commit_author": "Andreas Rheinhardt",
+  "commit_date": "2025-03-03T18:42:13+01:00",
+  "pr_title": "avcodec/mpeg12enc: Simplify writing bits",
+  "pr_description": "Signed-off-by: Andreas Rheinhardt <andreas.rheinhardt@outlook.com>\n",
+  "files": [
+    {
+      "path": "libavcodec/mpeg12enc.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 12,
+      "diff": "diff --git a/libavcodec/mpeg12enc.c b/libavcodec/mpeg12enc.c\nindex 3f23045afc..ca51430fce 100644\n--- a/libavcodec/mpeg12enc.c\n+++ b/libavcodec/mpeg12enc.c\n@@ -592,14 +592,12 @@ void ff_mpeg1_encode_picture_header(MpegEncContext *s)\n             break;\n         }\n \n         if (fpa_type != 0) {\n             put_header(s, USER_START_CODE);\n-            put_bits(&s->pb, 8, 'J');   // S3D_video_format_signaling_identifier\n-            put_bits(&s->pb, 8, 'P');\n-            put_bits(&s->pb, 8, '3');\n-            put_bits(&s->pb, 8, 'D');\n+            // S3D_video_format_signaling_identifier\n+            put_bits32(&s->pb, MKBETAG('J','P','3','D'));\n             put_bits(&s->pb, 8, 0x03);  // S3D_video_format_length\n \n             put_bits(&s->pb, 1, 1);     // reserved_bit\n             put_bits(&s->pb, 7, fpa_type); // S3D_video_format_type\n             put_bits(&s->pb, 8, 0x04);  // reserved_data[0]\n@@ -610,25 +608,19 @@ void ff_mpeg1_encode_picture_header(MpegEncContext *s)\n     if (CONFIG_MPEG2VIDEO_ENCODER && mpeg12->a53_cc) {\n         side_data = av_frame_get_side_data(s->cur_pic.ptr->f,\n             AV_FRAME_DATA_A53_CC);\n         if (side_data) {\n             if (side_data->size <= A53_MAX_CC_COUNT * 3 && side_data->size % 3 == 0) {\n-                int i = 0;\n-\n                 put_header (s, USER_START_CODE);\n \n-                put_bits(&s->pb, 8, 'G');                   // user_identifier\n-                put_bits(&s->pb, 8, 'A');\n-                put_bits(&s->pb, 8, '9');\n-                put_bits(&s->pb, 8, '4');\n+                put_bits32(&s->pb, MKBETAG('G','A','9','4')); // user_identifier\n                 put_bits(&s->pb, 8, 3);                     // user_data_type_code\n                 put_bits(&s->pb, 8,\n                     (side_data->size / 3 & A53_MAX_CC_COUNT) | 0x40); // flags, cc_count\n                 put_bits(&s->pb, 8, 0xff);                  // em_data\n \n-                for (i = 0; i < side_data->size; i++)\n-                    put_bits(&s->pb, 8, side_data->data[i]);\n+                ff_copy_bits(&s->pb, side_data->data, side_data->size);\n \n                 put_bits(&s->pb, 8, 0xff);                  // marker_bits\n             } else {\n                 av_log(s->avctx, AV_LOG_WARNING,\n                     \"Closed Caption size (%\"SIZE_SPECIFIER\") can not exceed \"\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/mpeg12enc.c b/libavcodec/mpeg12enc.c\nindex 3f23045afc..ca51430fce 100644\n--- a/libavcodec/mpeg12enc.c\n+++ b/libavcodec/mpeg12enc.c\n@@ -592,14 +592,12 @@ void ff_mpeg1_encode_picture_header(MpegEncContext *s)\n             break;\n         }\n \n         if (fpa_type != 0) {\n             put_header(s, USER_START_CODE);\n-            put_bits(&s->pb, 8, 'J');   // S3D_video_format_signaling_identifier\n-            put_bits(&s->pb, 8, 'P');\n-            put_bits(&s->pb, 8, '3');\n-            put_bits(&s->pb, 8, 'D');\n+            // S3D_video_format_signaling_identifier\n+            put_bits32(&s->pb, MKBETAG('J','P','3','D'));\n             put_bits(&s->pb, 8, 0x03);  // S3D_video_format_length\n \n             put_bits(&s->pb, 1, 1);     // reserved_bit\n             put_bits(&s->pb, 7, fpa_type); // S3D_video_format_type\n             put_bits(&s->pb, 8, 0x04);  // reserved_data[0]\n@@ -610,25 +608,19 @@ void ff_mpeg1_encode_picture_header(MpegEncContext *s)\n     if (CONFIG_MPEG2VIDEO_ENCODER && mpeg12->a53_cc) {\n         side_data = av_frame_get_side_data(s->cur_pic.ptr->f,\n             AV_FRAME_DATA_A53_CC);\n         if (side_data) {\n             if (side_data->size <= A53_MAX_CC_COUNT * 3 && side_data->size % 3 == 0) {\n-                int i = 0;\n-\n                 put_header (s, USER_START_CODE);\n \n-                put_bits(&s->pb, 8, 'G');                   // user_identifier\n-                put_bits(&s->pb, 8, 'A');\n-                put_bits(&s->pb, 8, '9');\n-                put_bits(&s->pb, 8, '4');\n+                put_bits32(&s->pb, MKBETAG('G','A','9','4')); // user_identifier\n                 put_bits(&s->pb, 8, 3);                     // user_data_type_code\n                 put_bits(&s->pb, 8,\n                     (side_data->size / 3 & A53_MAX_CC_COUNT) | 0x40); // flags, cc_count\n                 put_bits(&s->pb, 8, 0xff);                  // em_data\n \n-                for (i = 0; i < side_data->size; i++)\n-                    put_bits(&s->pb, 8, side_data->data[i]);\n+                ff_copy_bits(&s->pb, side_data->data, side_data->size);\n \n                 put_bits(&s->pb, 8, 0xff);                  // marker_bits\n             } else {\n                 av_log(s->avctx, AV_LOG_WARNING,\n                     \"Closed Caption size (%\"SIZE_SPECIFIER\") can not exceed \"\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "6e225123d8583fdce55037b85eaef5453f201959",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "45daaf2caaa3",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "ff_copy_bits called with byte count instead of bit count, corrupting closed captions output",
+        "message": "The refactoring in commit 6e225123d replaced a byte-by-byte `put_bits` loop with a single `ff_copy_bits()` call. However, `ff_copy_bits()` expects its third argument `length` to be the number of **bits** to copy (as documented in put_bits.h: '@param length the number of bits of src to copy'). The code passes `side_data->size`, which is a byte count. This means only `side_data->size` bits (i.e., 1/8th of the intended data) are actually written from the closed captions side data, and the remaining bits in the output are uninitialized/garbage from the bitstream buffer. This causes closed captions data to be garbled/corrupted in the encoded MPEG-2 output. Simply using `side_data->size * 8` would also not work because `ff_copy_bits()` relies on the source buffer being padded (AV_INPUT_BUFFER_PADDING_SIZE), which side_data->data may not satisfy, leading to potential out-of-bounds reads.",
+        "bug_type": "LogicError",
+        "severity": "medium",
+        "cwe_ids": [
+          "CWE-131"
+        ],
+        "location": {
+          "file": "libavcodec/mpeg12enc.c",
+          "function": "ff_mpeg1_encode_picture_header",
+          "start_line": 621,
+          "end_line": 621,
+          "snippet": "                ff_copy_bits(&s->pb, side_data->data, side_data->size);"
+        },
+        "related_locations": [
+          {
+            "file": "libavcodec/put_bits.h",
+            "start_line": 194,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "ff_copy_bits",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "suggestion": "Revert the ff_copy_bits call back to the original byte-by-byte loop using put_bits, since ff_copy_bits expects bit count not byte count, and the side_data buffer may not have the required padding for ff_copy_bits to safely read side_data->size * 8 bits.",
+        "rule_id": "sec-logic-001"
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "libavcodec/mpeg12enc.c"
+    ],
+    "root_cause": "Unit mismatch: ff_copy_bits() expects a bit count for its length parameter, but was passed a byte count (side_data->size). This is a classic unit confusion error introduced during a simplification refactoring.",
+    "must_cover": [
+      {
+        "file": "libavcodec/mpeg12enc.c",
+        "function": "ff_mpeg1_encode_picture_header",
+        "reason": "Primary location of finding: ff_copy_bits called with byte count instead of bit count, corrupting closed captions output"
+      },
+      {
+        "file": "libavcodec/put_bits.h",
+        "function": "ff_copy_bits",
+        "reason": "Related location for: ff_copy_bits called with byte count instead of bit count, corrupting closed captions output"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "ffmpeg__45daaf2caaa3__buggy",
+    "project": "ffmpeg",
+    "repo_url": "https://github.com/FFmpeg/FFmpeg.git",
+    "parent_sha": "d5db4ee30c46456d7da2af01bf1f2c070811ff0b",
+    "diff_stats": {
+      "files_changed": 1,
+      "lines_changed": 16
+    }
+  }
+}

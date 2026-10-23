@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-c911e0001115bbda",
+  "bug_id": "REPORT-c911e0001115bbda",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "cc85ca1cb347570a95d8615b7d4c7b542042b7f0",
+  "intro_parent": "2fc309e699ebb65834509194df806e4e3e1621a8",
+  "fix_commit": "c911e0001115bbda904ad103b12c27b9a3c0c265",
+  "affected_files": [
+    "libavcodec/exr.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Use of truncating integer division (>> 3, i.e. floor(x/8)) to compute the number of 8x8 blocks per dimension, instead of ceiling division, when the corresponding pixel dimension is not guaranteed to be a multiple of 8. The decode loop that walks over blocks uses ceiling-like iteration (steps of 8 covering the full xsize/ysize including a partial last block), creating an inconsistency between the computed grid size (dc_w * dc_h) and the actual number of blocks processed.",
+  "findings": [
+    "In dwa_uncompress(), dc_w and dc_h (the number of 8x8 DC-coefficient blocks per row/column) are computed as td->xsize >> 3 and td->ysize >> 3. This integer division truncates (floors) instead of rounding up. When td->xsize or td->ysize is not a multiple of 8 (odd/non-block-aligned tile or scanline dimensions), the computed dc_w/dc_h is smaller than the actual number of 8x8 blocks that the main dec"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "4d384aba27562dfdfc73f8bcd8f599d9f046b489aa015c2edc0c0c38a7824620",
+  "generated_artifact_sha256": {
+    "reference": "c9cd7744c41b64dfef4be304f6db10f4147dd165d0ca9712a58d06d8c6b63562",
+    "introducing": "709fb234340913c1584492043900e4d496f21186d3c9c9bc91335d2f67310b42",
+    "companion": "e7a7023c776fd4dc26088cb12b35a019afdea2b4c10de7cda6c1c2cfe27291a9"
+  }
+}

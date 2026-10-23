@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_FOSSIL-f0dbd9d22f558dd0",
+    "bug_id": "FOSSIL-f0dbd9d22f558dd0",
+    "bug_type": "IntegerOverflow",
+    "intro_commit": "2ec78c0e4bab11ce288a830c3a13fe34a9224c4a",
+    "intro_parent": "4f2144dac0119044f36de618fae1a5ed24046a3a",
+    "fix_commit": "5b15123fba29709ff32a0aaa13f223223989d369",
+    "affected_files": [
+      "ext/fts5/fts5_main.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json/discussion.md describe fts5_locale() (ext/fts5/fts5_main.c) computing nBlob = nLocale + 1 + nText in 32-bit 'int' and passing it to sqlite3_malloc(), overflowing when built with an oversize SQLITE_MAX_LENGTH. Verified by building pre_intro, post_intro and post_benign in Docker (project's own ASan+UBSan flags) and, since no PoC existed, crafting a minimal C harness (poc.c) compiled identically (only adding -DSQLITE_ENABLE_FTS5 -DSQLITE_MAX_LENGTH=1200000000 as compile defines, no edits to tracked source) against each revision's own sqlite3.c amalgamation, then running the exact same bound-parameter call via run_poc on all three. post_intro crashes with a UBSan signed-integer-overflow report pinpointing the precise nBlob=nLocale+1+nText line in fts5LocaleFunc. pre_intro lacks the function entirely and exits cleanly (feature/flaw introduced together at the intro commit). post_benign (64-bit arithmetic + malloc64) runs the identical reproducer to clean completion with no sanitizer report, correctly computing the un-overflowed size and safely declining the oversize allocation via SQLite's own allocation-size guard instead of invoking UB. The same reproducing input/command was used unmodified across all three builds."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification/cases/sqlite/cc73137d855c8aa37b6e/attempts/01/pocs/sqlite/FOSSIL-f0dbd9d22f558dd0",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": false,
+    "note": "poc dir has neither run.sh nor a recognizable input file"
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /tmp && cp /work/sqlite3.c . && cp /work/sqlite3.h . && cp /poc/poc.c . && gcc -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -DSQLITE_CORE -DSQLITE_ENABLE_FTS5 -DSQLITE_MAX_LENGTH=1200000000 -I. -o poc_bin poc.c sqlite3.c -ldl -lpthread -lm && ./poc_bin",
+      "input": null,
+      "poc_sha256": "12841988ff2b8a52a7136ee6e5156d2efbb70ad972e97b648d6ae5dc0e25da63",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "2ec78c0e4bab11ce288a830c3a13fe34a9224c4a",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "07e07c43e1ad42679a11707a211425cd066075f385e94ce093738ada4b5e0f18"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=1\n\n[poc] nLocale=1100000000 nText=1100000000 sum=2200000001 INT_MAX=2147483647\nsqlite3.c:253475:9: runtime error: signed integer overflow: 1100000000 + 1100000001 cannot be represented in type 'int'\n    #0 0x5576e05fe1e5 in fts5LocaleFunc /tmp/sqlite3.c:253475\n    #1 0x5576e0732c86 in sqlite3VdbeExec /tmp/sqlite3.c:101910\n    #2 0x5576e0737f93 in sqlite3Step /tmp/sqlite3.c:91317\n    #3 0x5576e0737f93 in sqlite3_step /tmp/sqlite3.c:91378\n    #4 0x5576e04baea1 in main /tmp/poc.c:74\n    #5 0x7ffa27926d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #6 0x7ffa27926e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #7 0x5576e04bab44 in _start (/tmp/poc_bin+0x420b44)\n\n",
+        "stdout_tail": "VERIFY_EXIT=1\n\n[poc] nLocale=1100000000 nText=1100000000 sum=2200000001 INT_MAX=2147483647\nsqlite3.c:253475:9: runtime error: signed integer overflow: 1100000000 + 1100000001 cannot be represented in type 'int'\n    #0 0x5576e05fe1e5 in fts5LocaleFunc /tmp/sqlite3.c:253475\n    #1 0x5576e0732c86 in sqlite3VdbeExec /tmp/sqlite3.c:101910\n    #2 0x5576e0737f93 in sqlite3Step /tmp/sqlite3.c:91317\n    #3 0x5576e0737f93 in sqlite3_step /tmp/sqlite3.c:91378\n    #4 0x5576e04baea1 in main /tmp/poc.c:74\n    #5 0x7ffa27926d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #6 0x7ffa27926e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #7 0x5576e04bab44 in _start (/tmp/poc_bin+0x420b44)\n\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /tmp && cp /work/sqlite3.c . && cp /work/sqlite3.h . && cp /poc/poc.c . && gcc -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -DSQLITE_CORE -DSQLITE_ENABLE_FTS5 -DSQLITE_MAX_LENGTH=1200000000 -I. -o poc_bin poc.c sqlite3.c -ldl -lpthread -lm && ./poc_bin",
+      "input": null,
+      "poc_sha256": "12841988ff2b8a52a7136ee6e5156d2efbb70ad972e97b648d6ae5dc0e25da63",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "4f2144dac0119044f36de618fae1a5ed24046a3a",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "bdab0b7cf1dceec20ca888c925e1aa85ff7966d650647c14f5536735a7dc9d24"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n[poc] nLocale=1100000000 nText=1100000000 sum=2200000001 INT_MAX=2147483647\n[poc] prepare failed (rc=1): no such function: fts5_locale -- fts5_locale() not present/reachable, nothing to trigger\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /tmp && cp /work/sqlite3.c . && cp /work/sqlite3.h . && cp /poc/poc.c . && gcc -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -DSQLITE_CORE -DSQLITE_ENABLE_FTS5 -DSQLITE_MAX_LENGTH=1200000000 -I. -o poc_bin poc.c sqlite3.c -ldl -lpthread -lm && ./poc_bin",
+      "input": null,
+      "poc_sha256": "12841988ff2b8a52a7136ee6e5156d2efbb70ad972e97b648d6ae5dc0e25da63",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "4f2144dac0119044f36de618fae1a5ed24046a3a",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "03728fe6d0f762892d863f21bae87955f1e8f59247e5910347a76ccf5f9ca691"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n[poc] nLocale=1100000000 nText=1100000000 sum=2200000001 INT_MAX=2147483647\n[poc] step rc=7: out of memory\n[poc] completed without crash\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom harness poc.c, compiled via run_poc's command against each revision's own unmodified sqlite3.c amalgamation (identical ASan+UBSan flags as the project's build, plus -DSQLITE_ENABLE_FTS5 -DSQLITE_MAX_LENGTH=1200000000 as compile defines only), opens an in-memory db and runs `SELECT length(fts5_locale(?,?))` binding two TEXT params of 1,100,000,000 bytes each (sum=2,200,000,001 > INT_MAX), matching the discussion's note that an oversize SQLITE_MAX_LENGTH build is required to exercise the overflow.",
+    "target_evidence": "run_poc post_intro (commit 2ec78c0e4bab): exit=1, crashed=True, UBSan report:\n  sqlite3.c:253475:9: runtime error: signed integer overflow: 1100000000 + 1100000001 cannot be represented in type 'int'\n    #0 fts5LocaleFunc /tmp/sqlite3.c:253475 (the nBlob = nLocale + 1 + nText line)\nThis is exactly the line/variables named in meta.json's root cause.\n\nrun_poc pre_intro (commit 4f2144dac011): exit=0, crashed=False, clean completion. fts5LocaleFunc/fts5_locale() does not exist at all yet (the feature and its flaw were introduced together at the intro commit). sqlite3_prepare_v2 fails cleanly with \"no such function: fts5_locale\"; harness treats that as a clean non-bug outcome -- no overflow, vulnerable path absent.\n\nrun_poc post_benign (companion fix, i64 arithmetic + sqlite3_malloc64): exit=0, crashed=False, clean completion, no sanitizer report. nBlob is now correctly computed as the un-overflowed 64-bit value 2200000001; sqlite3_malloc64 then safely declines it because it exceeds SQLite's own SQLITE_MAX_ALLOCATION_SIZE guard (2147483391 bytes, found at sqlite3.c's mallocWithAlarm/sqlite3Malloc), returning SQLITE_NOMEM through the normal pBlob==0 path (\"out of memory\"). Separately verified (docker_shell) that a plain malloc(2200000001) under identical ASan flags in this same container succeeds fine, ruling out a generic memory/ASan ceiling and confirming the NOMEM is SQLite's own deliberate oversize-allocation guard operating correctly on the now-correct 64-bit size, not a side effect of an unrelated problem."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-062016c2fd1d",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "a9ca8afef510724416d6f3cdab327024ef1f4b48",
+    "parent": "8ff2587b665652ba786491403d31b1fcfd3dc4af",
+    "fix": "062016c2fd1d2a9fe1f2e97e8a5995c94d18bccb"
+  },
+  "affected_files": [
+    "ext/rbu/sqlite3rbu.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the same /poc/run.sh in all three containers, the harness built the stock RBU utility with ASan+UBSan, created identical target/RBU databases, and executed exactly one RBU step. pre_intro exited 0 with no sanitizer finding. post_intro exited 1 with UBSan at ext/rbu/sqlite3rbu.c:596 in rbuFossilDeltaFunc: signed integer overflow in 2147483647 + 1, with a stack through rbuStep/sqlite3rbu_step. post_benign exited 1 with the normal SQLite error 'out of memory' and no sanitizer report. Thus INT",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

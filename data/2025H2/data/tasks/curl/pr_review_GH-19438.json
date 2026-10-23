@@ -1,0 +1,87 @@
+{
+  "task_id": "pr_review_GH-19438",
+  "bug_id": "GH-19438",
+  "commit_sha": "cd3be116b688f293376a3071ed1db3130c5139fa",
+  "commit_message": "rtmp: use connection meta for RTMP* instance\n\nKeep RTMP* instance at connection meta hash.\n\nCloses #17237",
+  "commit_author": "Stefan Eissing",
+  "commit_date": "2025-04-30T12:59:01+02:00",
+  "pr_title": "rtmp: use connection meta for RTMP* instance",
+  "pr_description": "Keep RTMP* instance at connection meta hash.\n\nCloses #17237\n",
+  "files": [
+    {
+      "path": "lib/curl_rtmp.c",
+      "status": "modified",
+      "additions": 35,
+      "deletions": 13,
+      "diff": "diff --git a/lib/curl_rtmp.c b/lib/curl_rtmp.c\nindex ad60cdcdb7..33ca7cc87c 100644\n--- a/lib/curl_rtmp.c\n+++ b/lib/curl_rtmp.c\n@@ -27,10 +27,11 @@\n \n #ifdef USE_LIBRTMP\n \n #include \"curl_rtmp.h\"\n #include \"urldata.h\"\n+#include \"url.h\"\n #include \"nonblock.h\" /* for curlx_nonblock */\n #include \"progress.h\" /* for Curl_pgrsSetUploadSize */\n #include \"transfer.h\"\n #include \"warnless.h\"\n #include <curl/curl.h>\n@@ -50,10 +51,14 @@\n #define SET_RCVTIMEO(tv,s)   struct timeval tv = {s,0}\n #endif\n \n #define DEF_BUFTIME    (2*60*60*1000)    /* 2 hours */\n \n+/* meta key for storing RTMP* at connection */\n+#define CURL_META_RTMP_CONN   \"meta:proto:rtmp:conn\"\n+\n+\n static CURLcode rtmp_setup_connection(struct Curl_easy *data,\n                                       struct connectdata *conn);\n static CURLcode rtmp_do(struct Curl_easy *data, bool *done);\n static CURLcode rtmp_done(struct Curl_easy *data, CURLcode, bool premature);\n static CURLcode rtmp_connect(struct Curl_easy *data, bool *done);\n@@ -215,33 +220,45 @@ const struct Curl_handler Curl_handler_rtmpts = {\n   CURLPROTO_RTMPTS,                     /* protocol */\n   CURLPROTO_RTMPT,                      /* family */\n   PROTOPT_NONE                          /* flags */\n };\n \n+static void rtmp_conn_dtor(void *key, size_t klen, void *entry)\n+{\n+  RTMP *r = entry;\n+  (void)key;\n+  (void)klen;\n+  RTMP_Close(r);\n+  RTMP_Free(r);\n+}\n+\n static CURLcode rtmp_setup_connection(struct Curl_easy *data,\n                                       struct connectdata *conn)\n {\n   RTMP *r = RTMP_Alloc();\n-  if(!r)\n+  if(!r ||\n+    Curl_conn_meta_set(conn, CURL_META_RTMP_CONN, r, rtmp_conn_dtor))\n     return CURLE_OUT_OF_MEMORY;\n \n   RTMP_Init(r);\n   RTMP_SetBufferMS(r, DEF_BUFTIME);\n   if(!RTMP_SetupURL(r, data->state.url)) {\n     RTMP_Free(r);\n     return CURLE_URL_MALFORMAT;\n   }\n-  conn->proto.rtmp = r;\n   return CURLE_OK;\n }\n \n static CURLcode rtmp_connect(struct Curl_easy *data, bool *done)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   SET_RCVTIMEO(tv, 10);\n \n+  if(!r)\n+    return CURLE_FAILED_INIT;\n+\n   r->m_sb.sb_socket = (int)conn->sock[FIRSTSOCKET];\n \n   /* We have to know if it is a write before we send the\n    * connect request packet\n    */\n@@ -270,13 +287,13 @@ static CURLcode rtmp_connect(struct Curl_easy *data, bool *done)\n }\n \n static CURLcode rtmp_do(struct Curl_easy *data, bool *done)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n \n-  if(!RTMP_ConnectStream(r, 0))\n+  if(!r || !RTMP_ConnectStream(r, 0))\n     return CURLE_FAILED_INIT;\n \n   if(data->state.upload) {\n     Curl_pgrsSetUploadSize(data, data->state.infilesize);\n     Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);\n@@ -299,29 +316,30 @@ static CURLcode rtmp_done(struct Curl_easy *data, CURLcode status,\n \n static CURLcode rtmp_disconnect(struct Curl_easy *data,\n                                 struct connectdata *conn,\n                                 bool dead_connection)\n {\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   (void)data;\n   (void)dead_connection;\n-  if(r) {\n-    conn->proto.rtmp = NULL;\n-    RTMP_Close(r);\n-    RTMP_Free(r);\n-  }\n+  if(r)\n+    Curl_conn_meta_remove(conn, CURL_META_RTMP_CONN);\n   return CURLE_OK;\n }\n \n static ssize_t rtmp_recv(struct Curl_easy *data, int sockindex, char *buf,\n                          size_t len, CURLcode *err)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   ssize_t nread;\n \n   (void)sockindex; /* unused */\n+  if(!r) {\n+    *err = CURLE_FAILED_INIT;\n+    return -1;\n+  }\n \n   nread = RTMP_Read(r, buf, curlx_uztosi(len));\n   if(nread < 0) {\n     if(r->m_read.status == RTMP_READ_COMPLETE ||\n        r->m_read.status == RTMP_READ_EOF) {\n@@ -336,15 +354,19 @@ static ssize_t rtmp_recv(struct Curl_easy *data, int sockindex, char *buf,\n \n static ssize_t rtmp_send(struct Curl_easy *data, int sockindex,\n                          const void *buf, size_t len, bool eos, CURLcode *err)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   ssize_t num;\n \n   (void)sockindex; /* unused */\n   (void)eos; /* unused */\n+  if(!r) {\n+    *err = CURLE_FAILED_INIT;\n+    return -1;\n+  }\n \n   num = RTMP_Write(r, (const char *)buf, curlx_uztosi(len));\n   if(num < 0)\n     *err = CURLE_SEND_ERROR;\n \n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/curl_rtmp.c b/lib/curl_rtmp.c\nindex ad60cdcdb7..33ca7cc87c 100644\n--- a/lib/curl_rtmp.c\n+++ b/lib/curl_rtmp.c\n@@ -27,10 +27,11 @@\n \n #ifdef USE_LIBRTMP\n \n #include \"curl_rtmp.h\"\n #include \"urldata.h\"\n+#include \"url.h\"\n #include \"nonblock.h\" /* for curlx_nonblock */\n #include \"progress.h\" /* for Curl_pgrsSetUploadSize */\n #include \"transfer.h\"\n #include \"warnless.h\"\n #include <curl/curl.h>\n@@ -50,10 +51,14 @@\n #define SET_RCVTIMEO(tv,s)   struct timeval tv = {s,0}\n #endif\n \n #define DEF_BUFTIME    (2*60*60*1000)    /* 2 hours */\n \n+/* meta key for storing RTMP* at connection */\n+#define CURL_META_RTMP_CONN   \"meta:proto:rtmp:conn\"\n+\n+\n static CURLcode rtmp_setup_connection(struct Curl_easy *data,\n                                       struct connectdata *conn);\n static CURLcode rtmp_do(struct Curl_easy *data, bool *done);\n static CURLcode rtmp_done(struct Curl_easy *data, CURLcode, bool premature);\n static CURLcode rtmp_connect(struct Curl_easy *data, bool *done);\n@@ -215,33 +220,45 @@ const struct Curl_handler Curl_handler_rtmpts = {\n   CURLPROTO_RTMPTS,                     /* protocol */\n   CURLPROTO_RTMPT,                      /* family */\n   PROTOPT_NONE                          /* flags */\n };\n \n+static void rtmp_conn_dtor(void *key, size_t klen, void *entry)\n+{\n+  RTMP *r = entry;\n+  (void)key;\n+  (void)klen;\n+  RTMP_Close(r);\n+  RTMP_Free(r);\n+}\n+\n static CURLcode rtmp_setup_connection(struct Curl_easy *data,\n                                       struct connectdata *conn)\n {\n   RTMP *r = RTMP_Alloc();\n-  if(!r)\n+  if(!r ||\n+    Curl_conn_meta_set(conn, CURL_META_RTMP_CONN, r, rtmp_conn_dtor))\n     return CURLE_OUT_OF_MEMORY;\n \n   RTMP_Init(r);\n   RTMP_SetBufferMS(r, DEF_BUFTIME);\n   if(!RTMP_SetupURL(r, data->state.url)) {\n     RTMP_Free(r);\n     return CURLE_URL_MALFORMAT;\n   }\n-  conn->proto.rtmp = r;\n   return CURLE_OK;\n }\n \n static CURLcode rtmp_connect(struct Curl_easy *data, bool *done)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   SET_RCVTIMEO(tv, 10);\n \n+  if(!r)\n+    return CURLE_FAILED_INIT;\n+\n   r->m_sb.sb_socket = (int)conn->sock[FIRSTSOCKET];\n \n   /* We have to know if it is a write before we send the\n    * connect request packet\n    */\n@@ -270,13 +287,13 @@ static CURLcode rtmp_connect(struct Curl_easy *data, bool *done)\n }\n \n static CURLcode rtmp_do(struct Curl_easy *data, bool *done)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n \n-  if(!RTMP_ConnectStream(r, 0))\n+  if(!r || !RTMP_ConnectStream(r, 0))\n     return CURLE_FAILED_INIT;\n \n   if(data->state.upload) {\n     Curl_pgrsSetUploadSize(data, data->state.infilesize);\n     Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);\n@@ -299,29 +316,30 @@ static CURLcode rtmp_done(struct Curl_easy *data, CURLcode status,\n \n static CURLcode rtmp_disconnect(struct Curl_easy *data,\n                                 struct connectdata *conn,\n                                 bool dead_connection)\n {\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   (void)data;\n   (void)dead_connection;\n-  if(r) {\n-    conn->proto.rtmp = NULL;\n-    RTMP_Close(r);\n-    RTMP_Free(r);\n-  }\n+  if(r)\n+    Curl_conn_meta_remove(conn, CURL_META_RTMP_CONN);\n   return CURLE_OK;\n }\n \n static ssize_t rtmp_recv(struct Curl_easy *data, int sockindex, char *buf,\n                          size_t len, CURLcode *err)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   ssize_t nread;\n \n   (void)sockindex; /* unused */\n+  if(!r) {\n+    *err = CURLE_FAILED_INIT;\n+    return -1;\n+  }\n \n   nread = RTMP_Read(r, buf, curlx_uztosi(len));\n   if(nread < 0) {\n     if(r->m_read.status == RTMP_READ_COMPLETE ||\n        r->m_read.status == RTMP_READ_EOF) {\n@@ -336,15 +354,19 @@ static ssize_t rtmp_recv(struct Curl_easy *data, int sockindex, char *buf,\n \n static ssize_t rtmp_send(struct Curl_easy *data, int sockindex,\n                          const void *buf, size_t len, bool eos, CURLcode *err)\n {\n   struct connectdata *conn = data->conn;\n-  RTMP *r = conn->proto.rtmp;\n+  RTMP *r = Curl_conn_meta_get(conn, CURL_META_RTMP_CONN);\n   ssize_t num;\n \n   (void)sockindex; /* unused */\n   (void)eos; /* unused */\n+  if(!r) {\n+    *err = CURLE_FAILED_INIT;\n+    return -1;\n+  }\n \n   num = RTMP_Write(r, (const char *)buf, curlx_uztosi(len));\n   if(num < 0)\n     *err = CURLE_SEND_ERROR;\n \n",
+  "ground_truth": {
+    "bug_id": "GH-19438",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "00872d5c98bf977eff7d4276eb7379c2b3a7eed6",
+      "short_sha": "00872d5c98",
+      "message": "rtmp: fix double-free on URL parse errors",
+      "author": "Daniel Stenberg",
+      "date": "2025-11-10T08:11:30+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-doublefree-1",
+        "title": "Double-free of RTMP* on URL parse failure in rtmp_setup_connection()",
+        "message": "rtmp_setup_connection() allocates an RTMP handle with RTMP_Alloc() and immediately registers it in the connection's meta hash via Curl_conn_meta_set(conn, CURL_META_RTMP_CONN, r, rtmp_conn_dtor). From this point on, ownership of `r` is effectively transferred to the connection meta store, which will invoke rtmp_conn_dtor() (calling RTMP_Close(r) and RTMP_Free(r)) automatically whenever the connection's meta data is torn down (e.g. when the connectdata is destroyed after a failed connection setup). However, if the subsequent RTMP_SetupURL(r, data->state.url) call fails (e.g. because of a malformed rtmp:// URL), the code still executes the old cleanup path RTMP_Free(r) directly before returning CURLE_URL_MALFORMAT. Because `r` remains registered in the connection meta hash (it was never removed via Curl_conn_meta_remove), when the connection is later destroyed the meta destructor rtmp_conn_dtor() runs again and calls RTMP_Free(r) (and RTMP_Close(r)) a second time on the same pointer, resulting in a double-free / use-after-free that can be triggered simply by supplying a malformed RTMP URL.",
+        "location": {
+          "file": "lib/curl_rtmp.c",
+          "start_line": 234,
+          "end_line": 249,
+          "start_column": null,
+          "end_column": null,
+          "function": "rtmp_setup_connection",
+          "snippet": "static CURLcode rtmp_setup_connection(struct Curl_easy *data,\n                                      struct connectdata *conn)\n{\n  RTMP *r = RTMP_Alloc();\n  if(!r ||\n    Curl_conn_meta_set(conn, CURL_META_RTMP_CONN, r, rtmp_conn_dtor))\n    return CURLE_OUT_OF_MEMORY;\n\n  RTMP_Init(r);\n  RTMP_SetBufferMS(r, DEF_BUFTIME);\n  if(!RTMP_SetupURL(r, data->state.url)) {\n    RTMP_Free(r);\n    return CURLE_URL_MALFORMAT;\n  }\n  return CURLE_OK;\n}",
+          "snippet_hash": "ceb983bf2fe64fbccbb1e2414c1008d12300e9d54ef00ea42bd9916b82d8eb8d",
+          "description": null,
+          "snippet_start_line": 234,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "DoubleFree",
+        "confidence": 0.93,
+        "suggestion": "Do not call RTMP_Free(r) manually in the URL-parse-error path once `r` has been registered with Curl_conn_meta_set() and an rtmp_conn_dtor is attached. Either remove the meta entry (Curl_conn_meta_remove) before freeing manually, or simply let the connection meta destructor perform the cleanup and just return the error code without freeing.",
+        "suggestion_code": "  if(!RTMP_SetupURL(r, data->state.url))\n    /* rtmp_conn_dtor() performs the cleanup */\n    return CURLE_URL_MALFORMAT;\n  return CURLE_OK;",
+        "tags": [
+          "security",
+          "memory-safety",
+          "double-free"
+        ],
+        "cwe_ids": [
+          "CWE-415",
+          "CWE-416"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "DoubleFree",
+    "affected_files": [
+      "lib/curl_rtmp.c"
+    ],
+    "root_cause": "When ownership/lifetime management of the RTMP* was moved to the connection meta-data hash (with an automatic destructor), the pre-existing manual free on the URL-parse-error early-return path was not removed, leaving two independent code paths (the manual free and the meta destructor) that both free the same object.",
+    "must_cover": [
+      {
+        "file": "lib/curl_rtmp.c",
+        "function": "rtmp_setup_connection",
+        "start_line": 234,
+        "end_line": 249,
+        "role": "primary",
+        "reason": "Primary location of finding: Double-free of RTMP* on URL parse failure in rtmp_setup_connection()"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "cd3be116b688f293376a3071ed1db3130c5139fa",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

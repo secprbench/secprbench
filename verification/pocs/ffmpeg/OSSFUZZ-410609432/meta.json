@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-410609432",
+  "bug_id": "OSSFUZZ-410609432",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "93b0ca26acb912b8f080f221f6165542806bceb3",
+  "intro_parent": "f6c6ba95fd69f51d7f30e8f201ff43050a53113f",
+  "fix_commit": "3afae0f4409ace1699ebe3fdd32a61f05657c09f",
+  "affected_files": [
+    "libavcodec/sanm.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The frame-size detection logic added in commit 93b0ca26ac (\"better frame size detection for old codecs\") assumes that for old ANIMv0/1 (subversion < 2) files the internal frame is always exactly 384x242, and unconditionally trusts this fixed size without cross-checking it against the actually parsed FOBJ w/h fields, which are only bounded by a much looser generic check (w<=800, h<=600). This allows fields not fitting the assumed fixed buffer to pass through.",
+  "findings": [
+    "In process_frame_obj(), when ctx->subversion < 2 (Rebel Assault 1 ANIMv0/1 files), the internal frame buffer dimensions are hard-coded to xres=384, yres=242, and ctx->have_dimensions is set to 1 without validating that the FOBJ's own w/h (and implicitly left/top placement) fit within this 384x242 buffer. The earlier sanity check only enforces 1 <= w <= 800 and 1 <= h <= 600, which is far larger th"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "35a992d3e9b7519de2c14a3bd9b5da27244cdf47631990405cfa96aa8650dda7",
+  "generated_artifact_sha256": {
+    "reference": "6753e14e75a22f910f6252dee18fc929d03000c0bbe54e752c70681066865d8f",
+    "introducing": "b93a3fbe1aaaed4626c74547165db84676c9a0cf0dee6bf2c970e9031622ef7c",
+    "companion": "529c7db03158c8760f5ca2423370daba4341170c9dfa9e71ebb3208bbe811a61"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-428055715",
+  "bug_id": "OSSFUZZ-428055715",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "7ef9d31071021c05e6b792af3f25b7b9ceaa9258",
+  "intro_parent": "60be62d29388fdc681540dff387e0304e610bf39",
+  "fix_commit": "08816b93760f43433a07e980fa9eeab4135de78c",
+  "affected_files": [
+    "libavcodec/osq.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The bias addition needed prior to clamping (`src[n] + 0x80`) was implemented using ordinary 32-bit int arithmetic without first widening the operands, so extreme decoded sample values (which are only bounds-checked after the addition, inside av_clip_uint8) can overflow signed 32-bit int range before the clamp has a chance to bound them.",
+  "findings": [
+    "In the OSQ audio decoder's sample-format conversion loop for AV_SAMPLE_FMT_U8P, the decoded 32-bit sample `src[n]` is added to 0x80 before being clamped with av_clip_uint8(). Because `src[n]` is a plain `int32_t` and `0x80` is interpreted as a regular `int` literal, the addition `src[n] + 0x80` is performed using signed 32-bit int arithmetic. When the decoded residual/prediction value in `src[n]` "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "a3fd2c9d428d1ab8466a021613ed286edd9aafd92407d111a602f421bea352b8",
+  "generated_artifact_sha256": {
+    "reference": "c2a0ef0de5e48104cec0fc15dc7c7b9d2926b702d33402d40d76a408b1132823",
+    "introducing": "7ed5a061ca30c78a4f7bee012518d743cddebf7d1e3539f25ee3d3fc682ff00d",
+    "companion": "04b47b89306c1147ed05e21ea9976ca4c4d2f41e054ef72a0b49ff6aa9f86e9c"
+  }
+}

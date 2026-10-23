@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-23d0a08176a6",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "9e83e465eba9417372f45f5d87b2cd3777690a7a",
+    "parent": "c0caea21dee91b1f80745bf9b81a07b237ec314e",
+    "fix": "23d0a08176a6d839b05fcedf3fb800327808be17"
+  },
+  "affected_files": [
+    "ext/fts3/fts3_write.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Using the identical poc.c and command for all revisions, pre_intro exited 0 and printed end_block=1 n_byte=0 because it did not parse a leading minus. post_intro exited 1 with UBSan reporting signed integer overflow in fts3ReadEndBlockField at sqlite3.c:138430 while accumulating 9223372036854775808 after the newly introduced sign handling. post_benign exited 0 and printed end_block=1 n_byte=-9223372036854775808; its unsigned accumulator and INT64_MIN guard remove the overflow. This is the requir",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-10387",
+  "bug_id": "GH-10387",
+  "bug_type": "LogicError",
+  "intro_commit": "5e1adfb627d1be570ad14d58a27ae024c11a285e",
+  "intro_parent": "480fb0e1a87bc4b4e72a85135c9ff4341bf78e8a",
+  "fix_commit": "ad21d9581d6631da809ac0a2cbb2fc908bde1978",
+  "affected_files": [
+    "src/commands/serve.rs",
+    "crates/wasi-http/src/lib.rs"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "wasmtime",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_3fd87ed84c674ea6_cli_tests.rs: tests/all/cli_tests.rs"
+  ],
+  "input_name": null,
+  "root_cause": "The error-reporting logic conflated two independent failure signals: (1) the oneshot `receiver` erroring because the sender was dropped without sending a response, and (2) the task's own `Result` indicating whether an error occurred. The code assumed these always correlate (receiver error implies task error) and used a panicking `expect_err` to extract the task's error, without accounting for the case where the guest task completes with `Ok(())` yet never calls `set`.",
+  "findings": [
+    "In `handle_request` in `src/commands/serve.rs`, when the `receiver` oneshot channel errors out (meaning the response-outparam `set` method was never invoked by the guest), the code awaits the spawned task and calls `.expect_err(\"if the receiver has an error, the task must have failed\")` on its result. This assumes that if the guest never called `set`, the task must have returned an `Err`. However,"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "d18d3cd9d9e530a5873c96e8c16bc6840c275c1c58b44e25e225fc662f18c32f",
+  "generated_artifact_sha256": {
+    "reference": "9c6fb8816a13b4d63dae2cfd68a8310a04859b2625e571efbb072e42da630d4e",
+    "introducing": "cfb9c6df541374dffeabda7a0ad9b3efa561e6bdcf2aec868a78054239605d57",
+    "companion": "adf67edc700a36ff770579ff5417b2386a42a903a90801c7c555b6cabe573ba9"
+  }
+}

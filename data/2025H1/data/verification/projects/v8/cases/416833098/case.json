@@ -1,0 +1,23 @@
+{
+  "bug_id": "416833098",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "6e594432a8e8b20ca20ef0f5c9e4041ec0a37745",
+    "parent": "90acd33b84a09ddf19135d7dc65a958a21a1ec30",
+    "fix": "d65e674ec1f24cc859c6d5df20e8036d43024ea1"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built and ran the configured ASan d8 revisions in Docker with the same /poc/run.sh and JS harness. The harness warms String.prototype.charAt on a Latin-1 global, replaces that global with a non-writable constant \"x\\u0100\", refreshes only the global-load feedback through a skip branch, and then forces Maglev, so the standalone U+0100 result does not exist before graph building. All three runs exited 0 with PASS 256; this is a LogicError behavioral oracle, not a sanitizer-crash claim. The pre-intr",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

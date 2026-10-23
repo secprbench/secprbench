@@ -1,0 +1,142 @@
+{
+  "bug_id": "TESTCASE-392550fb9400b0c0",
+  "project": "ffmpeg",
+  "bug_type": "BufferOverflow",
+  "commits": {
+    "intro": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+    "parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+    "fix": "770bc1c23a18fe72874e888e1be123a21620acb5"
+  },
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac_mps212.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Verified by direct reproduction using run_poc on all three configured versions with the byte-identical PoC (/poc/run.sh, /poc/harness.c, /poc/extradata.bin, /poc/frame.bin). meta.json's root cause is that ff_aac_ec_data_dec() in libavcodec/aac/aacdec_usac_mps212.c calls get_freq_strides() with ld->freq_res (declared int16_t freq_res[MPS_MAX_PARAM_SETS==9]) used simultaneously as the input bsFreqRes selector for the current parameter set and as the output scratch buffer, which get_freq_strides always fills starting at absolute index 0 regardless of which parameter set is active, corrupting freq_res entries belonging to other parameter sets and writing beyond the declared 9-slot bound. Since no existing PoC/testcase reproduced this (the fix commit's own message says \"testcase exists but did not replicate for me\", and meta.json records source=\"no_poc\"), I hand-built a complete AAC-USAC (xHE-AAC) AudioSpecificConfig and one access unit bit-by-bit from the USAC/MPS-212 parsing source (config: object_type=42, SBR-enabled CPE with stereoConfigIndex=1; frame: 1 core channel with max_sfb=0 so scale factors/spectrum need no extra bits, minimal SBR grid/envelope/noise fields with n_q=1 via bs_noise_bands=0, then 2 OTT-CLD parameter sets both with data_mode=3 and bsFreqRes=2), verifying intermediate state (nb_param_sets=2, code reaching ff_aac_ec_data_dec/ff_aac_map_index_data) with gdb before finalizing. Running this exact reproducer through run_poc: post_intro crashes deterministically with a genuine AddressSanitizer global-buffer-overflow read exactly at the aliasing-corrupted `stride_table[ld->freq_res[set_idx]]` access described by the root cause; pre_intro does not crash because USAC MPS-212 support (and thus the buggy function) does not exist yet at that revision (clean AVERROR_PATCHWELCOME, \"not implemented\"); post_benign does not crash because the fix (introducing a temporary `freq_stride_map` array instead of reusing ld->freq_res as output) removes the aliasing, confirmed both by the absence of any crash and by reading the fixed source. This cleanly establishes intro_verified=yes and benign_verified=yes for this BufferOverflow bug.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/18dca4d7126e7c416325/attempts/01/replay/pr_review_TESTCASE-392550fb9400b0c0.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/18dca4d7126e7c416325/attempts/01/replay/pr_review_TESTCASE-392550fb9400b0c0.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/18dca4d7126e7c416325/attempts/01/replay/pr_review_TESTCASE-392550fb9400b0c0.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "996749dcde965eea0dd10d293b1e833b613129c15275dd2045bb24701db67180",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "98d162f5b1bef04f582731661061da9e6c018d0885301aa1aec10d8c9f861ef6"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": true,
+            "sanitizer": " [unaligned, inplace, out_of_place, preshuf]\navcodec_open2 -> 0\nopened: sample_rate=48000 channels=2 object_type via profile=41\n=================================================================\n==12==ERROR: AddressSanitizer: global-buffer-overflow on address 0x55f5ab7d6bb0 at pc 0x55f5aad303a8 bp 0x7ffd269dd690 sp 0x7ffd269dd688\nREAD of size 4 at 0x55f5ab7d6bb0 thread T0\n    #0 0x55f5aad303a7 in ff_aac_map_index_data /work/libavcodec/aac/aacdec_usac_mps212.c:831:22\n    #1 0x55f5aad211ce in parse_mps212 /work/libavcodec/aac/aacdec_usac.c:1425:5\n    #2 0x55f5aad211ce in decode_usac_core_coder /work/libavcodec/aac/aacdec_usac.c:1650:15\n    #3 0x55f5aad1c073 in ff_aac_usac_decode_frame /work/libavcodec/aac/aacdec_usac.c\n    #4 0x55f5aacfb92d in aac_decode_frame_int /work/libavcodec/aac/aacdec.c:2454:15\n    #5 0x55f5aacf229b in aac_decode_frame /work/libavcodec/aac/aacdec.c:2521:15\n    #6 0x55f5a9f6f3a9 in decode_simple_internal /work/libavcodec/decode.c:444:16\n    #7 0x55f5a9f6f3a9 in decode_simple_receive_frame /work/libavcodec/decode.c:604:15\n    #8 0x55f5a9f6f3a9 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:640:15\n    #9 0x55f5a9f70de8 in decode_receive_frame_internal /work/libavcodec/decode.c:658:15\n    #10 0x55f5a9f70c7a in avcodec_send_packet /work/libavcodec/decode.c:734:15\n    #11 0x55f5a9d0c9db in main /poc/harness.c:63:11\n    #12 0x7f94a453dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #13 0x7f94a453de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #14 0x55f5a9c4e3b4 in _start (/tmp/harness+0x4513b4) (BuildId: 0802e5d1202dde15bb60177ebf7d2ecc080ae12b)\n\n0x55f5ab7d6bb0 is located 0 bytes to the right of global variable 'stride_table' defined in 'libavcodec/aac/aacdec_usac_mps212.c:590:18' (0x55f5ab7d6ba0) of size 16\nSUMMARY: AddressSanitizer: global-buffer-overflow /work/libavcodec/aac/aacdec_usac_mps212.c:831:22 in ff_aac_map_index_data\nShadow bytes around the buggy address:\n  0x0abf356f2d20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0abf356f2d70: 00 00 00 00 00 00[f9]f9 00 00 00 00 00 00 00 00\n  0x0abf356f2d80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2da0: 00 00 00 00 00 00 00 00 00 00 00 00 04 f9 f9 f9\n  0x0abf356f2db0: 00 00 00 04 f9 f9 f9 f9 00 f9 f9 f9 00 04 f9 f9\n  0x0abf356f2dc0: 00 02 f9 f9 00 00 01 f9 f9 f9 f9 f9 06 f9 f9 f9\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==12==ABORTING\n",
+            "stdout_tail": "e 4 at 0x55f5ab7d6bb0 thread T0\n    #0 0x55f5aad303a7 in ff_aac_map_index_data /work/libavcodec/aac/aacdec_usac_mps212.c:831:22\n    #1 0x55f5aad211ce in parse_mps212 /work/libavcodec/aac/aacdec_usac.c:1425:5\n    #2 0x55f5aad211ce in decode_usac_core_coder /work/libavcodec/aac/aacdec_usac.c:1650:15\n    #3 0x55f5aad1c073 in ff_aac_usac_decode_frame /work/libavcodec/aac/aacdec_usac.c\n    #4 0x55f5aacfb92d in aac_decode_frame_int /work/libavcodec/aac/aacdec.c:2454:15\n    #5 0x55f5aacf229b in aac_decode_frame /work/libavcodec/aac/aacdec.c:2521:15\n    #6 0x55f5a9f6f3a9 in decode_simple_internal /work/libavcodec/decode.c:444:16\n    #7 0x55f5a9f6f3a9 in decode_simple_receive_frame /work/libavcodec/decode.c:604:15\n    #8 0x55f5a9f6f3a9 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:640:15\n    #9 0x55f5a9f70de8 in decode_receive_frame_internal /work/libavcodec/decode.c:658:15\n    #10 0x55f5a9f70c7a in avcodec_send_packet /work/libavcodec/decode.c:734:15\n    #11 0x55f5a9d0c9db in main /poc/harness.c:63:11\n    #12 0x7f94a453dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #13 0x7f94a453de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #14 0x55f5a9c4e3b4 in _start (/tmp/harness+0x4513b4) (BuildId: 0802e5d1202dde15bb60177ebf7d2ecc080ae12b)\n\n0x55f5ab7d6bb0 is located 0 bytes to the right of global variable 'stride_table' defined in 'libavcodec/aac/aacdec_usac_mps212.c:590:18' (0x55f5ab7d6ba0) of size 16\nSUMMARY: AddressSanitizer: global-buffer-overflow /work/libavcodec/aac/aacdec_usac_mps212.c:831:22 in ff_aac_map_index_data\nShadow bytes around the buggy address:\n  0x0abf356f2d20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0abf356f2d70: 00 00 00 00 00 00[f9]f9 00 00 00 00 00 00 00 00\n  0x0abf356f2d80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2d90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0abf356f2da0: 00 00 00 00 00 00 00 00 00 00 00 00 04 f9 f9 f9\n  0x0abf356f2db0: 00 00 00 04 f9 f9 f9 f9 00 f9 f9 f9 00 04 f9 f9\n  0x0abf356f2dc0: 00 02 f9 f9 00 00 01 f9 f9 f9 f9 f9 06 f9 f9 f9\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==12==ABORTING\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "996749dcde965eea0dd10d293b1e833b613129c15275dd2045bb24701db67180",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "a062e475fad0a1aa86bc2d63531f8b68e357fa30e5ba5e27f1a8b8795f2dad59"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ce, inv_only]\n        fft32_ns_float_c - type: fft_float, len: 32, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 64, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft32_ns_float_c - type: fft_float, len: 32, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_3xM_inv_float_c - type: mdct_float, len: 96, factors[2]: [3, any], flags: [unaligned, out_of_place, inv_only]\n        fft16_ns_float_c - type: fft_float, len: 16, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_15xM_inv_float_c - type: mdct_float, len: 120, factors[2]: [15, any], flags: [unaligned, out_of_place, inv_only]\n        fft4_ns_float_c - type: fft_float, len: 4, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 128, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft64_ns_float_c - type: fft_float, len: 64, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_15xM_inv_float_c - type: mdct_float, len: 480, factors[2]: [15, any], flags: [unaligned, out_of_place, inv_only]\n        fft16_ns_float_c - type: fft_float, len: 16, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 512, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft256_ns_float_c - type: fft_float, len: 256, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_3xM_inv_float_c - type: mdct_float, len: 768, factors[2]: [3, any], flags: [unaligned, out_of_place, inv_only]\n        fft128_ns_float_c - type: fft_float, len: 128, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_15xM_inv_float_c - type: mdct_float, len: 960, factors[2]: [15, any], flags: [unaligned, out_of_place, inv_only]\n        fft32_ns_float_c - type: fft_float, len: 32, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 1024, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft512_ns_float_c - type: fft_float, len: 512, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_fwd_float_c - type: mdct_float, len: 1024, factors[2]: [2, any], flags: [unaligned, out_of_place, fwd_only]\n        fft512_ns_float_c - type: fft_float, len: 512, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\navcodec_open2 -> 0\nopened: sample_rate=48000 channels=2 object_type via profile=41\n[aac @ 0x618000000080] AAC USAC Mps212 is not implemented. Update your FFmpeg version to the newest one from Git. If the problem still occurs, it means that your file has a feature which has not been implemented.\nsend_packet -> -1163346256\nreceive_frame -> -11\ndone\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "996749dcde965eea0dd10d293b1e833b613129c15275dd2045bb24701db67180",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "3c71d46be22ca9a417143077cf09761ef6cbbd89b6c48c6b42aa40d713ffd0b1"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "\n\n[aac @ 0x618000000080] Element present: idx 0, type 1\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 64, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft32_ns_float_c - type: fft_float, len: 32, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 64, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft32_ns_float_c - type: fft_float, len: 32, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_3xM_inv_float_c - type: mdct_float, len: 96, factors[2]: [3, any], flags: [unaligned, out_of_place, inv_only]\n        fft16_ns_float_c - type: fft_float, len: 16, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_15xM_inv_float_c - type: mdct_float, len: 120, factors[2]: [15, any], flags: [unaligned, out_of_place, inv_only]\n        fft4_ns_float_c - type: fft_float, len: 4, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 128, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft64_ns_float_c - type: fft_float, len: 64, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_15xM_inv_float_c - type: mdct_float, len: 480, factors[2]: [15, any], flags: [unaligned, out_of_place, inv_only]\n        fft16_ns_float_c - type: fft_float, len: 16, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 512, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft256_ns_float_c - type: fft_float, len: 256, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_3xM_inv_float_c - type: mdct_float, len: 768, factors[2]: [3, any], flags: [unaligned, out_of_place, inv_only]\n        fft128_ns_float_c - type: fft_float, len: 128, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_pfa_15xM_inv_float_c - type: mdct_float, len: 960, factors[2]: [15, any], flags: [unaligned, out_of_place, inv_only]\n        fft32_ns_float_c - type: fft_float, len: 32, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_inv_float_c - type: mdct_float, len: 1024, factors[2]: [2, any], flags: [unaligned, out_of_place, inv_only]\n        fft512_ns_float_c - type: fft_float, len: 512, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\nTransform tree:\n    mdct_fwd_float_c - type: mdct_float, len: 1024, factors[2]: [2, any], flags: [unaligned, out_of_place, fwd_only]\n        fft512_ns_float_c - type: fft_float, len: 512, factor: 2, flags: [unaligned, inplace, out_of_place, preshuf]\navcodec_open2 -> 0\nopened: sample_rate=48000 channels=2 object_type via profile=41\n[aac @ 0x618000000080] element type mismatch 1 != 0\nsend_packet -> 0\nreceive_frame -> 0\ndone\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "sanitizer",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "Custom-crafted raw AAC-USAC (xHE-AAC) bitstream run through /poc/run.sh (compiles /poc/harness.c against the built libavcodec and decodes /poc/extradata.bin as AVCodecContext extradata + /poc/frame.bin as one AVPacket via AV_CODEC_ID_AAC). The AudioSpecificConfig selects object_type=42 (USAC), 48kHz, a single channel-pair element with SBR enabled and stereoConfigIndex=1 (MPS-212 path). The access unit's CPE payload carries minimal core-coder data (1 core channel, max_sfb=0) plus minimal SBR data (bs_num_env=1, bs_noise_bands=0 -> n_q=1), then the MPS-212 OTT-CLD lossless section with nb_param_sets=2, both parameter sets using data_mode=3 (fresh data) with bsFreqRes=2 (band_stride=5) and PCM-coded band values. No pre-existing PoC/testcase was available (meta.json source=\"no_poc\"; the fix commit itself says \"testcase exists but did not replicate for me\"), so this bitstream was constructed field-by-field from the USAC/MPS-212 parsing code.",
+        "target_evidence": "post_intro (via run_poc): AddressSanitizer: global-buffer-overflow, READ of size 4, in ff_aac_map_index_data at libavcodec/aac/aacdec_usac_mps212.c:831:22 (`stride = stride_table[ld->freq_res[set_idx]];`), called from parse_mps212 (aacdec_usac.c:1425) <- decode_usac_core_coder (aacdec_usac.c:1650) <- ff_aac_usac_decode_frame <- aac_decode_frame. ASan report: \"0 bytes to the right of global variable 'stride_table' defined in libavcodec/aac/aacdec_usac_mps212.c:590:18 ... of size 16\". Root-cause match: ff_aac_ec_data_dec's get_freq_strides() call writes band-index values into ld->freq_res (also used as the current parameter set's bsFreqRes input), always starting at absolute index 0 regardless of set_idx; after processing 2 CLD parameter sets, ld->freq_res[1] ends up holding a corrupted band-index (4) instead of a valid 0-3 bsFreqRes value, and ff_aac_map_index_data's `stride_table[ld->freq_res[set_idx]]` (a 4-entry array) then reads stride_table[4], one element past the end.\npre_intro (via run_poc, identical extradata.bin/frame.bin/run.sh): exit=0, crashed=False. USAC MPS-212 is simply unimplemented at this revision: \"[aac] AAC USAC Mps212 is not implemented ... \", avcodec_send_packet returns AVERROR_PATCHWELCOME; no sanitizer report.\npost_benign (via run_poc, identical inputs): exit=0, crashed=False. Decode completes (avcodec_open2/send_packet/receive_frame all succeed) with no sanitizer report. Source at this revision (verified by reading aacdec_usac_mps212.c) declares a local `int16_t freq_stride_map[MPS_MAX_PARAM_BANDS + 1]` as get_freq_strides()'s output buffer instead of aliasing it onto ld->freq_res, removing the corruption."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Verified by direct reproduction using run_poc on all three configured versions with the byte-identical PoC (/poc/run.sh, /poc/harness.c, /poc/extradata.bin, /poc/frame.bin). meta.json's root cause is that ff_aac_ec_data_dec() in libavcodec/aac/aacdec_usac_mps212.c calls get_freq_strides() with ld->freq_res (declared int16_t freq_res[MPS_MAX_PARAM_SETS==9]) used simultaneously as the input bsFreqRes selector for the current parameter set and as the output scratch buffer, which get_freq_strides always fills starting at absolute index 0 regardless of which parameter set is active, corrupting freq_res entries belonging to other parameter sets and writing beyond the declared 9-slot bound. Since no existing PoC/testcase reproduced this (the fix commit's own message says \"testcase exists but did not replicate for me\", and meta.json records source=\"no_poc\"), I hand-built a complete AAC-USAC (xHE-AAC) AudioSpecificConfig and one access unit bit-by-bit from the USAC/MPS-212 parsing source (config: object_type=42, SBR-enabled CPE with stereoConfigIndex=1; frame: 1 core channel with max_sfb=0 so scale factors/spectrum need no extra bits, minimal SBR grid/envelope/noise fields with n_q=1 via bs_noise_bands=0, then 2 OTT-CLD parameter sets both with data_mode=3 and bsFreqRes=2), verifying intermediate state (nb_param_sets=2, code reaching ff_aac_ec_data_dec/ff_aac_map_index_data) with gdb before finalizing. Running this exact reproducer through run_poc: post_intro crashes deterministically with a genuine AddressSanitizer global-buffer-overflow read exactly at the aliasing-corrupted `stride_table[ld->freq_res[set_idx]]` access described by the root cause; pre_intro does not crash because USAC MPS-212 support (and thus the buggy function) does not exist yet at that revision (clean AVERROR_PATCHWELCOME, \"not implemented\"); post_benign does not crash because the fix (introducing a temporary `freq_stride_map` array instead of reusing ld->freq_res as output) removes the aliasing, confirmed both by the absence of any crash and by reading the fixed source. This cleanly establishes intro_verified=yes and benign_verified=yes for this BufferOverflow bug."
+    }
+  },
+  "task_hashes": {
+    "buggy": "4fd984e5406692b386a79ee7154e8e559e2fc872a081d4afe9bd78d6d1253543",
+    "benign": "a5d881ba67c1400bbadb567a682fcda36ffbdbbf256629d0016359f826351775"
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "bug_id": "GH-28221",
+  "title": "Add missing NULL check in i2r_HASH",
+  "severity": "unknown",
+  "keywords": [
+    "crl",
+    "x509",
+    "null pointer",
+    "oss-fuzz"
+  ],
+  "product": "openssl",
+  "component": "X509 CRL extension printing",
+  "creation_time": "2025-08-11T10:04:12Z",
+  "resolution_time": null,
+  "bug_discussion": "Upstream fixing pull request https://github.com/openssl/openssl/pull/28221\nAdd missing NULL check in i2r_HASH\noss-fuzz identified a crash in the crl fuzz test. This PR adds a missing NULL check to prevent dereferencing an uninitialized field, ensuring safe access.\r\n\r\nBefore:\r\n\r\n```console\r\n$ fuzz/crl-test ./clusterfuzz-testcase-2025-08-07\r\ncrl-test(127,0x20d2960c0) malloc: nano zone abandoned due to inability to reserve vm space.\r\n# ./clusterfuzz-testcase-2025-08-07\r\ncrypto/x509/v3_attrdesc.c:70:53: runtime error: member access within null pointer of type 'ASN1_BIT_STRING' (aka 'struct asn1_string_st')\r\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior crypto/x509/v3_attrdesc.c:70:53 \r\nzsh: abort      fuzz/crl-test ./clusterfuzz-testcase-2025-08-07\r\n```\r\n\r\nAfter:\r\n\r\n```console\r\n$ fuzz/crl-test ./clusterfuzz-testcase-2025-08-07\r\ncrl-test(94064,0x20d2960c0) malloc: nano zone abandoned due to inability to reserve vm space.\r\n# ./clusterfuzz-testcase-2025-08-07\r\n```\r\n\r\nFixes https://github.com/openssl/project/issues/1314 and https://issues.oss-fuzz.com/issues/436876970\r\n\n\nOpenSSL project issue https://github.com/openssl/project/issues/1314\nInvestigate and address Fuzzer ASAN crash in i2r_HASH\nhttps://oss-fuzz.com/testcase-detail/5168650987569152\n\noss-fuzz reported a new crash recently.  Need to investigate and fix\n\nCode observation for case-level review: a malformed CRL with an omitted optional OSSL_HASH hashValue is parsed, then the CRL print path calls i2r_HASH, which dereferences hashValue. The CRL fuzzer decodes and prints its input; the openssl crl command prints only with -text. The original unguarded dereference was present in the November 2024 attributeDescriptor introduction; a later hex-printer refactor retained it. The August 2025 fix checks hashValue before printing. Treat impact as conditional on an application printing an untrusted CRL.",
+  "commit_ids": [
+    "24f72a5aaab0243c136e1402b54348fda9cdbc36"
+  ],
+  "fix_commit_sha": "24f72a5aaab0243c136e1402b54348fda9cdbc36",
+  "fix_date": "2025-08-12T14:33:18-04:00",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "season": "2025H2",
+  "affected_files": [
+    "crypto/x509/v3_attrdesc.c"
+  ],
+  "changed_lines": 2,
+  "report_references": [
+    {
+      "id": "GH-28221",
+      "url": "https://github.com/openssl/openssl/pull/28221",
+      "kind": "public_pull_request"
+    },
+    {
+      "id": "PROJECT-1314",
+      "url": "https://github.com/openssl/project/issues/1314",
+      "kind": "public_upstream_issue"
+    },
+    {
+      "id": "OSSFUZZ-436876970",
+      "url": "https://issues.oss-fuzz.com/issues/436876970",
+      "kind": "upstream_pr_linked_fuzz_issue"
+    }
+  ],
+  "aliases": [
+    "PROJECT-1314",
+    "OSSFUZZ-436876970"
+  ],
+  "candidate_status": "targeted_public_fix_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_crl_print_denial_of_service",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true,
+    "reproducer_attachment_status": "upstream_pr_describes_testcase_but_bytes_not_archived"
+  },
+  "provenance": {
+    "collector": "targeted_openssl_crl_hash_null_v1",
+    "source_url": "https://github.com/openssl/openssl/pull/28221",
+    "public_commit_url": "https://github.com/openssl/openssl/commit/24f72a5aaab0243c136e1402b54348fda9cdbc36",
+    "report_details": "fetched_official_pr_and_issue_mainline_manual_merge",
+    "raw_report": {
+      "url": "https://api.github.com/repos/openssl/openssl/pulls/28221",
+      "final_url": "https://api.github.com/repos/openssl/openssl/pulls/28221",
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/reports/GH-28221.json",
+      "sha256": "654b7037140126b844101ff27f6bec96ec9c9864aa64e46b831202d1e30aa6ff",
+      "content_type": "application/json; charset=utf-8"
+    },
+    "test_evidence": {
+      "url": "https://api.github.com/repos/openssl/project/issues/1314",
+      "final_url": "https://api.github.com/repos/openssl/project/issues/1314",
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/reports/PROJECT-1314.json",
+      "sha256": "96502d93460377f02f63b4a14144ab8b2ca10aac3e91c554b824c24f06755aa0",
+      "content_type": "application/json; charset=utf-8"
+    },
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/24f72a5aaab0243c136e1402b54348fda9cdbc36.commit",
+      "sha256": "7d3ae19c40b2cc86fb8d462fda12a8ea222143b977aba9905051a4dd56d19913"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/24f72a5aaab0243c136e1402b54348fda9cdbc36.patch",
+      "sha256": "79bb9aa1bc14c5a4c5d49627b18fe562956f86d03581b6e4de6c8bbac8393bcd"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "acde7bc05a9979abce12c4f92d2a0aa0a3d61175",
+    "introduction_candidate": {
+      "sha": "cccdf41010d0859a0d134ac45be7218d9ffd90d2",
+      "committer_date": "2024-11-13T11:53:34+01:00",
+      "repository_path": "crypto/x509/v3_attrdesc.c",
+      "blame_lines": "68,70",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/cccdf41010d0859a0d134ac45be7218d9ffd90d2.commit",
+        "sha256": "33ec159d66ca0b6ebb7e77c1f976cdd1b1e9dce411d16797a4cabf13392fc51a"
+      },
+      "patch": {
+        "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/cccdf41010d0859a0d134ac45be7218d9ffd90d2.patch",
+        "sha256": "6c1f9a50757fe112172718b8917c8cb6e3515e49302357800a7c4214dd477f4f"
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/fix-parent.blame",
+        "sha256": "3e60f9c36b6b5c4a3c0a89d378cb8c88941fdf224493ba030a2d2ea4357ff010"
+      },
+      "introducing_file": {
+        "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/introducing-v3_attrdesc.c",
+        "sha256": "2fd9e4a9b4720c58dbf7235fe915db4bc774d469d1924f77d8e98ba3ca0d6ce9"
+      }
+    },
+    "fuzz_target_at_fix_parent": {
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/fix-parent-crl-fuzzer.c",
+      "sha256": "77f09fcdac6a167c6ab3b0fc203f8a859a9af1c730a4f27610f6122484e46a37"
+    },
+    "cli_crl_command_at_fix_parent": {
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/git/fix-parent-crl-app.c",
+      "sha256": "8bcc5c3a322cf95fab8ab9647b95c9f3a0c57b2362245d1b9b4b0310d6ae34ac"
+    },
+    "prior_intake_rejection": {
+      "manifest": "/research-data/secprbench/campaign-100-20260928/intake/documented-fixes-h2/openssl/manifest.json",
+      "manifest_sha256": "a857b33e9e167c66bde9809ca9d3cdc20690881bb52944e6fd46724bb37bc962",
+      "entry": {
+        "sha": "24f72a5aaab0243c136e1402b54348fda9cdbc36",
+        "subject": "Add NULL check",
+        "reason": "feature_or_test_without_subject_defect"
+      }
+    },
+    "raw_history": {
+      "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/raw/history.raw",
+      "sha256": "efa9645e1a3faf42c649f927c9c40de0584f06830626e16795827c538b117617"
+    },
+    "boundary_limit": "only_crl_printing_not_merely_crl_parsing",
+    "reproducer_limit": "original_oss_fuzz_testcase_bytes_not_publicly_archived_here"
+  }
+}

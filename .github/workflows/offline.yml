@@ -1,0 +1,40 @@
+name: Offline artifact checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline package and test dependencies
+        run: python -m pip install -e '.[test]'
+      - name: Validate frozen data and bundled verification assets
+        run: |
+          python tools/check_release.py --root .
+          python tools/bundle_verification.py --check
+      - name: Exercise scanner output contract
+        run: >-
+          python examples/contract_scanner.py
+          --input examples/public_input.json
+          --output .work/example-findings.json
+          --run-id 012345abcdef
+      - name: Reproduce filtered frozen-result accounting
+        run: >-
+          secprbench report
+          --snapshot artifacts/results/results_265_opus55_high.json
+          --out .work/frozen-report
+      - name: Run offline tests
+        run: python -m pytest -q -m 'not integration and not docker and not live'
+      - name: Lint runtime, tests, and release tools
+        run: ruff check secprbench tests examples tools

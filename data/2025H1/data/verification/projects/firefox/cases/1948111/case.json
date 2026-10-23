@@ -1,0 +1,36 @@
+{
+  "bug_id": "1948111",
+  "project": "firefox",
+  "bug_type": "DataRace",
+  "commits": {
+    "intro": "492e6f8efcbc729f636e00fa77179af405d23eb5",
+    "parent": "1e0a547b717c36ed7797e5adab00f27e3edd05b9",
+    "fix": "6dbdf1fff1e0c09c70d3b21299862e8a30951f16"
+  },
+  "affected_files": [
+    "dom/indexedDB/IndexedDatabaseManager.cpp",
+    "dom/indexedDB/IndexedDatabaseManager.h",
+    "dom/indexedDB/IDBFactory.cpp",
+    "dom/workers/WorkerPrivate.cpp",
+    "dom/workers/remoteworkers/RemoteWorkerChild.cpp"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "Structural evidence for the introduction is solid and was confirmed by directly diffing the two revisions' source (via docker_shell). pre_intro: dom/indexedDB/IndexedDatabaseManager.cpp has no EnsureLocale() function at all - mLocale is set exactly once inside Init() (called once via the main-thread GetOrCreate() before any IDBFactory/worker code can run), and grepping IDBFactory.cpp/WorkerPrivate.cpp/RemoteWorkerChild.cpp for \"EnsureLocale\" returns nothing - single-writer, happens-before by con",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "inconclusive",
+    "method": "firefox-verify (era 1.74.0, agent)",
+    "intro_verified": null,
+    "benign_verified": null,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "Structural evidence for the introduction is solid and was confirmed by directly diffing the two revisions' source (via docker_shell). pre_intro: dom/indexedDB/IndexedDatabaseManager.cpp has no EnsureLocale() function at all - mLocale is set exactly once inside Init() (called once via the main-thread GetOrCreate() before any IDBFactory/worker code can run), and grepping IDBFactory.cpp/WorkerPrivate.cpp/RemoteWorkerChild.cpp for \"EnsureLocale\" returns nothing - single-writer, happens-before by construction, no race possible. post_intro: adds a standalone EnsureLocale() that unconditionally reass",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1948111.json"
+  },
+  "final_disposition": "inconclusive"
+}

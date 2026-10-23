@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_503489820",
+  "bug_id": "503489820",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "8d161a06cdbfa8a14d261ed30d6bb465911982c3",
+  "intro_parent": "8a11afa5fd658fba7121c084275cb62de8f498dd",
+  "fix_commit": "4e101ceb0b0bd79169d2eb91949834096c8df55e",
+  "affected_files": [
+    "src/runtime/runtime-wasm.cc"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "v8",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_wasm-deopt-with-import.js: git:4e101ceb0b0bd79169d2eb91949834096c8df55e:test/filecheck/wasm-deopt-with-import.js",
+    "- evidence/test_01_65e7c62b2841c567_wasm-deopt-with-import.js: test/filecheck/wasm-deopt-with-import.js"
+  ],
+  "input_name": "wasm-deopt-with-import.js",
+  "root_cause": "Two different kinds of wasm function indices exist in V8's codebase: the 'declared function index' (excludes imported functions) and the 'module function index' (includes imported functions). NativeModule::GetCode() expects the latter and performs its own conversion via declared_function_index(). The introducing commit passed the already-declared index directly to GetCode() without converting it back to a module-scoped index, causing the conversion to be applied twice.",
+  "findings": [
+    "In Runtime_WasmLiftoffDeoptFinish, when v8_flags.trace_deopt_verbose is enabled and a feedback vector needs to be allocated, the code calls trusted_instance_data->native_module()->GetCode(declared_func_index). However, declared_func_index is already the index relative to the first *declared* (non-imported) wasm function (it was decoded directly from the Smi stored in the liftoff frame's feedback-v"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "fb3990057efcea1da1f8c1cc7025066eb408b9a357e19cd84fa704828b7c82e9",
+  "generated_artifact_sha256": {
+    "reference": "80f8612a8175182731ba81ecd90225c18e44e77f054995de7b2afef0bb9ab10d",
+    "introducing": "6c16d832155ec92a4c17e120e5e8b8965d03abe553d65de4593cf0986dba59cd",
+    "companion": "99dbd1120e6740ad18ffde1a746a4c2ee0bdfa8c0b19fbc2414f70e3dfdbc92e"
+  }
+}

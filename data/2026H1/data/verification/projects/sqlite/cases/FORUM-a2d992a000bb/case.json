@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-a2d992a000bb",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "bb0c54283d10397aa123872102dba97be793fe13",
+    "parent": "6f991147bd68e4d4909921103b419667ff353bce",
+    "fix": "a2d992a000bb343b23612df491edb3edb23386fa"
+  },
+  "affected_files": [
+    "ext/fts3/fts3_aux.c"
+  ],
+  "baseline": {
+    "status": "anomaly",
+    "intro_verified": false,
+    "benign_verified": true,
+    "reason": "Using the identical command `UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 ASAN_OPTIONS=abort_on_error=1:detect_leaks=0 ./sqlite3 ':memory:' < /poc/repro.sql` on all versions, post_intro exited 1 with UBSan reporting signed integer overflow at fts3auxNextMethod (`2147483646 + 2`). However, pre_intro also exited 1 with the same UBSan overflow at the corresponding expression, so commit bb0c54283d10 did not introduce the labelled bug. The intro change only adds an iCol<1 lower-bound check and do",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "anomaly"
+}

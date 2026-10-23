@@ -1,0 +1,41 @@
+{
+  "bug_id": "420401642",
+  "project": "v8",
+  "bug_type": "TypeConfusion",
+  "commits": {
+    "intro": "38f34065b57e31bc9f9fb17ce2d7ac1dafae3fa7",
+    "parent": "4308a9e8b5f662f7dc3e838871fc90b5839957cc",
+    "fix": "65bbfbb9ce2739c12dd3a761a12c518be042cdee"
+  },
+  "affected_files": [
+    "src/baseline/baseline-compiler.cc",
+    "src/builtins/builtins-definitions.h",
+    "src/builtins/builtins-number-gen.cc",
+    "src/codegen/interface-descriptors.h",
+    "src/common/globals.h",
+    "src/compiler/bytecode-graph-builder.cc",
+    "src/compiler/js-intrinsic-lowering.cc",
+    "src/compiler/js-intrinsic-lowering.h",
+    "src/ic/binary-op-assembler.cc",
+    "src/ic/binary-op-assembler.h",
+    "src/interpreter/bytecode-array-builder.cc",
+    "src/interpreter/bytecode-array-builder.h",
+    "src/interpreter/bytecode-generator.cc",
+    "src/interpreter/bytecodes.h",
+    "src/interpreter/interpreter-generator.cc",
+    "src/maglev/maglev-graph-builder.cc",
+    "src/runtime/runtime-internal.cc",
+    "src/runtime/runtime-strings.cc",
+    "src/runtime/runtime.h",
+    "test/unittests/interpreter/bytecode-array-builder-unittest.cc"
+  ],
+  "baseline": {
+    "status": "anomaly",
+    "intro_verified": false,
+    "benign_verified": null,
+    "reason": "All configured ASan builds succeeded. I downloaded and ran the original public ClusterFuzz testcase for 420401642, which optimizes gsab[gsab + \"ar_strict\"]() and reaches the new RHS-string-constant property-key path. The unmodified testcase produced only its expected uncaught JavaScript TypeError on pre_intro, post_intro, and post_benign, with no native crash or sanitizer finding. I then caught that final JS exception to make the oracle unambiguous and ran the identical /poc/run.sh through run_p",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "anomaly"
+}

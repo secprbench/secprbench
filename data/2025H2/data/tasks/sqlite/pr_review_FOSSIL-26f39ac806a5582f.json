@@ -1,0 +1,131 @@
+{
+  "task_id": "pr_review_FOSSIL-26f39ac806a5582f",
+  "bug_id": "FOSSIL-26f39ac806a5582f",
+  "commit_sha": "4b136ed70a1eb656efca8cc4079e515d6fc33dd6",
+  "commit_message": "Enable SQLITE_VTAB_INNOCUOUS for FTS3, FTS5, and RTREE.\n\nFossilOrigin-Name: f34c533b6c1f8ef3f69c75c1039406c12751cdde1fbdcb4d9776b24455facf8a",
+  "commit_author": "drh",
+  "commit_date": "2023-10-12T18:46:27Z",
+  "pr_title": "Enable SQLITE_VTAB_INNOCUOUS for FTS3, FTS5, and RTREE.",
+  "pr_description": "FossilOrigin-Name: f34c533b6c1f8ef3f69c75c1039406c12751cdde1fbdcb4d9776b24455facf8a",
+  "files": [
+    {
+      "path": "ext/fts3/fts3.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/ext/fts3/fts3.c b/ext/fts3/fts3.c\nindex 8aa824bce4..aa2653050b 100644\n--- a/ext/fts3/fts3.c\n+++ b/ext/fts3/fts3.c\n@@ -638,10 +638,11 @@ static void fts3DeclareVtab(int *pRc, Fts3Table *p){\n     char *zCols;                  /* List of user defined columns */\n     const char *zLanguageid;\n \n     zLanguageid = (p->zLanguageid ? p->zLanguageid : \"__langid\");\n     sqlite3_vtab_config(p->db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n+    sqlite3_vtab_config(p->db, SQLITE_VTAB_INNOCUOUS);\n \n     /* Create a list of user columns for the virtual table */\n     zCols = sqlite3_mprintf(\"%Q, \", p->azColumn[0]);\n     for(i=1; zCols && i<p->nColumn; i++){\n       zCols = sqlite3_mprintf(\"%z%Q, \", zCols, p->azColumn[i]);\n"
+    },
+    {
+      "path": "ext/fts5/fts5_main.c",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 0,
+      "diff": "diff --git a/ext/fts5/fts5_main.c b/ext/fts5/fts5_main.c\nindex 6a8ed37b54..3f14300043 100644\n--- a/ext/fts5/fts5_main.c\n+++ b/ext/fts5/fts5_main.c\n@@ -406,10 +406,13 @@ static int fts5InitVtab(\n   }\n \n   if( rc==SQLITE_OK && pConfig->eContent==FTS5_CONTENT_NORMAL ){\n     rc = sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, (int)1);\n   }\n+  if( rc==SQLITE_OK ){\n+    rc = sqlite3_vtab_config(db, SQLITE_VTAB_INNOCUOUS);\n+  }\n \n   if( rc!=SQLITE_OK ){\n     fts5FreeVtab(pTab);\n     pTab = 0;\n   }else if( bCreate ){\n"
+    },
+    {
+      "path": "ext/rtree/geopoly.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/ext/rtree/geopoly.c b/ext/rtree/geopoly.c\nindex 7bda24a8cb..3e9c2a2713 100644\n--- a/ext/rtree/geopoly.c\n+++ b/ext/rtree/geopoly.c\n@@ -1250,10 +1250,11 @@ static int geopolyInit(\n   char *zSql;\n   int ii;\n   (void)pAux;\n \n   sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n+  sqlite3_vtab_config(db, SQLITE_VTAB_INNOCUOUS);\n \n   /* Allocate the sqlite3_vtab structure */\n   nDb = strlen(argv[1]);\n   nName = strlen(argv[2]);\n   pRtree = (Rtree *)sqlite3_malloc64(sizeof(Rtree)+nDb+nName*2+8);\n"
+    },
+    {
+      "path": "ext/rtree/rtree.c",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 0,
+      "diff": "diff --git a/ext/rtree/rtree.c b/ext/rtree/rtree.c\nindex 8f01be37f6..b2667527bc 100644\n--- a/ext/rtree/rtree.c\n+++ b/ext/rtree/rtree.c\n@@ -3613,10 +3613,12 @@ static int rtreeInit(\n     *pzErr = sqlite3_mprintf(\"%s\", aErrMsg[2 + (argc>=6)]);\n     return SQLITE_ERROR;\n   }\n \n   sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n+  sqlite3_vtab_config(db, SQLITE_VTAB_INNOCUOUS);\n+\n \n   /* Allocate the sqlite3_vtab structure */\n   nDb = (int)strlen(argv[1]);\n   nName = (int)strlen(argv[2]);\n   pRtree = (Rtree *)sqlite3_malloc64(sizeof(Rtree)+nDb+nName*2+8);\n"
+    },
+    {
+      "path": "manifest",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 10,
+      "diff": "diff --git a/manifest b/manifest\nindex a6806b5df3..d9b10b76b5 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Add\\stest\\scase\\sfor\\s[29937081].\n-D 2023-10-12T18:09:27.355\n+C Enable\\sSQLITE_VTAB_INNOCUOUS\\sfor\\sFTS3,\\sFTS5,\\sand\\sRTREE.\n+D 2023-10-12T18:46:27.294\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md df5091916dbb40e6e9686186587125e1b2ff51f022cc334e886c19a0e9982724\n F Makefile.in 2ea4105b72561483befe0a18a37f94ca3adbc2324bad3770f99555d95fb9b0ea\n F Makefile.linux-gcc f3842a0b1efbfbb74ac0ef60e56b301836d05b4d867d014f714fa750048f1ab6\n@@ -58,11 +58,11 @@ F ext/expert/sqlite3expert.h ca81efc2679a92373a13a3e76a6138d0310e32be53d6c3bfaed\n F ext/expert/test_expert.c d56c194b769bdc90cf829a14c9ecbc1edca9c850b837a4d0b13be14095c32a72\n F ext/fts3/README.content b9078d0843a094d86af0d48dffbff13c906702b4c3558012e67b9c7cc3bf59ee\n F ext/fts3/README.syntax a19711dc5458c20734b8e485e75fb1981ec2427a\n F ext/fts3/README.tokenizers b92bdeb8b46503f0dd301d364efc5ef59ef9fa8e2758b8e742f39fa93a2e422d\n F ext/fts3/README.txt 8c18f41574404623b76917b9da66fcb0ab38328d\n-F ext/fts3/fts3.c 4095c97f2960f508bd34fc06d40f61d54e2ad09e7fbab75dc0114f57ebb6040d\n+F ext/fts3/fts3.c 89298f42a071d4f08588a308cf2904fc5014f59b47ea48949a127b5747e9b90a\n F ext/fts3/fts3.h 3a10a0af180d502cecc50df77b1b22df142817fe\n F ext/fts3/fts3Int.h e573c6d881f7238d77cc3fd2396cbb9b2fe13efef7d2ad295a155151c4e7efbd\n F ext/fts3/fts3_aux.c 7eab82a9cf0830f6551ba3abfdbe73ed39e322a4d3940ee82fbf723674ecd9f3\n F ext/fts3/fts3_expr.c 903bfb9433109fffb10e910d7066c49cbf8eeae316adc93f0499c4da7dfc932a\n F ext/fts3/fts3_hash.c 8b6e31bfb0844c27dc6092c2620bdb1fca17ed613072db057d96952c6bdb48b7\n@@ -93,11 +93,11 @@ F ext/fts5/fts5_aux.c 572d5ec92ba7301df2fea3258576332f2f4d2dfd66d8263afd157d9dec\n F ext/fts5/fts5_buffer.c 3001fbabb585d6de52947b44b455235072b741038391f830d6b729225eeaf6a5\n F ext/fts5/fts5_config.c 054359543566cbff1ba65a188330660a5457299513ac71c53b3a07d934c7b081\n F ext/fts5/fts5_expr.c bd3b81ce669c4104e34ffe66570af1999a317b142c15fccb112de9fb0caa57a6\n F ext/fts5/fts5_hash.c 65e7707bc8774706574346d18c20218facf87de3599b995963c3e6d6809f203d\n F ext/fts5/fts5_index.c 5c3872a01ae519af9839b675408163aab8eb1e31917c8b3d0ce726b4ad11d942\n-F ext/fts5/fts5_main.c 799ec88d2309055f6406bddb0bd6ed80148c5da5eb14594c3c5309a6e944d489\n+F ext/fts5/fts5_main.c 1ea6636a1f528e9042cc6992d57b5a97c4a4e401ab1d2836c0cc805a1d27a982\n F ext/fts5/fts5_storage.c 3c9b41fce41b6410f2e8f82eb035c6a29b2560483f773e6dc98cf3cb2e4ddbb5\n F ext/fts5/fts5_tcl.c b1445cbe69908c411df8084a10b2485500ac70a9c747cdc8cda175a3da59d8ae\n F ext/fts5/fts5_test_mi.c 08c11ec968148d4cb4119d96d819f8c1f329812c568bac3684f5464be177d3ee\n F ext/fts5/fts5_test_tok.c 3cb0a9b508b30d17ef025ccddd26ae3dc8ddffbe76c057616e59a9aa85d36f3b\n F ext/fts5/fts5_tokenize.c 5e251efb0f1af99a25ed50010ba6b1ad1250aca5921af1988fdcabe5ebc3cb43\n@@ -472,12 +472,12 @@ F ext/repair/sqlite3_checker.tcl a9a2caa9660567257c177a91124d8c0dccdfa341e25c51e\n F ext/repair/test/README.md 34b2f542cf5be7bffe479242b33ee3492cea30711e447cc4a1a86cb5915f419e\n F ext/repair/test/checkfreelist01.test 3e8aa6aeb4007680c94a8d07b41c339aa635cc78249442da72ff3f8297398a69\n F ext/repair/test/checkindex01.test b530f141413b587c9eb78ff734de6bb79bc3515c335096108c12c01bddbadcec\n F ext/repair/test/test.tcl 686d76d888dffd021f64260abf29a55c57b2cedfa7fc69150b42b1d6119aac3c\n F ext/rtree/README 6315c0d73ebf0ec40dedb5aa0e942bc8b54e3761\n-F ext/rtree/geopoly.c a7f8b4951e283300caf347cdc6097b66da9f6649797b12905fd528413b7ce267\n-F ext/rtree/rtree.c b3b1c96e46fc820b57851b4fbab546c5317d40d1a2d54e23c9bb50be6090b3e0\n+F ext/rtree/geopoly.c 0dd4775e896cee6067979d67aff7c998e75c2c9d9cd8d62a1a790c09cde7adca\n+F ext/rtree/rtree.c 9fdb03b602ca128c4b5b786c10675cf97cd0990d18db3b8c7a312551c3cf2f59\n F ext/rtree/rtree.h 4a690463901cb5e6127cf05eb8e642f127012fd5003830dbc974eca5802d9412\n F ext/rtree/rtree1.test 877d40b8b61b1f88cec9d4dc0ff8334f5b05299fac12a35141532e2881860e9d\n F ext/rtree/rtree2.test 9d9deddbb16fd0c30c36e6b4fdc3ee3132d765567f0f9432ee71e1303d32603d\n F ext/rtree/rtree3.test 272594f88c344e973864008bbe4c71fd3a41a264c097d568593ee7886d83d409\n F ext/rtree/rtree4.test 304de65d484540111b896827e4261815e5dca4ce28eeecd58be648cd73452c4b\n@@ -2126,10 +2126,10 @@ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c\n F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547\n F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93\n F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc\n F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e\n F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0\n-P 29937081a986d88f495ad48748c35ff5829f0ac31dd4ad3e48d180ae2fcb9a0c\n-R 3a4380c41a5098a65122508f2e34e284\n-U dan\n-Z 90a5fb07a2b44dcefd3540a88cf86f78\n+P d3b983edf7164d30ddb8b4b745a3feff9737149d85b1c428d6ad488ac6a1960a\n+R d66c3f0c591f0a5c79818d4ec908dabb\n+U drh\n+Z 715f0eac07de34228b29f32483ef26b6\n # Remove this line to create a well-formed Fossil manifest.\n"
+    },
+    {
+      "path": "manifest.uuid",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/manifest.uuid b/manifest.uuid\nindex a3b96cae38..f80a5cef58 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-d3b983edf7164d30ddb8b4b745a3feff9737149d85b1c428d6ad488ac6a1960a\n\\ No newline at end of file\n+f34c533b6c1f8ef3f69c75c1039406c12751cdde1fbdcb4d9776b24455facf8a\n\\ No newline at end of file\n"
+    }
+  ],
+  "full_diff": "diff --git a/ext/fts3/fts3.c b/ext/fts3/fts3.c\nindex 8aa824bce4..aa2653050b 100644\n--- a/ext/fts3/fts3.c\n+++ b/ext/fts3/fts3.c\n@@ -638,10 +638,11 @@ static void fts3DeclareVtab(int *pRc, Fts3Table *p){\n     char *zCols;                  /* List of user defined columns */\n     const char *zLanguageid;\n \n     zLanguageid = (p->zLanguageid ? p->zLanguageid : \"__langid\");\n     sqlite3_vtab_config(p->db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n+    sqlite3_vtab_config(p->db, SQLITE_VTAB_INNOCUOUS);\n \n     /* Create a list of user columns for the virtual table */\n     zCols = sqlite3_mprintf(\"%Q, \", p->azColumn[0]);\n     for(i=1; zCols && i<p->nColumn; i++){\n       zCols = sqlite3_mprintf(\"%z%Q, \", zCols, p->azColumn[i]);\ndiff --git a/ext/fts5/fts5_main.c b/ext/fts5/fts5_main.c\nindex 6a8ed37b54..3f14300043 100644\n--- a/ext/fts5/fts5_main.c\n+++ b/ext/fts5/fts5_main.c\n@@ -406,10 +406,13 @@ static int fts5InitVtab(\n   }\n \n   if( rc==SQLITE_OK && pConfig->eContent==FTS5_CONTENT_NORMAL ){\n     rc = sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, (int)1);\n   }\n+  if( rc==SQLITE_OK ){\n+    rc = sqlite3_vtab_config(db, SQLITE_VTAB_INNOCUOUS);\n+  }\n \n   if( rc!=SQLITE_OK ){\n     fts5FreeVtab(pTab);\n     pTab = 0;\n   }else if( bCreate ){\ndiff --git a/ext/rtree/geopoly.c b/ext/rtree/geopoly.c\nindex 7bda24a8cb..3e9c2a2713 100644\n--- a/ext/rtree/geopoly.c\n+++ b/ext/rtree/geopoly.c\n@@ -1250,10 +1250,11 @@ static int geopolyInit(\n   char *zSql;\n   int ii;\n   (void)pAux;\n \n   sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n+  sqlite3_vtab_config(db, SQLITE_VTAB_INNOCUOUS);\n \n   /* Allocate the sqlite3_vtab structure */\n   nDb = strlen(argv[1]);\n   nName = strlen(argv[2]);\n   pRtree = (Rtree *)sqlite3_malloc64(sizeof(Rtree)+nDb+nName*2+8);\ndiff --git a/ext/rtree/rtree.c b/ext/rtree/rtree.c\nindex 8f01be37f6..b2667527bc 100644\n--- a/ext/rtree/rtree.c\n+++ b/ext/rtree/rtree.c\n@@ -3613,10 +3613,12 @@ static int rtreeInit(\n     *pzErr = sqlite3_mprintf(\"%s\", aErrMsg[2 + (argc>=6)]);\n     return SQLITE_ERROR;\n   }\n \n   sqlite3_vtab_config(db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n+  sqlite3_vtab_config(db, SQLITE_VTAB_INNOCUOUS);\n+\n \n   /* Allocate the sqlite3_vtab structure */\n   nDb = (int)strlen(argv[1]);\n   nName = (int)strlen(argv[2]);\n   pRtree = (Rtree *)sqlite3_malloc64(sizeof(Rtree)+nDb+nName*2+8);\ndiff --git a/manifest b/manifest\nindex a6806b5df3..d9b10b76b5 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Add\\stest\\scase\\sfor\\s[29937081].\n-D 2023-10-12T18:09:27.355\n+C Enable\\sSQLITE_VTAB_INNOCUOUS\\sfor\\sFTS3,\\sFTS5,\\sand\\sRTREE.\n+D 2023-10-12T18:46:27.294\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md df5091916dbb40e6e9686186587125e1b2ff51f022cc334e886c19a0e9982724\n F Makefile.in 2ea4105b72561483befe0a18a37f94ca3adbc2324bad3770f99555d95fb9b0ea\n F Makefile.linux-gcc f3842a0b1efbfbb74ac0ef60e56b301836d05b4d867d014f714fa750048f1ab6\n@@ -58,11 +58,11 @@ F ext/expert/sqlite3expert.h ca81efc2679a92373a13a3e76a6138d0310e32be53d6c3bfaed\n F ext/expert/test_expert.c d56c194b769bdc90cf829a14c9ecbc1edca9c850b837a4d0b13be14095c32a72\n F ext/fts3/README.content b9078d0843a094d86af0d48dffbff13c906702b4c3558012e67b9c7cc3bf59ee\n F ext/fts3/README.syntax a19711dc5458c20734b8e485e75fb1981ec2427a\n F ext/fts3/README.tokenizers b92bdeb8b46503f0dd301d364efc5ef59ef9fa8e2758b8e742f39fa93a2e422d\n F ext/fts3/README.txt 8c18f41574404623b76917b9da66fcb0ab38328d\n-F ext/fts3/fts3.c 4095c97f2960f508bd34fc06d40f61d54e2ad09e7fbab75dc0114f57ebb6040d\n+F ext/fts3/fts3.c 89298f42a071d4f08588a308cf2904fc5014f59b47ea48949a127b5747e9b90a\n F ext/fts3/fts3.h 3a10a0af180d502cecc50df77b1b22df142817fe\n F ext/fts3/fts3Int.h e573c6d881f7238d77cc3fd2396cbb9b2fe13efef7d2ad295a155151c4e7efbd\n F ext/fts3/fts3_aux.c 7eab82a9cf0830f6551ba3abfdbe73ed39e322a4d3940ee82fbf723674ecd9f3\n F ext/fts3/fts3_expr.c 903bfb9433109fffb10e910d7066c49cbf8eeae316adc93f0499c4da7dfc932a\n F ext/fts3/fts3_hash.c 8b6e31bfb0844c27dc6092c2620bdb1fca17ed613072db057d96952c6bdb48b7\n@@ -93,11 +93,11 @@ F ext/fts5/fts5_aux.c 572d5ec92ba7301df2fea3258576332f2f4d2dfd66d8263afd157d9dec\n F ext/fts5/fts5_buffer.c 3001fbabb585d6de52947b44b455235072b741038391f830d6b729225eeaf6a5\n F ext/fts5/fts5_config.c 054359543566cbff1ba65a188330660a5457299513ac71c53b3a07d934c7b081\n F ext/fts5/fts5_expr.c bd3b81ce669c4104e34ffe66570af1999a317b142c15fccb112de9fb0caa57a6\n F ext/fts5/fts5_hash.c 65e7707bc8774706574346d18c20218facf87de3599b995963c3e6d6809f203d\n F ext/fts5/fts5_index.c 5c3872a01ae519af9839b675408163aab8eb1e31917c8b3d0ce726b4ad11d942\n-F ext/fts5/fts5_main.c 799ec88d2309055f6406bddb0bd6ed80148c5da5eb14594c3c5309a6e944d489\n+F ext/fts5/fts5_main.c 1ea6636a1f528e9042cc6992d57b5a97c4a4e401ab1d2836c0cc805a1d27a982\n F ext/fts5/fts5_storage.c 3c9b41fce41b6410f2e8f82eb035c6a29b2560483f773e6dc98cf3cb2e4ddbb5\n F ext/fts5/fts5_tcl.c b1445cbe69908c411df8084a10b2485500ac70a9c747cdc8cda175a3da59d8ae\n F ext/fts5/fts5_test_mi.c 08c11ec968148d4cb4119d96d819f8c1f329812c568bac3684f5464be177d3ee\n F ext/fts5/fts5_test_tok.c 3cb0a9b508b30d17ef025ccddd26ae3dc8ddffbe76c057616e59a9aa85d36f3b\n F ext/fts5/fts5_tokenize.c 5e251efb0f1af99a25ed50010ba6b1ad1250aca5921af1988fdcabe5ebc3cb43\n@@ -472,12 +472,12 @@ F ext/repair/sqlite3_checker.tcl a9a2caa9660567257c177a91124d8c0dccdfa341e25c51e\n F ext/repair/test/README.md 34b2f542cf5be7bffe479242b33ee3492cea30711e447cc4a1a86cb5915f419e\n F ext/repair/test/checkfreelist01.test 3e8aa6aeb4007680c94a8d07b41c339aa635cc78249442da72ff3f8297398a69\n F ext/repair/test/checkindex01.test b530f141413b587c9eb78ff734de6bb79bc3515c335096108c12c01bddbadcec\n F ext/repair/test/test.tcl 686d76d888dffd021f64260abf29a55c57b2cedfa7fc69150b42b1d6119aac3c\n F ext/rtree/README 6315c0d73ebf0ec40dedb5aa0e942bc8b54e3761\n-F ext/rtree/geopoly.c a7f8b4951e283300caf347cdc6097b66da9f6649797b12905fd528413b7ce267\n-F ext/rtree/rtree.c b3b1c96e46fc820b57851b4fbab546c5317d40d1a2d54e23c9bb50be6090b3e0\n+F ext/rtree/geopoly.c 0dd4775e896cee6067979d67aff7c998e75c2c9d9cd8d62a1a790c09cde7adca\n+F ext/rtree/rtree.c 9fdb03b602ca128c4b5b786c10675cf97cd0990d18db3b8c7a312551c3cf2f59\n F ext/rtree/rtree.h 4a690463901cb5e6127cf05eb8e642f127012fd5003830dbc974eca5802d9412\n F ext/rtree/rtree1.test 877d40b8b61b1f88cec9d4dc0ff8334f5b05299fac12a35141532e2881860e9d\n F ext/rtree/rtree2.test 9d9deddbb16fd0c30c36e6b4fdc3ee3132d765567f0f9432ee71e1303d32603d\n F ext/rtree/rtree3.test 272594f88c344e973864008bbe4c71fd3a41a264c097d568593ee7886d83d409\n F ext/rtree/rtree4.test 304de65d484540111b896827e4261815e5dca4ce28eeecd58be648cd73452c4b\n@@ -2126,10 +2126,10 @@ F vsixtest/pch.h 9cab7980f2ac4baa40807d8b5e52af32a21cf78c\n F vsixtest/vsixtest.sln 77cadbe4e96c1fe1bf51cd77de9e9b0a12ada547\n F vsixtest/vsixtest.tcl 6a9a6ab600c25a91a7acc6293828957a386a8a93\n F vsixtest/vsixtest.vcxproj.data 2ed517e100c66dc455b492e1a33350c1b20fbcdc\n F vsixtest/vsixtest.vcxproj.filters 37e51ffedcdb064aad6ff33b6148725226cd608e\n F vsixtest/vsixtest_TemporaryKey.pfx e5b1b036facdb453873e7084e1cae9102ccc67a0\n-P 29937081a986d88f495ad48748c35ff5829f0ac31dd4ad3e48d180ae2fcb9a0c\n-R 3a4380c41a5098a65122508f2e34e284\n-U dan\n-Z 90a5fb07a2b44dcefd3540a88cf86f78\n+P d3b983edf7164d30ddb8b4b745a3feff9737149d85b1c428d6ad488ac6a1960a\n+R d66c3f0c591f0a5c79818d4ec908dabb\n+U drh\n+Z 715f0eac07de34228b29f32483ef26b6\n # Remove this line to create a well-formed Fossil manifest.\ndiff --git a/manifest.uuid b/manifest.uuid\nindex a3b96cae38..f80a5cef58 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-d3b983edf7164d30ddb8b4b745a3feff9737149d85b1c428d6ad488ac6a1960a\n\\ No newline at end of file\n+f34c533b6c1f8ef3f69c75c1039406c12751cdde1fbdcb4d9776b24455facf8a\n\\ No newline at end of file\n",
+  "ground_truth": {
+    "bug_id": "FOSSIL-26f39ac806a5582f",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "add73c831bfe86288839f6053b7fcc7adfa72a87",
+      "short_sha": "add73c831b",
+      "message": "Add the SQLITE_PREPARE_FROM_DDL flag to sqlite3_prepare_v3(). Use this to prevent fts3/4 tables in non-trusted schemas from calling unsafe SQL functions.",
+      "author": "dan",
+      "date": "2025-12-22T15:22:02Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logic-001",
+        "title": "FTS3/4 internal SQL statements bypass trusted-schema protection against unsafe SQL functions",
+        "message": "Commit 4b136ed70a marks the FTS3 virtual table as SQLITE_VTAB_INNOCUOUS (ext/fts3/fts3.c, fts3DeclareVtab), lowering its eVtabRisk to zero so that FTS3/4 tables can be created and used even when PRAGMA trusted_schema=OFF (i.e. from untrusted/attacker-influenced schemas, such as those found in an attached or shared database). Before this change, SQLite's virtual-table risk checks (vtabIsReadOnly in src/delete.c, selectExpander in src/select.c) would block any access to FTS3/4 tables coming from an untrusted schema, so the module's internal SQL plumbing was never reachable in that threat model. After marking FTS3/4 innocuous, that protective gate disappears, but the module's internal SQL statements -- generated with sqlite3_mprintf() from schema-controlled strings (p->zName, p->zDb, p->zReadExprlist, p->zWriteExprlist, etc. -- see fts3SqlStmt in ext/fts3/fts3_write.c, fts3CursorSeekStmt/fts3FilterMethod in ext/fts3/fts3.c, fts3DoRebuild and sqlite3Fts3IntegrityCheck in ext/fts3/fts3_write.c) -- are still compiled via plain sqlite3_prepare_v2()/sqlite3_prepare_v3() calls with no indication that they originate from (and embed data governed by) a database schema. Because these statements are prepared as brand-new top-level Parse contexts, pParse->pToplevel is NULL and no Expr carries the EP_FromDDL/fromDDL flag, so the engine's existing 'disallow unsafe/DIRECTONLY SQL functions reached from untrusted schema content' checks in sqlite3ExprFunctionUsable (src/expr.c), vtabIsReadOnly (src/delete.c) and selectExpander (src/select.c) never trigger for them. The net effect is that an FTS3/4 virtual table defined inside a non-trusted schema can smuggle a call to an application-defined 'unsafe' SQL function into the engine, because the internal statements FTS3/4 prepares on its own behalf are never marked as DDL-derived and therefore are not subjected to the trusted-schema restriction, defeating the purpose of PRAGMA trusted_schema=OFF / SQLITE_DBCONFIG_TRUSTED_SCHEMA.",
+        "location": {
+          "file": "ext/fts3/fts3.c",
+          "start_line": 633,
+          "end_line": 643,
+          "start_column": null,
+          "end_column": null,
+          "function": "fts3DeclareVtab",
+          "snippet": "static void fts3DeclareVtab(int *pRc, Fts3Table *p){\n  if( *pRc==SQLITE_OK ){\n    int i;                        /* Iterator variable */\n    int rc;                       /* Return code */\n    char *zSql;                   /* SQL statement passed to declare_vtab() */\n    char *zCols;                  /* List of user defined columns */\n    const char *zLanguageid;\n\n    zLanguageid = (p->zLanguageid ? p->zLanguageid : \"__langid\");\n    sqlite3_vtab_config(p->db, SQLITE_VTAB_CONSTRAINT_SUPPORT, 1);\n    sqlite3_vtab_config(p->db, SQLITE_VTAB_INNOCUOUS);",
+          "snippet_hash": "035326be0fc5e24f35c2be4c8beb9c8740c47c77121ffed25dd728a7a08b94db",
+          "description": null,
+          "snippet_start_line": 633,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "LogicError",
+        "confidence": 0.75,
+        "suggestion": "Whenever a virtual table module (FTS3/4, FTS5, RTREE, or any other module marked SQLITE_VTAB_INNOCUOUS) prepares SQL statements on its own behalf using text assembled from schema-controlled identifiers, those statements must be prepared with a flag that marks them as schema/DDL-derived so the existing trusted-schema enforcement (sqlite3ExprFunctionUsable, vtabIsReadOnly, selectExpander) still applies to them. Concretely: add an SQLITE_PREPARE_FROM_DDL flag to sqlite3_prepare_v3(), thread it through Parse->prepFlags, and OR it into the trusted-schema checks (pParse->pToplevel!=0 in delete.c, pFrom->fg.fromDDL in select.c, ExprHasProperty(pExpr,EP_FromDDL) in expr.c) alongside the existing conditions; then update every internal fts3/fts3_write prepare call to go through a wrapper (e.g. sqlite3Fts3PrepareStmt) that always sets this flag.",
+        "suggestion_code": "int sqlite3Fts3PrepareStmt(\n  Fts3Table *p, const char *zSql, int bPersist, int bAllowVtab, sqlite3_stmt **pp\n){\n  int f = SQLITE_PREPARE_FROM_DDL\n         |((bAllowVtab==0) ? SQLITE_PREPARE_NO_VTAB : 0)\n         |(bPersist ? SQLITE_PREPARE_PERSISTENT : 0);\n  return sqlite3_prepare_v3(p->db, zSql, -1, f, pp, NULL);\n}",
+        "tags": [
+          "security",
+          "sql-injection-adjacent",
+          "trusted-schema",
+          "fts3",
+          "virtual-table"
+        ],
+        "cwe_ids": [
+          "CWE-862",
+          "CWE-693"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "ext/fts3/fts3.c",
+      "ext/fts3/fts3Int.h",
+      "ext/fts3/fts3_write.c",
+      "src/delete.c",
+      "src/expr.c",
+      "src/select.c",
+      "src/sqlite.h.in",
+      "src/vdbe.h"
+    ],
+    "root_cause": "SQLite's 'disallow unsafe SQL functions from untrasted schema content' protection was implemented by checking whether the current parse was a nested sub-parse of a top-level statement, or whether a specific expression was parsed directly from schema/DDL text. It did not account for virtual-table modules that, having been granted SQLITE_VTAB_INNOCUOUS status (and thus made usable from untrusted schemas), independently compile their own fresh top-level SQL statements built from schema-derived strings. Those internally-generated statements were indistinguishable, from the enforcement code's point of view, from ordinary trusted top-level user SQL, so the protection silently did not apply to them.",
+    "must_cover": [
+      {
+        "file": "ext/fts3/fts3.c",
+        "function": "fts3DeclareVtab",
+        "start_line": 633,
+        "end_line": 643,
+        "role": "primary",
+        "reason": "Primary location of finding: FTS3/4 internal SQL statements bypass trusted-schema protection against unsafe SQL functions"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "4b136ed70a1eb656efca8cc4079e515d6fc33dd6",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

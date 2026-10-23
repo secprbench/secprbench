@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_GH-13862",
+  "bug_id": "GH-13862",
+  "bug_type": "LogicError",
+  "intro_commit": "47579bdf5cccfbac1cf2b6e7e52218c5b9faed86",
+  "intro_parent": "b02780c41dbc5b28d265b5cf141c03c1a7383ef9",
+  "fix_commit": "427c36888e1a0896dbbc830873ac6935a8019d41",
+  "affected_files": [
+    "src/db.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_b6a12d025adb98db_pause.tcl: tests/unit/pause.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "An exit-condition invariant in dbRandomKey() ('the only way expireIfNeeded() can refuse to delete an expired key without eventually returning 0 is if this is a replica') was silently broken when a second such path (client-pause-driven expire suppression on a primary) was introduced elsewhere, without the dbRandomKey() guard being updated to match the new invariant.",
+  "findings": [
+    "dbRandomKey() retries dictGetFairRandomKey() in a while(1) loop whenever the randomly-picked key is volatile and logically expired, relying on expireIfNeeded() to either actually delete the key (allowing the loop to terminate on a non-expired pick) or on a maxtries safety valve to force termination when the DB cannot make progress. The safety valve `if (allvolatile && server.masterhost && --maxtri"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "35fb5b400104a0987ddd0c3da21e4b68055b48507a7a67029a8306cb6e7eba74",
+  "generated_artifact_sha256": {
+    "reference": "4beef835fa53105f6561d6b22050e858c97482ef4880b13beceef53a1e2e2454",
+    "introducing": "a180891a104f8fc60dbf7490f30cc97222b1590d11e4cfc3aed37e579231ba70",
+    "companion": "15e6cbdead98c2edb9267340af95de50ce1fb4f851f567667575b66edbac104c"
+  }
+}

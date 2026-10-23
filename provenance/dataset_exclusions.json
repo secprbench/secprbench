@@ -1,0 +1,176 @@
+{
+  "cases": [
+    {
+      "case_key": "curl/GH-19269",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H2/data/tasks/curl/pr_review_GH-19269_benign.json",
+          "sha256": "804d6f630e084390215d901a6773b52ccf271357fc581db932147719e68634a9",
+          "task_id": "pr_review_GH-19269_benign"
+        },
+        "buggy": {
+          "path": "2025H2/data/tasks/curl/pr_review_GH-19269.json",
+          "sha256": "36ed4fc4c54418f7816d00761592078d3b9e578ad82126722ebb04d0905bcb16",
+          "task_id": "pr_review_GH-19269"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Successful GET prints spurious abort-upload trace; verification establishes incorrect telemetry, while reference security consequences remain speculative.",
+      "season": "2025H2",
+      "status": "excluded"
+    },
+    {
+      "case_key": "curl/GH-19377",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H2/data/tasks/curl/pr_review_GH-19377_benign.json",
+          "sha256": "e0297649c9cd9d71bf62b043e12bf98aed191e28e6c9a252001655fe68a8b039",
+          "task_id": "pr_review_GH-19377_benign"
+        },
+        "buggy": {
+          "path": "2025H2/data/tasks/curl/pr_review_GH-19377.json",
+          "sha256": "e131c380f73ed4e26166c686049b5ee1422695e49e1160b5e98fc38bbdb4806b",
+          "task_id": "pr_review_GH-19377"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Local curl --help spacing bug; upstream and verifier explicitly describe display-only effect, and curl clamps negative printf widths.",
+      "season": "2025H2",
+      "status": "excluded"
+    },
+    {
+      "case_key": "ffmpeg/268d0b6527cb",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_268d0b6527cb_benign.json",
+          "sha256": "da8a2a5d47f1f986c240dda91aa36be299ea5dfc4d2ca122ef16105884c5cc19",
+          "task_id": "pr_review_268d0b6527cb_benign"
+        },
+        "buggy": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_268d0b6527cb.json",
+          "sha256": "76475ce1943bceca491f07ba3c1e3e305d2216de74dfecdffeba09019bdd0f6d",
+          "task_id": "pr_review_268d0b6527cb"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Reference and verification establish ignored bicubic/Lanczos scaler parameters, without a concrete security consequence.",
+      "season": "2025H1",
+      "status": "excluded"
+    },
+    {
+      "case_key": "ffmpeg/TESTCASE-4015241140b49b26",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H2/data/tasks/ffmpeg/pr_review_TESTCASE-4015241140b49b26_benign.json",
+          "sha256": "8eeb662c1e42ebdea7ebe69bbc9dffd6558ef7e47dae600fb6894107fcfa81e7",
+          "task_id": "pr_review_TESTCASE-4015241140b49b26_benign"
+        },
+        "buggy": {
+          "path": "2025H2/data/tasks/ffmpeg/pr_review_TESTCASE-4015241140b49b26.json",
+          "sha256": "232651ebed469b10fb0a12b93c8c1d94e866156bd5fad31eefcce4888428bb39",
+          "task_id": "pr_review_TESTCASE-4015241140b49b26"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Local ffmpeg -/version NULL crash; owner-admission evidence explicitly says untrusted_input_boundary_not_yet_demonstrated. Reconsider if boundary evidence is supplied.",
+      "season": "2025H2",
+      "status": "held"
+    },
+    {
+      "case_key": "ffmpeg/bd75fad85f37",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_bd75fad85f37_benign.json",
+          "sha256": "9c35c04405d3ea85df60d1c05fb0868aa88afcd8b901d4e10640a238908448aa",
+          "task_id": "pr_review_bd75fad85f37_benign"
+        },
+        "buggy": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_bd75fad85f37.json",
+          "sha256": "cb21c7b4255d455a594bcd5226b22f5436daada875fa7a999653c6562b863756",
+          "task_id": "pr_review_bd75fad85f37"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Imported Vulkan-device initialization fails with no memory type; saved evidence establishes ordinary configuration/decoding failure, not an unsafe security operation.",
+      "season": "2025H1",
+      "status": "excluded"
+    },
+    {
+      "case_key": "ffmpeg/c14b837dedad",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_c14b837dedad_benign.json",
+          "sha256": "0311bda2f19d3337217f5d5f816e64f089b1a2c9453955f3ba014cb1f75e3a04",
+          "task_id": "pr_review_c14b837dedad_benign"
+        },
+        "buggy": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_c14b837dedad.json",
+          "sha256": "f46a67790abbc629380a60cb5ea9081771806870a8132b0558ef7e9c13e69e65",
+          "task_id": "pr_review_c14b837dedad"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Wrong Speex frame duration and garbled output; saved oracle checks frame duration, without established security impact.",
+      "season": "2025H1",
+      "status": "excluded"
+    },
+    {
+      "case_key": "ffmpeg/db7ff135744d",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_db7ff135744d_benign.json",
+          "sha256": "ea8ad596cc54517fbaaf0b8cc7308c0a55a2e5675149a051caab2cfd83fc729a",
+          "task_id": "pr_review_db7ff135744d_benign"
+        },
+        "buggy": {
+          "path": "2025H1/data/tasks/ffmpeg/pr_review_db7ff135744d.json",
+          "sha256": "9581d0e2c6fea5c6617ff63e4a9db0b7e707dbe223a7238e6e79408113c9515a",
+          "task_id": "pr_review_db7ff135744d"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Loop-index reuse leaves a filter input unconfigured; oracle is vstack width mismatch/EINVAL, without a demonstrated security boundary violation.",
+      "season": "2025H1",
+      "status": "excluded"
+    },
+    {
+      "case_key": "firefox/1950061",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H1/data/tasks/firefox/pr_review_1950061_benign.json",
+          "sha256": "622b96244f23d734310c3fabd35ffa4726aafe6d24de8ab990255b72ef0236c8",
+          "task_id": "pr_review_1950061_benign"
+        },
+        "buggy": {
+          "path": "2025H1/data/tasks/firefox/pr_review_1950061.json",
+          "sha256": "d7add7b489edce2b038422a8f0a894ca16e39c5aae77bccbdf4a1c92e3d5151a",
+          "task_id": "pr_review_1950061"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Dependency-version-only OpenH264 manifest update; vulnerable implementation is outside the reviewed Firefox change; paper explicitly excludes dependency updates.",
+      "season": "2025H1",
+      "status": "excluded"
+    },
+    {
+      "case_key": "openssl/GH-26346",
+      "original_tasks": {
+        "benign": {
+          "path": "2025H1/data/tasks/openssl/pr_review_GH-26346_benign.json",
+          "sha256": "b24a451851812fca688c3fd92237c51679bdfdd66b33e77ed478f6c59aade69c",
+          "task_id": "pr_review_GH-26346_benign"
+        },
+        "buggy": {
+          "path": "2025H1/data/tasks/openssl/pr_review_GH-26346.json",
+          "sha256": "6efc944f0ac51db1b1ab28d2dc2b17e3e5a361415c2901b81251da675e5bf998",
+          "task_id": "pr_review_GH-26346"
+        }
+      },
+      "payloads_included": false,
+      "reason": "Missing IV is in apps/speed.c benchmarking; misleading speed results and failed benchmark operations, not a demonstrated cryptographic security failure. | Eligibility uses recorded canonical mainline fix alias; preserve construction fix and canonical fix separately. Independently checked ancestry/date and mapping evidence.",
+      "season": "2025H1",
+      "status": "excluded"
+    }
+  ],
+  "schema_version": 1
+}

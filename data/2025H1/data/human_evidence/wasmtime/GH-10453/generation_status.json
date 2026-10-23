@@ -1,0 +1,100 @@
+{
+  "identity": "wasmtime/GH-10453",
+  "case_id": "11a18f55feb5d7c62cdf",
+  "project": "wasmtime",
+  "season": "2025H1",
+  "bug_id": "GH-10453",
+  "source": "/research-data/secprbench/season100-balanced-20261001/sources/wasmtime/11a18f55feb5d7c62cdf/source.json",
+  "source_sha256": "271d55d4251aa81ae03b9310531012db00ad2a9e10559a4e4bae3c7c72e9511d",
+  "repo": "/research/repos/bytecodealliance__wasmtime",
+  "source_fix_date": "2025-03-21T17:33:36Z",
+  "source_fix_sha": "04eee21826057ca0f67ad55bd6386ce61d2352ce",
+  "status": "generated",
+  "attempts": [
+    {
+      "number": 1,
+      "started_at": "2026-10-01T22:09:57.373980+00:00",
+      "status": "generated",
+      "directory": "attempts/01",
+      "limits": {
+        "model": "claude-sonnet-5",
+        "max_attempts": 2,
+        "timeout_seconds": 1800,
+        "max_turns": 50,
+        "max_budget_usd": null,
+        "min_intro_date": "2021-01-01",
+        "auth_mode": "subscription"
+      },
+      "returncode": 0,
+      "artifact_scan": {
+        "regular_files_scanned": 20,
+        "bytes_scanned": 559306,
+        "entries_scanned": 30,
+        "redacted_files": 0,
+        "rejected_links": 0,
+        "rejected_special_files": 0,
+        "redacted_names": 0,
+        "safe": true,
+        "complete": true,
+        "limits": {
+          "regular_files": 10000,
+          "bytes": 268435456,
+          "entries": 20000
+        }
+      },
+      "ended_at": "2026-10-01T22:10:50.466070+00:00",
+      "elapsed_seconds": 53.091,
+      "usage": {
+        "input_tokens": 16,
+        "output_tokens": 4973,
+        "cache_read_tokens": 235960,
+        "cache_write_tokens": 12576,
+        "cost_usd": 0.147258,
+        "sessions": 1,
+        "complete": true,
+        "cost_basis": "provider_reported_usd",
+        "missing_usage_is_not_zero_cost": false
+      },
+      "accounting": {
+        "complete": true,
+        "accounted_usd": 0.147258
+      }
+    }
+  ],
+  "verification_status": "not_run",
+  "scheduled_at": "2026-10-01T22:09:57.372614+00:00",
+  "updated_at": "2026-10-01T22:10:50.466083+00:00",
+  "fix_proof": {
+    "fix_sha": "04eee21826057ca0f67ad55bd6386ce61d2352ce",
+    "fix_date": "2025-03-21T17:33:36Z",
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_verified": true,
+    "date_basis": "earliest_mainline_fix",
+    "source_date_provenance": null,
+    "season": "2025H1"
+  },
+  "artifacts": {
+    "reference": {
+      "path": "attempts/01/reference/bug_GH-10453.json",
+      "sha256": "bad1f47ddc14694282afec765433607baa258b1b83a2758e18308610f036fe57"
+    },
+    "introducing": {
+      "path": "attempts/01/tasks/pr_review_GH-10453.json",
+      "sha256": "9c54045a5edf0ce8fc335ffc1a2db502e2592c7061e72c01b224eaf0879feb41"
+    },
+    "companion": {
+      "path": "attempts/01/tasks/pr_review_GH-10453_benign.json",
+      "sha256": "3f98acd7c0a7695c7a5c92b542df02a86081bf6ba1026633801b4d6111f9f769"
+    }
+  },
+  "intro_eligibility": {
+    "intro_sha": "0a29578f1095679b7b1a84c486cfc338b0b87e7e",
+    "intro_committer_timestamp": "2025-03-18T00:50:22Z",
+    "intro_timestamp_utc": "2025-03-18T00:50:22+00:00",
+    "intro_date_utc": "2025-03-18",
+    "min_intro_date": "2021-01-01",
+    "cutoff_inclusive": true,
+    "date_basis": "git_committer_date_utc",
+    "eligible": true
+  }
+}

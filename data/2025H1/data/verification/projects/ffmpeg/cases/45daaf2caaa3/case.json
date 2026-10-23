@@ -1,0 +1,22 @@
+{
+  "bug_id": "45daaf2caaa3",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "6e225123d8583fdce55037b85eaef5453f201959",
+    "parent": "d5db4ee30c46456d7da2af01bf1f2c070811ff0b",
+    "fix": null
+  },
+  "affected_files": [
+    "libavcodec/mpeg12enc.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Commit 6e225123 replaced a per-byte put_bits loop in mpeg12enc with `ff_copy_bits(&s->pb, side_data->data, side_data->size)`. Because ff_copy_bits expects a bit count, not a byte count, it copies only side_data->size bits (9 bits for 9 bytes of CC data) instead of the required 72 bits, producing badly garbled closed-caption user data in the output bitstream. The fix (45daaf2) reverts to the original loop. Behavioral test: encode one mpeg2video frame with a known 9-byte A53 CC payload and compare",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

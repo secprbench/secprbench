@@ -1,0 +1,18 @@
+{
+  "reviewer": "benchmark owner",
+  "attested_at": "2026-10-05T21:30:41Z",
+  "method": "explicit_user_attestation",
+  "reason": "The benchmark owner explicitly requested that these exact cases be marked human_reviewed and included in the final benchmark.",
+  "authorization": "please help me refine the result directory and the benchmark. help me mark these inconclusive cases to human_reviewed; help me move these out of inconclusive to human reviewed and put them to final benchmark",
+  "identity": "v8/439986081",
+  "season": "2025H2",
+  "stage": "human_reviewed",
+  "task_hashes": {
+    "buggy": "96b278cb48a194dbfbaf9160303fc4b74f52fcc5641ab21fb4233d728dcaf1dc",
+    "benign": "3e0d1b954156f1a82c2f1cf64047c8a51b6e610d2deb9f9f90b9846c201ef3f4"
+  },
+  "caveat": "Introducing revision build is blocked by CIPD cache permissions; no authentic middle-leg execution is claimed.",
+  "catalog_effective_verification": "inconclusive",
+  "original_case_disposition": "inconclusive",
+  "automated_replay_performed": false
+}

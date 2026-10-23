@@ -1,0 +1,105 @@
+{
+  "task_id": "pr_review_397720949",
+  "bug_id": "397720949",
+  "commit_sha": "81c947baca3bc7d6432cf5d52104ffde106f0fe5",
+  "commit_message": "[float16array] Fix 0 == -0 for Float16Array builtins\n\nNote that this CL doesn't have tests because it is already tested by\ntest262 with the --js-float16array flag, or once it becomes on by\ndefault.\n\nBug: 42203953\nChange-Id: I857de669e2c9a24fe59cd048e8bec5baab881ac5\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6265788\nReviewed-by: Ilya Rezvov <irezvov@chromium.org>\nCommit-Queue: Shu-yu Guo <syg@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98709}",
+  "commit_author": "Shu-yu Guo",
+  "commit_date": "2025-02-13T13:53:53-08:00",
+  "pr_title": "[float16array] Fix 0 == -0 for Float16Array builtins",
+  "pr_description": "Note that this CL doesn't have tests because it is already tested by\ntest262 with the --js-float16array flag, or once it becomes on by\ndefault.\n\nBug: 42203953\nChange-Id: I857de669e2c9a24fe59cd048e8bec5baab881ac5\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6265788\nReviewed-by: Ilya Rezvov <irezvov@chromium.org>\nCommit-Queue: Shu-yu Guo <syg@chromium.org>\nCr-Commit-Position: refs/heads/main@{#98709}\n",
+  "files": [
+    {
+      "path": "src/objects/elements.cc",
+      "status": "modified",
+      "additions": 28,
+      "deletions": 2,
+      "diff": "diff --git a/src/objects/elements.cc b/src/objects/elements.cc\nindex 2bea8ea67f6..3d84dfbc7eb 100644\n--- a/src/objects/elements.cc\n+++ b/src/objects/elements.cc\n@@ -3264,10 +3264,16 @@ class FastHoleyDoubleElementsAccessor\n           FastHoleyDoubleElementsAccessor,\n           ElementsKindTraits<HOLEY_DOUBLE_ELEMENTS>> {};\n \n enum IsSharedBuffer : bool { kShared = true, kUnshared = false };\n \n+constexpr bool IsFloat16RawBitsZero(uint16_t x) {\n+  // IEEE754 comparison returns true for 0 == -0, even though they are two\n+  // different bit patterns.\n+  return (x & ~0x8000) == 0;\n+}\n+\n // Super class for all external element arrays.\n template <ElementsKind Kind, typename ElementType>\n class TypedElementsAccessor\n     : public ElementsAccessorBase<TypedElementsAccessor<Kind, ElementType>,\n                                   ElementsKindTraits<Kind>> {\n@@ -3642,11 +3648,18 @@ class TypedElementsAccessor\n               if (std::isnan(elem_k)) return Just(true);\n             }\n           }\n           return Just(false);\n         }\n+      } else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n+        for (size_t k = start_from; k < length; ++k) {\n+          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n+          if (IsFloat16RawBitsZero(elem_k)) return Just(true);\n+        }\n+        return Just(false);\n       }\n+\n       if (AccessorClass::ToTypedSearchValue(search_value,\n                                             &typed_search_value)) {\n         return Just(false);\n       }\n     }\n@@ -3680,10 +3693,11 @@ class TypedElementsAccessor\n     // search to backing store length.\n     if (typed_array_length < length) {\n       length = typed_array_length;\n     }\n \n+    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n     ElementType typed_search_value;\n \n     ElementType* data_ptr =\n         reinterpret_cast<ElementType*>(typed_array->DataPtr());\n     if (IsBigIntTypedArrayElementsKind(Kind)) {\n@@ -3700,18 +3714,23 @@ class TypedElementsAccessor\n           return Just<int64_t>(-1);\n         }\n         if (std::isnan(search_value)) {\n           return Just<int64_t>(-1);\n         }\n+      } else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n+        for (size_t k = start_from; k < length; ++k) {\n+          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n+          if (IsFloat16RawBitsZero(elem_k)) return Just<int64_t>(k);\n+        }\n+        return Just<int64_t>(-1);\n       }\n       if (AccessorClass::ToTypedSearchValue(search_value,\n                                             &typed_search_value)) {\n         return Just<int64_t>(-1);\n       }\n     }\n \n-    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n     for (size_t k = start_from; k < length; ++k) {\n       ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n       if (elem_k == typed_search_value) return Just<int64_t>(k);\n     }\n     return Just<int64_t>(-1);\n@@ -3720,10 +3739,11 @@ class TypedElementsAccessor\n   static Maybe<int64_t> LastIndexOfValueImpl(DirectHandle<JSObject> receiver,\n                                              DirectHandle<Object> value,\n                                              size_t start_from) {\n     DisallowGarbageCollection no_gc;\n     Tagged<JSTypedArray> typed_array = Cast<JSTypedArray>(*receiver);\n+    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n \n     DCHECK(!typed_array->IsDetachedOrOutOfBounds());\n \n     ElementType typed_search_value;\n \n@@ -3744,10 +3764,17 @@ class TypedElementsAccessor\n           return Just<int64_t>(-1);\n         } else if (std::isnan(search_value)) {\n           // Strict Equality Comparison of NaN is always false.\n           return Just<int64_t>(-1);\n         }\n+      } else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n+        size_t k = start_from;\n+        do {\n+          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n+          if (IsFloat16RawBitsZero(elem_k)) return Just<int64_t>(k);\n+        } while (k-- != 0);\n+        return Just<int64_t>(-1);\n       }\n       if (AccessorClass::ToTypedSearchValue(search_value,\n                                             &typed_search_value)) {\n         return Just<int64_t>(-1);\n       }\n@@ -3763,11 +3790,10 @@ class TypedElementsAccessor\n       }\n       start_from = typed_array_length - 1;\n     }\n \n     size_t k = start_from;\n-    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n     do {\n       ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n       if (elem_k == typed_search_value) return Just<int64_t>(k);\n     } while (k-- != 0);\n     return Just<int64_t>(-1);\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/objects/elements.cc b/src/objects/elements.cc\nindex 2bea8ea67f6..3d84dfbc7eb 100644\n--- a/src/objects/elements.cc\n+++ b/src/objects/elements.cc\n@@ -3264,10 +3264,16 @@ class FastHoleyDoubleElementsAccessor\n           FastHoleyDoubleElementsAccessor,\n           ElementsKindTraits<HOLEY_DOUBLE_ELEMENTS>> {};\n \n enum IsSharedBuffer : bool { kShared = true, kUnshared = false };\n \n+constexpr bool IsFloat16RawBitsZero(uint16_t x) {\n+  // IEEE754 comparison returns true for 0 == -0, even though they are two\n+  // different bit patterns.\n+  return (x & ~0x8000) == 0;\n+}\n+\n // Super class for all external element arrays.\n template <ElementsKind Kind, typename ElementType>\n class TypedElementsAccessor\n     : public ElementsAccessorBase<TypedElementsAccessor<Kind, ElementType>,\n                                   ElementsKindTraits<Kind>> {\n@@ -3642,11 +3648,18 @@ class TypedElementsAccessor\n               if (std::isnan(elem_k)) return Just(true);\n             }\n           }\n           return Just(false);\n         }\n+      } else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n+        for (size_t k = start_from; k < length; ++k) {\n+          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n+          if (IsFloat16RawBitsZero(elem_k)) return Just(true);\n+        }\n+        return Just(false);\n       }\n+\n       if (AccessorClass::ToTypedSearchValue(search_value,\n                                             &typed_search_value)) {\n         return Just(false);\n       }\n     }\n@@ -3680,10 +3693,11 @@ class TypedElementsAccessor\n     // search to backing store length.\n     if (typed_array_length < length) {\n       length = typed_array_length;\n     }\n \n+    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n     ElementType typed_search_value;\n \n     ElementType* data_ptr =\n         reinterpret_cast<ElementType*>(typed_array->DataPtr());\n     if (IsBigIntTypedArrayElementsKind(Kind)) {\n@@ -3700,18 +3714,23 @@ class TypedElementsAccessor\n           return Just<int64_t>(-1);\n         }\n         if (std::isnan(search_value)) {\n           return Just<int64_t>(-1);\n         }\n+      } else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n+        for (size_t k = start_from; k < length; ++k) {\n+          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n+          if (IsFloat16RawBitsZero(elem_k)) return Just<int64_t>(k);\n+        }\n+        return Just<int64_t>(-1);\n       }\n       if (AccessorClass::ToTypedSearchValue(search_value,\n                                             &typed_search_value)) {\n         return Just<int64_t>(-1);\n       }\n     }\n \n-    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n     for (size_t k = start_from; k < length; ++k) {\n       ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n       if (elem_k == typed_search_value) return Just<int64_t>(k);\n     }\n     return Just<int64_t>(-1);\n@@ -3720,10 +3739,11 @@ class TypedElementsAccessor\n   static Maybe<int64_t> LastIndexOfValueImpl(DirectHandle<JSObject> receiver,\n                                              DirectHandle<Object> value,\n                                              size_t start_from) {\n     DisallowGarbageCollection no_gc;\n     Tagged<JSTypedArray> typed_array = Cast<JSTypedArray>(*receiver);\n+    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n \n     DCHECK(!typed_array->IsDetachedOrOutOfBounds());\n \n     ElementType typed_search_value;\n \n@@ -3744,10 +3764,17 @@ class TypedElementsAccessor\n           return Just<int64_t>(-1);\n         } else if (std::isnan(search_value)) {\n           // Strict Equality Comparison of NaN is always false.\n           return Just<int64_t>(-1);\n         }\n+      } else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n+        size_t k = start_from;\n+        do {\n+          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n+          if (IsFloat16RawBitsZero(elem_k)) return Just<int64_t>(k);\n+        } while (k-- != 0);\n+        return Just<int64_t>(-1);\n       }\n       if (AccessorClass::ToTypedSearchValue(search_value,\n                                             &typed_search_value)) {\n         return Just<int64_t>(-1);\n       }\n@@ -3763,11 +3790,10 @@ class TypedElementsAccessor\n       }\n       start_from = typed_array_length - 1;\n     }\n \n     size_t k = start_from;\n-    auto is_shared = typed_array->buffer()->is_shared() ? kShared : kUnshared;\n     do {\n       ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n       if (elem_k == typed_search_value) return Just<int64_t>(k);\n     } while (k-- != 0);\n     return Just<int64_t>(-1);\n",
+  "task_type": "buggy",
+  "intro_commit_sha": "81c947baca3bc7d6432cf5d52104ffde106f0fe5",
+  "fix_commit_sha": null,
+  "ground_truth": {
+    "bug_id": "397720949",
+    "expected_finding": true,
+    "fix_commit": null,
+    "findings": [
+      {
+        "title": "Float16Array lastIndexOf bypasses resize-guard leading to OOB read",
+        "message": "In `LastIndexOfValueImpl`, a special-case branch introduced to handle 0 == -0 semantics for Float16Array (where both +0 and -0 share different bit patterns) returns early using `start_from` as a raw array index without first re-checking the current array length. The `start_from` value is computed by the JavaScript engine from the caller-supplied `fromIndex` argument via `ToInteger`, which can invoke user-defined `valueOf()` methods. If such a method shrinks the backing resizable ArrayBuffer (RAB) — e.g., via `ab.resize(0)` — then `start_from` can exceed the new array length. The early-exit do-while loop then computes `data_ptr + k` where `k >= typed_array_length`, constituting an out-of-bounds read on the underlying backing store. The general code path (for other element types or non-zero search values) is protected by a post-conversion bounds adjustment block that re-reads `typed_array->GetLength()` and clamps `start_from` accordingly, but the Float16 zero special case short-circuits before reaching that guard.",
+        "bug_type": "OutOfBoundsRead",
+        "severity": "high",
+        "cwe_ids": [
+          "CWE-125",
+          "CWE-119"
+        ],
+        "location": {
+          "file": "src/objects/elements.cc",
+          "function": "LastIndexOfValueImpl",
+          "start_line": 3769,
+          "end_line": 3775,
+          "snippet": "} else if (IsFloat16TypedArrayElementsKind(Kind) && search_value == 0) {\n        size_t k = start_from;\n        do {\n          ElementType elem_k = AccessorClass::GetImpl(data_ptr + k, is_shared);\n          if (IsFloat16RawBitsZero(elem_k)) return Just<int64_t>(k);\n        } while (k-- != 0);\n        return Just<int64_t>(-1);"
+        },
+        "related_locations": [
+          {
+            "file": "src/objects/elements.cc",
+            "start_line": 3783,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "LastIndexOfValueImpl",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": "The bounds re-check that is bypassed: re-reads typed_array_length and clamps start_from after potential side effects from ToTypedSearchValue/ToInteger"
+          },
+          {
+            "file": "test/mjsunit/regress/regress-397720949.js",
+            "start_line": 1,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "N/A",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": "Regression test demonstrating the exploit: valueOf() resizes the RAB to 0 while lastIndexOf(0, evil) computes fromIndex"
+          }
+        ],
+        "suggestion": "Move the Float16 zero-equality check inside the main loop that runs after the `start_from >= typed_array_length` bounds adjustment. Use `if constexpr (IsFloat16TypedArrayElementsKind(Kind))` inside the loop body so the check is compiled away for non-Float16 element kinds, preserving performance while ensuring `start_from` has already been clamped to the current (possibly shrunk) array length before the loop begins.",
+        "rule_id": "sec-oob-read-001"
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "src/objects/elements.cc"
+    ],
+    "root_cause": "When adding the Float16 0-equality special case in `LastIndexOfValueImpl`, the author placed the new branch in the same `else if` chain used to handle NaN/Infinity before the `ToTypedSearchValue` call, and before the post-conversion bounds re-check block (`start_from >= typed_array_length`). This means the Float16 zero path exits early using a potentially-stale `start_from` that was derived from user-observable JS (the `fromIndex` argument's `ToInteger` conversion), without accounting for RAB resizing side effects that may have occurred during that conversion.",
+    "must_cover": [
+      {
+        "file": "src/objects/elements.cc",
+        "function": "LastIndexOfValueImpl",
+        "reason": "Primary location of finding: Float16Array lastIndexOf bypasses resize-guard leading to OOB read"
+      },
+      {
+        "file": "src/objects/elements.cc",
+        "function": "LastIndexOfValueImpl",
+        "reason": "Related location for: Float16Array lastIndexOf bypasses resize-guard leading to OOB read"
+      },
+      {
+        "file": "test/mjsunit/regress/regress-397720949.js",
+        "function": "N/A",
+        "reason": "Related location for: Float16Array lastIndexOf bypasses resize-guard leading to OOB read"
+      }
+    ]
+  },
+  "cgsabench_meta": {
+    "instance_id": "v8__397720949__buggy",
+    "project": "v8",
+    "repo_url": "https://chromium.googlesource.com/v8/v8.git",
+    "parent_sha": "e7735263b7aab83b7aed8199d3966342aa64a430",
+    "diff_stats": {
+      "files_changed": 1,
+      "lines_changed": 30
+    }
+  }
+}

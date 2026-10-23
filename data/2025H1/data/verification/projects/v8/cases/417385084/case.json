@@ -1,0 +1,26 @@
+{
+  "bug_id": "417385084",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "22f006269616767856e586d820fc329514af0f4f",
+    "parent": "0d6a02b5b0339ef40395dc71cf8b4d7e73559740",
+    "fix": "567ad2a0feab8e6b3b3162e094c787e2da2e3fa0"
+  },
+  "affected_files": [
+    "src/compiler/representation-change.cc",
+    "src/compiler/simplified-lowering.cc",
+    "src/compiler/use-info.h",
+    "test/mjsunit/mjsunit.status",
+    "test/mjsunit/regress-414738826.js"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built all three benchmark states in Docker from their preserved revisions/paired patch with AddressSanitizer and DEBUG checks enabled, because the reported InputUseInfos monotonicity oracle is compiled under #ifdef DEBUG. The identical /poc/run.sh command was used across all versions: d8 with the mjsunit harness, --jit-fuzzing, --additive-safe-int-feedback, --no-concurrent-recompilation, --allow-natives-syntax, and forced TurboFan optimization of the upstream regress-417385084 function body. pre",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

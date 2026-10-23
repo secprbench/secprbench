@@ -1,0 +1,24 @@
+{
+  "bug_id": "420198866",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "a0e2148bbf9fe27130a394111c0bf60dfb3c9c9c",
+    "parent": "20102ebba5257dc6d0dcd0c602cba80db80dc911",
+    "fix": "e0e0bf451e26ce9c1711b757ead9bd944258d12b"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h",
+    "src/maglev/maglev-ir.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All configured ASan builds completed. Using the same command on every version (`./out.gn/verify/d8 --allow-natives-syntax --no-lazy-feedback-allocation --no-lazy /poc/poc.js`), pre_intro exited 0 with `PASS observed 3 TypeErrors`; post_intro exited 1 with `FAIL expected 3 TypeErrors, observed 2`; post_benign exited 0 with `PASS observed 3 TypeErrors`. The first two calls warm the function and the third is forced through Maglev, matching the upstream fix's regression test. Thus a class call witho",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

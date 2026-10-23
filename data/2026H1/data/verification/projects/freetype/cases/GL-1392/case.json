@@ -1,0 +1,129 @@
+{
+  "bug_id": "GL-1392",
+  "project": "freetype",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "b04db3872cfac5ee4fd4f895933cebce3576fbf0",
+    "parent": "8ef26a803c340356b7e64ebd7188ce0b7002df59",
+    "fix": "b2c8a031a2f6fc1200868a8bee3175400cfb99fc"
+  },
+  "affected_files": [
+    "src/sfnt/ttgpos.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built and ran all three revisions in Docker with the same custom harness (poc.c, mirroring the reporter's FT_Get_Kerning repro) and the same crafted.ttf input via a single run.sh. post_intro (b04db3872cfa): AddressSanitizer reports a heap-buffer-overflow READ of size 1 at src/sfnt/ttgpos.c:817:16 in tt_face_get_class, called from tt_face_get_pair_pos2_kerning -> tt_face_get_gpos_kerning -> tt_get_kerning -> FT_Get_Kerning -- exactly the reported crash signature and location (the `>=` off-by-one in the ClassDef1 Format-1 bounds check). pre_intro (8ef26a803c34, before the GPOS-kerning rewrite that introduced the bug) runs cleanly (exit 0, kerning.x=0, no ASan report) with the identical input/command. post_benign (fix applied) also runs cleanly (exit 0, kerning.x=0, no ASan report) with the identical input/command. This confirms introduction=yes and benign fix=yes for this OutOfBoundsRead.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/freetype/5b220ca227f451ab0413/attempts/01/replay/pr_review_GL-1392.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/freetype/5b220ca227f451ab0413/attempts/01/replay/pr_review_GL-1392.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/freetype/5b220ca227f451ab0413/attempts/01/replay/pr_review_GL-1392.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "ab564bdeffc3825005aea0e3a6e0c7726b04554156fdd81d4ade911cb196a281",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "b04db3872cfac5ee4fd4f895933cebce3576fbf0",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "9071a45d60b811f6e8a3ff774f549098456231835563f346c415a8cfe8fae20f"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=134\n\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x612000000174 at pc 0x561cc00f685c bp 0x7ffca9189bc0 sp 0x7ffca9189bb8\nREAD of size 1 at 0x612000000174 thread T0\n    #0 0x561cc00f685b in tt_face_get_class /work/src/sfnt/ttgpos.c:817:16\n    #1 0x561cc00db04a in tt_face_get_pair_pos2_kerning /work/src/sfnt/ttgpos.c:923:20\n    #2 0x561cc00db04a in tt_face_get_gpos_kerning /work/src/sfnt/ttgpos.c:963:14\n    #3 0x561cc011c511 in tt_get_kerning /work/src/truetype/ttdriver.c\n    #4 0x561cbffddf5b in FT_Get_Kerning /work/src/base/ftobjs.c:3619:15\n    #5 0x561cbffca18a in main /poc/poc.c:33:3\n    #6 0x7f73aab6ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #7 0x7f73aab6ae3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #8 0x561cbff0c3e4 in _start (/tmp/gl1392_poc+0x1483e4) (BuildId: 02be06493c5d6f15c180dbc11c22fcc3e95b4f66)\n\n0x612000000174 is located 0 bytes to the right of 308-byte region [0x612000000040,0x612000000174)\nallocated by thread T0 here:\n    #0 0x561cbff8f22e in __interceptor_malloc (/tmp/gl1392_poc+0x1cb22e) (BuildId: 02be06493c5d6f15c180dbc11c22fcc3e95b4f66)\n    #1 0x561cbffca0ba in main /poc/poc.c:23:19\n    #2 0x7f73aab6ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/src/sfnt/ttgpos.c:817:16 in tt_face_get_class\nShadow bytes around the buggy address:\n  0x0c247fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff8000: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c247fff8010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c247fff8020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00[04]fa\n  0x0c247fff8030: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c247fff8040: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff8050: 00 00 00 00 00 00 00 00 00 00 00 fa fa fa fa fa\n  0x0c247fff8060: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c247fff8070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n",
+            "stdout_tail": "VERIFY_EXIT=134\n\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x612000000174 at pc 0x561cc00f685c bp 0x7ffca9189bc0 sp 0x7ffca9189bb8\nREAD of size 1 at 0x612000000174 thread T0\n    #0 0x561cc00f685b in tt_face_get_class /work/src/sfnt/ttgpos.c:817:16\n    #1 0x561cc00db04a in tt_face_get_pair_pos2_kerning /work/src/sfnt/ttgpos.c:923:20\n    #2 0x561cc00db04a in tt_face_get_gpos_kerning /work/src/sfnt/ttgpos.c:963:14\n    #3 0x561cc011c511 in tt_get_kerning /work/src/truetype/ttdriver.c\n    #4 0x561cbffddf5b in FT_Get_Kerning /work/src/base/ftobjs.c:3619:15\n    #5 0x561cbffca18a in main /poc/poc.c:33:3\n    #6 0x7f73aab6ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #7 0x7f73aab6ae3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #8 0x561cbff0c3e4 in _start (/tmp/gl1392_poc+0x1483e4) (BuildId: 02be06493c5d6f15c180dbc11c22fcc3e95b4f66)\n\n0x612000000174 is located 0 bytes to the right of 308-byte region [0x612000000040,0x612000000174)\nallocated by thread T0 here:\n    #0 0x561cbff8f22e in __interceptor_malloc (/tmp/gl1392_poc+0x1cb22e) (BuildId: 02be06493c5d6f15c180dbc11c22fcc3e95b4f66)\n    #1 0x561cbffca0ba in main /poc/poc.c:23:19\n    #2 0x7f73aab6ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/src/sfnt/ttgpos.c:817:16 in tt_face_get_class\nShadow bytes around the buggy address:\n  0x0c247fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff8000: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c247fff8010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c247fff8020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00[04]fa\n  0x0c247fff8030: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c247fff8040: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c247fff8050: 00 00 00 00 00 00 00 00 00 00 00 fa fa fa fa fa\n  0x0c247fff8060: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0c247fff8070: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "ab564bdeffc3825005aea0e3a6e0c7726b04554156fdd81d4ade911cb196a281",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "8ef26a803c340356b7e64ebd7188ce0b7002df59",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "77481d5bc6caeda4c1f7b7425a907d5d973d181be737fab17bc60f132a03167b"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "kerning.x=0 kerning.y=0\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "ab564bdeffc3825005aea0e3a6e0c7726b04554156fdd81d4ade911cb196a281",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "8ef26a803c340356b7e64ebd7188ce0b7002df59",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "eeb7c50cb41144c8f14e6e5f5e72b0ca66e83f7c54b0e752fca4da36f7a5414c"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "kerning.x=0 kerning.y=0\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "explanation": "Built and ran all three revisions in Docker with the same custom harness (poc.c, mirroring the reporter's FT_Get_Kerning repro) and the same crafted.ttf input via a single run.sh. post_intro (b04db3872cfa): AddressSanitizer reports a heap-buffer-overflow READ of size 1 at src/sfnt/ttgpos.c:817:16 in tt_face_get_class, called from tt_face_get_pair_pos2_kerning -> tt_face_get_gpos_kerning -> tt_get_kerning -> FT_Get_Kerning -- exactly the reported crash signature and location (the `>=` off-by-one in the ClassDef1 Format-1 bounds check). pre_intro (8ef26a803c34, before the GPOS-kerning rewrite that introduced the bug) runs cleanly (exit 0, kerning.x=0, no ASan report) with the identical input/command. post_benign (fix applied) also runs cleanly (exit 0, kerning.x=0, no ASan report) with the identical input/command. This confirms introduction=yes and benign fix=yes for this OutOfBoundsRead."
+    }
+  },
+  "task_hashes": {
+    "buggy": "d7e5845a58cc08931db57d0ef0831131b21c5f8b1b64386a70f358743f2ed35e",
+    "benign": "fd12ef875f67b46046860a35846c4721992e0003f56232f42109c90898ed33c0"
+  }
+}

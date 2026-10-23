@@ -1,0 +1,50 @@
+{
+  "task_id": "pr_review_OSSFUZZ-416811958_benign",
+  "bug_id": "OSSFUZZ-416811958",
+  "commit_sha": "0ffe97d9b9e10e88db29d8d910c24ec00ef24edc",
+  "commit_message": "avformat/mov: perform sanity checks for heif before index building\n\nFixes: undefined NULL pointer use\nFixes: clusterfuzz-testcase-minimized-audio_decoder_fuzzer-6363211175493632\n\nThis performs equivalent sanity checks as are done in mov_read_trak()\nbefore mov_build_index()\n\nReported-by: Dale Curtis <dalecurtis@chromium.org>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "commit_author": "",
+  "commit_date": "2026-09-28T22:37:54.985158",
+  "pr_title": "avformat/mov: perform sanity checks for heif before index building",
+  "pr_description": "avformat/mov: perform sanity checks for heif before index building\n\nFixes: undefined NULL pointer use\nFixes: clusterfuzz-testcase-minimized-audio_decoder_fuzzer-6363211175493632\n\nThis performs equivalent sanity checks as are done in mov_read_trak()\nbefore mov_build_index()\n\nReported-by: Dale Curtis <dalecurtis@chromium.org>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "files": [
+    {
+      "path": "libavformat/mov.c",
+      "status": "modified",
+      "additions": 2,
+      "deletions": 1,
+      "diff": "diff --git a/libavformat/mov.c b/libavformat/mov.c\nindex 23f9993350..58353e7ef4 100644\n--- a/libavformat/mov.c\n+++ b/libavformat/mov.c\n@@ -10325,21 +10325,22 @@ static int mov_parse_heif_items(AVFormatContext *s)\n                 return AVERROR_INVALIDDATA;\n             }\n             offset = mov->idat_offset;\n         }\n \n         st = item->st;\n         sc = st->priv_data;\n         st->codecpar->width  = item->width;\n         st->codecpar->height = item->height;\n \n-        if (sc->sample_count != 1 || sc->chunk_count != 1)\n+        err = sanity_checks(s, sc, item->item_id);\n+        if (err || !sc->sample_count)\n             return AVERROR_INVALIDDATA;\n \n         sc->sample_sizes[0]  = item->extent_length;\n         sc->chunk_offsets[0] = item->extent_offset + offset;\n \n         if (item->item_id == mov->primary_item_id)\n             st->disposition |= AV_DISPOSITION_DEFAULT;\n \n         if (item->rotation || item->hflip || item->vflip) {\n             err = set_display_matrix_from_item(&st->codecpar->coded_side_data,\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavformat/mov.c b/libavformat/mov.c\nindex 23f9993350..58353e7ef4 100644\n--- a/libavformat/mov.c\n+++ b/libavformat/mov.c\n@@ -10325,21 +10325,22 @@ static int mov_parse_heif_items(AVFormatContext *s)\n                 return AVERROR_INVALIDDATA;\n             }\n             offset = mov->idat_offset;\n         }\n \n         st = item->st;\n         sc = st->priv_data;\n         st->codecpar->width  = item->width;\n         st->codecpar->height = item->height;\n \n-        if (sc->sample_count != 1 || sc->chunk_count != 1)\n+        err = sanity_checks(s, sc, item->item_id);\n+        if (err || !sc->sample_count)\n             return AVERROR_INVALIDDATA;\n \n         sc->sample_sizes[0]  = item->extent_length;\n         sc->chunk_offsets[0] = item->extent_offset + offset;\n \n         if (item->item_id == mov->primary_item_id)\n             st->disposition |= AV_DISPOSITION_DEFAULT;\n \n         if (item->rotation || item->hflip || item->vflip) {\n             err = set_display_matrix_from_item(&st->codecpar->coded_side_data,\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-416811958",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "afbc3a1b23b3ba3e5a3f2820228a5fe51b517be7",
+    "fix_commit": "0ffe97d9b9e10e88db29d8d910c24ec00ef24edc"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "afbc3a1b23b3ba3e5a3f2820228a5fe51b517be7",
+  "fix_commit_sha": "0ffe97d9b9e10e88db29d8d910c24ec00ef24edc",
+  "intro_commit_message": "avformat/mov: perform sanity checks for heif before index building\n\nFixes: undefined NULL pointer use\nFixes: clusterfuzz-testcase-minimized-audio_decoder_fuzzer-6363211175493632\n\nThis performs equivalent sanity checks as are done in mov_read_trak()\nbefore mov_build_index()\n\nReported-by: Dale Curtis <dalecurtis@chromium.org>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "fix_commit_message": "avformat/mov: Check that sample_count is allocated in mov_parse_heif_items()\n\nFixes: NULL pointer dereference\nFixes: 416811958/clusterfuzz-testcase-minimized-ffmpeg_dem_MOV_fuzzer-5425269114732544\n\nFound-by: continuous fuzzing process https://github.com/google/oss-fuzz/tree/master/projects/ffmpeg\nReviewed-by: James Almer <jamrial@gmail.com>\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 0ffe97d9b9e1 on top of intro afbc3a1b23b3 via git's 3-way merge. Vulnerability (NullPointerDereference): The MOV/HEIF demuxer's mov_parse_heif_items() function validates a HEIF item's stream context (MOVStreamContext) before using it to populate sample tables and build the stream index. A prior, stricter check (`sc->sample_count != 1 || sc->chunk_count != 1`) was replaced with a call to the generic sanity_checks() helper (shared with regular MOV track parsing). sanity_checks() does not reject the case where sc->sample_size is non-zero but sc->sample_count is 0, so a maliciously crafted HEIF/MOV file can leave the HEIF item's stream context with sample_count == 0 while still passing validation. The code then proceeds to use sc->sample_sizes/sc->sample_count assuming a valid single-sample entry, ultimately leading to a NULL pointer dereference during index building/packet reading, as reported by an OSS-Fuzz MOV demuxer fuzz test. Root cause: Replacing a specific, correct precondition check (sample_count == 1 && chunk_count == 1) with a more generic, reusable sanity_checks() function that was designed for regular MOV tracks and does not enforce that sample_count is non-zero when sample_size is non-zero, thereby losing an invariant that later code in mov_parse_heif_items() implicitly relies upon.",
+  "composed_via": "mechanical",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "afbc3a1b23b3ba3e5a3f2820228a5fe51b517be7",
+    "fix_revision": "0ffe97d9b9e10e88db29d8d910c24ec00ef24edc",
+    "fix_parent_revision": "36c8eef42c3a5229c17aa4df2c9398b39b99b586",
+    "inspected_paths": [
+      "libavformat/mov.c"
+    ],
+    "call_candidates": [],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

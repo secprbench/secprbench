@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-16955",
+  "bug_id": "GH-16955",
+  "bug_type": "LogicError",
+  "intro_commit": "f78700814d702c523a7a2c3766a1ca60f3db7edc",
+  "intro_parent": "279a4772ae67dd4d9770e11e60040f9113b1c345",
+  "fix_commit": "5fbd78eb2dc4afbd8884e8eed27147fc3d4318f6",
+  "affected_files": [
+    "lib/http2.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "reporter_adapted_public_poc",
+  "attachments": [],
+  "input_name": "input.poc",
+  "root_cause": "The new write_paused bridge makes cf_h2_update_local_win shrink the receive window to zero. On unpause, the updater calls nghttp2_submit_window_update without first setting nghttp2's internal local window size; a stream that reaches zero can remain blocked. The later fix calls the missing setter.",
+  "findings": [
+    "The newly connected write_paused state can reduce the HTTP/2 receive window to zero. On resumption, the existing updater submits a window delta without first updating nghttp2's local window state."
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "fdd49bfd5825cefdb77c9e7a5da06e4dae429ee4d191d94cd82e1d7a7c1c8b6f",
+  "generated_artifact_sha256": {
+    "reference": "02d6efe8118def74a0a4279a33a6554bd689175fdb293e4aac2aa1e6f5a59fda",
+    "introducing": "f106751d65c3aed889e48693861f9db2d71b2b886570fa7e8acd9699ac584999",
+    "companion": "433598999eebca7c7851eeda939c4d3c9e743cb595649446ab3958ad2a534c5a"
+  }
+}

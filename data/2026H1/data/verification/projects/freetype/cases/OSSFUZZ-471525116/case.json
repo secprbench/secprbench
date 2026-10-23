@@ -1,0 +1,129 @@
+{
+  "bug_id": "OSSFUZZ-471525116",
+  "project": "freetype",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "771449f14a35afa324cbf089f569e915ac9501ed",
+    "parent": "7099b09e9629d8ea39231520739b4b6d90691d0c",
+    "fix": "7b72c0f238ff00ede4a74e7d283d233d1c0bafca"
+  },
+  "affected_files": [
+    "src/autofit/aflatin.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Built and ran pre_intro (7099b09e9629), post_intro (771449f14a35) and post_benign (7099b09e9629 + fix) in Docker with the project's ASan+UBSan build. The freetype fuzzer harness's fixed pixel sizes (16/72) never reach the vulnerable code with enough magnitude, and the bug also requires (a) the target glyph's codepoint to be in the autofit \"tilde correction\" adjustment database (only U+0168/U+0169 qualify), (b) the font to supply usable \"blue zone\" reference glyphs (else the whole Latin autofit style is disabled), and (c) every one of the ~130 adjustment-database codepoints to resolve via cmap (otherwise an unrelated pre-existing OOB in af_reverse_character_map_new fires first) — none of which the stock harness or its default sizes provide, so no existing/default PoC could reach it. I reverse-engineered af_latin_stretch_tilde's exact wiggle-detection condition (an on-curve point flanked by two off-curve control points sharing its y, both further on-curve neighbors on the same side) from source, and hand-built a minimal SFNT font plus a small custom FT harness (compiled and run against the library under test with the same sanitizer flags as the canonical build) to drive height=max_y-min_y to ~6.19e9 and target_height within 64 units of it. Same font/command across all three builds: pre_intro exits cleanly (0, no crash), post_intro aborts (exit 134) with 'UndefinedBehaviorSanitizer: undefined-behavior /work/src/autofit/aflatin.c:3035:34 ... signed integer overflow: 1490304752 * 6192402018 cannot be represented in type long' inside af_latin_stretch_tilde <- af_latin_hints_apply <- af_autofitter_load_glyph, exactly matching the labelled root cause and the oss-fuzz crash state (af_latin_stretch_bottom_tilde/af_latin_hints_apply/af_autofitter_load_glyph); post_benign (fix applied) again exits cleanly (0, no crash). This cleanly confirms introduction by the intro commit and remediation by the benign/fix commit.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/freetype/ee0b0fd6b9d4f7f28d19/attempts/01/replay/pr_review_OSSFUZZ-471525116.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/freetype/ee0b0fd6b9d4f7f28d19/attempts/01/replay/pr_review_OSSFUZZ-471525116.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/freetype/ee0b0fd6b9d4f7f28d19/attempts/01/replay/pr_review_OSSFUZZ-471525116.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "bash -c \"python3 /poc/gen_font.py /tmp/tilde.ttf && clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -I/work/build/include -I/work/include /poc/poc_harness.c /work/build/libfreetype.a -lm -lz -o /tmp/poc && /tmp/poc /tmp/tilde.ttf\"",
+          "input": null,
+          "poc_sha256": "619636db91e702999f91fdd9b5d8f2ff314cb0774fc37898f513362ff1e2769c",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "771449f14a35afa324cbf089f569e915ac9501ed",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "ec0dd1b14a32e7c469e0222cae7a240b2804b11718d9efd018e65022af67475f"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "wrote /tmp/tilde.ttf 13672 bytes; PEAK 98301000 N 6005 segCount 156\nVERIFY_EXIT=134\n\nface ok, num_glyphs=3\ngid for U+0169 = 1\n/work/src/autofit/aflatin.c:3035:34: runtime error: signed integer overflow: 1490304752 * 6192402018 cannot be represented in type 'long'\n    #0 0x558e9514157a in af_latin_stretch_tilde /work/src/autofit/aflatin.c:3035:34\n    #1 0x558e9514157a in af_latin_hints_apply /work/src/autofit/aflatin.c:4346:9\n    #2 0x558e95143304 in af_loader_load_glyph /work/src/autofit/afloader.c:411:17\n    #3 0x558e95143304 in af_autofitter_load_glyph /work/src/autofit/afmodule.c:488:13\n    #4 0x558e94f65a2c in FT_Load_Glyph /work/src/base/ftobjs.c:1057:19\n    #5 0x558e94f64317 in main /poc/poc_harness.c:21:9\n    #6 0x7f075ac99d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #7 0x7f075ac99e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #8 0x558e94ea63b4 in _start (/tmp/poc+0x1453b4) (BuildId: 794a042a986be4c66c5178de5c13a75e2c560315)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /work/src/autofit/aflatin.c:3035:34 in \n/bin/bash: line 1:     8 Aborted                 bash -c 'bash -c \"python3 /poc/gen_font.py /tmp/tilde.ttf && clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -I/work/build/include -I/work/include /poc/poc_harness.c /work/build/libfreetype.a -lm -lz -o /tmp/poc && /tmp/poc /tmp/tilde.ttf\"'\n",
+            "stdout_tail": "wrote /tmp/tilde.ttf 13672 bytes; PEAK 98301000 N 6005 segCount 156\nVERIFY_EXIT=134\n\nface ok, num_glyphs=3\ngid for U+0169 = 1\n/work/src/autofit/aflatin.c:3035:34: runtime error: signed integer overflow: 1490304752 * 6192402018 cannot be represented in type 'long'\n    #0 0x558e9514157a in af_latin_stretch_tilde /work/src/autofit/aflatin.c:3035:34\n    #1 0x558e9514157a in af_latin_hints_apply /work/src/autofit/aflatin.c:4346:9\n    #2 0x558e95143304 in af_loader_load_glyph /work/src/autofit/afloader.c:411:17\n    #3 0x558e95143304 in af_autofitter_load_glyph /work/src/autofit/afmodule.c:488:13\n    #4 0x558e94f65a2c in FT_Load_Glyph /work/src/base/ftobjs.c:1057:19\n    #5 0x558e94f64317 in main /poc/poc_harness.c:21:9\n    #6 0x7f075ac99d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #7 0x7f075ac99e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #8 0x558e94ea63b4 in _start (/tmp/poc+0x1453b4) (BuildId: 794a042a986be4c66c5178de5c13a75e2c560315)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior /work/src/autofit/aflatin.c:3035:34 in \n/bin/bash: line 1:     8 Aborted                 bash -c 'bash -c \"python3 /poc/gen_font.py /tmp/tilde.ttf && clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -I/work/build/include -I/work/include /poc/poc_harness.c /work/build/libfreetype.a -lm -lz -o /tmp/poc && /tmp/poc /tmp/tilde.ttf\"'\n"
+          }
+        },
+        "pre_intro": {
+          "command": "bash -c \"python3 /poc/gen_font.py /tmp/tilde.ttf && clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -I/work/build/include -I/work/include /poc/poc_harness.c /work/build/libfreetype.a -lm -lz -o /tmp/poc && /tmp/poc /tmp/tilde.ttf\"",
+          "input": null,
+          "poc_sha256": "619636db91e702999f91fdd9b5d8f2ff314cb0774fc37898f513362ff1e2769c",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "7099b09e9629d8ea39231520739b4b6d90691d0c",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "0e87fdec51e52f4feac4a4ac7dc9c4460711576ae1e2f1d52ca087a76d1762e9"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "wrote /tmp/tilde.ttf 13672 bytes; PEAK 98301000 N 6005 segCount 156\nVERIFY_EXIT=0\n\nface ok, num_glyphs=3\ngid for U+0169 = 1\nload_glyph result: 0\ndone, no crash\n"
+          }
+        },
+        "post_benign": {
+          "command": "bash -c \"python3 /poc/gen_font.py /tmp/tilde.ttf && clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -I/work/build/include -I/work/include /poc/poc_harness.c /work/build/libfreetype.a -lm -lz -o /tmp/poc && /tmp/poc /tmp/tilde.ttf\"",
+          "input": null,
+          "poc_sha256": "619636db91e702999f91fdd9b5d8f2ff314cb0774fc37898f513362ff1e2769c",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "7099b09e9629d8ea39231520739b4b6d90691d0c",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "6aeae7c0ba043d20ae0266e4ac12ec018783eea97ffc05bc7d06ea9ffbe0dd4e"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "wrote /tmp/tilde.ttf 13672 bytes; PEAK 98301000 N 6005 segCount 156\nVERIFY_EXIT=0\n\nface ok, num_glyphs=3\ngid for U+0169 = 1\nload_glyph result: 0\ndone, no crash\n"
+          }
+        }
+      },
+      "explanation": "Built and ran pre_intro (7099b09e9629), post_intro (771449f14a35) and post_benign (7099b09e9629 + fix) in Docker with the project's ASan+UBSan build. The freetype fuzzer harness's fixed pixel sizes (16/72) never reach the vulnerable code with enough magnitude, and the bug also requires (a) the target glyph's codepoint to be in the autofit \"tilde correction\" adjustment database (only U+0168/U+0169 qualify), (b) the font to supply usable \"blue zone\" reference glyphs (else the whole Latin autofit style is disabled), and (c) every one of the ~130 adjustment-database codepoints to resolve via cmap (otherwise an unrelated pre-existing OOB in af_reverse_character_map_new fires first) — none of which the stock harness or its default sizes provide, so no existing/default PoC could reach it. I reverse-engineered af_latin_stretch_tilde's exact wiggle-detection condition (an on-curve point flanked by two off-curve control points sharing its y, both further on-curve neighbors on the same side) from source, and hand-built a minimal SFNT font plus a small custom FT harness (compiled and run against the library under test with the same sanitizer flags as the canonical build) to drive height=max_y-min_y to ~6.19e9 and target_height within 64 units of it. Same font/command across all three builds: pre_intro exits cleanly (0, no crash), post_intro aborts (exit 134) with 'UndefinedBehaviorSanitizer: undefined-behavior /work/src/autofit/aflatin.c:3035:34 ... signed integer overflow: 1490304752 * 6192402018 cannot be represented in type long' inside af_latin_stretch_tilde <- af_latin_hints_apply <- af_autofitter_load_glyph, exactly matching the labelled root cause and the oss-fuzz crash state (af_latin_stretch_bottom_tilde/af_latin_hints_apply/af_autofitter_load_glyph); post_benign (fix applied) again exits cleanly (0, no crash). This cleanly confirms introduction by the intro commit and remediation by the benign/fix commit."
+    }
+  },
+  "task_hashes": {
+    "buggy": "e2532f44aad6a3a9e23b087ef95d64f537cf600f0968c95e4a7f24f4a4a6578e",
+    "benign": "7c43294ec05d58eba455a7d750f9748b91c06faf9170eb7ba33436c0dd13955c"
+  }
+}

@@ -1,0 +1,13 @@
+name: glm
+display_name: GLM-5.3 via Zhipu open.bigmodel.cn (Anthropic-compatible, temporary)
+claude_version: 2.1.283
+base_url: https://open.bigmodel.cn/api/anthropic
+api_key_env: SECPRBENCH_GLM_API_KEY
+model: glm-5.3
+small_model: glm-5.3-flash
+env:
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
+  API_TIMEOUT_MS: '600000'
+egress_hosts:
+- open.bigmodel.cn
+cutoff_date: null

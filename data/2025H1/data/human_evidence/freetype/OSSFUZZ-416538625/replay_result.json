@@ -1,0 +1,19 @@
+{
+  "status": "inconclusive",
+  "outcome": {
+    "task_id": "pr_review_OSSFUZZ-416538625",
+    "status": "inconclusive",
+    "via": "agent",
+    "intro_verified": "yes",
+    "benign_verified": "yes",
+    "bug_class": "logic-error",
+    "report": "/research-data/secprbench/freetype-svg-alloc-normal-import-v1/verification/cases/freetype/f4a3f154a629babbef5b/attempts/01/replay/pr_review_OSSFUZZ-416538625.report.md",
+    "agent_verdict": "/research-data/secprbench/freetype-svg-alloc-normal-import-v1/verification/cases/freetype/f4a3f154a629babbef5b/attempts/01/replay/pr_review_OSSFUZZ-416538625.agent_verdict.json"
+  },
+  "agent_used": true,
+  "case_record": "/research-data/secprbench/freetype-svg-alloc-normal-import-v1/verification/verification/projects/freetype/cases/OSSFUZZ-416538625/case.json",
+  "recipe_sha256": "05028d61be190a5bd8c5",
+  "cache_root": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cache/freetype/05028d61be190a5bd8c5/worktrees",
+  "cache_lane": 0,
+  "final_poc_sha256": "8d7534a1389b7839e79e6adc11826d674316760f35fc77e195a0b935f7468750"
+}

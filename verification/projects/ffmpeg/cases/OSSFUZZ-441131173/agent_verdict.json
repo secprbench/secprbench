@@ -1,0 +1,171 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "A poc.c driven by /poc/run.sh (run identically via run_poc on all three versions) directly exercises the new libavcodec/exif.c AVExifMetadata API: it calls av_exif_set_entry() with an AV_TIFF_STRING entry of count=16, backed by a caller-owned 17-byte buffer (16 'A' bytes + 1 trailing NUL, mirroring how the real EXIF/TIFF parser allocates string values via av_mallocz(count+1)), then calls av_exif_ifd_to_dict(), which formats the stored entry via av_bprintf(&bp, \"%s\", entry->value.str). run.sh attempts the same compile+run on every version; on pre_intro the build fails because the whole AVExifMetadata API is absent (verified textually in the build log), which is reported as a clean/no-crash result since the code under test provably does not exist yet.",
+  "explanation": "The intro commit (ad77345a5d14) adds an entirely new AVExifMetadata/AVExifEntry API to libavcodec/exif.c (av_exif_set_entry, av_exif_clone_ifd, av_exif_ifd_to_dict, exif_clone_entry, etc.). The parent (bb90b262d6d2) has an exif.c of only 273 lines containing none of these symbols, so run_poc against pre_intro cleanly reports exit=0/crashed=False (run.sh detects the expected \"undeclared identifier 'AVExifMetadata'\" / \"implicit declaration of function 'av_exif_set_entry'\" compiler errors and treats that as the confirmed pre-intro state: the vulnerable code path does not exist, hence nothing to crash). In post_intro, exif_clone_entry() handles the AV_TIFF_STRING case with the generic EXIF_COPY macro, doing av_memdup(src->value.str, src->count) -- copying only `count` bytes even though AV_TIFF_STRING values are always allocated/stored elsewhere in the parser as count+1 byte NUL-terminated C strings (av_mallocz(entry->count+1)). The cloned/stored string entry ends up exactly `count` bytes long with no room for the NUL terminator. When av_exif_ifd_to_dict() -> exif_ifd_to_dict() later formats that entry via av_bprintf(&bp, \"%s\", entry->value.str), libc's %s scan for a NUL runs one byte past the heap allocation. run_poc against post_intro shows exit=134/crashed=True with an AddressSanitizer heap-buffer-overflow READ of size 17, exactly matching the OSS-Fuzz report's call chain: printf_common -> av_bprintf (bprint.c:110) -> exif_ifd_to_dict (exif.c:897) -> av_exif_ifd_to_dict (exif.c:936), with the undersized allocation traced to exif_clone_entry (exif.c:1089) -> av_exif_set_entry (exif.c:1150) -- this is the labelled OutOfBoundsRead / heap-buffer-overflow READ bug (OSS-Fuzz 441131173, crash state av_bprintf/exif_ifd_to_dict/exif_attach_ifd). Running the identical PoC against post_benign (intro commit + fix 76645e096fab applied) completes cleanly: run_poc shows exit=0/crashed=False, correctly printing \"ImageDescription = AAAAAAAAAAAAAAAA\". The fix changed the AV_TIFF_STRING case in exif_clone_entry to explicitly do av_memdup(src->value.str, src->count+1), copying the extra NUL byte, which eliminates the overflow while preserving correct string round-tripping. No ASan report occurs in post_benign under the same reproducer, confirming the companion patch benignly removes the introduced bug.",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Sanitizer-report oracle (memory-safety bug): presence vs. absence of an AddressSanitizer heap-buffer-overflow READ report under the identical PoC binary/input, invoked via the same run.sh/run_poc command across all three versions.",
+    "target_evidence": "post_intro run_poc: exit=134, crashed=True, \"AddressSanitizer: heap-buffer-overflow ... READ of size 17 ... #0 printf_common #1 av_bprintf /work/libavutil/bprint.c:110:21 #2 exif_ifd_to_dict /work/libavcodec/exif.c:897:17 #3 av_exif_ifd_to_dict /work/libavcodec/exif.c:936:12 ... allocated by ... #2 exif_clone_entry /work/libavcodec/exif.c:1089:13 #3 av_exif_set_entry /work/libavcodec/exif.c:1150:11\". post_benign run_poc: exit=0, crashed=False, \"av_exif_set_entry ret=0\\nav_exif_ifd_to_dict ret=0\\nentry: ImageDescription = AAAAAAAAAAAAAAAA\\nPOC DONE OK\" (no ASan report). pre_intro run_poc: exit=0, crashed=False, run.sh detected and printed \"PRE-INTRO-STATE: new AVExifMetadata/av_exif_set_entry API is absent in this revision of libavcodec/exif.c ... Treating as clean (no crash)\" backed by the build log showing \"use of undeclared identifier 'AVExifMetadata'\" / implicit-declaration errors for av_exif_set_entry/av_exif_ifd_to_dict/av_exif_free -- libavcodec/exif.c at bb90b262d6d2 is only 273 lines and does not contain this API at all (the feature and its latent bug were introduced together by the intro commit)."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_benign)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "run_poc(post_intro)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_benign)",
+    "docker_shell(post_benign)",
+    "write_file(poc.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_benign)",
+    "write_file(run.sh)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "5cde738dbb429df8eca701d372ef29b54d6b08b851bacd90a743540c1403e09f",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "ad77345a5d14862f4701e5ad422b03b14934a5b9",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "80e63a1798b4914c4359f5238ded4e66aba489d971fa84897777cde874cd2c9b"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": " libavfilter/libavfilter.a -lm -lpthread -lz -ldl\n+ BUILD_STATUS=0\n+ '[' 0 -ne 0 ']'\n+ exec /tmp/poc_bin\nav_exif_set_entry ret=0\n=================================================================\n==8==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x603000000080 at pc 0x55e91875663d bp 0x7ffd373dde60 sp 0x7ffd373dd5e8\nREAD of size 17 at 0x603000000080 thread T0\n    #0 0x55e91875663c in printf_common(void*, char const*, __va_list_tag*) asan_interceptors.cpp.o\n    #1 0x55e9187ffcfe in av_bprintf /work/libavutil/bprint.c:110:21\n    #2 0x55e9187f7f4f in exif_ifd_to_dict /work/libavcodec/exif.c:897:17\n    #3 0x55e9187f764f in av_exif_ifd_to_dict /work/libavcodec/exif.c:936:12\n    #4 0x55e9187f279b in main /poc/poc.c:28:11\n    #5 0x7f0fc2892d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #6 0x7f0fc2892e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #7 0x55e9187349e4 in _start (/tmp/poc_bin+0x469e4) (BuildId: 5d7de1d191d818e5c0d98ea05b53b9b9480ac37d)\n\n0x603000000080 is located 0 bytes to the right of 16-byte region [0x603000000070,0x603000000080)\nallocated by thread T0 here:\n    #0 0x55e9187b83a7 in posix_memalign (/tmp/poc_bin+0xca3a7) (BuildId: 5d7de1d191d818e5c0d98ea05b53b9b9480ac37d)\n    #1 0x55e9188197aa in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x55e9188197aa in av_memdup /work/libavutil/mem.c:308:15\n    #3 0x55e9187f957f in exif_clone_entry /work/libavcodec/exif.c:1089:13\n    #4 0x55e9187f8ca1 in av_exif_set_entry /work/libavcodec/exif.c:1150:11\n    #5 0x55e9187f273e in main /poc/poc.c:21:11\n    #6 0x7f0fc2892d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow asan_interceptors.cpp.o in printf_common(void*, char const*, __va_list_tag*)\nShadow bytes around the buggy address:\n  0x0c067fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff8000: fa fa 00 00 00 fa fa fa fd fd fd fa fa fa 00 00\n=>0x0c067fff8010:[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n",
+        "stdout_tail": " bp 0x7ffd373dde60 sp 0x7ffd373dd5e8\nREAD of size 17 at 0x603000000080 thread T0\n    #0 0x55e91875663c in printf_common(void*, char const*, __va_list_tag*) asan_interceptors.cpp.o\n    #1 0x55e9187ffcfe in av_bprintf /work/libavutil/bprint.c:110:21\n    #2 0x55e9187f7f4f in exif_ifd_to_dict /work/libavcodec/exif.c:897:17\n    #3 0x55e9187f764f in av_exif_ifd_to_dict /work/libavcodec/exif.c:936:12\n    #4 0x55e9187f279b in main /poc/poc.c:28:11\n    #5 0x7f0fc2892d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #6 0x7f0fc2892e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #7 0x55e9187349e4 in _start (/tmp/poc_bin+0x469e4) (BuildId: 5d7de1d191d818e5c0d98ea05b53b9b9480ac37d)\n\n0x603000000080 is located 0 bytes to the right of 16-byte region [0x603000000070,0x603000000080)\nallocated by thread T0 here:\n    #0 0x55e9187b83a7 in posix_memalign (/tmp/poc_bin+0xca3a7) (BuildId: 5d7de1d191d818e5c0d98ea05b53b9b9480ac37d)\n    #1 0x55e9188197aa in av_malloc /work/libavutil/mem.c:107:9\n    #2 0x55e9188197aa in av_memdup /work/libavutil/mem.c:308:15\n    #3 0x55e9187f957f in exif_clone_entry /work/libavcodec/exif.c:1089:13\n    #4 0x55e9187f8ca1 in av_exif_set_entry /work/libavcodec/exif.c:1150:11\n    #5 0x55e9187f273e in main /poc/poc.c:21:11\n    #6 0x7f0fc2892d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow asan_interceptors.cpp.o in printf_common(void*, char const*, __va_list_tag*)\nShadow bytes around the buggy address:\n  0x0c067fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c067fff8000: fa fa 00 00 00 fa fa fa fd fd fd fa fa fa 00 00\n=>0x0c067fff8010:[fa]fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fff8060: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c 'cd /work && bash /poc/run.sh'\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "5cde738dbb429df8eca701d372ef29b54d6b08b851bacd90a743540c1403e09f",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "bb90b262d6d23f1bca3587a48abc15b951cbbf05",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "544313a9a707e3871fa43932967b562d6eb3e261f63bd1e443d216e8be4f5be6"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "PRE-INTRO-STATE: new AVExifMetadata/av_exif_set_entry API is absent in this revision of libavcodec/exif.c (confirmed by build log below). The vulnerable exif_clone_entry()/EXIF_COPY code path introduced later does not exist yet, so there is nothing to exercise. Treating as clean (no crash).\n/poc/poc.c:8:5: error: use of undeclared identifier 'AVExifMetadata'\n    AVExifMetadata ifd = {0};\n    ^\n/poc/poc.c:21:11: warning: implicit declaration of function 'av_exif_set_entry' is invalid in C99 [-Wimplicit-function-declaration]\n    ret = av_exif_set_entry(NULL, &ifd, 0x010E /* ImageDescription */, AV_TIFF_STRING,\n          ^\n/poc/poc.c:21:36: error: use of undeclared identifier 'ifd'; did you mean 'if'?\n    ret = av_exif_set_entry(NULL, &ifd, 0x010E /* ImageDescription */, AV_TIFF_STRING,\n                                   ^~~\n                                   if\n/poc/poc.c:21:36: error: expected expression\n/poc/poc.c:28:11: warning: implicit declaration of function 'av_exif_ifd_to_dict' is invalid in C99 [-Wimplicit-function-declaration]\n    ret = av_exif_ifd_to_dict(NULL, &ifd, &dict);\n          ^\n/poc/poc.c:28:38: error: use of undeclared identifier 'ifd'; did you mean 'if'?\n    ret = av_exif_ifd_to_dict(NULL, &ifd, &dict);\n                                     ^~~\n                                     if\n/poc/poc.c:28:38: error: expected expression\n/poc/poc.c:36:5: warning: implicit declaration of function 'av_exif_free' is invalid in C99 [-Wimplicit-function-declaration]\n    av_exif_free(&ifd);\n    ^\n/poc/poc.c:36:19: error: use of undeclared identifier 'ifd'\n    av_exif_free(&ifd);\n                  ^\n3 warnings and 6 errors generated.\nVERIFY_EXIT=0\n\n+ cd /work\n+ clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. -I./libavutil -o /tmp/poc_bin /poc/poc.c libavcodec/libavcodec.a libavutil/libavutil.a libavformat/libavformat.a libswscale/libswscale.a libavfilter/libavfilter.a -lm -lpthread -lz -ldl\n+ BUILD_STATUS=1\n+ '[' 1 -ne 0 ']'\n+ grep -q 'undeclared identifier '\\''AVExifMetadata'\\''\\|implicit declaration of function '\\''av_exif_set_entry'\\''' /tmp/poc_build.log\n+ echo 'PRE-INTRO-STATE: new AVExifMetadata/av_exif_set_entry API is absent in this revision of libavcodec/exif.c (confirmed by build log below). The vulnerable exif_clone_entry()/EXIF_COPY code path introduced later does not exist yet, so there is nothing to exercise. Treating as clean (no crash).'\n+ cat /tmp/poc_build.log\n+ exit 0\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "5cde738dbb429df8eca701d372ef29b54d6b08b851bacd90a743540c1403e09f",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "bb90b262d6d23f1bca3587a48abc15b951cbbf05",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "b8520eb1b38ec19bdd5346a98575926d3b78a63e3bcdf91c9b9ce5bca50c1f9c"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "VERIFY_EXIT=0\n\n+ cd /work\n+ clang -g -O1 -fsanitize=address -fno-omit-frame-pointer -I. -I./libavutil -o /tmp/poc_bin /poc/poc.c libavcodec/libavcodec.a libavutil/libavutil.a libavformat/libavformat.a libswscale/libswscale.a libavfilter/libavfilter.a -lm -lpthread -lz -ldl\n+ BUILD_STATUS=0\n+ '[' 0 -ne 0 ']'\n+ exec /tmp/poc_bin\nav_exif_set_entry ret=0\nav_exif_ifd_to_dict ret=0\nentry: ImageDescription = AAAAAAAAAAAAAAAA\nPOC DONE OK\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_2000469",
+  "bug_id": "2000469",
+  "bug_type": "LogicError",
+  "intro_commit": "90711c04449c324bb18eb22522010fe85a051143",
+  "intro_parent": "ac5b254eb6e34c82c248ba525106c5c9d671f147",
+  "fix_commit": "2fa42593dec7de35a707f80e47898e459e4297bb",
+  "affected_files": [
+    "js/src/jit/MIR.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "firefox",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_inline_b6c4cd052787.js: source:bug_discussion"
+  ],
+  "input_name": "inline_b6c4cd052787.js",
+  "root_cause": "MGuardShape::foldsTo() assumed that two MGuardShape instructions testing the same shape with the same object operand are always redundant to fold, without checking whether an intervening effectful instruction (recorded via the instruction's alias-set `dependency()`) could have mutated the object's shape between the two guards. Congruent shape and operand does not imply the absence of an intervening shape-mutating side effect in IonMonkey's non-SSA-effect representation; the dependency link exists precisely to encode that ordering, and foldsTo ignored it.",
+  "findings": [
+    "MGuardShape::foldsTo() was added to fold away a redundant MGuardShape when its input operand is itself another MGuardShape testing the same shape. The optimization assumes that if two consecutive GuardShape instructions check the same shape, the second is always redundant and the object operand can be substituted directly. However, this reasoning only holds if the two guards are known to observe t"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "0dd5583405df8bf427b679b6cfcb6ddc4290181096861da98023b0ec3b87caec",
+  "generated_artifact_sha256": {
+    "reference": "1aaaf6baaec307086582be057f49210fd68e7926c676053c93fb93312ef9820e",
+    "introducing": "c630923b420917f76252207d18f0b7a00d7e9113d1524d17591210c4efdd5d35",
+    "companion": "36026b4cdb9169311369cf43a9d007219eab43993799f693de47b84433405e25"
+  }
+}

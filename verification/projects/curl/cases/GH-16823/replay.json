@@ -1,0 +1,93 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-16823",
+    "bug_id": "GH-16823",
+    "bug_type": "DoubleFree",
+    "intro_commit": "84853d94f2b8ac1cfd2ed3e3849e2af0f464d22c",
+    "intro_parent": "8188ca91eb0ac7b0b5c51371fcad857e63969070",
+    "fix_commit": "b2078c0e1c756b75b1e13b42800acf0c7ef5290b",
+    "affected_files": [
+      "lib/mqtt.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "locally_fix_derived",
+    "poc_dir": "/research-data/secprbench/curl-gh16823-verification-unified30-v1/cases/curl/36e0e1a2218db2c22f5f/attempts/01/pocs/curl/GH-16823",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "8188ca91eb0ac7b0b5c51371fcad857e63969070",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "POC_CURL_EXIT=27\nPOC_SERVER_RECEIVED=10,18,00,82,0a,00\nPOC_SERVER_ERRORS=\nPOC_TARGETED_LIMIT=1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=LIMIT strdup.c:91 malloc reached memlimit\nVERIFY_EXIT=0\n\n* STATE: INIT => CONNECT handle 0x522000003108; line 1835 (connection #-5000)\n* Added connection 0. The cache now contains 1 members\n* family0 == v4, family1 == v6\n*   Trying 127.0.0.1:43091...\n* STATE: CONNECT => CONNECTING handle 0x522000003108; line 1896 (connection #0)\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 (127.0.0.1) port 43091 (#0)\n* STATE: CONNECTING => PROTOCONNECT handle 0x522000003108; line 2028 (connection #0)\n* STATE: PROTOCONNECT => DO handle 0x522000003108; line 2051 (connection #0)\n* Using client id 'curl50434553'\n> \u0010MQTT_FIRST (from MQTT_FIRST) (next is MQTT_CONNACK)\n* STATE: DO => DOING handle 0x522000003108; line 2134 (connection #0)\n> \u0018mqtt_doing: state [0]\n<  MQTT_REMAINING_LENGTH (from MQTT_FIRST) (next is )\n< \u0002MQTT_CONNACK (from MQTT_REMAINING_LENGTH) (next is )\n> \u0000mqtt_doing: state [2]\n< \u0000\u0000\ufffdMQTT_FIRST (from MQTT_CONNACK) (next is MQTT_SUBACK)\n> \n* mqtt_doing: state [0]\n> \u0000LIMIT strdup.c:91 malloc reached memlimit\nmulti_done: status: 27 prem: 0 done: 0\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n* The cache now contains 0 members\n* Closing connection 0\n* Expire cleared (transfer 0x522000003108)\ncurl: (27) Out of memory\nPOC_FINAL_CURL_EXIT=27\nPOC_FINAL_SERVER_RECEIVED=10,18,00,82,0a,00\nPOC_FINAL_TARGETED_LIMIT=1\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "bb5471ec8c8c3e0827b90b8c0501acb1ab39916a8d05daba7e2b46c06960a5e2"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "84853d94f2b8ac1cfd2ed3e3849e2af0f464d22c",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 1,
+      "crashed": true,
+      "sanitizer_report": " is MQTT_SUBACK)\n> \n* mqtt_doing: state [0]\n> \u0000LIMIT strdup.c:91 malloc reached memlimit\nmulti_done: status: 27 prem: 0 done: 0\n=================================================================\n==10==ERROR: AddressSanitizer: attempting double-free on 0x5030000204d0 in thread T0:\n    #0 0x7f57cc509537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55a6ebefa07e in curl_dbg_free /work/lib/memdebug.c:292\n    #2 0x55a6ebfe78f6 in mqtt_done /work/lib/mqtt.c:703\n    #3 0x55a6ebf14919 in multi_done /work/lib/multi.c:623\n    #4 0x55a6ebf198d0 in multi_runsingle /work/lib/multi.c:2224\n    #5 0x55a6ebf1c105 in curl_multi_perform /work/lib/multi.c:2638\n    #6 0x55a6ebeecad7 in easy_transfer /work/lib/easy.c:606\n    #7 0x55a6ebeecad7 in easy_perform /work/lib/easy.c:696\n    #8 0x55a6ebeed4b3 in curl_easy_perform /work/lib/easy.c:715\n    #9 0x55a6ebed72e2 in serial_transfers /work/src/tool_operate.c:2386\n    #10 0x55a6ebed72e2 in run_all_transfers /work/src/tool_operate.c:2557\n    #11 0x55a6ebed72e2 in operate /work/src/tool_operate.c:2671\n    #12 0x55a6ebec306c in main /work/src/tool_main.c:276\n    #13 0x7f57cb71cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #14 0x7f57cb71ce3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #15 0x55a6ebe9de04 in _start (/work/src/curl+0x207e04)\n\n0x5030000204d0 is located 0 bytes inside of 26-byte region [0x5030000204d0,0x5030000204ea)\nfreed by thread T0 here:\n    #0 0x7f57cc509537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x55a6ebefa07e in curl_dbg_free /work/lib/memdebug.c:292\n    #2 0x55a6ebfe9771 in mqtt_doing /work/lib/mqtt.c:724\n    #3 0x55a6ebf1985e in protocol_doing /work/lib/multi.c:1677\n    #4 0x55a6ebf1985e in multi_runsingle /work/lib/multi.c:2212\n    #5 0x55a6ebf1c105 in curl_multi_perform /work/lib/multi.c:2638\n    #6 0x55a6ebeecad7 in easy_transfer /work/lib/easy.c:606\n    #7 0x55a6ebeecad7 in easy_perform /work/lib/easy.c:696\n    #8 0x55a6ebeed4b3 in curl_easy_perform /work/lib/easy.c:715\n    #9 0x55a6ebed72e2 in serial_transfers /work/src/tool_operate.c:2386\n    #10 0x55a6ebed72e2 in run_all_transfers /work/src/tool_operate.c:2557\n    #11 0x55a6ebed72e2 in operate /work/src/tool_operate.c:2671\n    #12 0x55a6ebec306c in main /work/src/tool_main.c:276\n    #13 0x7f57cb71cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\npreviously allocated by thread T0 here:\n    #0 0x7f57cc509887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x55a6ebef9ad2 in curl_dbg_malloc /work/lib/memdebug.c:143\n    #2 0x55a6ebf46163 in Curl_memdup /work/lib/strdup.c:91\n    #3 0x55a6ebfe8074 in mqtt_send /work/lib/mqtt.c:127\n    #4 0x55a6ebfe9757 in mqtt_doing /work/lib/mqtt.c:723\n    #5 0x55a6ebf1985e in protocol_doing /work/lib/multi.c:1677\n    #6 0x55a6ebf1985e in multi_runsingle /work/lib/multi.c:2212\n    #7 0x55a6ebf1c105 in curl_multi_perform /work/lib/multi.c:2638\n    #8 0x55a6ebeecad7 in easy_transfer /work/lib/easy.c:606\n    #9 0x55a6ebeecad7 in easy_perform /work/lib/easy.c:696\n    #10 0x55a6ebeed4b3 in curl_easy_perform /work/lib/easy.c:715\n    #11 0x55a6ebed72e2 in serial_transfers /work/src/tool_operate.c:2386\n    #12 0x55a6ebed72e2 in run_all_transfers /work/src/tool_operate.c:2557\n    #13 0x55a6ebed72e2 in operate /work/src/tool_operate.c:2671\n    #14 0x55a6ebec306c in main /work/src/tool_main.c:276\n    #15 0x7f57cb71cd8f in ",
+      "build_log_tail": "",
+      "run_log_tail": "multi_runsingle /work/lib/multi.c:2212\n    #5 0x55a6ebf1c105 in curl_multi_perform /work/lib/multi.c:2638\n    #6 0x55a6ebeecad7 in easy_transfer /work/lib/easy.c:606\n    #7 0x55a6ebeecad7 in easy_perform /work/lib/easy.c:696\n    #8 0x55a6ebeed4b3 in curl_easy_perform /work/lib/easy.c:715\n    #9 0x55a6ebed72e2 in serial_transfers /work/src/tool_operate.c:2386\n    #10 0x55a6ebed72e2 in run_all_transfers /work/src/tool_operate.c:2557\n    #11 0x55a6ebed72e2 in operate /work/src/tool_operate.c:2671\n    #12 0x55a6ebec306c in main /work/src/tool_main.c:276\n    #13 0x7f57cb71cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\npreviously allocated by thread T0 here:\n    #0 0x7f57cc509887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x55a6ebef9ad2 in curl_dbg_malloc /work/lib/memdebug.c:143\n    #2 0x55a6ebf46163 in Curl_memdup /work/lib/strdup.c:91\n    #3 0x55a6ebfe8074 in mqtt_send /work/lib/mqtt.c:127\n    #4 0x55a6ebfe9757 in mqtt_doing /work/lib/mqtt.c:723\n    #5 0x55a6ebf1985e in protocol_doing /work/lib/multi.c:1677\n    #6 0x55a6ebf1985e in multi_runsingle /work/lib/multi.c:2212\n    #7 0x55a6ebf1c105 in curl_multi_perform /work/lib/multi.c:2638\n    #8 0x55a6ebeecad7 in easy_transfer /work/lib/easy.c:606\n    #9 0x55a6ebeecad7 in easy_perform /work/lib/easy.c:696\n    #10 0x55a6ebeed4b3 in curl_easy_perform /work/lib/easy.c:715\n    #11 0x55a6ebed72e2 in serial_transfers /work/src/tool_operate.c:2386\n    #12 0x55a6ebed72e2 in run_all_transfers /work/src/tool_operate.c:2557\n    #13 0x55a6ebed72e2 in operate /work/src/tool_operate.c:2671\n    #14 0x55a6ebec306c in main /work/src/tool_main.c:276\n    #15 0x7f57cb71cd8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: double-free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127 in __interceptor_free\n==10==ABORTING\nPOC_FINAL_CURL_EXIT=-6\nPOC_FINAL_SERVER_RECEIVED=10,18,00,82,0a,00\nPOC_FINAL_TARGETED_LIMIT=1\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "c8a175565c557c33a0bd3193246963a24e58f3b01c0cd64719794cf6b8947a56"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "8188ca91eb0ac7b0b5c51371fcad857e63969070",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "POC_CURL_EXIT=27\nPOC_SERVER_RECEIVED=10,18,00,82,0a,00\nPOC_SERVER_ERRORS=\nPOC_TARGETED_LIMIT=1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=SEND sendf.c:368 send(1) = 1\nPOC_MEMORY=LIMIT strdup.c:91 malloc reached memlimit\nVERIFY_EXIT=0\n\n* STATE: INIT => CONNECT handle 0x522000003108; line 1835 (connection #-5000)\n* Added connection 0. The cache now contains 1 members\n* family0 == v4, family1 == v6\n*   Trying 127.0.0.1:43091...\n* STATE: CONNECT => CONNECTING handle 0x522000003108; line 1896 (connection #0)\n  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0* Connected to 127.0.0.1 (127.0.0.1) port 43091 (#0)\n* STATE: CONNECTING => PROTOCONNECT handle 0x522000003108; line 2028 (connection #0)\n* STATE: PROTOCONNECT => DO handle 0x522000003108; line 2051 (connection #0)\n* Using client id 'curl50434553'\n> \u0010MQTT_FIRST (from MQTT_FIRST) (next is MQTT_CONNACK)\n* STATE: DO => DOING handle 0x522000003108; line 2134 (connection #0)\n> \u0018mqtt_doing: state [0]\n<  MQTT_REMAINING_LENGTH (from MQTT_FIRST) (next is )\n< \u0002MQTT_CONNACK (from MQTT_REMAINING_LENGTH) (next is )\n> \u0000mqtt_doing: state [2]\n< \u0000\u0000\ufffdMQTT_FIRST (from MQTT_CONNACK) (next is MQTT_SUBACK)\n> \n* mqtt_doing: state [0]\n> \u0000LIMIT strdup.c:91 malloc reached memlimit\nmulti_done: status: 27 prem: 0 done: 0\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n* The cache now contains 0 members\n* Closing connection 0\n* Expire cleared (transfer 0x522000003108)\ncurl: (27) Out of memory\nPOC_FINAL_CURL_EXIT=27\nPOC_FINAL_SERVER_RECEIVED=10,18,00,82,0a,00\nPOC_FINAL_TARGETED_LIMIT=1\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "a006043973037869f24cd6df70a24fc2346a082483faf44ae4d5cd5db27ae0fa"
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-97467fa8fa32",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "cb94132d9f7997bc1b0fbce97740c1576cac40a6",
+    "parent": "59ece7e1060e00b711f9967706379cb7d2214cc3",
+    "fix": "97467fa8fa3219c71868cc2bd370536f017b4e42"
+  },
+  "affected_files": [
+    "src/os_kv.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. With the identical command (`bash /poc/run.sh`) and input (`input.txt`, bytes `aaaaaaa00`), pre_intro exited 0 without a sanitizer report, post_intro exited 1/crashed with UBSan reporting signed integer overflow at `mult *= 26` (`308915776 * 26 cannot be represented in type int`), and post_benign exited 0 without a sanitizer report. Thus cb94132d9f79 introduces the labelled integer-overflow UB and the benign companion removes it by using widened arithmetic a",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

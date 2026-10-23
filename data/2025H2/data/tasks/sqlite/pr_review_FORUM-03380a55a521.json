@@ -1,0 +1,124 @@
+{
+  "task_id": "pr_review_FORUM-03380a55a521",
+  "bug_id": "FORUM-03380a55a521",
+  "commit_sha": "d05bf5aedff9b0c724177669d5831e271d81591d",
+  "commit_message": "Fix another potential buffer overread in the zipfile extension.\n\nFossilOrigin-Name: 0819fe670f9ceec79f84eb09c234dc29f6581332f86a53d6a0547697404efff1",
+  "commit_author": "dan",
+  "commit_date": "2025-09-30T11:17:40Z",
+  "pr_title": "Fix another potential buffer overread in the zipfile extension.",
+  "pr_description": "FossilOrigin-Name: 0819fe670f9ceec79f84eb09c234dc29f6581332f86a53d6a0547697404efff1",
+  "files": [
+    {
+      "path": "ext/misc/zipfile.c",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 2,
+      "diff": "diff --git a/ext/misc/zipfile.c b/ext/misc/zipfile.c\nindex e5e64308ef..ee5bc3821f 100644\n--- a/ext/misc/zipfile.c\n+++ b/ext/misc/zipfile.c\n@@ -798,10 +798,19 @@ static void zipfileMtimeToDos(ZipfileCDS *pCds, u32 mUnixTime){\n        || ((mUnixTime % 2) && mUnixTime-1==zipfileMtime(pCds)) \n        /* || (mUnixTime % 2) */\n   );\n }\n \n+/*\n+** Set (*pzErr) to point to a buffer from sqlite3_malloc() containing a \n+** generic corruption message and return SQLITE_CORRUPT;\n+*/\n+static int zipfileCorrupt(char **pzErr){\n+  *pzErr = sqlite3_mprintf(\"zip archive is corrupt\");\n+  return SQLITE_CORRUPT;\n+}\n+\n /*\n ** If aBlob is not NULL, then it is a pointer to a buffer (nBlob bytes in\n ** size) containing an entire zip archive image. Or, if aBlob is NULL,\n ** then pFile is a file-handle open on a zip file. In either case, this\n ** function creates a ZipfileEntry object based on the zip archive entry\n@@ -827,11 +836,11 @@ static int zipfileGetEntry(\n     aRead = pTab->aBuffer;\n     rc = zipfileReadData(pFile, aRead, ZIPFILE_CDS_FIXED_SZ, iOff, pzErr);\n   }else{\n     if( (iOff+ZIPFILE_CDS_FIXED_SZ)>nBlob ){\n       /* Not enough data for the CDS structure. Corruption. */\n-      return SQLITE_CORRUPT;\n+      return zipfileCorrupt(pzErr);\n     }\n     aRead = (u8*)&aBlob[iOff];\n   }\n \n   if( rc==SQLITE_OK ){\n@@ -859,10 +868,13 @@ static int zipfileGetEntry(\n         rc = zipfileReadData(\n             pFile, aRead, nExtra+nFile, iOff+ZIPFILE_CDS_FIXED_SZ, pzErr\n         );\n       }else{\n         aRead = (u8*)&aBlob[iOff + ZIPFILE_CDS_FIXED_SZ];\n+        if( (iOff + ZIPFILE_LFH_FIXED_SZ + nFile + nExtra)>nBlob ){\n+          rc = zipfileCorrupt(pzErr);\n+        }\n       }\n     }\n \n     if( rc==SQLITE_OK ){\n       u32 *pt = &pNew->mUnixTime;\n@@ -881,19 +893,22 @@ static int zipfileGetEntry(\n       ZipfileLFH lfh;\n       if( pFile ){\n         rc = zipfileReadData(pFile, aRead, szFix, pNew->cds.iOffset, pzErr);\n       }else{\n         aRead = (u8*)&aBlob[pNew->cds.iOffset];\n+        if( (pNew->cds.iOffset + ZIPFILE_LFH_FIXED_SZ)>nBlob ){\n+          rc = zipfileCorrupt(pzErr);\n+        }\n       }\n \n       if( rc==SQLITE_OK ) rc = zipfileReadLFH(aRead, &lfh);\n       if( rc==SQLITE_OK ){\n         pNew->iDataOff =  pNew->cds.iOffset + ZIPFILE_LFH_FIXED_SZ;\n         pNew->iDataOff += lfh.nFile + lfh.nExtra;\n         if( aBlob && pNew->cds.szCompressed ){\n           if( pNew->iDataOff + pNew->cds.szCompressed > nBlob ){\n-            rc = SQLITE_CORRUPT;\n+            rc = zipfileCorrupt(pzErr);\n           }else{\n             pNew->aData = &pNew->aExtra[nExtra];\n             memcpy(pNew->aData, &aBlob[pNew->iDataOff], pNew->cds.szCompressed);\n           }\n         }\n"
+    },
+    {
+      "path": "manifest",
+      "status": "modified",
+      "additions": 8,
+      "deletions": 8,
+      "diff": "diff --git a/manifest b/manifest\nindex c270b878c4..abc5fdfe76 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Strengthen\\sthe\\sfts5_locale()\\sfunction\\sagainst\\sinteger\\soverflow\\sattacks,\\neven\\swhen\\sSQLite\\sis\\scompiled\\swith\\soversize\\svalues\\sfor\\nSQLITE_MAX_LENGTH.\n-D 2025-09-30T10:11:44.070\n+C Fix\\sanother\\spotential\\sbuffer\\soverread\\sin\\sthe\\szipfile\\sextension.\n+D 2025-09-30T11:17:40.625\n F .fossil-settings/binary-glob 61195414528fb3ea9693577e1980230d78a1f8b0a54c78cf1b9b24d0a409ed6a x\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md e108e1e69ae8e8a59e93c455654b8ac9356a11720d3345df2a4743e9590fb20d\n F Makefile.in 3ce07126d7e87c7464301482e161fdae6a51d0a2aa06b200b8f0000ef4d6163b\n@@ -414,11 +414,11 @@ F ext/misc/vfsstat.c 0b23c0a69a2b63dc0ef0af44f9c1fc977300c480a1f7a9814500369d821\n F ext/misc/vfstrace.c 0e4b8b17ac0675ea90f6d168d8214687e06ca3efbc0060aad4814994d82b41fb\n F ext/misc/vtablog.c 9f7e02e9e8de585f3bfb48405db36c2eb4b680a23a67d7a4b738dd20f6ad7aec\n F ext/misc/vtshim.c e5bce24ab8c532f4fdc600148718fe1802cb6ed57417f1c1032d8961f72b0e8f\n F ext/misc/wholenumber.c 0fa0c082676b7868bf2fa918e911133f2b349bcdceabd1198bba5f65b4fc0668\n F ext/misc/windirent.h 02211ce51f3034c675f2dbf4d228194d51b3ee05734678bad5106fff6292e60c\n-F ext/misc/zipfile.c 67bd456f614b290371ecd1c2bdae858166983ffb16237299953cc2caae6d1aad\n+F ext/misc/zipfile.c e29a32f1697e3828b1ba596a8aac50b5a2703ea6d1d37ff734222858b34bf884\n F ext/misc/zorder.c bddff2e1b9661a90c95c2a9a9c7ecd8908afab5763256294dd12d609d4664eee\n F ext/rbu/rbu.c 801450b24eaf14440d8fd20385aacc751d5c9d6123398df41b1b5aa804bf4ce8\n F ext/rbu/rbu1.test 25870dd7db7eb5597e2b4d6e29e7a7e095abf332660f67d89959552ce8f8f255\n F ext/rbu/rbu10.test 7c22caa32c2ff26983ca8320779a31495a6555737684af7aba3daaf762ef3363\n F ext/rbu/rbu11.test 8584f80ef4be00e6beec4154f638847ffc40b5f2832ffadfbaf558ae40e50cb5\n@@ -2074,11 +2074,11 @@ F test/without_rowid7.test 747d3fbef7108d416d6416694b03d8ff046dc9cc82b3d911715fe\n F test/wordcount.c d721a4b6fae93e6e33449700bce1686bc23257c27425bc3ef1599dc912adec66\n F test/writecrash.test 13520af28f376bfc8c0bcd130efc1fff20bb165198e8b94cf153f1f754154bb9\n F test/zeroblob.test 7b74cefc7b281dfa2b07cd237987fbe94b4a2037a7771e9e83f2d5f608b1d99e\n F test/zeroblobfault.test 861d8191a0d944dfebb3cb4d2c5b4e46a5a119eaec5a63dd996c2389f8063441\n F test/zerodamage.test 9c41628db7e8d9e8a0181e59ea5f189df311a9f6ce99cc376dc461f66db6f8dc\n-F test/zipfile.test 61ec316df6149b515dbfd570e7cd4a4a18dae037b2a5cdd5769b6f44f6132acf\n+F test/zipfile.test 82d402903199d193073af2c3c56b3c6839d229160fdc9ba437fa959db8da3ecc\n F test/zipfile2.test 6df5f5ef9d247756f7200066f43e7f3f52cffff47f0c02cbefe4ce9c3284cb10\n F test/zipfilefault.test 44d4d7a7f7cca7521d569d7f71026b241d65a6b1757aa409c1a168827edbbc2c\n F tool/GetFile.cs 47852aa0d806fe47ed1ac5138bdce7f000fe87aaa7f28107d0cb1e26682aeb44\n F tool/GetTclKit.bat d84033c6a93dfe735d247f48ba00292a1cc284dcf69963e5e672444e04534bbf\n F tool/Replace.cs 02c67258801c2fb5f63231e0ac0f220b4b36ba91\n@@ -2167,10 +2167,10 @@ F tool/vdbe-compress.tcl fa2f37ab39b2a0087fafb6a7f3ce19503e25e624ffa8ed9951717ab\n F tool/vdbe_profile.tcl 3ac5a4a9449f4baf77059358ea050db3e34395ccf59c5464d29b91746d5b961e\n F tool/version-info.c 3b36468a90faf1bbd59c65fd0eb66522d9f941eedd364fabccd72273503ae7d5\n F tool/warnings-clang.sh bbf6a1e685e534c92ec2bfba5b1745f34fb6f0bc2a362850723a9ee87c1b31a7\n F tool/warnings.sh 1ad0169b022b280bcaaf94a7fa231591be96b514230ab5c98fbf15cd7df842dd\n F tool/win/sqlite.vsix deb315d026cc8400325c5863eef847784a219a2f\n-P 70c2c99b6f12a3467c23b44adcaf2d7d780ba8317b72de2f6730b1d892cf0c85\n-R 4cb04df9c91d13599952a40b78ff9557\n-U drh\n-Z eac1cf93f851d848376a93c3c3d4d2aa\n+P f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a\n+R 03c7246cb86679cba7e1e177172ca761\n+U dan\n+Z bc4b5e983cf59dadaa265b2fa6f831d6\n # Remove this line to create a well-formed Fossil manifest.\n"
+    },
+    {
+      "path": "manifest.uuid",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/manifest.uuid b/manifest.uuid\nindex 7576b7faa2..b2f3ac63e5 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a\n+0819fe670f9ceec79f84eb09c234dc29f6581332f86a53d6a0547697404efff1\n"
+    },
+    {
+      "path": "test/zipfile.test",
+      "status": "modified",
+      "additions": 11,
+      "deletions": 1,
+      "diff": "diff --git a/test/zipfile.test b/test/zipfile.test\nindex 86e4549d76..2b3be62787 100644\n--- a/test/zipfile.test\n+++ b/test/zipfile.test\n@@ -885,10 +885,20 @@ do_test 19.1 {\n     INSERT INTO v0 DEFAULT VALUES;\n   }\n } {}\n forcedelete zipfile19.zip\n \n+#-------------------------------------------------------------------------\n do_catchsql_test 20.0 {\n   SELECT * FROM zipfile(X'504b050600000000010001004000000000a3e1110000');\n-} {1 {database disk image is malformed}}\n+} {1 {zip archive is corrupt}}\n+\n+do_catchsql_test 20.1 {\n+  SELECT * FROM zipfile(unhex('\n+504b0304140000080000a60d3e5bd42728f602000000020000000500090068\n+2e74787455540500012836db682120504b01021e03140000080000a60d3e5b\n+d42728f602000000020000000500ffff0000000000000000a4810000000068\n+2e74787455540500012836db68504b050600000000010001003c0000002e00\n+00000000',char(0x0a,0x0d)));\n+} {1 {zip archive is corrupt}}\n \n finish_test\n"
+    }
+  ],
+  "full_diff": "diff --git a/ext/misc/zipfile.c b/ext/misc/zipfile.c\nindex e5e64308ef..ee5bc3821f 100644\n--- a/ext/misc/zipfile.c\n+++ b/ext/misc/zipfile.c\n@@ -798,10 +798,19 @@ static void zipfileMtimeToDos(ZipfileCDS *pCds, u32 mUnixTime){\n        || ((mUnixTime % 2) && mUnixTime-1==zipfileMtime(pCds)) \n        /* || (mUnixTime % 2) */\n   );\n }\n \n+/*\n+** Set (*pzErr) to point to a buffer from sqlite3_malloc() containing a \n+** generic corruption message and return SQLITE_CORRUPT;\n+*/\n+static int zipfileCorrupt(char **pzErr){\n+  *pzErr = sqlite3_mprintf(\"zip archive is corrupt\");\n+  return SQLITE_CORRUPT;\n+}\n+\n /*\n ** If aBlob is not NULL, then it is a pointer to a buffer (nBlob bytes in\n ** size) containing an entire zip archive image. Or, if aBlob is NULL,\n ** then pFile is a file-handle open on a zip file. In either case, this\n ** function creates a ZipfileEntry object based on the zip archive entry\n@@ -827,11 +836,11 @@ static int zipfileGetEntry(\n     aRead = pTab->aBuffer;\n     rc = zipfileReadData(pFile, aRead, ZIPFILE_CDS_FIXED_SZ, iOff, pzErr);\n   }else{\n     if( (iOff+ZIPFILE_CDS_FIXED_SZ)>nBlob ){\n       /* Not enough data for the CDS structure. Corruption. */\n-      return SQLITE_CORRUPT;\n+      return zipfileCorrupt(pzErr);\n     }\n     aRead = (u8*)&aBlob[iOff];\n   }\n \n   if( rc==SQLITE_OK ){\n@@ -859,10 +868,13 @@ static int zipfileGetEntry(\n         rc = zipfileReadData(\n             pFile, aRead, nExtra+nFile, iOff+ZIPFILE_CDS_FIXED_SZ, pzErr\n         );\n       }else{\n         aRead = (u8*)&aBlob[iOff + ZIPFILE_CDS_FIXED_SZ];\n+        if( (iOff + ZIPFILE_LFH_FIXED_SZ + nFile + nExtra)>nBlob ){\n+          rc = zipfileCorrupt(pzErr);\n+        }\n       }\n     }\n \n     if( rc==SQLITE_OK ){\n       u32 *pt = &pNew->mUnixTime;\n@@ -881,19 +893,22 @@ static int zipfileGetEntry(\n       ZipfileLFH lfh;\n       if( pFile ){\n         rc = zipfileReadData(pFile, aRead, szFix, pNew->cds.iOffset, pzErr);\n       }else{\n         aRead = (u8*)&aBlob[pNew->cds.iOffset];\n+        if( (pNew->cds.iOffset + ZIPFILE_LFH_FIXED_SZ)>nBlob ){\n+          rc = zipfileCorrupt(pzErr);\n+        }\n       }\n \n       if( rc==SQLITE_OK ) rc = zipfileReadLFH(aRead, &lfh);\n       if( rc==SQLITE_OK ){\n         pNew->iDataOff =  pNew->cds.iOffset + ZIPFILE_LFH_FIXED_SZ;\n         pNew->iDataOff += lfh.nFile + lfh.nExtra;\n         if( aBlob && pNew->cds.szCompressed ){\n           if( pNew->iDataOff + pNew->cds.szCompressed > nBlob ){\n-            rc = SQLITE_CORRUPT;\n+            rc = zipfileCorrupt(pzErr);\n           }else{\n             pNew->aData = &pNew->aExtra[nExtra];\n             memcpy(pNew->aData, &aBlob[pNew->iDataOff], pNew->cds.szCompressed);\n           }\n         }\ndiff --git a/manifest b/manifest\nindex c270b878c4..abc5fdfe76 100644\n--- a/manifest\n+++ b/manifest\n@@ -1,7 +1,7 @@\n-C Strengthen\\sthe\\sfts5_locale()\\sfunction\\sagainst\\sinteger\\soverflow\\sattacks,\\neven\\swhen\\sSQLite\\sis\\scompiled\\swith\\soversize\\svalues\\sfor\\nSQLITE_MAX_LENGTH.\n-D 2025-09-30T10:11:44.070\n+C Fix\\sanother\\spotential\\sbuffer\\soverread\\sin\\sthe\\szipfile\\sextension.\n+D 2025-09-30T11:17:40.625\n F .fossil-settings/binary-glob 61195414528fb3ea9693577e1980230d78a1f8b0a54c78cf1b9b24d0a409ed6a x\n F .fossil-settings/empty-dirs dbb81e8fc0401ac46a1491ab34a7f2c7c0452f2f06b54ebb845d024ca8283ef1\n F .fossil-settings/ignore-glob 35175cdfcf539b2318cb04a9901442804be81cd677d8b889fcc9149c21f239ea\n F LICENSE.md e108e1e69ae8e8a59e93c455654b8ac9356a11720d3345df2a4743e9590fb20d\n F Makefile.in 3ce07126d7e87c7464301482e161fdae6a51d0a2aa06b200b8f0000ef4d6163b\n@@ -414,11 +414,11 @@ F ext/misc/vfsstat.c 0b23c0a69a2b63dc0ef0af44f9c1fc977300c480a1f7a9814500369d821\n F ext/misc/vfstrace.c 0e4b8b17ac0675ea90f6d168d8214687e06ca3efbc0060aad4814994d82b41fb\n F ext/misc/vtablog.c 9f7e02e9e8de585f3bfb48405db36c2eb4b680a23a67d7a4b738dd20f6ad7aec\n F ext/misc/vtshim.c e5bce24ab8c532f4fdc600148718fe1802cb6ed57417f1c1032d8961f72b0e8f\n F ext/misc/wholenumber.c 0fa0c082676b7868bf2fa918e911133f2b349bcdceabd1198bba5f65b4fc0668\n F ext/misc/windirent.h 02211ce51f3034c675f2dbf4d228194d51b3ee05734678bad5106fff6292e60c\n-F ext/misc/zipfile.c 67bd456f614b290371ecd1c2bdae858166983ffb16237299953cc2caae6d1aad\n+F ext/misc/zipfile.c e29a32f1697e3828b1ba596a8aac50b5a2703ea6d1d37ff734222858b34bf884\n F ext/misc/zorder.c bddff2e1b9661a90c95c2a9a9c7ecd8908afab5763256294dd12d609d4664eee\n F ext/rbu/rbu.c 801450b24eaf14440d8fd20385aacc751d5c9d6123398df41b1b5aa804bf4ce8\n F ext/rbu/rbu1.test 25870dd7db7eb5597e2b4d6e29e7a7e095abf332660f67d89959552ce8f8f255\n F ext/rbu/rbu10.test 7c22caa32c2ff26983ca8320779a31495a6555737684af7aba3daaf762ef3363\n F ext/rbu/rbu11.test 8584f80ef4be00e6beec4154f638847ffc40b5f2832ffadfbaf558ae40e50cb5\n@@ -2074,11 +2074,11 @@ F test/without_rowid7.test 747d3fbef7108d416d6416694b03d8ff046dc9cc82b3d911715fe\n F test/wordcount.c d721a4b6fae93e6e33449700bce1686bc23257c27425bc3ef1599dc912adec66\n F test/writecrash.test 13520af28f376bfc8c0bcd130efc1fff20bb165198e8b94cf153f1f754154bb9\n F test/zeroblob.test 7b74cefc7b281dfa2b07cd237987fbe94b4a2037a7771e9e83f2d5f608b1d99e\n F test/zeroblobfault.test 861d8191a0d944dfebb3cb4d2c5b4e46a5a119eaec5a63dd996c2389f8063441\n F test/zerodamage.test 9c41628db7e8d9e8a0181e59ea5f189df311a9f6ce99cc376dc461f66db6f8dc\n-F test/zipfile.test 61ec316df6149b515dbfd570e7cd4a4a18dae037b2a5cdd5769b6f44f6132acf\n+F test/zipfile.test 82d402903199d193073af2c3c56b3c6839d229160fdc9ba437fa959db8da3ecc\n F test/zipfile2.test 6df5f5ef9d247756f7200066f43e7f3f52cffff47f0c02cbefe4ce9c3284cb10\n F test/zipfilefault.test 44d4d7a7f7cca7521d569d7f71026b241d65a6b1757aa409c1a168827edbbc2c\n F tool/GetFile.cs 47852aa0d806fe47ed1ac5138bdce7f000fe87aaa7f28107d0cb1e26682aeb44\n F tool/GetTclKit.bat d84033c6a93dfe735d247f48ba00292a1cc284dcf69963e5e672444e04534bbf\n F tool/Replace.cs 02c67258801c2fb5f63231e0ac0f220b4b36ba91\n@@ -2167,10 +2167,10 @@ F tool/vdbe-compress.tcl fa2f37ab39b2a0087fafb6a7f3ce19503e25e624ffa8ed9951717ab\n F tool/vdbe_profile.tcl 3ac5a4a9449f4baf77059358ea050db3e34395ccf59c5464d29b91746d5b961e\n F tool/version-info.c 3b36468a90faf1bbd59c65fd0eb66522d9f941eedd364fabccd72273503ae7d5\n F tool/warnings-clang.sh bbf6a1e685e534c92ec2bfba5b1745f34fb6f0bc2a362850723a9ee87c1b31a7\n F tool/warnings.sh 1ad0169b022b280bcaaf94a7fa231591be96b514230ab5c98fbf15cd7df842dd\n F tool/win/sqlite.vsix deb315d026cc8400325c5863eef847784a219a2f\n-P 70c2c99b6f12a3467c23b44adcaf2d7d780ba8317b72de2f6730b1d892cf0c85\n-R 4cb04df9c91d13599952a40b78ff9557\n-U drh\n-Z eac1cf93f851d848376a93c3c3d4d2aa\n+P f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a\n+R 03c7246cb86679cba7e1e177172ca761\n+U dan\n+Z bc4b5e983cf59dadaa265b2fa6f831d6\n # Remove this line to create a well-formed Fossil manifest.\ndiff --git a/manifest.uuid b/manifest.uuid\nindex 7576b7faa2..b2f3ac63e5 100644\n--- a/manifest.uuid\n+++ b/manifest.uuid\n@@ -1 +1 @@\n-f0dbd9d22f558dd002e2132381de3c82d55a670399b3e527b5962b025141676a\n+0819fe670f9ceec79f84eb09c234dc29f6581332f86a53d6a0547697404efff1\ndiff --git a/test/zipfile.test b/test/zipfile.test\nindex 86e4549d76..2b3be62787 100644\n--- a/test/zipfile.test\n+++ b/test/zipfile.test\n@@ -885,10 +885,20 @@ do_test 19.1 {\n     INSERT INTO v0 DEFAULT VALUES;\n   }\n } {}\n forcedelete zipfile19.zip\n \n+#-------------------------------------------------------------------------\n do_catchsql_test 20.0 {\n   SELECT * FROM zipfile(X'504b050600000000010001004000000000a3e1110000');\n-} {1 {database disk image is malformed}}\n+} {1 {zip archive is corrupt}}\n+\n+do_catchsql_test 20.1 {\n+  SELECT * FROM zipfile(unhex('\n+504b0304140000080000a60d3e5bd42728f602000000020000000500090068\n+2e74787455540500012836db682120504b01021e03140000080000a60d3e5b\n+d42728f602000000020000000500ffff0000000000000000a4810000000068\n+2e74787455540500012836db68504b050600000000010001003c0000002e00\n+00000000',char(0x0a,0x0d)));\n+} {1 {zip archive is corrupt}}\n \n finish_test\n",
+  "ground_truth": {
+    "bug_id": "FORUM-03380a55a521",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "03380a55a521b0eb616a31bbed6dd44ecfd0aa55",
+      "short_sha": "03380a5",
+      "message": "Fix a typo in [0819fe670f9ceec7] that lead to incomplete protection against buffer overflow in the zipfile extension. [forum:/forumpost/2025-12-30T23:57:19z|Forum post 2025-12-30T23:57:19z]",
+      "author": "drh",
+      "date": "2025-12-31T01:01:14Z"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oobread-001",
+        "title": "Wrong size constant in bounds check allows out-of-bounds read in zipfile extension",
+        "message": "In zipfileGetEntry(), when reading Central Directory Structure (CDS) entries from a blob (in-memory ZIP), the bounds check uses ZIPFILE_LFH_FIXED_SZ (30) instead of ZIPFILE_CDS_FIXED_SZ (46). The pointer aRead is set to &aBlob[iOff + ZIPFILE_CDS_FIXED_SZ] (i.e., offset +46), but the bounds check only verifies iOff + ZIPFILE_LFH_FIXED_SZ + nFile + nExtra > nBlob (i.e., offset +30). This 16-byte discrepancy means that when nBlob - iOff - nFile - nExtra falls between 30 and 45 inclusive, the bounds check passes but the subsequent read starting at offset iOff+46 (and extending through nFile+nExtra bytes) is out of bounds, causing a heap buffer overread.",
+        "location": {
+          "file": "ext/misc/zipfile.c",
+          "start_line": 877,
+          "end_line": 880,
+          "start_column": null,
+          "end_column": null,
+          "function": "zipfileGetEntry",
+          "snippet": "        aRead = (u8*)&aBlob[iOff + ZIPFILE_CDS_FIXED_SZ];\n        if( (iOff + ZIPFILE_LFH_FIXED_SZ + nFile + nExtra)>nBlob ){\n          rc = zipfileCorrupt(pzErr);\n        }",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "ext/misc/zipfile.c",
+            "start_line": 165,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "macro definitions",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.97,
+        "suggestion": "Replace ZIPFILE_LFH_FIXED_SZ with ZIPFILE_CDS_FIXED_SZ in the bounds check so that the verified range matches the actual accessor offset. The check must account for the CDS fixed-size header (46 bytes) at which aRead starts, not the LFH fixed-size header (30 bytes).",
+        "suggestion_code": "        aRead = (u8*)&aBlob[iOff + ZIPFILE_CDS_FIXED_SZ];\n        if( (iOff + ZIPFILE_CDS_FIXED_SZ + nFile + nExtra)>nBlob ){\n          rc = zipfileCorrupt(pzErr);\n        }",
+        "tags": [
+          "security",
+          "memory-safety",
+          "buffer-overread",
+          "zipfile"
+        ],
+        "cwe_ids": [
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "ext/misc/zipfile.c"
+    ],
+    "root_cause": "A copy-paste or naming mistake in the newly added bounds check: the developer wrote ZIPFILE_LFH_FIXED_SZ (the Local File Header constant, value 30) when the intent was ZIPFILE_CDS_FIXED_SZ (the Central Directory Structure constant, value 46). Since aRead is placed at iOff + ZIPFILE_CDS_FIXED_SZ (offset 46), the safety guard must use that same constant to correctly bound the subsequent read of nFile+nExtra bytes.",
+    "must_cover": [
+      {
+        "file": "ext/misc/zipfile.c",
+        "function": "zipfileGetEntry",
+        "start_line": 877,
+        "end_line": 880,
+        "role": "primary",
+        "reason": "Primary location of finding: Wrong size constant in bounds check allows out-of-bounds read in zipfile extension"
+      },
+      {
+        "file": "ext/misc/zipfile.c",
+        "function": "macro definitions",
+        "start_line": 165,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Wrong size constant in bounds check allows out-of-bounds read in zipfile extension"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "d05bf5aedff9b0c724177669d5831e271d81591d",
+  "fix_commit_sha": null
+}

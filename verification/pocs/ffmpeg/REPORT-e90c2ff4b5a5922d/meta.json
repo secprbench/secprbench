@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-e90c2ff4b5a5922d",
+  "bug_id": "REPORT-e90c2ff4b5a5922d",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "fe1ffd63fb09fc8655487046f3ad2b372fef5497",
+  "intro_parent": "ec86dade2fc3bb7f9e718248045df066611426a6",
+  "fix_commit": "e90c2ff4b5a5922d2cad1acd41595084f71d74a8",
+  "affected_files": [
+    "libavcodec/libdav1d.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "During a refactor that converted the country_code/provider_code dispatch logic in parse_itut_t35_metadata() into nested switch statements, the previously bounds-checked bytestream2_get_be16() call used to read provider_code was replaced by the unchecked bytestream2_get_be16u() variant for the US country_code case, without adding an explicit length check (bytestream2_get_bytes_left(&gb) < 2) beforehand. The analogous branch for the UK country code does include such a guard, but it was inconsistently omitted for the US branch, leaving a gap where attacker-controlled short payloads are read out of bounds.",
+  "findings": [
+    "In parse_itut_t35_metadata(), when refactoring the country_code/provider_code dispatch into a switch statement, the read of provider_code for the US (ITU_T_T35_COUNTRY_CODE_US) branch was changed from the bounds-checked bytestream2_get_be16() to the unchecked bytestream2_get_be16u() variant, with no prior validation that at least 2 bytes remain in the GetByteContext (gb). bytestream2_get_be16u() ("
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "198113dc782739cfa6515b4dd558dc38280ba8c6dd668792965ab5945cacec9b",
+  "generated_artifact_sha256": {
+    "reference": "cf9ed4a2a187f161e034deb76b66d46fa81a48d353361c216d107710bad94851",
+    "introducing": "b81aa3ff5a174e3e1c52f10e3908daa4704b0560896e2fbe047c44dc00105683",
+    "companion": "e63c54f51804385da1e83b12462e75b89cd57b3ca65a4e43993e98705415f96e"
+  }
+}

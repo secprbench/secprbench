@@ -1,0 +1,71 @@
+{
+  "task_id": "pr_review_GH-17274_benign",
+  "bug_id": "GH-17274",
+  "commit_sha": "3a2689712afb0c8e2b489bf17d17cbd392c6aa7b",
+  "commit_message": "vtls: convert pubkey_pem_to_der to use dynbuf\n\n... instead of malloc and \"manual\" buffer stuffing\n\nCloses #15126",
+  "commit_author": "",
+  "commit_date": "2026-10-01T16:43:04.967696",
+  "pr_title": "vtls: convert pubkey_pem_to_der to use dynbuf",
+  "pr_description": "vtls: convert pubkey_pem_to_der to use dynbuf\n\n... instead of malloc and \"manual\" buffer stuffing\n\nCloses #15126",
+  "files": [
+    {
+      "path": "lib/vtls/vtls.c",
+      "status": "modified",
+      "additions": 16,
+      "deletions": 13,
+      "diff": "diff --git a/lib/vtls/vtls.c b/lib/vtls/vtls.c\nindex a5cb7b0ffa..231769b13d 100644\n--- a/lib/vtls/vtls.c\n+++ b/lib/vtls/vtls.c\n@@ -934,67 +934,70 @@ CURLcode Curl_ssl_random(struct Curl_easy *data,\n     return CURLE_NOT_BUILT_IN;\n }\n \n /*\n  * Public key pem to der conversion\n  */\n \n static CURLcode pubkey_pem_to_der(const char *pem,\n                                   unsigned char **der, size_t *der_len)\n {\n-  char *stripped_pem, *begin_pos, *end_pos;\n-  size_t pem_count, stripped_pem_count = 0, pem_len;\n+  char *begin_pos, *end_pos;\n+  size_t pem_count, pem_len;\n   CURLcode result;\n+  struct dynbuf pbuf;\n \n   /* if no pem, exit. */\n   if(!pem)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n+  Curl_dyn_init(&pbuf, MAX_PINNED_PUBKEY_SIZE);\n+\n   begin_pos = strstr(pem, \"-----BEGIN PUBLIC KEY-----\");\n   if(!begin_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_count = begin_pos - pem;\n   /* Invalid if not at beginning AND not directly following \\n */\n   if(0 != pem_count && '\\n' != pem[pem_count - 1])\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   /* 26 is length of \"-----BEGIN PUBLIC KEY-----\" */\n   pem_count += 26;\n \n   /* Invalid if not directly following \\n */\n   end_pos = strstr(pem + pem_count, \"\\n-----END PUBLIC KEY-----\");\n   if(!end_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_len = end_pos - pem;\n \n-  stripped_pem = malloc(pem_len - pem_count + 1);\n-  if(!stripped_pem)\n-    return CURLE_OUT_OF_MEMORY;\n-\n   /*\n    * Here we loop through the pem array one character at a time between the\n    * correct indices, and place each character that is not '\\n' or '\\r'\n    * into the stripped_pem array, which should represent the raw base64 string\n    */\n   while(pem_count < pem_len) {\n-    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count])\n-      stripped_pem[stripped_pem_count++] = pem[pem_count];\n+    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count]) {\n+      result = Curl_dyn_addn(&pbuf, &pem[pem_count], 1);\n+      if(result)\n+        return result;\n+    }\n     ++pem_count;\n   }\n-  /* Place the null terminator in the correct place */\n-  stripped_pem[stripped_pem_count] = '\\0';\n \n-  result = Curl_base64_decode(stripped_pem, der, der_len);\n-\n-  Curl_safefree(stripped_pem);\n+  if(Curl_dyn_len(&pbuf)) {\n+    result = Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len);\n+    Curl_dyn_free(&pbuf);\n+  }\n+  else\n+    result = CURLE_BAD_CONTENT_ENCODING;\n \n   return result;\n }\n \n /*\n  * Generic pinned public key check.\n  */\n \n CURLcode Curl_pin_peer_pubkey(struct Curl_easy *data,\n                               const char *pinnedpubkey,\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/vtls/vtls.c b/lib/vtls/vtls.c\nindex a5cb7b0ffa..231769b13d 100644\n--- a/lib/vtls/vtls.c\n+++ b/lib/vtls/vtls.c\n@@ -934,67 +934,70 @@ CURLcode Curl_ssl_random(struct Curl_easy *data,\n     return CURLE_NOT_BUILT_IN;\n }\n \n /*\n  * Public key pem to der conversion\n  */\n \n static CURLcode pubkey_pem_to_der(const char *pem,\n                                   unsigned char **der, size_t *der_len)\n {\n-  char *stripped_pem, *begin_pos, *end_pos;\n-  size_t pem_count, stripped_pem_count = 0, pem_len;\n+  char *begin_pos, *end_pos;\n+  size_t pem_count, pem_len;\n   CURLcode result;\n+  struct dynbuf pbuf;\n \n   /* if no pem, exit. */\n   if(!pem)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n+  Curl_dyn_init(&pbuf, MAX_PINNED_PUBKEY_SIZE);\n+\n   begin_pos = strstr(pem, \"-----BEGIN PUBLIC KEY-----\");\n   if(!begin_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_count = begin_pos - pem;\n   /* Invalid if not at beginning AND not directly following \\n */\n   if(0 != pem_count && '\\n' != pem[pem_count - 1])\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   /* 26 is length of \"-----BEGIN PUBLIC KEY-----\" */\n   pem_count += 26;\n \n   /* Invalid if not directly following \\n */\n   end_pos = strstr(pem + pem_count, \"\\n-----END PUBLIC KEY-----\");\n   if(!end_pos)\n     return CURLE_BAD_CONTENT_ENCODING;\n \n   pem_len = end_pos - pem;\n \n-  stripped_pem = malloc(pem_len - pem_count + 1);\n-  if(!stripped_pem)\n-    return CURLE_OUT_OF_MEMORY;\n-\n   /*\n    * Here we loop through the pem array one character at a time between the\n    * correct indices, and place each character that is not '\\n' or '\\r'\n    * into the stripped_pem array, which should represent the raw base64 string\n    */\n   while(pem_count < pem_len) {\n-    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count])\n-      stripped_pem[stripped_pem_count++] = pem[pem_count];\n+    if('\\n' != pem[pem_count] && '\\r' != pem[pem_count]) {\n+      result = Curl_dyn_addn(&pbuf, &pem[pem_count], 1);\n+      if(result)\n+        return result;\n+    }\n     ++pem_count;\n   }\n-  /* Place the null terminator in the correct place */\n-  stripped_pem[stripped_pem_count] = '\\0';\n \n-  result = Curl_base64_decode(stripped_pem, der, der_len);\n-\n-  Curl_safefree(stripped_pem);\n+  if(Curl_dyn_len(&pbuf)) {\n+    result = Curl_base64_decode(Curl_dyn_ptr(&pbuf), der, der_len);\n+    Curl_dyn_free(&pbuf);\n+  }\n+  else\n+    result = CURLE_BAD_CONTENT_ENCODING;\n \n   return result;\n }\n \n /*\n  * Generic pinned public key check.\n  */\n \n CURLcode Curl_pin_peer_pubkey(struct Curl_easy *data,\n                               const char *pinnedpubkey,\n",
+  "ground_truth": {
+    "bug_id": "GH-17274",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "ebd9d67b8a4fb50673b8a255ee3b14180d7313c2",
+    "fix_commit": "3a2689712afb0c8e2b489bf17d17cbd392c6aa7b"
+  },
+  "must_cover": null,
+  "task_type": "benign",
+  "intro_commit_sha": "ebd9d67b8a4fb50673b8a255ee3b14180d7313c2",
+  "fix_commit_sha": "3a2689712afb0c8e2b489bf17d17cbd392c6aa7b",
+  "intro_commit_message": "vtls: convert pubkey_pem_to_der to use dynbuf\n\n... instead of malloc and \"manual\" buffer stuffing\n\nCloses #15126",
+  "fix_commit_message": "vtls: avoid NULL deref on bad PEM input\n\nSpotted by Coverity\n\nCloses #17274",
+  "agent_reasoning": "Without the length check, a PEM input whose body (between \"-----BEGIN PUBLIC KEY-----\" and \"-----END PUBLIC KEY-----\") is empty or consists solely of \\n/\\r characters would leave the dynbuf unallocated, so Curl_dyn_ptr() returns NULL. That NULL was passed unconditionally into Curl_base64_decode(), causing a NULL pointer dereference inside the decoder. The fix checks Curl_dyn_len(&pbuf) first and only decodes when bytes were actually collected, otherwise returning CURLE_BAD_CONTENT_ENCODING, which avoids the NULL deref entirely.",
+  "composed_via": "agent",
+  "companion_prerequisite_proof": {
+    "schema_version": 1,
+    "status": "safe_no_proven_post_intro_prerequisite",
+    "intro_revision": "ebd9d67b8a4fb50673b8a255ee3b14180d7313c2",
+    "fix_revision": "3a2689712afb0c8e2b489bf17d17cbd392c6aa7b",
+    "fix_parent_revision": "7b928446399aa2310b92ed60c3daa4e3935c3c82",
+    "inspected_paths": [
+      "lib/vtls/vtls.c"
+    ],
+    "call_candidates": [
+      {
+        "path": "lib/vtls/vtls.c",
+        "symbol": "curlx_base64_decode",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "lib/vtls/vtls.c",
+        "symbol": "curlx_dyn_free",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "lib/vtls/vtls.c",
+        "symbol": "curlx_dyn_len",
+        "status": "present_at_intro"
+      },
+      {
+        "path": "lib/vtls/vtls.c",
+        "symbol": "curlx_dyn_ptr",
+        "status": "present_at_intro"
+      }
+    ],
+    "rejections": [],
+    "scope": "source_history_gate_not_build_verification"
+  },
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

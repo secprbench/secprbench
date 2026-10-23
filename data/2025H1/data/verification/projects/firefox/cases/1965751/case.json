@@ -1,0 +1,33 @@
+{
+  "bug_id": "1965751",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "9e8e4f8223a98c8188d7b8284e21c1776ad3d55d",
+    "parent": "9421ec89d3a6a4b76e9a5cc329a5fcd74dd63907",
+    "fix": "0f47625482817579bad325506b662db25b0ea2fb"
+  },
+  "affected_files": [
+    "js/src/gc/Tenuring.cpp",
+    "js/src/vm/StringType.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.82.0, None)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": null,
+    "poc_source": "saved/era-harness",
+    "reason": "",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1965751.json"
+  },
+  "final_disposition": "verified"
+}

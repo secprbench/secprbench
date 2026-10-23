@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_TESTCASE-392550fb9400b0c0",
+  "bug_id": "TESTCASE-392550fb9400b0c0",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+  "intro_parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+  "fix_commit": "770bc1c23a18fe72874e888e1be123a21620acb5",
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac_mps212.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The output buffer passed to get_freq_strides() (ld->freq_res, sized for MPS_MAX_PARAM_SETS=9 per-set entries) is too small for the number of entries the function actually writes (up to data_bands+1, where data_bands can reach 28 for the finest stride/widest band range). Additionally, using ld->freq_res as both an input (ld->freq_res[set_idx] selects band_stride) and output (overwritten in-place with band-index data) creates unintended aliasing that corrupts state used later in the same function.",
+  "findings": [
+    "In ff_aac_ec_data_dec(), get_freq_strides() is called with ld->freq_res used directly as the output ('freq_strides') scratch buffer: `get_freq_strides(ld->freq_res, stride_table[ld->freq_res[set_idx]], start_band, end_band)`. ld->freq_res is declared as `int16_t freq_res[MPS_MAX_PARAM_SETS]` (MPS_MAX_PARAM_SETS == 9), i.e. it is meant to hold one frequency-resolution value per parameter set. Howev"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "7374088ae10397c5a40ffd6b198e359a0819acd78889d3b4f55f57af0023c934",
+  "generated_artifact_sha256": {
+    "reference": "6898108701acb0659ef291c2a652d567b948410ce09c47cc07dfe6f35401569b",
+    "introducing": "4fd984e5406692b386a79ee7154e8e559e2fc872a081d4afe9bd78d6d1253543",
+    "companion": "a5d881ba67c1400bbadb567a682fcda36ffbdbbf256629d0016359f826351775"
+  }
+}

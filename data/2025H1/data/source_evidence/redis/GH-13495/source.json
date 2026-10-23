@@ -1,0 +1,110 @@
+{
+  "bug_id": "GH-13495",
+  "title": "Fix use-after-free when diskless load config is not swapdb (#13887)",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "use_after_free"
+  ],
+  "product": "redis",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public identifiers in the upstream fixing commit:\n- GH-13495: https://github.com/redis/redis/issues/13495\n- GH-13887: https://github.com/redis/redis/issues/13887\n\nExact upstream commit message:\nFix use-after-free when diskless load config is not swapdb (#13887)\n\nWhen the diskless load configuration is set to on-empty-db, we retain a\npointer to the function library context. When emptyData() is called, it\nfrees this function library context pointer, leading to a use-after-free\nsituation.\n\nI refactored code to ensure that emptyData() is called first, followed\nby retrieving the valid pointer to the function library context.\n\nRefactored code should not introduce any runtime implications.\n\nBug introduced by https://github.com/redis/redis/pull/13495 (Redis 8.0)\n\nCo-authored-by: Oran Agra <oran@redislabs.com>\u0000\n\nMainline fixing revision candidate: a0da8390a28a92e7068fef7a00ebc9b767e70500\nDerive the introducing revision independently. No issue content was fetched and no bug replay was run.",
+  "commit_ids": [
+    "a0da8390a28a92e7068fef7a00ebc9b767e70500"
+  ],
+  "fix_commit_sha": "a0da8390a28a92e7068fef7a00ebc9b767e70500",
+  "fix_date": "2025-03-26T18:50:10Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H1",
+  "aliases": [
+    "GH-13887"
+  ],
+  "report_references": [
+    {
+      "id": "GH-13495",
+      "url": "https://github.com/redis/redis/issues/13495",
+      "kind": "github_issue_or_pr",
+      "evidence": "https://github.com/redis/redis/pull/13495"
+    },
+    {
+      "id": "GH-13887",
+      "url": "https://github.com/redis/redis/issues/13887",
+      "kind": "github_squash_reference",
+      "evidence": "(#13887)"
+    }
+  ],
+  "defect_evidence": [
+    {
+      "kind": "use_after_free",
+      "text": "use-after-free",
+      "start": 4,
+      "end": 18
+    }
+  ],
+  "fix_role_evidence": [
+    {
+      "kind": "explicit_fix",
+      "text": "Fix",
+      "start": 0,
+      "end": 3
+    },
+    {
+      "kind": "prevent_or_correct",
+      "text": "ensure",
+      "start": 319,
+      "end": 325
+    },
+    {
+      "kind": "negative_correction",
+      "text": "should not",
+      "start": 451,
+      "end": 461
+    },
+    {
+      "kind": "repair_state",
+      "text": "free",
+      "start": 14,
+      "end": 18
+    }
+  ],
+  "affected_files": [
+    "src/replication.c",
+    "tests/integration/replication.tcl"
+  ],
+  "changed_lines": 74,
+  "candidate_status": "documented_fix_pending_task_construction_and_verification",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "documented_fixes_2025h1_v1",
+    "selection": "commit_message_public_identity_and_concrete_defect",
+    "source_url": "https://github.com/redis/redis/commit/a0da8390a28a92e7068fef7a00ebc9b767e70500",
+    "issue_contents": "not_fetched",
+    "introducing_commit": "not_inferred",
+    "mainline_ref": "refs/remotes/origin/unstable",
+    "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+    "mainline_ancestry_verified": true,
+    "original_committer_date": "2025-03-26T21:50:10+03:00",
+    "commit_object": {
+      "git_sha": "a0da8390a28a92e7068fef7a00ebc9b767e70500",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/commits/a0da8390a28a92e7068fef7a00ebc9b767e70500.commit",
+      "sha256": "0f5dd3669bce81f10e5ee80d127f3bcbb8da4c3cbf7c58819d5c778868a819c6"
+    },
+    "patch": {
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/commits/a0da8390a28a92e7068fef7a00ebc9b767e70500.patch",
+      "sha256": "f939b1ebb7037c0be1b80e440a28f07e5e948ffb082838064cf84f67fa372a90"
+    },
+    "history": {
+      "repository": "/research/repos/redis__redis",
+      "upstream_url": "https://github.com/redis/redis",
+      "mainline_ref": "refs/remotes/origin/unstable",
+      "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+      "window_start_utc_inclusive": "2025-01-01T00:00:00Z",
+      "window_end_utc_exclusive": "2025-07-01T00:00:00Z",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/git_history.106a4f347b21597ca3c17378f731cea61bfb5c9c7a41a05887905d66d2ad76c4.raw",
+      "sha256": "106a4f347b21597ca3c17378f731cea61bfb5c9c7a41a05887905d66d2ad76c4"
+    }
+  }
+}

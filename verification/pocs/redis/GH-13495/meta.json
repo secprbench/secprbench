@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_GH-13495",
+  "bug_id": "GH-13495",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "a7afd1d2b2b0b9b64c44fd950d57e49ad8823bde",
+  "intro_parent": "3fcddfb61f903d7112da186cba8b1c93a99dc87f",
+  "fix_commit": "a0da8390a28a92e7068fef7a00ebc9b767e70500",
+  "affected_files": [
+    "src/replication.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "agent",
+  "project": "redis",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_f44890249be2bf05_replication.tcl: tests/integration/replication.tcl"
+  ],
+  "input_name": null,
+  "root_cause": "Incorrect ordering of operations introduced during a refactor (PR #13495) that moved the emptyData() call to occur after the functions_lib_ctx pointer was already fetched from functionsLibCtxGetCurrent(), instead of before it. Since emptyData() frees and recreates the functions library context when not in SWAPDB mode, retrieving the pointer beforehand leaves it dangling once emptyData() runs.",
+  "findings": [
+    "In readSyncBulkPayload(), when diskless replication loading is used and server.repl_diskless_load is NOT REPL_DISKLESS_LOAD_SWAPDB (e.g. on-empty-db mode), the code fetches the current functions library context pointer via functionsLibCtxGetCurrent() and stores it in the local `functions_lib_ctx` variable *before* calling emptyData(). emptyData() flushes/empties the current dataset which includes "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "0d08ba62dc6a1d4990a2012cf26ac019d55bce3f29db86e538bb9b3b483ead13",
+  "generated_artifact_sha256": {
+    "reference": "d9e5d20dee5f0b92395d37de3a64033fad3a92029db21e557e46c3785351ef79",
+    "introducing": "ecde1fd98afdb165892faa5e1ce18787d5dc4eca946b9a72aed30391fe69823c",
+    "companion": "fa66fc64e5a4d4af985b88c6fa9868bb55f4c5e9f234991291266b3ed8f0ec7a"
+  }
+}

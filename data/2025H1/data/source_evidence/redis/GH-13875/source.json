@@ -1,0 +1,90 @@
+{
+  "bug_id": "GH-13875",
+  "title": "avoid possible use-after-free with module KSN changes (#13875)",
+  "severity": "unknown",
+  "keywords": [
+    "documented_fix",
+    "use_after_free"
+  ],
+  "product": "redis",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public identifiers in the upstream fixing commit:\n- GH-13875: https://github.com/redis/redis/issues/13875\n\nExact upstream commit message:\navoid possible use-after-free with module KSN changes (#13875)\n\nin #13505, we changed the code to use the string value of the key rather\nthan the integer value on the stack, but we have a test in\nunit/moduleapi/keyspace_events that uses keyspace notification hook to\nmodify the value with RM_StringDMA, which can cause this value to be\nreleased before used. the reason it didn't happen so far is because we\nwere using shared integers, so releasing the object doesn't free it.\u0000\n\nMainline fixing revision candidate: 2a189709e098139b3158575ee6cb6d7ff266ed45\nDerive the introducing revision independently. No issue content was fetched and no bug replay was run.",
+  "commit_ids": [
+    "2a189709e098139b3158575ee6cb6d7ff266ed45"
+  ],
+  "fix_commit_sha": "2a189709e098139b3158575ee6cb6d7ff266ed45",
+  "fix_date": "2025-03-24T10:24:52Z",
+  "mainline_verified": true,
+  "date_basis": "mainline_committer_date_utc",
+  "season": "2025H1",
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "GH-13875",
+      "url": "https://github.com/redis/redis/issues/13875",
+      "kind": "github_squash_reference",
+      "evidence": "(#13875)"
+    }
+  ],
+  "defect_evidence": [
+    {
+      "kind": "use_after_free",
+      "text": "use-after-free",
+      "start": 15,
+      "end": 29
+    }
+  ],
+  "fix_role_evidence": [
+    {
+      "kind": "prevent_or_correct",
+      "text": "avoid",
+      "start": 0,
+      "end": 5
+    },
+    {
+      "kind": "repair_state",
+      "text": "free",
+      "start": 25,
+      "end": 29
+    }
+  ],
+  "affected_files": [
+    "src/t_string.c",
+    "tests/unit/moduleapi/keyspace_events.tcl"
+  ],
+  "changed_lines": 6,
+  "candidate_status": "documented_fix_pending_task_construction_and_verification",
+  "verification": "not_run",
+  "provenance": {
+    "collector": "documented_fixes_2025h1_v1",
+    "selection": "commit_message_public_identity_and_concrete_defect",
+    "source_url": "https://github.com/redis/redis/commit/2a189709e098139b3158575ee6cb6d7ff266ed45",
+    "issue_contents": "not_fetched",
+    "introducing_commit": "not_inferred",
+    "mainline_ref": "refs/remotes/origin/unstable",
+    "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+    "mainline_ancestry_verified": true,
+    "original_committer_date": "2025-03-24T12:24:52+02:00",
+    "commit_object": {
+      "git_sha": "2a189709e098139b3158575ee6cb6d7ff266ed45",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/commits/2a189709e098139b3158575ee6cb6d7ff266ed45.commit",
+      "sha256": "a02a9a5207afd7b5616c8c1a8eea8ab150f402e0f87a8fd4784b87d1251f3e8d"
+    },
+    "patch": {
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/commits/2a189709e098139b3158575ee6cb6d7ff266ed45.patch",
+      "sha256": "f850a234e4dd868f9449ab7e0a3b96189880195368663463c76583cc81be5da5"
+    },
+    "history": {
+      "repository": "/research/repos/redis__redis",
+      "upstream_url": "https://github.com/redis/redis",
+      "mainline_ref": "refs/remotes/origin/unstable",
+      "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+      "window_start_utc_inclusive": "2025-01-01T00:00:00Z",
+      "window_end_utc_exclusive": "2025-07-01T00:00:00Z",
+      "raw_file": "/research-data/secprbench/season100-20261001/report-collection/documented-2025H1/redis/raw/git_history.106a4f347b21597ca3c17378f731cea61bfb5c9c7a41a05887905d66d2ad76c4.raw",
+      "sha256": "106a4f347b21597ca3c17378f731cea61bfb5c9c7a41a05887905d66d2ad76c4"
+    }
+  }
+}

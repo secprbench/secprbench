@@ -1,0 +1,130 @@
+{
+  "bug_id": "FORUM-c1cc8b057a",
+  "project": "sqlite",
+  "bug_type": "OutOfBoundsRead",
+  "commits": {
+    "intro": "cebf06c7980109ab459b5d90dd563ae621a78f94",
+    "parent": "dae87df198a40df2c04507f86b49c291c1e917e3",
+    "fix": "d4c224b833b7c4d58f1e5748f5a1de2af013fc3d"
+  },
+  "affected_files": [
+    "src/vdbesort.c",
+    "src/sqliteInt.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "Used run_poc (via /poc/run.sh) identically on all three versions. pre_intro (dae87df198a4): exit=0, no sanitizer report. post_intro (cebf06c79801): exit=134, AddressSanitizer heap-buffer-overflow — \"READ of size 72\" in sqlite3VdbeSorterInit at sqlite3.c:104819 (memcpy overrunning a 76-byte KeyInfo region by exactly the read size), matching the upstream forum ASan report's function name and read size precisely. post_benign: exit=0, no sanitizer report, confirming the shipped fix (matching d4c224b833b7) removes the overflow. The -DSQLITE_DEFAULT_MEMSTATUS=0 flag, required per the forum report, is baked into run.sh and applied identically to all three builds, satisfying the same-command invariance requirement. This confirms the labelled OutOfBoundsRead is correctly introduced by the intro commit and correctly fixed by the benign/fix commit.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/sqlite/daa71b15c44248f5685d/attempts/01/replay/pr_review_FORUM-c1cc8b057a.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/sqlite/daa71b15c44248f5685d/attempts/01/replay/pr_review_FORUM-c1cc8b057a.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/sqlite/daa71b15c44248f5685d/attempts/01/replay/pr_review_FORUM-c1cc8b057a.agent_verdict.json",
+      "executions": {
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "2365f2556d0d5a32d1d2561afa6cfd3d9f5ce744d8057c1569a4f330d9c3c526",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "dae87df198a40df2c04507f86b49c291c1e917e3",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "1c7d1526ffd042f8773663889e2ab612853fff5c28cd161e227ef50a4b771888"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "2365f2556d0d5a32d1d2561afa6cfd3d9f5ce744d8057c1569a4f330d9c3c526",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "cebf06c7980109ab459b5d90dd563ae621a78f94",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "034ccddf9a22b0325371ba853d4a3a2c0689a0994449031aa34a7beaee7dc209"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=134\n\n=================================================================\n==17==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x50700000053c at pc 0x7fbd7ce3d397 bp 0x7ffea40062d0 sp 0x7ffea4005a78\nREAD of size 72 at 0x50700000053c thread T0\n    #0 0x7fbd7ce3d396 in __interceptor_memcpy ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827\n    #1 0x555abc088167 in sqlite3VdbeSorterInit /work/sqlite3.c:104819\n    #2 0x555abc05631a in sqlite3VdbeExec /work/sqlite3.c:98664\n    #3 0x555abc022bda in sqlite3Step /work/sqlite3.c:92050\n    #4 0x555abc023b2c in sqlite3_step /work/sqlite3.c:92111\n    #5 0x555abc1b1945 in sqlite3_exec /work/sqlite3.c:137978\n    #6 0x555abbe9dc70 in main /tmp/poc.c:7\n    #7 0x7fbd7c4e7d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #8 0x7fbd7c4e7e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #9 0x555abbe9da84 in _start (/tmp/poctest+0x6dca84)\n\n0x50700000053c is located 0 bytes to the right of 76-byte region [0x5070000004f0,0x50700000053c)\nallocated by thread T0 here:\n    #0 0x7fbd7ceb7887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x555abbeb77c0 in sqlite3MemMalloc /work/sqlite3.c:27269\n    #2 0x555abbeb951a in sqlite3Malloc /work/sqlite3.c:31042\n    #3 0x555abbebabc1 in dbMallocRawFinish /work/sqlite3.c:31345\n    #4 0x555abbebaf1e in sqlite3DbMallocRawNN /work/sqlite3.c:31393\n    #5 0x555abc1e7d56 in sqlite3KeyInfoAlloc /work/sqlite3.c:146078\n    #6 0x555abc168676 in sqlite3KeyInfoOfIndex /work/sqlite3.c:128354\n    #7 0x555abc15504d in sqlite3RefillIndex /work/sqlite3.c:126493\n    #8 0x555abc15d818 in sqlite3CreateIndex /work/sqlite3.c:127163\n    #9 0x555abc3387f2 in yy_reduce /work/sqlite3.c:179694\n    #10 0x555abc34319d in sqlite3Parser /work/sqlite3.c:180370\n    #11 0x555abc34bd50 in sqlite3RunParser /work/sqlite3.c:181711\n    #12 0x555abc1d9cc5 in sqlite3Prepare /work/sqlite3.c:144229\n    #13 0x555abc1da642 in sqlite3LockAndPrepare /work/sqlite3.c:144304\n    #14 0x555abc1daba9 in sqlite3_prepare_v2 /work/sqlite3.c:144391\n    #15 0x555abc1b189f in sqlite3_exec /work/sqlite3.c:137964\n    #16 0x555abbe9dc70 in main /tmp/poc.c:7\n    #17 0x7fbd7c4e7d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827 in __interceptor_memcpy\nShadow bytes around the buggy address:\n  0x0a0e7fff8050: fd fd fd fa fa fa fa fa fd fd fd fd fd fd fd fd\n  0x0a0e7fff8060: fd fa fa fa fa fa fd fd fd fd fd fd fd fd fd fd\n  0x0a0e7fff8070: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fa fa\n  0x0a0e7fff8080: fa fa fd fd fd fd fd fd fd fd fd fd fa fa fa fa\n  0x0a0e7fff8090: fd fd fd fd fd fd fd fd fd fd fa fa fa fa 00 00\n=>0x0a0e7fff80a0: 00 00 00 00 00 00 00[04]fa fa fa fa fa fa fa fa\n  0x0a0e7fff80b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80c0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80d0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80e0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f",
+            "stdout_tail": "x50700000053c is located 0 bytes to the right of 76-byte region [0x5070000004f0,0x50700000053c)\nallocated by thread T0 here:\n    #0 0x7fbd7ceb7887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x555abbeb77c0 in sqlite3MemMalloc /work/sqlite3.c:27269\n    #2 0x555abbeb951a in sqlite3Malloc /work/sqlite3.c:31042\n    #3 0x555abbebabc1 in dbMallocRawFinish /work/sqlite3.c:31345\n    #4 0x555abbebaf1e in sqlite3DbMallocRawNN /work/sqlite3.c:31393\n    #5 0x555abc1e7d56 in sqlite3KeyInfoAlloc /work/sqlite3.c:146078\n    #6 0x555abc168676 in sqlite3KeyInfoOfIndex /work/sqlite3.c:128354\n    #7 0x555abc15504d in sqlite3RefillIndex /work/sqlite3.c:126493\n    #8 0x555abc15d818 in sqlite3CreateIndex /work/sqlite3.c:127163\n    #9 0x555abc3387f2 in yy_reduce /work/sqlite3.c:179694\n    #10 0x555abc34319d in sqlite3Parser /work/sqlite3.c:180370\n    #11 0x555abc34bd50 in sqlite3RunParser /work/sqlite3.c:181711\n    #12 0x555abc1d9cc5 in sqlite3Prepare /work/sqlite3.c:144229\n    #13 0x555abc1da642 in sqlite3LockAndPrepare /work/sqlite3.c:144304\n    #14 0x555abc1daba9 in sqlite3_prepare_v2 /work/sqlite3.c:144391\n    #15 0x555abc1b189f in sqlite3_exec /work/sqlite3.c:137964\n    #16 0x555abbe9dc70 in main /tmp/poc.c:7\n    #17 0x7fbd7c4e7d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827 in __interceptor_memcpy\nShadow bytes around the buggy address:\n  0x0a0e7fff8050: fd fd fd fa fa fa fa fa fd fd fd fd fd fd fd fd\n  0x0a0e7fff8060: fd fa fa fa fa fa fd fd fd fd fd fd fd fd fd fd\n  0x0a0e7fff8070: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fa fa\n  0x0a0e7fff8080: fa fa fd fd fd fd fd fd fd fd fd fd fa fa fa fa\n  0x0a0e7fff8090: fd fd fd fd fd fd fd fd fd fd fa fa fa fa 00 00\n=>0x0a0e7fff80a0: 00 00 00 00 00 00 00[04]fa fa fa fa fa fa fa fa\n  0x0a0e7fff80b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80c0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80d0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80e0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e7fff80f0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==17==ABORTING\n/poc/run.sh: line 6:    17 Aborted                 ./poctest\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "2365f2556d0d5a32d1d2561afa6cfd3d9f5ce744d8057c1569a4f330d9c3c526",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "dae87df198a40df2c04507f86b49c291c1e917e3",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "f6ad615e92daa13909608190ef97b1c87b1f15483508b16da18e2f2275d4cb07"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "explanation": "Used run_poc (via /poc/run.sh) identically on all three versions. pre_intro (dae87df198a4): exit=0, no sanitizer report. post_intro (cebf06c79801): exit=134, AddressSanitizer heap-buffer-overflow — \"READ of size 72\" in sqlite3VdbeSorterInit at sqlite3.c:104819 (memcpy overrunning a 76-byte KeyInfo region by exactly the read size), matching the upstream forum ASan report's function name and read size precisely. post_benign: exit=0, no sanitizer report, confirming the shipped fix (matching d4c224b833b7) removes the overflow. The -DSQLITE_DEFAULT_MEMSTATUS=0 flag, required per the forum report, is baked into run.sh and applied identically to all three builds, satisfying the same-command invariance requirement. This confirms the labelled OutOfBoundsRead is correctly introduced by the intro commit and correctly fixed by the benign/fix commit."
+    }
+  },
+  "task_hashes": {
+    "buggy": "176718bd9fde6bcd60c4495b146d3d6874fb85049a3c3c3459acc05dc19d2a06",
+    "benign": "ca38766cecdc85f830a156c8dd542f33a438b99b26fcf820cb7ed8460ce5975e"
+  }
+}

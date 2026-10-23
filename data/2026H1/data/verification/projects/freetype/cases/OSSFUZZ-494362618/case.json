@@ -1,0 +1,38 @@
+{
+  "bug_id": "OSSFUZZ-494362618",
+  "project": "freetype",
+  "bug_type": "BufferOverflow",
+  "commits": {
+    "intro": "bda1d87f694dd228efd7fc93481afd3a9b415a03",
+    "parent": "264b5fbf5b912b39f98d038bf75d39be0a73f21b",
+    "fix": "4130e62d23481aae7e61ded08ef3837859b62f69"
+  },
+  "affected_files": [
+    "src/sdf/ftsdf.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "no PoC available: no PoC under pocs/freetype/OSSFUZZ-494362618/ or pocs/freetype/OSSFUZZ-494362618.*; add a PoC directory (input file and/or run.sh) or a flat input file",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "project": "freetype",
+    "status": "verified",
+    "method": "benchmark-verify engine (build parent/intro/benign + run PoC, ASan)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "poc_source": "anypoc-generated/fetched",
+    "reason": "",
+    "target_match": null,
+    "correct_vulnerable_rev": null,
+    "verified_by": "benchmark-verify",
+    "poc_files": [
+      "poc.ttf",
+      "run.sh",
+      "test_poc.c"
+    ]
+  },
+  "final_disposition": "verified"
+}

@@ -1,0 +1,170 @@
+name: firefox
+repo_url: https://github.com/mozilla/gecko-dev.git
+project:
+  name: firefox
+  display_name: Firefox / Gecko
+  repo: mozilla/gecko-dev
+  language: C++
+context:
+  description: 'Firefox is a web browser built on the Gecko rendering engine.
+
+    The codebase is primarily C++ with Rust components, using Mozilla-specific
+
+    smart pointers (RefPtr, nsCOMPtr), XPCOM reference counting, and IPC
+
+    via IPDL-generated message handlers.
+
+    '
+  input_sources: 'IPC messages (IPDL), JavaScript API calls (WebIDL bindings), network
+
+    data (HTTP, WebSocket, WebRTC), file uploads, DOM events, CSS parsing,
+
+    Web Worker messages, SharedArrayBuffer, clipboard data
+
+    '
+  assertion_macros: 'MOZ_ASSERT() and MOZ_DIAGNOSTIC_ASSERT() are compiled out in
+    release
+
+    builds and CANNOT be relied upon as security guards.
+
+    MOZ_RELEASE_ASSERT fires in all builds and IS a hard guard.
+
+    NS_ASSERTION is compiled out in release, not a security check.
+
+    '
+  common_bug_types:
+  - UseAfterFree
+  - BufferOverflow
+  - OutOfBoundsRead
+  - OutOfBoundsWrite
+  - TypeConfusion
+  - IntegerOverflow
+  - RaceCondition
+  - UninitializedMemory
+  - DoubleFree
+  file_patterns:
+  - dom/**/*.cpp
+  - layout/**/*.cpp
+  - gfx/**/*.cpp
+  - js/src/**/*.cpp
+  - netwerk/**/*.cpp
+  - ipc/**/*.cpp
+verify:
+  name: firefox
+  image: anypoc-firefox:latest
+  repo_url: https://github.com/mozilla-firefox/firefox.git
+  build_script: "set -Eeuo pipefail\ncd /work\ntarget=${CGSA_FIREFOX_TARGET:-browser}\n\
+    case \"$target\" in browser|js) ;; *) exit 2 ;; esac\n\n# This image carries a\
+    \ prebuilt Mozilla toolchain (clang, cbindgen, nasm, node,\n# sysroots, sccache)\
+    \ under the playground state path, and the ASan mozconfigs\n# that produced its\
+    \ own obj-ff-asan / obj-js-asan trees. Pointing mach at that\n# state removes\
+    \ the need for `mach bootstrap`, which prepares a machine for the\n# current tree\
+    \ and fails on the historical revisions each task checks out.\nexport MOZBUILD_STATE_PATH=/home/playground/.mozbuild\n\
+    # MOZ_AUTOMATION is deliberately unset. It enables Mozilla CI-only constraints:\n\
+    # warnings are promoted to errors, and mozglue asserts a Rust version ceiling\n\
+    # (< 1.90) that this image's 1.98 toolchain violates, aborting the build.\n\n\
+    # Revisions whose build system predates this toolchain cannot be built here.\n\
+    # Report them distinctly instead of failing deep inside configure.\nif ! test\
+    \ -f ./mach; then\n    echo \"revision has no ./mach; predates the supported build\
+    \ system\" \\\n        > build_configure.log\n    exit 3\nfi\nif grep -q \"but\
+    \ not Python 3\" ./mach 2>/dev/null; then\n    echo \"revision's mach requires\
+    \ Python 2; unsupported in this image\" \\\n        > build_configure.log\n  \
+    \  exit 3\nfi\n\n# Pin the bootstrapped toolchain explicitly. Revisions differ\
+    \ in how they\n# auto-detect it, and the system clang reports the host triplet\n\
+    # x86_64-pc-linux-gnu, which rustc cannot translate, so configure fails.\nMOZ_CLANG=\"\
+    $MOZBUILD_STATE_PATH/clang/bin\"\ntest -x \"$MOZ_CLANG/clang\" || { echo \"toolchain\
+    \ clang missing at $MOZ_CLANG\" \\\n    > build_configure.log; exit 3; }\nexport\
+    \ PATH=\"$MOZ_CLANG:$PATH\"\n\n# Mirror the mozconfigs this image was built with,\
+    \ overriding only the object\n# directory so each version keeps its own build\
+    \ tree. AUTOCLOBBER lets mach\n# clobber itself when a revision crosses a CLOBBER\
+    \ bump instead of erroring.\nexport MOZCONFIG=/work/.verify-mozconfig\ncat > \"\
+    $MOZCONFIG\" <<EOF\nmk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-verify-$target\n\
+    mk_add_options MOZ_MAKE_FLAGS=-j${CGSA_BUILD_JOBS:-8}\nmk_add_options AUTOCLOBBER=1\n\
+    CC=$MOZ_CLANG/clang\nCXX=$MOZ_CLANG/clang++\nac_add_options --host=x86_64-unknown-linux-gnu\n\
+    ac_add_options --target=x86_64-unknown-linux-gnu\n# Use the image's prebaked toolchain\
+    \ as-is. Without this, mach tries to fetch\n# a toolchain matching the checked-out\
+    \ revision, which no longer exists for\n# historical revisions and aborts configure.\n\
+    ac_add_options --enable-bootstrap=no-update\nac_add_options --enable-project=$target\n\
+    ac_add_options --enable-address-sanitizer\n# Historical revisions predate warnings\
+    \ added to this image's clang, and the\n# build treats warnings as errors under\
+    \ MOZ_AUTOMATION. The verification oracle\n# is the sanitizer, not the compiler's\
+    \ diagnostics, so do not fail on them.\nac_add_options --disable-warnings-as-errors\n\
+    ac_add_options --disable-jemalloc\nac_add_options --disable-install-strip\nEOF\n\
+    if test \"$target\" = js; then\n    cat >> \"$MOZCONFIG\" <<'EOF'\nac_add_options\
+    \ --enable-debug\nac_add_options --enable-optimize=\"-O1\"\nac_add_options --enable-debug-symbols\n\
+    ac_add_options --disable-profiling\nEOF\nelse\n    cat >> \"$MOZCONFIG\" <<'EOF'\n\
+    ac_add_options --disable-crashreporter\nac_add_options --disable-elf-hack\nac_add_options\
+    \ --enable-debug-symbols=-gline-tables-only\n# RLBox sandboxing needs a wasi sysroot\
+    \ probe that fails on older revisions:\n# they pass --target=wasm32-wasi, which\
+    \ this image's clang 22 reports as\n# deprecated, and the probe treats that diagnostic\
+    \ as fatal. The sandbox is\n# disabled identically across all three versions,\
+    \ so the comparison holds.\nac_add_options --without-wasm-sandboxed-libraries\n\
+    EOF\nfi\n\n# Shared compiler cache. Each version still builds in its own worktree,\
+    \ so the\n# per-version isolation is unchanged; only object compilation is reused.\
+    \ Prefer\n# the toolchain's own sccache, and fall back to a binary staged by\n\
+    # scripts/stage_sccache.sh. When neither exists the build runs uncached.\nSCCACHE_BIN=\"\
+    $MOZBUILD_STATE_PATH/sccache/sccache\"\ntest -x \"$SCCACHE_BIN\" || SCCACHE_BIN=/verify-cache/bin/sccache\n\
+    if test -x \"$SCCACHE_BIN\"; then\n    export SCCACHE_DIR=/verify-cache/sccache\n\
+    \    export SCCACHE_CACHE_SIZE=\"${CGSA_SCCACHE_SIZE:-40G}\"\n    export SCCACHE_IDLE_TIMEOUT=0\n\
+    \    mkdir -p \"$SCCACHE_DIR\"\n    echo \"ac_add_options --with-ccache=$SCCACHE_BIN\"\
+    \ >> \"$MOZCONFIG\"\nfi\n\n# cbindgen selection. This image ships cbindgen 0.29.4\
+    \ (required by tip), but\n# that version breaks older revisions two different\
+    \ ways: it mis-generates the\n# C++ for WebRender enums that still export `pub\
+    \ const VALUES: [T; T::COUNT]`\n# (writing `T_VALUES[COUNT]` with an unqualified\
+    \ COUNT no header declares, which\n# breaks every unit including webrender_ffi_generated.h),\
+    \ and its stricter TOML\n# parser rejects older cbindgen.toml files that carry\
+    \ duplicate export.rename\n# keys. Both are era mismatches, so match the version\
+    \ to the revision: use the\n# cbindgen whose version equals the revision's declared\
+    \ minimum (0.26.0 tolerates\n# the duplicate keys and omits the bad array; 0.28.0\
+    \ fixes COUNT for trees that\n# require it). Point the CBINDGEN env option, which\
+    \ configure honours over any\n# bootstrapped cbindgen, at that cached binary;\
+    \ fall back to the image's 0.29.4\n# when no cached match exists (e.g. tip).\n\
+    CB_MIN=$(grep -oE 'cbindgen_min_version = Version\\(\"[0-9.]+\"\\)' \\\n     \
+    \        build/moz.configure/bindgen.configure 2>/dev/null \\\n         | grep\
+    \ -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -1)\nif test -n \"$CB_MIN\"; then\n  \
+    \  # Pick the smallest cached cbindgen that still satisfies the revision's\n \
+    \   # version check. 0.26.0 is COUNT-clean and tolerates duplicate TOML keys,\
+    \ so\n    # it covers every revision whose minimum is <= 0.26.0 (the dataset also\n\
+    \    # declares 0.19.0 and 0.24.3); 0.28.0 covers the trees that require it. When\n\
+    \    # nothing cached satisfies the minimum (tip needs 0.29.4) the image's own\n\
+    \    # cbindgen is left in place.\n    for vdir in $(ls -1 /verify-cache/cbindgen\
+    \ 2>/dev/null | sort -V); do\n        cand=\"/verify-cache/cbindgen/$vdir/bin/cbindgen\"\
+    \n        test -x \"$cand\" || continue\n        if test \"$(printf '%s\\n%s\\\
+    n' \"$CB_MIN\" \"$vdir\" | sort -V | head -1)\" = \"$CB_MIN\"; then\n        \
+    \    export CBINDGEN=\"$cand\"\n            echo \"cbindgen: using cached $vdir\
+    \ (>= revision min $CB_MIN) instead of the image's 0.29.4\" >&2\n            break\n\
+    \        fi\n    done\nfi\n\nconfigure_ok=0\n\
+    if ./mach configure > build_configure.log 2>&1; then configure_ok=1; fi\n# Revisions\
+    \ older than this image declare --enable-bootstrap as a boolean and\n# reject\
+    \ the =no-update value newer trees require (\"--enable-bootstrap takes 0\n# values\"\
+    ). Fall back to --disable-bootstrap and reconfigure; the pinned toolchain\n# and MOZBUILD_STATE_PATH\
+    \ still suppress any network fetch.\nif test \"$configure_ok\" = 0 && grep -q\
+    \ \"enable-bootstrap takes 0 values\" build_configure.log; then\n    sed -i 's|^ac_add_options\
+    \ --enable-bootstrap=no-update|ac_add_options --disable-bootstrap|' \"$MOZCONFIG\"\
+    \n    if ./mach configure > build_configure.log 2>&1; then configure_ok=1; fi\n\
+    fi\nif test \"$configure_ok\" = 0; then\n    # A revision whose configure demands\
+    \ Python 2 predates this image's\n    # Python-3 mach. Report it as unsupported\
+    \ (exit 3), like the ./mach guards\n    # above, rather than letting it look like\
+    \ a compile failure.\n    if grep -qiE \"Python 2\\.7|not Python 3|requires Python\
+    \ 2\" build_configure.log; then\n        exit 3\n    fi\n    exit 1\nfi\n./mach\
+    \ build > build_compile.log 2>&1\nif test -x \"$SCCACHE_BIN\"; then\n    \"$SCCACHE_BIN\"\
+    \ --show-stats >> build_compile.log 2>&1 || true\nfi\nif test \"$target\" = js;\
+    \ then\n    test -x obj-verify-js/dist/bin/js\nelse\n    test -x obj-verify-browser/dist/bin/firefox\n\
+    fi\n"
+  harness_source: null
+  harness_build: ''
+  run_cmd: MOZ_HEADLESS=1 timeout --signal=TERM --kill-after=10s 90s ./obj-verify-browser/dist/bin/firefox
+    --headless --no-remote --profile /tmp/verify-firefox-profile "file://$INPUT"
+  build_artifacts:
+  - obj-verify-browser/dist/bin/firefox
+  run_env:
+    ASAN_OPTIONS: abort_on_error=1:detect_leaks=0:allocator_may_return_null=1
+    UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+    MOZ_CRASHREPORTER_DISABLE: '1'
+    MOZ_DISABLE_CONTENT_SANDBOX: '1'
+  build_timeout: 14400
+  run_timeout: 300
+  build_network: bridge
+  build_cache: true
+  build_git_mounts: true
+  build_support_files: []

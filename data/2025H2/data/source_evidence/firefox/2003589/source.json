@@ -1,0 +1,236 @@
+{
+  "bug_id": "2003589",
+  "title": "Assertion failure: !cx->runtime()->jitRuntime()->disallowArbitraryCode(), at vm/Interpreter.cpp:407",
+  "severity": "sec-high",
+  "keywords": [
+    "csectype-jit",
+    "regression",
+    "reporter-external",
+    "sec-high",
+    "testcase"
+  ],
+  "product": "firefox",
+  "component": "JavaScript Engine",
+  "creation_time": "2025-12-02T18:33:39Z",
+  "resolution_time": "2025-12-04T09:48:07Z",
+  "bug_discussion": "Bugzilla report: https://bugzilla.mozilla.org/show_bug.cgi?id=2003589\n\nCreated attachment 9530415\ndebug stack\n\n```js\nfor (var i = 0 ; i < 99 ; i++) {\n  [].__proto__.__proto__ = new Proxy(Object, Object);\n  Object.keys([]);\n}\n```\n\n```\n(gdb) bt\n#0  0x0000555557370638 in MOZ_CrashSequence (aAddress=0x0, aLine=407)\n    at /home/msf2/shell-cache/js-dbg-64-linux-x86_64-256e8bad1a52-598750/objdir-js/dist/include/mozilla/Assertions.h:237\n#1  js::RunScript (cx=cx@entry=0x7ffff5e3c200, state=...) at /home/msf2/trees/firefox/js/src/vm/Interpreter.cpp:406\n#2  0x00005555573710fc in js::InternalCallOrConstruct (cx=0x7ffff5e3c200, args=..., construct=construct@entry=js::NO_CONSTRUCT, reason=<optimized out>)\n    at /home/msf2/trees/firefox/js/src/vm/Interpreter.cpp:618\n#3  0x0000555557371da8 in InternalCall (cx=<optimized out>, args=..., reason=407, reason@entry=js::CallReason::Call)\n    at /home/msf2/trees/firefox/js/src/vm/Interpreter.cpp:653\n#4  0x0000555557371fbd in js::Call (cx=<optimized out>, fval=fval@entry=..., thisv=thisv@entry=..., args=..., rval=...,\n    reason=reason@entry=js::CallReason::Call) at /home/msf2/trees/firefox/js/src/vm/Interpreter.cpp:685\n#5  0x00005555574399a7 in js::Call (cx=0x7ffff5e3c200, fval=..., thisObj=<optimized out>, arg0=..., arg1=..., rval=...)\n    at /home/msf2/trees/firefox/js/src/vm/Interpreter.h:145\n/snip\n```\n\n```\n7c0e78c0e457-597167\n7c0e78c0e4575dda295abed143b32888ac5a8f5d is the first interesting commit\ncommit 7c0e78c0e4575dda295abed143b32888ac5a8f5d\nAuthor: Alex Thayer\nDate:   Wed Nov 19 21:05:46 2025 +0000\n\n    Bug 1995077 - Integrate with existing iterator indices optimizations r=iain\n```\n\nRun with `--fuzzing-safe --no-threads --ion-eager`, compile with `AR=ar sh ~/trees/firefox/js/src/configure --enable-debug --enable-debug-symbols --with-ccache --enable-nspr-build --enable-ctypes --enable-gczeal --enable-rust-simd --disable-tests`, tested on gh rev 256e8bad1a52af07e29574baf4aaf02f05b39d93.\n\nNote that a previous similar-looking bug 1853180 was marked sec-moderate.\n\nAlex/Iain, is bug 1995077 a likely regressor?\n\nSet release status flags based on info from the regressing bug 1995077\n\nCreated attachment 9530714\n(secure)\n\nOur fuzzers are hitting this multiple times a day, also. See bug 1897240. Could be a different triggering issue, especially since yours was a more recent regression.\n\n10 bugs on this assertion, with at least 7 different fixes\nhttps://bugzilla.mozilla.org/buglist.cgi?quicksearch=ALL%20sum%3A%22Assertion%20failure%3A%20!cx-%3Eruntime()-%3EjitRuntime()-%3EdisallowArbitraryCode()%22\n\nThis is a fairly general assertion that can catch a variety of problems. Bug 1897240 is a case where it is likely too picky, but it's hard to be completely sure. This is a real bug, though, and probably exploitable.\n\n(In reply to Iain Ireland [:iain] from comment #5)\n> This is a real bug, though, and probably exploitable.\n\nJust checking, sec-moderate is still the most appropriate here, in case it's a different problem?\n\nPushed by dothayer@mozilla.com:\nhttps://github.com/mozilla-firefox/firefox/commit/1d09788fc823\nhttps://hg.mozilla.org/integration/autoland/rev/c291f45cf566\nOnly enumerate own properties in Object.keys ObjToIterator r=iain\n\nhttps://hg.mozilla.org/mozilla-central/rev/c291f45cf566\n\nThis is a more significant bug than bug 1897240. It's probably exploitable. Consider a case where we're indexing into an array twice at the same index with an Object.keys in between. We think that we can reuse the bounds check, but in fact the Object.keys triggers a proxy handler that shrinks the array. Suddenly we have an OOB access.\n\nSec-high seems reasonable to me.\n\n> Just checking, sec-moderate is still the most appropriate here, in case it's a different problem?\n\n> Sec-high seems reasonable to me.\n\nForwarding to Dan.\n\nNot sure how much it matters, but I think this is probably csectype-jit. (Although I don't know the exact definitions of the various categories. Are they written down anywhere?)\n\nPublic JS reproducer in reporter comment: https://bugzilla.mozilla.org/show_bug.cgi?id=2003589#c0\nCommitted exact regression test: https://github.com/mozilla-firefox/firefox/blob/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274/js/src/jit-test/tests/ion/object-keys-proxy-proto.js\nFix: https://github.com/mozilla-firefox/firefox/commit/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274",
+  "commit_ids": [
+    "1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274"
+  ],
+  "fix_commit_sha": "1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274",
+  "fix_date": "2025-12-04T07:22:12Z",
+  "season": "2025H2",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "affected_files": [
+    "js/src/builtin/Object.cpp",
+    "js/src/jit-test/tests/ion/object-keys-proxy-proto.js",
+    "js/src/jit/CodeGenerator.cpp",
+    "js/src/jit/VMFunctionList-inl.h",
+    "js/src/vm/Iteration.cpp",
+    "js/src/vm/Iteration.h"
+  ],
+  "changed_lines": 119,
+  "aliases": [
+    "Bug 2003589"
+  ],
+  "target_type": "spidermonkey_js_shell",
+  "report_references": [
+    {
+      "id": "2003589",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2003589",
+      "kind": "public_bugzilla_report"
+    },
+    {
+      "id": "comment-17790397",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2003589#c0",
+      "kind": "public_javascript_reproducer"
+    },
+    {
+      "id": "comment-17793485",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2003589#c9",
+      "kind": "maintainer_security_impact_analysis"
+    },
+    {
+      "id": "committed-regression-test",
+      "url": "https://github.com/mozilla-firefox/firefox/blob/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274/js/src/jit-test/tests/ion/object-keys-proxy-proto.js",
+      "kind": "committed_javascript_test"
+    }
+  ],
+  "candidate_status": "targeted_public_report_pending_security_and_construction_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "jit_bounds_check_reuse_can_cause_array_out_of_bounds_access",
+    "untrusted_input_boundary": "attacker-supplied JavaScript invoking Object.keys on an object with a Proxy in its prototype chain",
+    "untrusted_input_boundary_proven": true,
+    "oracle": "public 4-line JS reproducer trips a debug-shell assertion before fix; committed identical jit-test must complete after fix; maintainer describes an exploitable array OOB scenario",
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_firefox_jit_public_reproducer_20261002_v1",
+    "source_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2003589",
+    "report_details": "fetched",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/reports/bugzilla-2003589.json",
+      "sha256": "03761fd28bebb7bdbba6505e615ae87a0bab7a9117f07db00865e14b2a1d4e50",
+      "bytes": 4285,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2003589",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/2003589",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274.commit",
+      "sha256": "5b5d5cd656391aa619e78c0c286322e804931acffc8fe759a74226bc04ae1080",
+      "bytes": 375
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274.patch",
+      "sha256": "4b295eb9c8e84c63fe5fad72e3ded1cc663d26ae6d04b1cb266b4453ece506e5",
+      "bytes": 15521
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/tests/object-keys-proxy-proto.js",
+      "sha256": "863de469b6f73e92a7e546e5967e83e99520fcefa1b13f689891bde3c9bf9035",
+      "bytes": 108,
+      "url": "https://github.com/mozilla-firefox/firefox/blob/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274/js/src/jit-test/tests/ion/object-keys-proxy-proto.js"
+    },
+    "raw_bug": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/reports/bugzilla-2003589.json",
+      "sha256": "03761fd28bebb7bdbba6505e615ae87a0bab7a9117f07db00865e14b2a1d4e50",
+      "bytes": 4285,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2003589",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/2003589",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_comments": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/reports/bugzilla-2003589-comments.json",
+      "sha256": "cb2494838185bc8acb62969af63bead171c2003728c661badfd8f7ca6a4ab436",
+      "bytes": 11286,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2003589/comment",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/2003589/comment",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_attachment_index": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/reports/bugzilla-2003589-attachments.json",
+      "sha256": "5bded3a951646ba0d81dc455bcf22d9ee684af1a9f6b475bdbebbf13115987df",
+      "bytes": 1092,
+      "url": "https://bugzilla.mozilla.org/rest/bug/2003589/attachment?exclude_fields=data",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/2003589/attachment?exclude_fields=data",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_poc": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/poc/comment-17790397.js",
+      "sha256": "863de469b6f73e92a7e546e5967e83e99520fcefa1b13f689891bde3c9bf9035",
+      "bytes": 108,
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=2003589#c0",
+      "derivation": "verbatim first js fenced block in public Bugzilla comment 17790397"
+    },
+    "raw_debug_stack": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/reports/9530415-debug-stack.txt",
+      "sha256": "6f516eade6ebac0318d0d880fc94174c3c1a5b9534cb4b79bcd3b4c032232504",
+      "bytes": 2558,
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9530415",
+      "final_url": "https://bug2003589.bmoattachments.org/attachment.cgi?id=9530415",
+      "content_type": "text/plain"
+    },
+    "raw_git": {
+      "fix": {
+        "sha": "1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274.commit",
+          "sha256": "5b5d5cd656391aa619e78c0c286322e804931acffc8fe759a74226bc04ae1080",
+          "bytes": 375
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274.patch",
+          "sha256": "4b295eb9c8e84c63fe5fad72e3ded1cc663d26ae6d04b1cb266b4453ece506e5",
+          "bytes": 15521
+        }
+      },
+      "introduction": {
+        "sha": "7c0e78c0e4575dda295abed143b32888ac5a8f5d",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/7c0e78c0e4575dda295abed143b32888ac5a8f5d.commit",
+          "sha256": "0a33cd3ce04d17afe92da6018910d6f8444fa6d7f371b2c655201e57fc0e7f6e",
+          "bytes": 371
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/7c0e78c0e4575dda295abed143b32888ac5a8f5d.patch",
+          "sha256": "df4676218e97132b2bb19fd93e8dfd2a01cc278c4f38e4ea1dc6992f25eb494b",
+          "bytes": 31816
+        }
+      },
+      "prerequisite": {
+        "sha": "7ef21c323fbce385ee230dc6be03658081af012d",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/7ef21c323fbce385ee230dc6be03658081af012d.commit",
+          "sha256": "8eecf1b2393572205d0c647f72643551356df30f6ab63d5fce10bbd30672ab0e",
+          "bytes": 343
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/7ef21c323fbce385ee230dc6be03658081af012d.patch",
+          "sha256": "adc8d2cc37c6928ca8391d39949b1934b86992047411688d2f0634b3b84b251b",
+          "bytes": 68168
+        }
+      }
+    },
+    "raw_blame": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/introduction-blame.txt",
+      "sha256": "cbd40a49f4cf9f63ad43a7aed55e58a178b45bad499ccbd1cef89b640011448e",
+      "bytes": 247
+    },
+    "raw_committed_test": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/tests/object-keys-proxy-proto.js",
+      "sha256": "863de469b6f73e92a7e546e5967e83e99520fcefa1b13f689891bde3c9bf9035",
+      "bytes": 108,
+      "url": "https://github.com/mozilla-firefox/firefox/blob/1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274/js/src/jit-test/tests/ion/object-keys-proxy-proto.js"
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "1b0c8fac6e93715898d0c6b74ebbf18e4b8b0fe3",
+    "introduction_candidate": {
+      "sha": "7c0e78c0e4575dda295abed143b32888ac5a8f5d",
+      "committer_date": "2025-11-19T21:27:36Z",
+      "files": 19,
+      "changed_lines": 484,
+      "source_line": "IteratorMore/LoadIteratorElement optimization in jit::OptimizeIteratorIndices",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/7c0e78c0e4575dda295abed143b32888ac5a8f5d.commit",
+        "sha256": "0a33cd3ce04d17afe92da6018910d6f8444fa6d7f371b2c655201e57fc0e7f6e",
+        "bytes": 371
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/introduction-blame.txt",
+        "sha256": "cbd40a49f4cf9f63ad43a7aed55e58a178b45bad499ccbd1cef89b640011448e",
+        "bytes": 247
+      },
+      "basis": "reporter identifies this as first interesting commit in regression range; code blame confirms integration of iterator-indices optimization",
+      "replay_status": "not_run_build_required",
+      "prerequisite": {
+        "sha": "7ef21c323fbce385ee230dc6be03658081af012d",
+        "committer_date": "2025-11-19T21:27:33Z",
+        "files": 25,
+        "changed_lines": 1196,
+        "commit_object": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/raw/git/7ef21c323fbce385ee230dc6be03658081af012d.commit",
+          "sha256": "8eecf1b2393572205d0c647f72643551356df30f6ab63d5fce10bbd30672ab0e",
+          "bytes": 343
+        }
+      }
+    },
+    "regressed_by_bug_id": [
+      1995077
+    ],
+    "dedup_snapshot": {
+      "project": "firefox",
+      "bug_id": "2003589",
+      "fix_sha": "1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274",
+      "exact_matches": [],
+      "compared": {
+        "rows": 16339,
+        "firefox_rows": 1925,
+        "source_records": 376
+      },
+      "input_count": 108
+    }
+  }
+}

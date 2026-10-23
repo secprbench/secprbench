@@ -1,0 +1,924 @@
+{
+  "bug_id": "1987624",
+  "title": "Crash [@ js::wasm::DecodeModuleEnvironment]",
+  "severity": "sec-high",
+  "keywords": [
+    "crash",
+    "csectype-uaf",
+    "regression",
+    "sec-high",
+    "testcase"
+  ],
+  "product": "firefox",
+  "component": "JavaScript: WebAssembly borrowed-bytecode lifetime",
+  "creation_time": "2025-09-09T10:31:22Z",
+  "resolution_time": "2025-09-18T19:12:20Z",
+  "bug_discussion": "Public Bugzilla report: https://bugzilla.mozilla.org/show_bug.cgi?id=1987624\n\nThe following testcase crashes on mozilla-central revision 20250908-3927f21c92c9 (opt build, run with --fuzzing-safe --ion-offthread-compile=off):\n\n    a = new ArrayBuffer(1 << 20)\n    b = new Proxy({}, {\n        get(c, d) {\n            if (d == 'builtins')\n    \t  a.transfer(unescape)\n        }\n    })\n    WebAssembly.validate(a, b)\n\n\nBacktrace:\n\n    received signal SIGSEGV, Segmentation fault.\n    #0  0x00005555573e4b89 in js::wasm::DecodeModuleEnvironment(js::wasm::Decoder&, js::wasm::CodeMetadata*, js::wasm::ModuleMetadata*) ()\n    #1  0x00005555573daad9 in js::wasm::Validate(JSContext*, js::wasm::BytecodeSource const&, js::wasm::FeatureOptions const&, std::unique_ptr<char [], JS::FreePolicy>*) ()\n    #2  0x00005555573da888 in WebAssembly_validate(JSContext*, unsigned int, JS::Value*) ()\n    #3  0x0000555556fbb3b4 in js::Interpret(JSContext*, js::RunState&) ()\n    #4  0x0000555556e22088 in js::RunScript(JSContext*, js::RunState&) ()\n    #5  0x0000555556e21cd5 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) ()\n    #6  0x0000555556e219ae in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>) ()\n    #7  0x000055555753087a in RunFile(JSContext*, char const*, _IO_FILE*, CompileUtf8, bool, bool) ()\n    #8  0x000055555752f892 in Process(JSContext*, char const*, bool, FileKind) ()\n    #9  0x000055555751d98b in main ()\n    rax\t0x100000\t1048576\n    rbx\t0x7ffff30dad00\t140737271147776\n    rcx\t0x7ffff2900000\t140737262911488\n    rdx\t0x7ffff4222c90\t140737289268368\n    rsi\t0x7ffff2800000\t140737261862912\n    rdi\t0x7fffffffbb88\t140737488337800\n    rbp\t0x7fffffffbb10\t140737488337680\n    rsp\t0x7fffffffb6a0\t140737488336544\n    r8\t0x38c10385\t952173445\n    r9\t0xd10d970585523d08\t-3382881695117984504\n    r10\t0x3e\t62\n    r11\t0x60\t96\n    r12\t0x7fffffffbb88\t140737488337800\n    r13\t0x7fffffffbc38\t140737488337976\n    r14\t0x7ffff30dad00\t140737271147776\n    r15\t0x7fffffffbc20\t140737488337952\n    rip\t0x5555573e4b89 <js::wasm::DecodeModuleEnvironment(js::wasm::Decoder&, js::wasm::CodeMetadata*, js::wasm::ModuleMetadata*)+89>\n    => 0x5555573e4b89 <_ZN2js4wasm23DecodeModuleEnvironmentERNS0_7DecoderEPNS0_12CodeMetadataEPNS0_14ModuleMetadataE+89>:\tmov    (%rsi),%edx\n       0x5555573e4b8b <_ZN2js4wasm23DecodeModuleEnvironmentERNS0_7DecoderEPNS0_12CodeMetadataEPNS0_14ModuleMetadataE+91>:\tlea    0x4(%rsi),%rax\n\nCreated attachment 9512241\nDetailed Crash Information\n\nCreated attachment 9512242\nTestcase\n\nThis looks like a possible dupe of bug 1987611.\n\nOriginally found `Thu, 04 Sep 2025 01:59:00 +0000` by internal fuzzing.\n\nWhen using the Module constructor or the validate API, we read the bytecode directly from the ArrayBuffer without making a copy. It looks like we are grabbing a pointer to the ArrayBuffer data, then calling FeatureOptions::init, which is proxied to detach the ArrayBuffer and invalidate the pointer we have.\n\nThe spec is slightly ambiguous about the order of 'copying the buffer' and 'parsing compile options', but I think a reasonable interpretation could have them reversed so that the detach happens first before we get the data pointer. This fixes the issue for me locally. To be even more robust here we should use the 'length pin' API of array buffers which will prevent unexpected detaches.\n\nThis can lead to reading free'ed memory while compiling/validating a wasm module. There will be no write's to the free'ed memory. It's highly likely this will just lead to crashes, but possibly could be used to exfiltrate data somehow if the attacker is able to get the data pointer to point at memory that validates yet somehow contains process-private data.\n\nThis is a regression from bug 1931407.\n\n*** Bug 1987611 has been marked as a duplicate of this bug. ***\n\nCreated attachment 9512693\n(secure)\n\nCreated attachment 9512694\nBug 1987624 - wasm: Add test. r?yury\n\nSet release status flags based on info from the regressing bug 1931407\n\nComment on attachment 9512693\n(secure)\n\n### Security Approval Request\n* **How easily could an exploit be constructed based on the patch?**: Unclear. This bug would allow an attacker to free the wasm bytecode that we're currently compiling. This will only result in reads, not writes of freed memory. If the attacker could somehow concurrently mutate the free'ed bytecode memory while we are compiling they possibly could break our validation algorithm and get us to compile invalid wasm code. This would be tricky and novel, I'm unsure if it'd be possible.\n* **Do comments in the patch, the check-in comment, or tests included in the patch paint a bulls-eye on the security problem?**: No\n* **Which branches (beta, release, and/or ESR) are affected by this flaw, and do the release status flags reflect this affected/unaffected state correctly?**: Beta, Release, and ESR 140. Status flags are correct.\n* **If not all supported branches, which bug introduced the flaw?**: Bug 1931407\n* **Do you have backports for the affected branches?**: Yes\n* **If not, how different, hard to create, and risky will they be?**: \n* **How likely is this patch to cause regressions; how much testing does it need?**: Unlikely, this code is pretty well tested.\n* **Is the patch ready to land after security approval is given?**: Yes\n* **Is Android affected?**: Yes\n\nComment on attachment 9512693\n(secure)\n\nApproved to land and uplift\n\nPushed by rhunt@eqrion.net:\nhttps://github.com/mozilla-firefox/firefox/commit/c89c1e356e68\nhttps://hg.mozilla.org/integration/autoland/rev/ae88c4398cae\nwasm: Refactor GetBufferSource. r=yury\n\nhttps://hg-edge.mozilla.org/mozilla-central/rev/ae88c4398cae0b3d582245e8bcc4631e2b2804ec\n\n:rhunt, could you please add beta and esr140 uplift requests when you have a moment?\n\n### firefox-beta Uplift Approval Request\n- **User impact if declined**: Potentially exploitable UaF.\n- **Code covered by automated testing**: yes\n- **Fix verified in Nightly**: yes\n- **Needs manual QE test**: no\n- **Steps to reproduce for manual QE testing**: \n- **Risk associated with taking this patch**: low\n- **Explanation of risk level**: This is a well tested code path.\n- **String changes made/needed**: N/A\n- **Is Android affected?**: yes\n\nCreated attachment 9514402\n(secure)\n\n\n\nOriginal Revision: https://phabricator.services.mozilla.com/D264478\n\n### firefox-esr140 Uplift Approval Request\n- **User impact if declined**: Potentially exploitable UaF.\n- **Code covered by automated testing**: yes\n- **Fix verified in Nightly**: yes\n- **Needs manual QE test**: no\n- **Steps to reproduce for manual QE testing**: \n- **Risk associated with taking this patch**: low\n- **Explanation of risk level**: Well tested code.\n- **String changes made/needed**: None\n- **Is Android affected?**: yes\n\nCreated attachment 9514403\n(secure)\n\n\n\nOriginal Revision: https://phabricator.services.mozilla.com/D264478\n\nhttps://github.com/mozilla-firefox/firefox/commit/93765e4f87ac\nhttps://hg.mozilla.org/releases/mozilla-beta/rev/83a487c959de\n\nhttps://hg.mozilla.org/releases/mozilla-esr140/rev/18b9a7189cc9\n\nVerified bug as fixed on rev mozilla-central 20260418081104-4c39f991a01a.\nRemoving bugmon keyword as no further action possible.  Please review the bug and re-add the keyword for further analysis.\n\nPushed by rhunt@eqrion.net:\nhttps://github.com/mozilla-firefox/firefox/commit/78364d6fc63d\nhttps://hg.mozilla.org/integration/autoland/rev/3336444c1dd5\nwasm: Add test. r=yury\n\nhttps://hg.mozilla.org/mozilla-central/rev/3336444c1dd5",
+  "commit_ids": [
+    "c89c1e356e68777009764f656520e2b9079baafb"
+  ],
+  "fix_commit_sha": "c89c1e356e68777009764f656520e2b9079baafb",
+  "fix_date": "2025-09-17T20:30:02Z",
+  "season": "2025H2",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "affected_files": [
+    "js/src/wasm/WasmJS.cpp"
+  ],
+  "changed_lines": 119,
+  "aliases": [
+    "Bug 1987624"
+  ],
+  "target_type": "spidermonkey_js_shell_web_exposed_wasm_api",
+  "report_references": [
+    {
+      "id": "1987624",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1987624",
+      "kind": "public_bugzilla_report"
+    },
+    {
+      "id": "bug-1987624-reporter-testcase-9512242",
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9512242",
+      "kind": "public_javascript_reproducer"
+    },
+    {
+      "id": "bug-1987624-maintainer-root-cause-comment",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1987624",
+      "kind": "maintainer_arraybuffer_detachment_root_cause"
+    },
+    {
+      "id": "bug-1987624-maintainer-security-approval-comment",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1987624",
+      "kind": "maintainer_uaf_security_assessment"
+    }
+  ],
+  "candidate_status": "targeted_public_report_pending_security_and_construction_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "use_after_free_read_of_detached_wasm_bytecode_during_validation",
+    "untrusted_input_boundary": "Page-controlled ArrayBuffer and compile-options Proxy passed to web-exposed WebAssembly.validate; the Proxy detaches the buffer after the engine borrows its data pointer.",
+    "untrusted_input_boundary_proven": false,
+    "oracle": "Public 153-byte testcase faults in DecodeModuleEnvironment before fix; after fix, lifetime pinning and order change prevent stale reads. Actual browser-mode replay remains to be done.",
+    "qualification": "Maintainer confirms stale-bytecode UAF read and potential exploit, but browser-mode reliability and exfiltration are not established; construction should use exact same-input replay.",
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_firefox_wasm_detached_bytecode_uaf_20261002_v1",
+    "source_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1987624",
+    "report_details": "fetched",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/reports/bugzilla-1987624.json",
+      "sha256": "61d0e1626e074e89da2f49f81ca7ea3214af58cca731f51d5b4a5c99bf78c0ef",
+      "bytes": 4434,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987624",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987624",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_comments": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/reports/bugzilla-1987624-comments.json",
+      "sha256": "9f07aa53622f47b87ba6c560553640d565d3c988ee319a335476b3a79c0f5c9b",
+      "bytes": 21726,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987624/comment",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987624/comment",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_attachment_index": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/reports/bugzilla-1987624-attachments.json",
+      "sha256": "53a2f0167c5cb8373d1704fa1243726a10f862f62e4b5b179b0dd0c77337fc2c",
+      "bytes": 3669,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987624/attachment?exclude_fields=data",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987624/attachment?exclude_fields=data",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_poc": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/poc/9512242-testcase.js",
+      "sha256": "76ebdaf4346fef5fccf4a622b8974806087028054da7de04cf4c1f2462186147",
+      "bytes": 153,
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9512242",
+      "final_url": "https://bug1987624.bmoattachments.org/attachment.cgi?id=9512242",
+      "content_type": "text/plain"
+    },
+    "raw_crash_report": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/reports/9512241-crash.txt",
+      "sha256": "cda305f1b4c6775cede4a669af70ccb98021e5e243af30bb8474bfacc79762f0",
+      "bytes": 2031,
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9512241",
+      "final_url": "https://bug1987624.bmoattachments.org/attachment.cgi?id=9512241",
+      "content_type": "text/plain"
+    },
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/c89c1e356e68777009764f656520e2b9079baafb.commit",
+      "sha256": "2878c3b30d8e4afa7e4ee107b8724b5990ad114fecb68bf6d198bc02c24a7f89",
+      "bytes": 337
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/c89c1e356e68777009764f656520e2b9079baafb.patch",
+      "sha256": "15963785b16e841485156daf97f295cb19379c930e02eb93dd38e87d50dbb5d4",
+      "bytes": 7172
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/poc/9512242-testcase.js",
+      "sha256": "76ebdaf4346fef5fccf4a622b8974806087028054da7de04cf4c1f2462186147",
+      "bytes": 153,
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9512242",
+      "final_url": "https://bug1987624.bmoattachments.org/attachment.cgi?id=9512242",
+      "content_type": "text/plain"
+    },
+    "later_committed_test": {
+      "evidence": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/tests/bug1987624.js",
+        "sha256": "2d72c03b7f5f113724da4ab0b59f9770fd17c349c49df515fb538d4baf41c4f7",
+        "bytes": 154,
+        "url": "https://github.com/mozilla-firefox/firefox/blob/78364d6fc63dd0faeead748883877eea8e0d5e10/js/src/jit-test/tests/wasm/regress/bug1987624.js"
+      },
+      "commit_sha": "78364d6fc63dd0faeead748883877eea8e0d5e10",
+      "committer_date": "2026-08-18T15:19:43Z",
+      "status": "not_an_input_to_2025_task_construction"
+    },
+    "raw_git": {
+      "fix": {
+        "sha": "c89c1e356e68777009764f656520e2b9079baafb",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/c89c1e356e68777009764f656520e2b9079baafb.commit",
+          "sha256": "2878c3b30d8e4afa7e4ee107b8724b5990ad114fecb68bf6d198bc02c24a7f89",
+          "bytes": 337
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/c89c1e356e68777009764f656520e2b9079baafb.patch",
+          "sha256": "15963785b16e841485156daf97f295cb19379c930e02eb93dd38e87d50dbb5d4",
+          "bytes": 7172
+        }
+      },
+      "introduction": {
+        "sha": "75fa8115ffad385e57297cba554f546820d71208",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/75fa8115ffad385e57297cba554f546820d71208.commit",
+          "sha256": "7b805469e69201010f8d9db04046a2d2b746973922785d9b8a4474004fa57b80",
+          "bytes": 1773
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/75fa8115ffad385e57297cba554f546820d71208.patch",
+          "sha256": "869501988d2b4c3f6c7098599cf9c4b1c0eb3c7f0cab0927eaee48624bf7b3d2",
+          "bytes": 67593
+        }
+      },
+      "earlier_backed_out_introduction": {
+        "sha": "da5f02fbc12303859c0c209c9d170c88cedf5e01",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/da5f02fbc12303859c0c209c9d170c88cedf5e01.commit",
+          "sha256": "09331bd83a3a6f17c41a72a7d62c7fcc0f066774351e15e534abf248f1b19f6e",
+          "bytes": 1773
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/da5f02fbc12303859c0c209c9d170c88cedf5e01.patch",
+          "sha256": "a804f7951ad7af0d74dfa4ae516179d41d5ef6ef1826c6bf3ec636fb2d6732c7",
+          "bytes": 66496
+        }
+      },
+      "backout": {
+        "sha": "97ced2cf50886341fdcdee896fc4b5c39dc8d382",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/97ced2cf50886341fdcdee896fc4b5c39dc8d382.commit",
+          "sha256": "1e44c8a1869b9b024f432dd8337411547d4ab699a57548ee643da6e821ae83e9",
+          "bytes": 416
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/97ced2cf50886341fdcdee896fc4b5c39dc8d382.patch",
+          "sha256": "0071705d018664cdad0a9edb0f7039e7dc001c83988e592e5b811e26cc5c385e",
+          "bytes": 73327
+        }
+      },
+      "later_committed_test": {
+        "sha": "78364d6fc63dd0faeead748883877eea8e0d5e10",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/78364d6fc63dd0faeead748883877eea8e0d5e10.commit",
+          "sha256": "380df63b870cb49025c72b48791a81c1e0cfa90d1edbc0803a3c0fc391d1e822",
+          "bytes": 321
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/78364d6fc63dd0faeead748883877eea8e0d5e10.patch",
+          "sha256": "e70d72a4cdacf9bef9674c37a60d902230690cba74a80d0c302230270273f955",
+          "bytes": 761
+        }
+      }
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "1b0c8fac6e93715898d0c6b74ebbf18e4b8b0fe3",
+    "introduction_candidate": {
+      "sha": "75fa8115ffad385e57297cba554f546820d71208",
+      "committer_date": "2025-03-24T18:05:38Z",
+      "files": 28,
+      "changed_lines": 861,
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/75fa8115ffad385e57297cba554f546820d71208.commit",
+        "sha256": "7b805469e69201010f8d9db04046a2d2b746973922785d9b8a4474004fa57b80",
+        "bytes": 1773
+      },
+      "patch": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/75fa8115ffad385e57297cba554f546820d71208.patch",
+        "sha256": "869501988d2b4c3f6c7098599cf9c4b1c0eb3c7f0cab0927eaee48624bf7b3d2",
+        "bytes": 67593
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/introduction-blame.txt",
+        "sha256": "d2c24f95c70dd874392b5034bb64c209f16c93de06140e0734d8a2e7dae6afe6",
+        "bytes": 1738
+      },
+      "pre_reland_control": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987624-v1/raw/git/pre-reland-WasmJS.cpp",
+        "sha256": "4f08f13e1132f798e1fe71dbf48cc9489dd7109a22f2ab153ce50824d4404b97",
+        "bytes": 170056
+      },
+      "basis": "Bugzilla regressed_by bug 1931407; its first March 14 landing was backed out March 16, and the March 24 reland introduced borrowed BytecodeSource on the lasting mainline path. Before reland the validate path owned a copied MutableBytes buffer.",
+      "replay_status": "not_run_build_required"
+    },
+    "dedup_snapshot": {
+      "created_at": "2026-10-02T16:10:36.988700+00:00",
+      "query": {
+        "project": "firefox",
+        "aliases": [
+          "1987624"
+        ],
+        "fix_sha": "c89c1e356e68777009764f656520e2b9079baafb"
+      },
+      "inputs": [
+        {
+          "path": "/research/workspace/secprbench/data/fix_dates.json",
+          "sha256": "810f78740de3e7f7fac0b0d1c125992103adeb667b1a65a693de4100d4581bac"
+        },
+        {
+          "path": "/research-data/secprbench/campaign-100-20260928/generation-intro2021-target150-sonnet5-v7/queue.json",
+          "sha256": "cb8f67faf3af0457765ffc838eed9fdd8b49b499cd5dfcde93bff9f27c6ddf77"
+        },
+        {
+          "path": "/research-data/secprbench/campaign-100-20260928/generation-intro2021-target150-v5/queue.json",
+          "sha256": "419f8da8c80fbc064e9ee08074d063c9a268e3403cf728dc841054894ab45e72"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v10-targeted/report-frame-v10-strong-sparse/candidate_frame.jsonl",
+          "sha256": "85333392a2d4ee29e939a19a278622e4a996ef38b063bf912c2f6b30bd5822cd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/manifest.json",
+          "sha256": "725fba8ca8a971adee59b981b4212cd4c17116aff555049ffe3e4f8814b4757f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v11-targeted/prior-intake-curl-cves-v1/manifest.json",
+          "sha256": "2bb45670962c8f7fcea6d459863487f20b240fe34a28ddf8fe3c297c3448cdec"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v11-targeted/report-frame-v11-prior-intake-curl-cves/candidate_frame.jsonl",
+          "sha256": "adcfcc44c19f3d79d0be3d5c587cf658285873dcd6e8aa844f523cb08f3e420c"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v12-targeted/openssl-crl-hash-null-v1/manifest.json",
+          "sha256": "08eb36c7ad516bd5115acea96aa1b17b99f7b789f23a67013b8ca2583c3da11f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v12-targeted/report-frame-v12-crl-hash-null/candidate_frame.jsonl",
+          "sha256": "3054c933bb3c05e25d76763c575966b21600208d494e9affa0a1bd555a9406b6"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v13-targeted/curl-cve5399-reconciliation-v1/manifest.json",
+          "sha256": "efdeb4e643200d09802eef534710f99255f362c258ddc8ddba8c02ca292700b7"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v13-targeted/openssl-gh28642-upstream-evidence-v1/manifest.json",
+          "sha256": "1c0df8a08d84e1c2cf5820a4ca8e535a2b40f8d6baad89200bfab237e645edb2"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v14-targeted/report-frame-v14-runtime-boundary/candidate_frame.jsonl",
+          "sha256": "a976906be0e900a1402e0017d59e42be4a130417ffb6b61487e42fd590948b4c"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v14-targeted/runtime-boundary-report-intake-v2/manifest.json",
+          "sha256": "4ee5433e108e46b1850ac63e2999c8056f88ef87ddfc8e3865c64919c108a05d"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v15-targeted/three-case-intro-reconciliation-v1/manifest.json",
+          "sha256": "7158fd0a96c6f6dd0549dcc926fbbb8c5b64d10dc82bab7e1ca59c36cbea8d52"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v15-targeted/three-case-rereview-worklist-v1/manifest.json",
+          "sha256": "bd11c281a7bc9fc49aaad200c26f6c4b693e96bf0a66db1569471a54ed2bc83a"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v17-targeted/curl-gh19139-replay-v2/manifest.json",
+          "sha256": "e17745535ae545c205be18228807e5a34db217333d63e28fed7ba312a088e5a9"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v17-targeted/curl-gh19139-replay-v3/manifest.json",
+          "sha256": "52dbfbf4d77e5ed5fe0587ca9959a3ef6ab51145d7ae33cc1443e80e16c22ec9"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v20-targeted/firefox-1987481-advisory-v1/manifest.json",
+          "sha256": "a11d5421d3fdf11ec891ce91fc8956e76031be73cca9110a2b56a8411f22bb25"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v20-targeted/firefox-1987481-advisory-v1/private-frame-v20-firefox-1987481/candidate_frame.jsonl",
+          "sha256": "879a01005f238ddafd60c051197aa90fb4b0f0d6ff5ec1b68d933b33bf33b782"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v21-targeted/firefox-1989734-hevc-uaf-v1/manifest.json",
+          "sha256": "6973424b5928461f3bec05882a0e390a57d31fb9dc4315a3ab01ee15fd40c73b"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v21-targeted/firefox-1989734-hevc-uaf-v1/private-frame-v21-firefox-1989734/candidate_frame.jsonl",
+          "sha256": "2ef5a27bc211df497ebc9d82cd43b07fd91e34d92e0763507864fb7fdd4b1982"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v22-targeted/curl-gh16823-security-hold-v1/manifest.json",
+          "sha256": "1e65117cec161d9cf9dab8583e59f58f4f27804b927dd5b1ef2d9dea2608d49f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v23-targeted/curl-gh16823-send-error-reassessment-v1/manifest.json",
+          "sha256": "0117bdfbc1a06607a5d94c317e571cc72dc5fff7b107f58efc1fb080beed4521"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v24-targeted/report-frame-v24-firefox1987290/candidate_frame.jsonl",
+          "sha256": "4ac80fdf834b2ae484363cb08dd3e5ccd692e512ec487f34c4d9f0eea4bc8c05"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v25-targeted/report-frame-v25-firefox2003589/candidate_frame.jsonl",
+          "sha256": "810373c1d49bbc36f72927a4b649625a4c2dcc639b143f7bdb14a8b4282041de"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v26-targeted/report-frame-v26-firefox2000469/candidate_frame.jsonl",
+          "sha256": "275170aeb65a0afdec45788bd42a627b43a12821950e0731a22d69d00eccf5cb"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v27-targeted/report-frame-v27-firefox1988128/candidate_frame.jsonl",
+          "sha256": "ed4d78a78da991153bc63883f73b33b058d6386388adbc1dadb38beb51da3a62"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/freetype-named-fix/manifest.json",
+          "sha256": "f1c1265aa22efc259f2d071a67ce9969922b1ed12ac6c4ef27958908ab08d7be"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/freetype-named-fix-v2/manifest.json",
+          "sha256": "e6bac9613476281ff3d4bd6b6b5222843703f45192537670265f0c0ba2c05d87"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/freetype-named-fix-v3/manifest.json",
+          "sha256": "741ca2f4c2a7e3eaa217c2d55e89446523450f4eb6f7b44a8455927b9af5b721"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/freetype-patch-guards-v1/manifest.json",
+          "sha256": "67c286b46f26d4f556685b349353f8a1abff1190ab14a9202a9af9e47c09dbf8"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/linked-reports/manifest.json",
+          "sha256": "4c28be064665e096fe70b39e32131ecaf2b6556a266e80cf2628772fad82eba6"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/report-frame-v4-final/candidate_frame.jsonl",
+          "sha256": "2a1946f8d7303ad8436b92c4b0f741b2b259a1618f70bb76db207cd749ce45a8"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/report-frame-v4-plus-v8/candidate_frame.jsonl",
+          "sha256": "f07ad3e81aa6f1ff0b5325c9066912adfbf722749b192072baed1e1cac95cd3c"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/report-frame-v4-targeted/candidate_frame.jsonl",
+          "sha256": "0a5f2b37b80929758a23f350b79afcbeb8f4dd0efbbb7bffc343b01cf1ce9e6e"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/sqlite-named-fix/manifest.json",
+          "sha256": "3fd5abf9bb2ddd9f1f6c1e5ef9a337c6503be920b0d47f48a1eb49c4e49e1c4b"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/sqlite-named-fix-v2/manifest.json",
+          "sha256": "566cf1d53234db45dcda114347e456386a69902b61655bffcd08c997b7c175ea"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/sqlite-security-linked-fossil-fixes-v1/manifest.json",
+          "sha256": "19f61b70e1958b0b1ce53e53805048e631bfdc81fe13150743fca7b3ff46c7cd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v4-targeted/v8-numeric-bug-footer-v1/manifest.json",
+          "sha256": "e1ea2f955ac73557584ef9cc12474f6b1735c058c9112d4fbb7c9336150c28a1"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v5-targeted/report-frame-v5-security-linked/candidate_frame.jsonl",
+          "sha256": "d03c74fd1e94c7d996d3e5757e2745cc6c980afc1aaca1787fa006b0be0168b4"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v5-targeted/security-linked-supplement-v2/manifest.json",
+          "sha256": "91d7aac8a331bd618046fc989e5f80e7af5edd3f71598790e9bbf7a94f86e187"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v6-targeted/report-frame-v6-existing-v5/candidate_frame.jsonl",
+          "sha256": "89d0645c37875fd5d181723670e68678e92a860e0648dc1bde1c7e070eb53480"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v7-targeted/openssl-h1-public-fixes-v1/manifest.json",
+          "sha256": "86221eab84220102227fe1994e1ce1a289ae51abb85c83322c222a1066de5927"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v7-targeted/redis-builtin-vector-fixes-v1/manifest.json",
+          "sha256": "014b27c78f0641dbdfa96d06dbdc888f5b05e7a388928e4d140859548ff146ea"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v7-targeted/redis-builtin-vector-restore-v1/manifest.json",
+          "sha256": "abb4859960d5ecfc7b91b7d9d6b76467fc051bccb4e0eabdba374a7d460e430f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v7-targeted/report-frame-v7-strong-supplement/candidate_frame.jsonl",
+          "sha256": "00713c6f5a6d9afd17e7353ef5b7c185f774d3a4e6ea528b8577daf0a70e1afd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v8-targeted/redis-replica-shortread-v1/manifest.json",
+          "sha256": "3dd20f2fcc9fadb16e84990320e82985f254c005a2277e562e060c5feca98dcb"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v8-targeted/report-frame-v8-replica-supplement/candidate_frame.jsonl",
+          "sha256": "cd822b12aa0c48cc490c45263f9b1ba5fe7a3bfb463932da56f6dab8c83237df"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v9-targeted/openssl-h2-memory-fixes-v1/manifest.json",
+          "sha256": "0ac5d2ea4be12e686efa5df94d151f3b54063e07bab87eb04567f6091bf62679"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261001-v9-targeted/report-frame-v9-openssl-ocsp/candidate_frame.jsonl",
+          "sha256": "c9f78f79bb15b08cd2ece4f92d76757aa4baa40a41f469e699625ca33104d9cd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-enrichment/security-evidence/firefox-1986816/manifest.json",
+          "sha256": "6c81778cd58794f845b4743d53bebb85ffcf2de8bb234dfcf75979dd96fc94d6"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-enrichment/security-evidence/freetype-6a25214ae9b073c9/manifest.json",
+          "sha256": "274816257e20cf7dbaa8749ab6198313669d3eadda3ed1a3e4fd31485836691f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-enrichment/security-evidence/v8-445380761/manifest.json",
+          "sha256": "5540a8959aa98545f393f22bb6598f1142629d0524364f8a925941ca7d615b53"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v1/manifest.json",
+          "sha256": "0b76db5f3ff265c1cf5546313a8c3a92b39947607a1f8c70fd1585131da23a8d"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/manifest.json",
+          "sha256": "663a58776826c2c93a01bb61a90fba6962295515afcf3cdcdc243432ed6649ae"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1988128-browser-boundary-supplement-v1/manifest.json",
+          "sha256": "348a510ab3cbc25aa164ecb29ac5f60d560119a2b59583cb55cc979b0c2c0c81"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1988128-v1/manifest.json",
+          "sha256": "f300fdfed9a57076c83f69953f31d205a81255598a0ce5ce849d65f9aabc8658"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2000469-v1/manifest.json",
+          "sha256": "f8c9644f16b7c9994e98feab5f5c8048c7e5ac664b2ec3692857ca2d6b95b8df"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2000469-v2/manifest.json",
+          "sha256": "b54e696b0866eba560de82ebde627f1082e0a9be17d28af6b04f31e617a25de0"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-2003589-v1/manifest.json",
+          "sha256": "02bb9c8d45511d70550ba7b95f716d30b305fc132895bbdbd3f275282985a260"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/wasmtime-gh12014-v1/manifest.json",
+          "sha256": "a20bb9eef50d367ba173ab2541d2f62a03e7a06a89e0c2b9f2d6b6d70fe92b17"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/construction-failure-inventory-v1/manifest.json",
+          "sha256": "35a514100423f06af50b64c78eb1e1a5526456d549f552cdf552f57e2294b1f7"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/firefox-1989899-binary-smoke-v1/manifest.json",
+          "sha256": "f40725d91c436caa2a572a218da0ac204cdcc305707c56e9bd9dd9e006821817"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/firefox-1989899-causal-audit-v1/manifest.json",
+          "sha256": "37d99bf593281a650133dcd154c6812f559e6365887f1b82258090e4f0363689"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/firefox-1989899-public-oracle-proposal-v1/manifest.json",
+          "sha256": "ee153161542b8958b888cf49dab4283036eba25b116908af56432869a8b8b326"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/firefox-1989899-public-oracle-proposal-v2/manifest.json",
+          "sha256": "3c9b45d74240995b05b80f21428831688b4d9b74ab50e420444fbf3e2d8f785e"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/redis-gh13862-reference-import-v1/manifest.json",
+          "sha256": "765499475a74c9d379a77a5792913cd51ece70d5cfaa005c09799496e9d8b430"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/redis-gh13862-reference-import-v2/manifest.json",
+          "sha256": "c5e3411aa15cf602f075aa211acec158713f087f2b567b36d49626730f6fa86e"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/v8-340777103-metadata-import-v1/manifest.json",
+          "sha256": "e92c7636e1b530b8b7213525381002df8aa22dbc74727d3fcd858d862ad2687d"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/v8-340777103-metadata-import-v2/manifest.json",
+          "sha256": "e43aa74775819db1bea7ce97e5c666b93e41048a5b87b09c08e1fa70c011b7aa"
+        },
+        {
+          "path": "/research-data/secprbench/season100-20261002-repairs/v8-340777103-smoke-v1/manifest.json",
+          "sha256": "08f131cf496b024dd80da6533e3e8bbb83d9dff74348b64a673a1f2205b15b77"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/campaign/candidate-manifest.jsonl",
+          "sha256": "7a5eb947a152c966af1f7f8169a724112490dd4fd9705fcfc0077dede619fa5d"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/campaign/queue.json",
+          "sha256": "5d650f78063bc4887e980806dfc363a49461871ee0590693e88fd250fae80406"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/campaign/summary.json",
+          "sha256": "f1b24b60c9d2e1a1f4bd8d762c9745332c60987ccd406183f0945b7ad8d59750"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/deferred-verification-queue.json",
+          "sha256": "5e57ba57765a68ab1d65f97a59d916380fad4256d086a1557499748b7df3b28c"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/advisories-redis/manifest.json",
+          "sha256": "20fb939d67d1351e4b5fa7e1cddeaeb06814a62b23f01fe9b0231a60ca1f2b7f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/advisories-wasmtime/manifest.json",
+          "sha256": "fb321aad6956c6742f4033ccf0e85061602859365ef72a772e8ece83ed52078d"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H1-curl-openssl-sqlite/curl/manifest.json",
+          "sha256": "e947fa6c7e08a44c5d06d3cbaf4d6c5c9f526b326acb22d86fa3ed5499bf4fa9"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H1-curl-openssl-sqlite/manifest.json",
+          "sha256": "9127ae1fef0341b166ceb023156437c0329755cc2b25b1075826973fec345f93"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H1-curl-openssl-sqlite/openssl/manifest.json",
+          "sha256": "45c5377c48f408efbbc17e7645d77bbda788365c1af93f03dfb83fd17c5a7f1f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H1-curl-openssl-sqlite/sqlite/manifest.json",
+          "sha256": "7ef0d61f4cf84e65ef7833340c11f5fadd86531c488b7fcf5678b217cd998a56"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-curl-openssl/curl/manifest.json",
+          "sha256": "9b65a59546341ccac54974d290f9060d222cd3aa0e9be2c0ebd0e1acbc47f5c5"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-curl-openssl/manifest.json",
+          "sha256": "9767c464a3072115833388e30f668ebd353cfc389ea8701b4daff5edf3496adc"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-curl-openssl/openssl/manifest.json",
+          "sha256": "66890a0cd067e662c209ffa3679f30cf3d9e869a38206b05d4ff4896f20c3e2f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-other/freetype/manifest.json",
+          "sha256": "2d1e685a6002588763e412467ede48041db99f32c63485a728626465018d92a1"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-other/manifest.json",
+          "sha256": "18757a01e945f94df84bf304e4c68215f7fef24f59006b461cf34902368fd2f9"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-other/redis/manifest.json",
+          "sha256": "1153e83fca08c5a81083a87c7c8c61e2f7d90f705cc2bac55591f6d1abc51cbd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-other/sqlite/manifest.json",
+          "sha256": "9f6044ce893e3fc0b2030903e7b6ecdfa9caf05e71150a79a9afeafd1118b135"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/documented-2025H2-other/wasmtime/manifest.json",
+          "sha256": "870f6b2766b9159f259984a4fc403077df9cb832ea0b912d585de2457183219f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/freetype-named-current-dedup-v2/manifest.json",
+          "sha256": "2e8686298ff69190dc5a7e5000d8cca25dcf73ee7c72aae728a04fa97434b627"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/discovery/freetype-named-v1/manifest.json",
+          "sha256": "fa4613a12c5d87ba192c4cc0c0ef88dfadcd646d8274152b7ec7a1259fe42d46"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1987481-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "4568b0e5910541e582f4851f8a5a405a126365409590402fd35331b3ee7f93aa"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1987481-v1/campaign/queue.json",
+          "sha256": "dcbfefb151f09248ecc2257902d38317d66a173c9866d1c34f7e4723e2765d7c"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1987481-v1/campaign/summary.json",
+          "sha256": "cc9a46e72ff28f6cd8fc5026657a559a8885a65a782f6f7f87e4f3762c289d28"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1987481-v1/manifest.json",
+          "sha256": "db2fc00a6560bdccb930770aff4ce5412b01993aee84b3ab4e32a0274f25b672"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1989734-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "a27ac7b534d3fd2defc73d73096aab64b391877206af158c9bb837dd55fb4be4"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1989734-v1/campaign/queue.json",
+          "sha256": "81fdb18062b483e6d8ba5c68b7b79c48b2eb8c5a3f9f0b572d37f72fccc2612f"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1989734-v1/campaign/summary.json",
+          "sha256": "c05654d2a1187be7ba27806deb8889aa68bbd013a59239a1c80823148fb695d1"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/new-firefox-1989734-v1/manifest.json",
+          "sha256": "f4d026a05d618af4843241d40fd629d121dbcc5f9a9b4bbfd0362fdad9537641"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-16881-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "a291f090e9d0cca1c1422c1d2baebbc55bd281b1c7a79e6e9e90d321f663048a"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-16881-v1/campaign/queue.json",
+          "sha256": "0d9fc7a67f02ad991434362a99a0ff67def92bf8732a3c06fa60a57cd121134b"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-16881-v1/campaign/summary.json",
+          "sha256": "b2d48589045c18ab893a3d73fc9cd60b74c55a5d68f3810b2748dbb6d420bf06"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-16881-v1/manifest.json",
+          "sha256": "cd06c21847dc3ded19edae6e5d735ddd5d8b5bb0887030e3fbd5c58c2d1497e3"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-17184-seed-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "654d029e87f7f7dfe725380cd3694b0f7e2fc403a489aa5ed4eb086d0cd30113"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-17184-seed-v1/campaign/queue.json",
+          "sha256": "e06fcca974f5b02fdabdaa0ada11ad36b75fcc1029714789cbeef301191dd006"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-17184-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "e6cacabc0bab568096786ea6e1e19d734ee2a5af9dd4e32d31d80d9affb702e3"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-17184-v1/campaign/queue.json",
+          "sha256": "28bba7165f161d5e0502787d6fa376815f0c14fe465b55420ca7012381babae7"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-curl-GH-17184-v1/campaign/summary.json",
+          "sha256": "9fa5c1331c15b4c4aad74033d88c2e1a7bb3da667ea9fd363d0b9d676d3ba810"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1986816-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "c56c814848fbaf09fe615c16f368541414cde3c8a4114c691c05c3150f0ae33a"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1986816-v1/campaign/queue.json",
+          "sha256": "8aca8f33ae6790f4e53204e08ac66791f7e01817ba310a9d6598bb7e29af14db"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1986816-v1/campaign/summary.json",
+          "sha256": "c9604e6877da2a78f9c3665ab364c5e5ce3c9a3636c5095d9e4e475784458341"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1986816-v1/manifest.json",
+          "sha256": "2a5577c92d184825a2eda958c1a53b921e97344316f115d1796e8e0c95affe02"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1989978-seed-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "687a08f501ed3db2a5bb2098ca4588ca48f85dfd7f8aeb827c69d26cb9045f5d"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1989978-seed-v1/campaign/queue.json",
+          "sha256": "22cba20e3024620647ef99408f36537bd397c2e96828bce148770976e46831cd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1989978-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "27c9bbd1ecd79cd128b97102107a85d54e79024b5503ed3dbbcdcf8c4b9aea28"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1989978-v1/campaign/queue.json",
+          "sha256": "0553e9d515f97e88a89c35bda813b62ea3933abab164872514eb390c221d40dd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-firefox-1989978-v1/campaign/summary.json",
+          "sha256": "e2ca6ba51b930472f9ca73d6630e1c40cad791956b864109f91d0909f61a3cfd"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-openssl-GH-28221-seed-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "523de6aba2285e92ac2fc9cd55a24213775e2b7f681ab554cfbf91133cd2bc9c"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-openssl-GH-28221-seed-v1/campaign/queue.json",
+          "sha256": "d4c753002d50878b694dcd394e7c858f9e04e2164aaa20f48d8627bad11629ea"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-openssl-GH-28221-v1/campaign/candidate-manifest.jsonl",
+          "sha256": "113a0ce92c03c03ecb4a0b504861a727d4df39f808fb7d8b9f448979a7a327c2"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-openssl-GH-28221-v1/campaign/queue.json",
+          "sha256": "b53e63de74aeb2ec12e17f8e0ef2010789dac4c91e96b5bb1722d88731a65331"
+        },
+        {
+          "path": "/research-data/secprbench/season100-afterstage-20261001/repair-openssl-GH-28221-v1/campaign/summary.json",
+          "sha256": "8f6a225757f23dc9830ea43fdecf0b6c0b41af04a915830a4b83fba47e1ba0a9"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v1/reserve/registry.jsonl",
+          "sha256": "a6f8461baf43fdbb31deaf0e9ea7bd4460e53ea9bc5f066d942cee9ae3d08a39"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v1/selected.jsonl",
+          "sha256": "872888d8b7e3a3f46169f7e4c37e5c3ba449299fec7724f707f78fd7e57cb8c8"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v10/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v10/selected.jsonl",
+          "sha256": "5b5d3a09445936e125592d802180f8383e3adf7b8f935aad8499fe27c59675c8"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v11/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v11/selected.jsonl",
+          "sha256": "926689fa15df8c9d9035ad96494e374763348e5f05f7d6075f72d0ae1acf0665"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v12/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v12/selected.jsonl",
+          "sha256": "85b500393eaade5b6cedae0c4ebc2bcc3a0ae1fb2dc89a4764b0cc8639d960d6"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v13/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v13/selected.jsonl",
+          "sha256": "91b8b98c2d0070ac9d33f041f68161133f9cab0c1a5723f9f757e9f9acfd1015"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v14/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v14/selected.jsonl",
+          "sha256": "af52eeaab30030b1f349f4977e0cdf5319a35539e032583e0c66813879b215f0"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v15/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v15/selected.jsonl",
+          "sha256": "97729c01b1f5a0030fec486ef1ff31604a274425e3a42660dac47dff2289ae90"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v16/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v16/selected.jsonl",
+          "sha256": "77fa72054547eceae1d91ddc936dd5c4e4c311b3945b7f35312d943ea1022864"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v17/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v17/selected.jsonl",
+          "sha256": "9d3989afb20f057e5934f41ac2cec71630c534809cb6b746d6929658e4491817"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v18/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v18/selected.jsonl",
+          "sha256": "abb6dce02fd212c6a8de199679279eaf84f7e588ef084106fa98b704c2b1c519"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v19/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v19/selected.jsonl",
+          "sha256": "82dae5b63afc4678c6314fc72d670cd968a35e9aba3c31254b06bdf1a779d8b7"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v2/reserve/registry.jsonl",
+          "sha256": "0af3f671c46355b6ee6c12dec4528315a6f5f1fbacb0765d9886551e0f7571b0"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v2/selected.jsonl",
+          "sha256": "d2dd8e1b4bcb6b96c1ba9e89b4316ea3414824569b7035e83de2e6354144e095"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v20/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v20/selected.jsonl",
+          "sha256": "64bd4bf9579da632d507cd363d9eedb7ee81eadb3dffef8ae0c54c5ef6a93891"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v21/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v21/selected.jsonl",
+          "sha256": "dd717ab4d588beb985e3807e352ecec40c0a42732505ec571359caa63577a87b"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v22/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v22/selected.jsonl",
+          "sha256": "2854a427b5a3d19f3195f2ca68458bd9344ad9b2ec66d418d904e6791cf9b277"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v23/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v23/selected.jsonl",
+          "sha256": "24f7257b8ecdb174bcecdb46edc85e1ec7461b1ce72ef9cfa290ab5f0142c5a5"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v3/reserve/registry.jsonl",
+          "sha256": "0af3f671c46355b6ee6c12dec4528315a6f5f1fbacb0765d9886551e0f7571b0"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v3/selected.jsonl",
+          "sha256": "d2dd8e1b4bcb6b96c1ba9e89b4316ea3414824569b7035e83de2e6354144e095"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v4/reserve/registry.jsonl",
+          "sha256": "0af3f671c46355b6ee6c12dec4528315a6f5f1fbacb0765d9886551e0f7571b0"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v4/selected.jsonl",
+          "sha256": "d2dd8e1b4bcb6b96c1ba9e89b4316ea3414824569b7035e83de2e6354144e095"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v5/reserve/registry.jsonl",
+          "sha256": "0af3f671c46355b6ee6c12dec4528315a6f5f1fbacb0765d9886551e0f7571b0"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v5/selected.jsonl",
+          "sha256": "d2dd8e1b4bcb6b96c1ba9e89b4316ea3414824569b7035e83de2e6354144e095"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v6/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v6/selected.jsonl",
+          "sha256": "ba92ba17e4ce4483fbe946a6babbfe9d78b3bc71b95d3744b30d0586b9cd12fe"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v7/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v7/selected.jsonl",
+          "sha256": "ba92ba17e4ce4483fbe946a6babbfe9d78b3bc71b95d3744b30d0586b9cd12fe"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v8/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v8/selected.jsonl",
+          "sha256": "a0e0bce4e00119fbdcd743c9ad25a3ba4141f72be22d0fe60bc0b4b21ca100ba"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v9/reserve/registry.jsonl",
+          "sha256": "b6ab117356b72b7fb029d6858dc9de48dccd0a24e4b0679d71406224bfe36890"
+        },
+        {
+          "path": "/research-data/secprbench/season100-balanced-final-20261001-v9/selected.jsonl",
+          "sha256": "e1955aaf3fdd36efec8b0d90459fbc237c914bd234677380beff924369a55dcd"
+        }
+      ],
+      "input_count": 168,
+      "source_records_read": 1784,
+      "identity_rows_read": 20095,
+      "hits": []
+    }
+  }
+}

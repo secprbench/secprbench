@@ -1,0 +1,19 @@
+{
+  "status": "inconclusive",
+  "outcome": {
+    "task_id": "pr_review_439986081",
+    "status": "inconclusive",
+    "via": "agent",
+    "intro_verified": "unknown",
+    "benign_verified": "unknown",
+    "bug_class": "memory-safety",
+    "report": "/research-data/secprbench/season100-balanced-20261001/repair-v8-h2-hydrated-v1/verification/cases/v8/71a49e8dbbc159841f3e/attempts/01/replay/pr_review_439986081.report.md",
+    "agent_verdict": "/research-data/secprbench/season100-balanced-20261001/repair-v8-h2-hydrated-v1/verification/cases/v8/71a49e8dbbc159841f3e/attempts/01/replay/pr_review_439986081.agent_verdict.json"
+  },
+  "agent_used": true,
+  "case_record": "/research-data/secprbench/season100-balanced-20261001/repair-v8-h2-hydrated-v1/verification/verification/projects/v8/cases/439986081/case.json",
+  "recipe_sha256": "4523edbd949b1fdc04b4",
+  "cache_root": "/research-data/secprbench/season100-balanced-20261001/repair-v8-h2-hydrated-v1/verification/cache/v8/4523edbd949b1fdc04b4/worktrees",
+  "cache_lane": 0,
+  "final_poc_sha256": "56f9a488a7558b0938c83d8f8d842befe3654a5c5fed0cd0e631f982922267fa"
+}

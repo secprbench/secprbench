@@ -1,0 +1,94 @@
+{
+  "summary": {
+    "task_id": "pr_review_2018075",
+    "bug_id": "2018075",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "398a31295dffbb51630b93f70e196e94f2728daa",
+    "intro_parent": "145adb078d7bfd8e570d086b0e9190eaf8f2f42d",
+    "fix_commit": "e055cf04d23f6a08845e2532a27bbaaa47881676",
+    "affected_files": [
+      "js/src/vm/JSScript.cpp",
+      "js/src/vm/JSScript.h"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "poc-watch",
+    "poc_dir": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01/pocs/firefox/2018075",
+    "input_file": "/research-data/secprbench/season100-20261004-collected133-pipeline-v1/verification/cases/firefox/20d772f6768a99d535dc/attempts/01/pocs/firefox/2018075/inline_226949d71845.js",
+    "input_name": "inline_226949d71845.js",
+    "size": 116,
+    "has_run_sh": false,
+    "note": ""
+  },
+  "runs": {
+    "pre_intro": {
+      "version": "pre_intro",
+      "base_commit": "145adb078d7bfd8e570d086b0e9190eaf8f2f42d",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "4e6b1028365fc6e210798a360a6722ea5d07de0adb792e2b094129f3356edf08"
+      }
+    },
+    "post_intro": {
+      "version": "post_intro",
+      "base_commit": "398a31295dffbb51630b93f70e196e94f2728daa",
+      "patched": false,
+      "patch_method": "",
+      "patch_clean": null,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 134,
+      "crashed": true,
+      "sanitizer_report": "/js +0x2e8e096]\n#41: ???[/lib/x86_64-linux-gnu/libc.so.6 +0x29d90]\n#42: __libc_start_main[/lib/x86_64-linux-gnu/libc.so.6 +0x29e40]\n#43: ???[./obj-verify-js/dist/bin/js +0x2d8fe69]\n#44: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x56170e35e19d bp 0x7ffc5f744930 sp 0x7ffc5f744910 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x56170e35e19d in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3\n    #1 0x56170e35e19d in js::gc::AllocSpace<js::gc::SmallBufferRegion, 16384ul, 16ul>::isNurseryOwned(void const*) const /work/js/src/gc/BufferAllocatorInternals.h:259:5\n    #2 0x56170e323883 in js::gc::BufferAllocator::traceEdge(JSTracer*, js::gc::Cell*, void**, char const*) /work/js/src/gc/BufferAllocator.cpp:971:17\n    #3 0x56170fe04a40 in js::gc::TraceBufferEdgeInternal(JSTracer*, JS::Zone*, js::gc::Cell*, void**, char const*) /work/js/src/gc/BufferAllocator-inl.h:136:25\n    #4 0x56170fe04a40 in void js::TraceBufferRoot<js::PrivateScriptData>(JSTracer*, JS::Zone*, js::PrivateScriptData**, char const*) /work/js/src/gc/Tracer.h:237:3\n    #5 0x56170fe04a40 in js::BufferHolder<js::PrivateScriptData>::trace(JSTracer*) /work/js/src/gc/Tracer.h:243:5\n    #6 0x56170fe04a40 in JS::StructGCPolicy<js::BufferHolder<js::PrivateScriptData> >::trace(JSTracer*, js::BufferHolder<js::PrivateScriptData>*, char const*) /work/obj-verify-js/dist/include/js/GCPolicyAPI.h:110:67\n    #7 0x56170e4e8cda in TraceExactStackRootTraceableList(JSTracer*, js::StackRootedBase*, char const*) /work/js/src/gc/RootMarking.cpp:60:51\n    #8 0x56170e4e8cda in TraceStackRoots(JSTracer*, mozilla::EnumeratedArray<JS::RootKind, js::StackRootedBase*, 15ul>&) /work/js/src/gc/RootMarking.cpp:78:3\n    #9 0x56170e4e8cda in JS::RootingContext::traceStackRoots(JSTracer*) /work/js/src/gc/RootMarking.cpp:83:3\n    #10 0x56170e4edc24 in TraceExactStackRoots(JSContext*, JSTracer*) /work/js/src/gc/RootMarking.cpp:87:7\n    #11 0x56170e4edc24 in js::gc::GCRuntime::traceRuntimeCommon(JSTracer*, js::gc::GCRuntime::TraceOrMarkRuntime) /work/js/src/gc/RootMarking.cpp:310:5\n    #12 0x56170e4ed968 in js::gc::GCRuntime::traceRuntimeForMajorGC(JSTracer*, js::gc::AutoGCSession&) /work/js/src/gc/RootMarking.cpp:243:3\n    #13 0x56170e3b9e99 in js::gc::GCRuntime::beginMarkPhase(js::gc::AutoGCSession&) /work/js/src/gc/GC.cpp:3249:5\n    #14 0x56170e3c72a7 in js::gc::GCRuntime::incrementalSlice(JS::SliceBudget&, JS::GCReason, bool) /work/js/src/gc/GC.cpp:4261:7\n    #15 0x56170e3cf79c in js::gc::GCRuntime::gcCycle(bool, JS::SliceBudget const&, JS::GCReason) /work/js/src/gc/GC.cpp:4898:3\n    #16 0x56170e3d2867 in js::gc::GCRuntime::collect(bool, JS::SliceBudget const&, JS::GCReason) /work/js/src/gc/GC.cpp:5087:9\n    #17 0x56170e3d9775 in js::gc::GCRuntime::runDebugGC() /work/js/src/gc/GC.cpp:5619:5\n    #18 0x56170e357129 in js::gc::PreAllocGCChecks(JSContext*) /work/js/src/gc/Allocator-inl.h:180:9\n    #19 0x56170e357129 in void* js::gc::CellAllocator::AllocTenuredCell<(js::AllowGC)1>(JSContext*, js::gc::AllocKind) /work/js/src/gc/Allocator.cpp:170:5\n    #20 0x56170f8fa701 in js::SharedShape* js::gc::CellAllocator::NewTenuredCell<js::SharedShape, (js::AllowGC)1, JS::Handle<js::BaseShape*>&, js::EnumFlags<js::ObjectFlag>&, unsigned int&, JS::Handle<js::SharedPropMap*>&, unsigned int&>(J",
+      "build_log_tail": "",
+      "run_log_tail": "46 0x56170f6b4046 in js::Execute(JSContext*, JS::Handle<JSScript*>, JS::Handle<JSObject*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.cpp:880:10\n    #47 0x56170fbbf854 in ExecuteScript(JSContext*, JS::Handle<JSObject*>, JS::Handle<JSScript*>, JS::MutableHandle<JS::Value>) /work/js/src/vm/CompilationAndEvaluation.cpp:548:10\n    #48 0x56170fbbfba2 in JS_ExecuteScript(JSContext*, JS::Handle<JSScript*>) /work/js/src/vm/CompilationAndEvaluation.cpp:572:10\n    #49 0x56170d74e24f in RunFile(JSContext*, char const*, _IO_FILE*, CompileUtf8, bool, bool) /work/js/src/shell/js.cpp:1388:10\n    #50 0x56170d74cf8e in Process(JSContext*, char const*, bool, FileKind) /work/js/src/shell/js.cpp\n    #51 0x56170d6dbffa in ProcessArgs(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12094:10\n    #52 0x56170d6dbffa in Shell(JSContext*, js::cli::OptionParser*) /work/js/src/shell/js.cpp:12347:12\n    #53 0x56170d6cc095 in main /work/js/src/shell/js.cpp:12753:12\n    #54 0x7fd9064e3d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #55 0x7fd9064e3e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #56 0x56170d5cde68 in _start (/work/obj-verify-js/dist/bin/js+0x2d8fe68) (BuildId: e1bd74ba5023c320cb804e82b6ebdf63)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x00007bd8fc90c000  rcx = 0x0000000000000103  rdx = 0x0000000000000000  \nrdi = 0x000056171176fe40  rsi = 0x00007ffc5f7448c8  rbp = 0x00007ffc5f744930  rsp = 0x00007ffc5f744910  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00000000000001f5  r13 = 0x00007bd8fc90df50  r14 = 0x00007bd8fc90df50  r15 = 0x00000ac2e2417218  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c './obj-verify-js/dist/bin/js \"$INPUT\"'\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "8e14ffa76a54e221707e081a912c31a1ea73dfdbb968afb89b4480539a316fc6"
+      }
+    },
+    "post_benign": {
+      "version": "post_benign",
+      "base_commit": "145adb078d7bfd8e570d086b0e9190eaf8f2f42d",
+      "patched": true,
+      "patch_method": "plain",
+      "patch_clean": true,
+      "build_ok": true,
+      "poc_ran": true,
+      "exit_code": 0,
+      "crashed": false,
+      "sanitizer_report": "",
+      "build_log_tail": "",
+      "run_log_tail": "VERIFY_EXIT=0\n\n",
+      "note": "",
+      "source_integrity": {
+        "ok": true,
+        "stage": "after_poc",
+        "fingerprint": "22c3b1a37d3f06f200d39daeee47e7f5021a4cf379a4b85dc4ca5dce432069d0"
+      }
+    }
+  }
+}

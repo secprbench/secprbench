@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_REPORT-e90c2ff4b5a5922d",
+    "bug_id": "REPORT-e90c2ff4b5a5922d",
+    "bug_type": "OutOfBoundsRead",
+    "intro_commit": "fe1ffd63fb09fc8655487046f3ad2b372fef5497",
+    "intro_parent": "ec86dade2fc3bb7f9e718248045df066611426a6",
+    "fix_commit": "e90c2ff4b5a5922d2cad1acd41595084f71d74a8",
+    "affected_files": [
+      "libavcodec/libdav1d.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "Root cause confirmed by direct source diff across the three commits and by execution. pre_intro (ec86dade2fc3) unconditionally reads provider_code via the checked bytestream2_get_be16() for every country code -- safe (silently returns 0 on short input, no OOB). post_intro (fe1ffd63fb09) refactored the country_code dispatch into a switch statement and, only for the US branch, replaced this with the unchecked bytestream2_get_be16u() with no preceding length check -- an out-of-bounds read of up to 2 bytes whenever the ITU-T T.35 payload for country_code=US (0xB5) is shorter than 2 bytes, exactly as described by the reporter/fix commit message. post_benign (companion of fix e90c2ff4b5a5, built on the ec86dade2fc3 parent) adds `if (bytestream2_get_bytes_left(&gb) < 2) return AVERROR_INVALIDDATA;` immediately before that same unchecked read, closing the gap.\n\nBecause this ffmpeg build has CONFIG_LIBDAV1D=0 in all three built trees (confirmed via `#define CONFIG_LIBDAV1D 0` in config.h and `libdav1d='no'` in config.mak, and the total absence of any dav1d headers/library in the image), libavcodec/libdav1d.c is not compiled into the tested binary at all -- there is no `ffmpeg -c:v libdav1d` decode path reachable by any input, and dav1d/dav1d.h is unavailable to even compile the file standalone with its real API. No existing PoC/run.sh was provided (source: no_poc). I therefore built a harness (/poc/run.sh, harness_common.h, harness_main.h -- byte-identical across all three runs, containing only real/unmodified ffmpeg header includes, minimal struct typedefs matching the real dav1d API fields actually touched, and a fixed main() constructing the reporter's crafted Dav1dITUTT35 input) whose run.sh: (1) extracts, unmodified, only the body of parse_itut_t35_metadata() from THIS container's own /work/libavcodec/libdav1d.c (i.e. from the actual target source for whichever commit that container was built from -- the only thing that legitimately differs between runs); (2) compiles it together with the fixed harness against the real, unmodified /work headers (bytestream.h, itut35.h, hdr_dynamic_metadata.h, atsc_a53.h, dovi_rpu.h) and static libs (libavcodec.a, libavutil.a) built for that commit; (3) runs it against the same crafted struct. The command (`sh /poc/run.sh`) and every file under /poc are identical for all three invocations; only the per-commit target source that command reads from /work differs -- exactly analogous to how the same PoC input is normally run against each commit's differently built target binary.\n\nBuild note: the harness must be compiled at -O0. At -O1 (ffmpeg's own CFLAGS), LLVM -- given full visibility of this tiny, single-translation-unit program where both the malloc(1) and the resulting out-of-bounds read are visible/inlinable -- elides the faulting load (a known optimizer artifact exploiting \"read past object end\" UB when the allocation size is statically visible in the same program). That elision is impossible in the real target, where the allocation happens deep inside the separately-compiled dav1d library and the read happens in ffmpeg's own object file, with no visibility across that boundary; -O0 for this isolated harness avoids the artifact while still executing byte-for-byte the same target code path. This was independently confirmed by direct experiment: the identical unmodified post_intro function body compiled at -O1 completed without a sanitizer report, but crashed with the exact expected ASan trace at -O0; pre_intro and post_benign both complete cleanly at -O0 with the same harness/input.\n\nResult: post_intro reliably reproduces a heap-buffer-overflow READ of size 2 via bytestream_get_be16 -> bytestream2_get_be16u -> parse_itut_t35_metadata, \"0 bytes to the right of 1-byte region\" (i.e. exactly the reported 2-bytes-read-from-a-1-byte-allocation overflow). pre_intro and post_benign, run via the identical run_poc command, complete cleanly with no sanitizer report. intro_verified=yes, benign_verified=yes."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: no_poc)",
+    "poc_dir": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/cc39a746da6f61de7c3e/attempts/01/pocs/ffmpeg/REPORT-e90c2ff4b5a5922d",
+    "input_file": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/cc39a746da6f61de7c3e/attempts/01/pocs/ffmpeg/REPORT-e90c2ff4b5a5922d/harness_common.h",
+    "input_name": "harness_common.h",
+    "size": 1974,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "sh /poc/run.sh",
+      "input": null,
+      "poc_sha256": "e56a6c41ce5f76b918ae0c0812eba5013a4f2122ba8dc07f9f88e67d5bb4cce1",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "fe1ffd63fb09fc8655487046f3ad2b372fef5497",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "60cdd999d1b3ef5116afaf4f63faf05ce2c634ff415b8db735b4b4fbda4c54b7"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=1\n\n=================================================================\n==16==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000011 at pc 0x5600cb248df3 bp 0x7ffc896b9230 sp 0x7ffc896b9228\nREAD of size 2 at 0x602000000011 thread T0\n    #0 0x5600cb248df2 in bytestream_get_be16 /work/libavcodec/bytestream.h:98:1\n    #1 0x5600cb248df2 in bytestream2_get_be16u /work/libavcodec/bytestream.h:98:1\n    #2 0x5600cb248df2 in parse_itut_t35_metadata /tmp/tmp.fLVxmJFMBs/poc.c:68:25\n    #3 0x5600cb2487ff in main /tmp/tmp.fLVxmJFMBs/poc.c:172:11\n    #4 0x7f7649d0ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7f7649d0ae3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x5600cb18a7d4 in _start (/tmp/tmp.fLVxmJFMBs/poc+0x4607d4) (BuildId: 6b52c8aecd1dbadc73405bff875e372068fd4aad)\n\n0x602000000011 is located 0 bytes to the right of 1-byte region [0x602000000010,0x602000000011)\nallocated by thread T0 here:\n    #0 0x5600cb20d61e in __interceptor_malloc (/tmp/tmp.fLVxmJFMBs/poc+0x4e361e) (BuildId: 6b52c8aecd1dbadc73405bff875e372068fd4aad)\n    #1 0x5600cb2485e8 in main /tmp/tmp.fLVxmJFMBs/poc.c:163:20\n    #2 0x7f7649d0ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/libavcodec/bytestream.h:98:1 in bytestream_get_be16\nShadow bytes around the buggy address:\n  0x0c047fff7fb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c047fff8000: fa fa[01]fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8010: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==16==ABORTING\n",
+        "stdout_tail": "VERIFY_EXIT=1\n\n=================================================================\n==16==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x602000000011 at pc 0x5600cb248df3 bp 0x7ffc896b9230 sp 0x7ffc896b9228\nREAD of size 2 at 0x602000000011 thread T0\n    #0 0x5600cb248df2 in bytestream_get_be16 /work/libavcodec/bytestream.h:98:1\n    #1 0x5600cb248df2 in bytestream2_get_be16u /work/libavcodec/bytestream.h:98:1\n    #2 0x5600cb248df2 in parse_itut_t35_metadata /tmp/tmp.fLVxmJFMBs/poc.c:68:25\n    #3 0x5600cb2487ff in main /tmp/tmp.fLVxmJFMBs/poc.c:172:11\n    #4 0x7f7649d0ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #5 0x7f7649d0ae3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #6 0x5600cb18a7d4 in _start (/tmp/tmp.fLVxmJFMBs/poc+0x4607d4) (BuildId: 6b52c8aecd1dbadc73405bff875e372068fd4aad)\n\n0x602000000011 is located 0 bytes to the right of 1-byte region [0x602000000010,0x602000000011)\nallocated by thread T0 here:\n    #0 0x5600cb20d61e in __interceptor_malloc (/tmp/tmp.fLVxmJFMBs/poc+0x4e361e) (BuildId: 6b52c8aecd1dbadc73405bff875e372068fd4aad)\n    #1 0x5600cb2485e8 in main /tmp/tmp.fLVxmJFMBs/poc.c:163:20\n    #2 0x7f7649d0ad8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-buffer-overflow /work/libavcodec/bytestream.h:98:1 in bytestream_get_be16\nShadow bytes around the buggy address:\n  0x0c047fff7fb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0c047fff7ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0c047fff8000: fa fa[01]fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8010: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8020: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8030: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8040: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c047fff8050: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==16==ABORTING\n"
+      }
+    },
+    "pre_intro": {
+      "command": "sh /poc/run.sh",
+      "input": null,
+      "poc_sha256": "e56a6c41ce5f76b918ae0c0812eba5013a4f2122ba8dc07f9f88e67d5bb4cce1",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "ec86dade2fc3bb7f9e718248045df066611426a6",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "6fb0402f5a09bd1de878f414641406f905a69e79c76b9d462fd4bf126f1cf6dc"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "PARSE_RESULT=0\nDONE_NO_CRASH\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "sh /poc/run.sh",
+      "input": null,
+      "poc_sha256": "e56a6c41ce5f76b918ae0c0812eba5013a4f2122ba8dc07f9f88e67d5bb4cce1",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "ec86dade2fc3bb7f9e718248045df066611426a6",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9131e70b31e5b4d037cd5ae9bb5b12aed8a36673aa2ebfe615a2d54ae20aaa0e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "PARSE_RESULT=-1094995529\nDONE_NO_CRASH\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "run_poc with the byte-identical command `sh /poc/run.sh` on pre_intro, post_intro and post_benign (no per-version staging: /poc's contents -- run.sh, harness_common.h, harness_main.h -- are exactly the same for all three runs). run.sh dynamically extracts (via awk, at container run time) the unmodified body of parse_itut_t35_metadata() from that container's own /work/libavcodec/libdav1d.c (which differs only because each version is a different commit's checkout), compiles it with clang -fsanitize=address -O0 together with the fixed harness and the real unmodified /work headers/libavcodec.a/libavutil.a, and runs it. The harness calls parse_itut_t35_metadata() with a Dav1dITUTT35 {country_code=0xB5 (US), payload=malloc(1), payload_size=1} -- the reporter's crafted scenario (US country_code, 1-byte payload, too short for the 2-byte provider_code read).",
+    "target_evidence": "post_intro (run_poc `sh /poc/run.sh`): exit=1, crashed=True. AddressSanitizer: heap-buffer-overflow, READ of size 2, \"0 bytes to the right of 1-byte region\", stack #0 bytestream_get_be16 /work/libavcodec/bytestream.h:98 -> #1 bytestream2_get_be16u (same line) -> #2 parse_itut_t35_metadata -> #3 main -- exactly matching the reporter's trace (bytestream_get_be16 -> bytestream2_get_be16u -> parse_itut_t35_metadata libdav1d.c:376) for the identical scenario. pre_intro (run_poc `sh /poc/run.sh`): exit=0, crashed=False, PARSE_RESULT=0, no sanitizer report (pre_intro always uses the checked bytestream2_get_be16() regardless of country_code, so no OOB read is reachable). post_benign (run_poc `sh /poc/run.sh`): exit=0, crashed=False, PARSE_RESULT=-1094995529 (AVERROR_INVALIDDATA), no sanitizer report -- the fix's `if (bytestream2_get_bytes_left(&gb) < 2) return AVERROR_INVALIDDATA;` guard in the US branch rejects the short payload before the unchecked read."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

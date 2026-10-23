@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-408304111",
+  "bug_id": "OSSFUZZ-408304111",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "095f8038fa9180842cd38d4d61c7c47a02aad9ed",
+  "intro_parent": "6b31e42c47c00817f6249f43391873a15b1c00a4",
+  "fix_commit": "23592f942db93776dab65a5e92400bb2f037390e",
+  "affected_files": [
+    "libswscale/output.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When the bilinear chroma interpolation code path was rewritten to use a true weighted average (`ubuf0[i]*uvalpha1 + ubuf1[i]*uvalpha`) instead of the previous simple sum/average (`ubuf0[i] + ubuf1[i]`), the resulting intermediate value's magnitude range increased, but the variable holding it was left declared as a plain signed `int` instead of the project's overflow-tolerant `SUINT` (unsigned int) type that other intermediate values (like Y) in the same function already use to safely allow wraparound instead of hitting signed-overflow UB.",
+  "findings": [
+    "In the uvalpha>0 (bilinear chroma interpolation) branch of yuv2rgba64_full_1_c_template(), the U and V chroma values are computed as a weighted sum of two 32-bit chroma samples multiplied by interpolation weights, then a bias is subtracted, and the result is shifted right: `int U = (ubuf0[i] * uvalpha1 + ubuf1[i] * uvalpha - (128 << 23)) >> 14;` (and analogous line for V). U and V are declared as "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "c8140ceb0be80d5f0617a6b40277ff92135ea6b025b9ba3247095ae53ef4ffdb",
+  "generated_artifact_sha256": {
+    "reference": "7abe1a7ac8e9331316f93a4b30fd009ebe358bd05a38e9fc9d01eaf92dd2cd1f",
+    "introducing": "cda7214f0762e1c7c92e49136016662944e2f3a85e6c41ded85548816cc61b79",
+    "companion": "13e1d90085b25e810cc1f1574e1f2503d78a5cff7eb8251ed6378c7767b41cb6"
+  }
+}

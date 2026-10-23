@@ -1,0 +1,79 @@
+{
+  "bug_id": "GH-14143",
+  "title": "Fix short read of hfe key that causes exit() on replica (#14143)",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "redis",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Public fixing commit: https://github.com/redis/redis/commit/03816c15f75962b8e4662cee22be6f7ba6d5d9dd\n\nFix short read of hfe key that causes exit() on replica (#14143)\n\nIf replica detects broken connection while reading min expiration time\nof hfe key, it calls exit().\nFixed it to handle the error gracefully without calling exit. \n\nTo reproduce the issue, the short-read test was modified to generate\nmany small hfe keys, increasing the likelihood of a connection drop\nwhile reading min expiration time:\n\n```tcl\nfor {set k 0} {$k < 50000} {incr k} {\n  for {set i 0} {$i < 1} {incr i} {\n    r hsetex \"$k hfe_small\" EX [expr {int(rand()*10)}] FIELDS 1 [string repeat A [expr {int(rand()*10)}]] 0[string repeat A [expr {int(rand()*10)}]]\n  }\n}\n```\n\nWe can't have the test use only hfe keys, so a few were added alongside\nother data. I couldn't reproduce the issue this way but with the test's\nrandomization, it should hit this scenario in one of the runs.\n\nLinked public report/discussion: https://github.com/redis/redis/pull/14143\nFix short read of hfe key that causes exit() on replica\nDuring fullsync, if replica detects broken connection while reading min expiration time of hfe key, it calls exit(). \r\nFixed it to handle the error gracefully without calling exit. \r\n\r\nTo reproduce the issue, the short-read test was modified to generate many small hfe keys, increasing the likelihood of a connection drop while reading min expiration time:\r\n\r\n```tcl\r\nfor {set k 0} {$k < 50000} {incr k} {\r\n  for {set i 0} {$i < 1} {incr i} {\r\n    r hsetex \"$k hfe_small\" EX [expr {int(rand()*10)}] FIELDS 1 [string repeat A [expr {int(rand()*10)}]] 0[string repeat A [expr {int(rand()*10)}]]\r\n  }\r\n}\r\n```\r\n\r\nWe can't have the test use only hfe keys, so a few were added alongside other data. I couldn't reproduce the issue this way but with the test's randomization, it should hit this scenario in one of the runs.\r\n\n\nPreliminary source observation: The upstream PR identifies two hash-field-expiration read errors that still called rdbReportCorruptRDB and exited after the generic RIO_ABORT repair. Its integration test adds HFE keys to a short-read scenario. Review network-peer control and avoid combining this later HFE defect with GH-14085.\nSecurity impact, real input reachability, earliest effective fix, and the introduction must be reviewed before task construction.",
+  "commit_ids": [
+    "03816c15f75962b8e4662cee22be6f7ba6d5d9dd"
+  ],
+  "fix_commit_sha": "03816c15f75962b8e4662cee22be6f7ba6d5d9dd",
+  "fix_date": "2025-06-23T07:41:30+03:00",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "season": "2025H1",
+  "affected_files": [
+    "src/rdb.c",
+    "tests/integration/replication.tcl"
+  ],
+  "changed_lines": 6,
+  "report_references": [
+    {
+      "id": "GH-14143",
+      "url": "https://github.com/redis/redis/pull/14143",
+      "kind": "public_fix_or_report",
+      "evidence": "Fix short read of hfe key that causes exit() on replica (#14143)"
+    }
+  ],
+  "aliases": [],
+  "candidate_status": "targeted_public_fix_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_replica_process_exit_after_hfe_short_read",
+    "preliminary_source_observation": "The upstream PR identifies two hash-field-expiration read errors that still called rdbReportCorruptRDB and exited after the generic RIO_ABORT repair. Its integration test adds HFE keys to a short-read scenario. Review network-peer control and avoid combining this later HFE defect with GH-14085.",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_security_linked_supplement_v1",
+    "source_url": "https://github.com/redis/redis/pull/14143",
+    "public_commit_url": "https://github.com/redis/redis/commit/03816c15f75962b8e4662cee22be6f7ba6d5d9dd",
+    "report_details": "fetched",
+    "raw_report": {
+      "url": "https://api.github.com/repos/redis/redis/pulls/14143",
+      "final_url": "https://api.github.com/repos/redis/redis/pulls/14143",
+      "path": "/research-data/secprbench/season100-20261001-v8-targeted/redis-replica-shortread-v1/raw/reports/redis-GH-14143.json",
+      "sha256": "4460522045b9786e02432d5ac451c1d235990f251846166a501118c0685dc804",
+      "content_type": "application/json; charset=utf-8"
+    },
+    "related_references_not_aliases": [
+      "GH-14085 is the earlier generic RIO_ABORT flag fix; test this HFE path against that fixed parent"
+    ],
+    "related_pull_not_case_alias": null,
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v8-targeted/redis-replica-shortread-v1/raw/git/03816c15f75962b8e4662cee22be6f7ba6d5d9dd.commit",
+      "sha256": "f31febf35a54df34e39adbd7ac50cb079209aa6838ccc51a7aff5a09faba1ea6"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v8-targeted/redis-replica-shortread-v1/raw/git/03816c15f75962b8e4662cee22be6f7ba6d5d9dd.patch",
+      "sha256": "4f1cde67fb3da3ae95ba8087d57da3e10792300b84205accf5b6b92a309f59a9"
+    },
+    "mainline_ref": "refs/remotes/origin/unstable",
+    "mainline_tip": "7662d3ff5dd5cacb9197f48b0e2de5ceadfa7b3a",
+    "fix_sha": "03816c15f75962b8e4662cee22be6f7ba6d5d9dd",
+    "preliminary_boundary": "interrupted master-to-replica RDB stream while loading hash-field-expiration metadata",
+    "fossil_origin": null,
+    "fossil_bridge": null,
+    "test_evidence": {
+      "repository_path": "tests/integration/replication.tcl",
+      "revision": "03816c15f75962b8e4662cee22be6f7ba6d5d9dd",
+      "path": "/research-data/secprbench/season100-20261001-v8-targeted/redis-replica-shortread-v1/raw/tests/03816c15f75962b8e4662cee22be6f7ba6d5d9dd-replication.tcl",
+      "sha256": "7017d5ce3de8529b6f6a0f7f901ff7436660b2733dade8891ac9ae506c3b04de",
+      "role": "upstream_regression_test_not_yet_replayed"
+    }
+  }
+}

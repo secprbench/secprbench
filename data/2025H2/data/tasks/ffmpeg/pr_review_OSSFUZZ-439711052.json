@@ -1,0 +1,97 @@
+{
+  "task_id": "pr_review_OSSFUZZ-439711052",
+  "bug_id": "OSSFUZZ-439711052",
+  "commit_sha": "efa9d3deca30b47616721f60d8e79b1ccdaaefbc",
+  "commit_message": "avcodec/hevc/sei: add support for 3D Reference Displays Information SEI\n\nSigned-off-by: James Almer <jamrial@gmail.com>\nSigned-off-by: Anton Khirnov <anton@khirnov.net>",
+  "commit_author": "James Almer",
+  "commit_date": "2024-06-06T23:04:14-03:00",
+  "pr_title": "avcodec/hevc/sei: add support for 3D Reference Displays Information SEI",
+  "pr_description": "Signed-off-by: James Almer <jamrial@gmail.com>\nSigned-off-by: Anton Khirnov <anton@khirnov.net>\n",
+  "files": [
+    {
+      "path": "libavcodec/hevc/sei.c",
+      "status": "modified",
+      "additions": 55,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/hevc/sei.c b/libavcodec/hevc/sei.c\nindex b55ba71a8d..e11a33773c 100644\n--- a/libavcodec/hevc/sei.c\n+++ b/libavcodec/hevc/sei.c\n@@ -148,10 +148,63 @@ static int decode_nal_sei_timecode(HEVCSEITimeCode *s, GetBitContext *gb)\n \n     s->present = 1;\n     return 0;\n }\n \n+static int decode_nal_sei_3d_reference_displays_info(HEVCSEITDRDI *s, GetBitContext *gb)\n+{\n+    s->prec_ref_display_width = get_ue_golomb(gb);\n+    if (s->prec_ref_display_width > 31)\n+        return AVERROR_INVALIDDATA;\n+    s->ref_viewing_distance_flag = get_bits1(gb);\n+    if (s->ref_viewing_distance_flag) {\n+        s->prec_ref_viewing_dist = get_ue_golomb(gb);\n+        if (s->prec_ref_viewing_dist > 31)\n+            return AVERROR_INVALIDDATA;\n+    }\n+    s->num_ref_displays = get_ue_golomb(gb);\n+    if (s->num_ref_displays > 31)\n+        return AVERROR_INVALIDDATA;\n+    s->num_ref_displays += 1;\n+\n+    for (int i = 0; i < s->num_ref_displays; i++) {\n+        int length;\n+        s->left_view_id[i] = get_ue_golomb(gb);\n+        s->right_view_id[i] = get_ue_golomb(gb);\n+        s->exponent_ref_display_width[i] = get_bits(gb, 6);\n+        if (s->exponent_ref_display_width[i] > 62)\n+            return AVERROR_INVALIDDATA;\n+        else if (!s->exponent_ref_display_width[i])\n+            length = FFMAX(0, (int)s->prec_ref_display_width - 30);\n+        else\n+            length = FFMAX(0, (int)s->exponent_ref_display_width[i] +\n+                              (int)s->prec_ref_display_width - 31);\n+        s->mantissa_ref_display_width[i] = get_bits_long(gb, length);\n+        if (s->ref_viewing_distance_flag) {\n+            s->exponent_ref_viewing_distance[i] = get_bits(gb, 6);\n+            if (s->exponent_ref_viewing_distance[i] > 62)\n+                return AVERROR_INVALIDDATA;\n+            else if (!s->exponent_ref_viewing_distance[i])\n+                length = FFMAX(0, (int)s->prec_ref_viewing_dist - 30);\n+            else\n+                length = FFMAX(0, (int)s->exponent_ref_viewing_distance[i] +\n+                                  (int)s->prec_ref_viewing_dist - 31);\n+            s->mantissa_ref_viewing_distance[i] = get_bits_long(gb, length);\n+        }\n+        s->additional_shift_present_flag[i] = get_bits1(gb);\n+        if (s->additional_shift_present_flag[i]) {\n+            s->num_sample_shift[i] = get_bits(gb, 10);\n+            if (s->num_sample_shift[i] > 1023)\n+                return AVERROR_INVALIDDATA;\n+            s->num_sample_shift[i] -= 512;\n+        }\n+    }\n+    s->three_dimensional_reference_displays_extension_flag = get_bits1(gb);\n+\n+    return 0;\n+}\n+\n static int decode_nal_sei_prefix(GetBitContext *gb, GetByteContext *gbyte,\n                                  void *logctx, HEVCSEI *s,\n                                  const HEVCParamSets *ps, int type)\n {\n     switch (type) {\n@@ -161,10 +214,12 @@ static int decode_nal_sei_prefix(GetBitContext *gb, GetByteContext *gbyte,\n         return decode_nal_sei_pic_timing(s, gb, ps, logctx);\n     case SEI_TYPE_ACTIVE_PARAMETER_SETS:\n         return decode_nal_sei_active_parameter_sets(s, gb, logctx);\n     case SEI_TYPE_TIME_CODE:\n         return decode_nal_sei_timecode(&s->timecode, gb);\n+    case SEI_TYPE_THREE_DIMENSIONAL_REFERENCE_DISPLAYS_INFO:\n+        return decode_nal_sei_3d_reference_displays_info(&s->tdrdi, gb);\n     default: {\n         int ret = ff_h2645_sei_message_decode(&s->common, type, AV_CODEC_ID_HEVC,\n                                               gb, gbyte, logctx);\n         if (ret == FF_H2645_SEI_MESSAGE_UNHANDLED)\n             av_log(logctx, AV_LOG_DEBUG, \"Skipped PREFIX SEI %d\\n\", type);\n"
+    },
+    {
+      "path": "libavcodec/hevc/sei.h",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 0,
+      "diff": "diff --git a/libavcodec/hevc/sei.h b/libavcodec/hevc/sei.h\nindex c97d22d423..a9d6a52080 100644\n--- a/libavcodec/hevc/sei.h\n+++ b/libavcodec/hevc/sei.h\n@@ -77,16 +77,33 @@ typedef struct HEVCSEITimeCode {\n     uint8_t  hours_flag[3];\n     uint8_t  time_offset_length[3];\n     int32_t  time_offset_value[3];\n } HEVCSEITimeCode;\n \n+typedef struct HEVCSEITDRDI {\n+    uint8_t prec_ref_display_width;\n+    uint8_t ref_viewing_distance_flag;\n+    uint8_t prec_ref_viewing_dist;\n+    uint8_t num_ref_displays;\n+    uint16_t left_view_id[31];\n+    uint16_t right_view_id[31];\n+    uint8_t exponent_ref_display_width[31];\n+    uint8_t mantissa_ref_display_width[31];\n+    uint8_t exponent_ref_viewing_distance[31];\n+    uint8_t mantissa_ref_viewing_distance[31];\n+    uint8_t additional_shift_present_flag[31];\n+    int16_t num_sample_shift[31];\n+    uint8_t three_dimensional_reference_displays_extension_flag;\n+} HEVCSEITDRDI;\n+\n typedef struct HEVCSEI {\n     H2645SEI common;\n     HEVCSEIPictureHash picture_hash;\n     HEVCSEIPictureTiming picture_timing;\n     int active_seq_parameter_set_id;\n     HEVCSEITimeCode timecode;\n+    HEVCSEITDRDI tdrdi;\n } HEVCSEI;\n \n struct HEVCParamSets;\n \n int ff_hevc_decode_nal_sei(GetBitContext *gb, void *logctx, HEVCSEI *s,\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/hevc/sei.c b/libavcodec/hevc/sei.c\nindex b55ba71a8d..e11a33773c 100644\n--- a/libavcodec/hevc/sei.c\n+++ b/libavcodec/hevc/sei.c\n@@ -148,10 +148,63 @@ static int decode_nal_sei_timecode(HEVCSEITimeCode *s, GetBitContext *gb)\n \n     s->present = 1;\n     return 0;\n }\n \n+static int decode_nal_sei_3d_reference_displays_info(HEVCSEITDRDI *s, GetBitContext *gb)\n+{\n+    s->prec_ref_display_width = get_ue_golomb(gb);\n+    if (s->prec_ref_display_width > 31)\n+        return AVERROR_INVALIDDATA;\n+    s->ref_viewing_distance_flag = get_bits1(gb);\n+    if (s->ref_viewing_distance_flag) {\n+        s->prec_ref_viewing_dist = get_ue_golomb(gb);\n+        if (s->prec_ref_viewing_dist > 31)\n+            return AVERROR_INVALIDDATA;\n+    }\n+    s->num_ref_displays = get_ue_golomb(gb);\n+    if (s->num_ref_displays > 31)\n+        return AVERROR_INVALIDDATA;\n+    s->num_ref_displays += 1;\n+\n+    for (int i = 0; i < s->num_ref_displays; i++) {\n+        int length;\n+        s->left_view_id[i] = get_ue_golomb(gb);\n+        s->right_view_id[i] = get_ue_golomb(gb);\n+        s->exponent_ref_display_width[i] = get_bits(gb, 6);\n+        if (s->exponent_ref_display_width[i] > 62)\n+            return AVERROR_INVALIDDATA;\n+        else if (!s->exponent_ref_display_width[i])\n+            length = FFMAX(0, (int)s->prec_ref_display_width - 30);\n+        else\n+            length = FFMAX(0, (int)s->exponent_ref_display_width[i] +\n+                              (int)s->prec_ref_display_width - 31);\n+        s->mantissa_ref_display_width[i] = get_bits_long(gb, length);\n+        if (s->ref_viewing_distance_flag) {\n+            s->exponent_ref_viewing_distance[i] = get_bits(gb, 6);\n+            if (s->exponent_ref_viewing_distance[i] > 62)\n+                return AVERROR_INVALIDDATA;\n+            else if (!s->exponent_ref_viewing_distance[i])\n+                length = FFMAX(0, (int)s->prec_ref_viewing_dist - 30);\n+            else\n+                length = FFMAX(0, (int)s->exponent_ref_viewing_distance[i] +\n+                                  (int)s->prec_ref_viewing_dist - 31);\n+            s->mantissa_ref_viewing_distance[i] = get_bits_long(gb, length);\n+        }\n+        s->additional_shift_present_flag[i] = get_bits1(gb);\n+        if (s->additional_shift_present_flag[i]) {\n+            s->num_sample_shift[i] = get_bits(gb, 10);\n+            if (s->num_sample_shift[i] > 1023)\n+                return AVERROR_INVALIDDATA;\n+            s->num_sample_shift[i] -= 512;\n+        }\n+    }\n+    s->three_dimensional_reference_displays_extension_flag = get_bits1(gb);\n+\n+    return 0;\n+}\n+\n static int decode_nal_sei_prefix(GetBitContext *gb, GetByteContext *gbyte,\n                                  void *logctx, HEVCSEI *s,\n                                  const HEVCParamSets *ps, int type)\n {\n     switch (type) {\n@@ -161,10 +214,12 @@ static int decode_nal_sei_prefix(GetBitContext *gb, GetByteContext *gbyte,\n         return decode_nal_sei_pic_timing(s, gb, ps, logctx);\n     case SEI_TYPE_ACTIVE_PARAMETER_SETS:\n         return decode_nal_sei_active_parameter_sets(s, gb, logctx);\n     case SEI_TYPE_TIME_CODE:\n         return decode_nal_sei_timecode(&s->timecode, gb);\n+    case SEI_TYPE_THREE_DIMENSIONAL_REFERENCE_DISPLAYS_INFO:\n+        return decode_nal_sei_3d_reference_displays_info(&s->tdrdi, gb);\n     default: {\n         int ret = ff_h2645_sei_message_decode(&s->common, type, AV_CODEC_ID_HEVC,\n                                               gb, gbyte, logctx);\n         if (ret == FF_H2645_SEI_MESSAGE_UNHANDLED)\n             av_log(logctx, AV_LOG_DEBUG, \"Skipped PREFIX SEI %d\\n\", type);\ndiff --git a/libavcodec/hevc/sei.h b/libavcodec/hevc/sei.h\nindex c97d22d423..a9d6a52080 100644\n--- a/libavcodec/hevc/sei.h\n+++ b/libavcodec/hevc/sei.h\n@@ -77,16 +77,33 @@ typedef struct HEVCSEITimeCode {\n     uint8_t  hours_flag[3];\n     uint8_t  time_offset_length[3];\n     int32_t  time_offset_value[3];\n } HEVCSEITimeCode;\n \n+typedef struct HEVCSEITDRDI {\n+    uint8_t prec_ref_display_width;\n+    uint8_t ref_viewing_distance_flag;\n+    uint8_t prec_ref_viewing_dist;\n+    uint8_t num_ref_displays;\n+    uint16_t left_view_id[31];\n+    uint16_t right_view_id[31];\n+    uint8_t exponent_ref_display_width[31];\n+    uint8_t mantissa_ref_display_width[31];\n+    uint8_t exponent_ref_viewing_distance[31];\n+    uint8_t mantissa_ref_viewing_distance[31];\n+    uint8_t additional_shift_present_flag[31];\n+    int16_t num_sample_shift[31];\n+    uint8_t three_dimensional_reference_displays_extension_flag;\n+} HEVCSEITDRDI;\n+\n typedef struct HEVCSEI {\n     H2645SEI common;\n     HEVCSEIPictureHash picture_hash;\n     HEVCSEIPictureTiming picture_timing;\n     int active_seq_parameter_set_id;\n     HEVCSEITimeCode timecode;\n+    HEVCSEITDRDI tdrdi;\n } HEVCSEI;\n \n struct HEVCParamSets;\n \n int ff_hevc_decode_nal_sei(GetBitContext *gb, void *logctx, HEVCSEI *s,\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-439711052",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "d448d6d1a0a4cdc76499c137742fdd8b30b9e7de",
+      "short_sha": "d448d6d",
+      "message": "avcodec/hevc/sei: prevent storing a potentially bogus num_ref_displays value in HEVCSEITDRDI",
+      "author": "James Almer",
+      "date": "2025-10-09T00:31:10-03:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-integeroverflow-01",
+        "title": "Truncation of num_ref_displays before range check leads to out-of-bounds array access",
+        "message": "In decode_nal_sei_3d_reference_displays_info(), the raw Exp-Golomb decoded value returned by get_ue_golomb(gb) (an unsigned int, which can be arbitrarily large, e.g. up to 2^32-1) is stored directly into s->num_ref_displays, a field declared as uint8_t in HEVCSEITDRDI. This assignment silently truncates the value modulo 256 BEFORE the bounds check 'if (s->num_ref_displays > 31)' is performed. As a result, an attacker-controlled bitstream value such as 287 (0x11F) truncates to 31 (0x1F), which passes the '> 31' check, and after the subsequent '+= 1' becomes 32. Because all of the per-display fixed-size arrays in HEVCSEITDRDI (left_view_id[31], right_view_id[31], exponent_ref_display_width[31], mantissa_ref_display_width[31], exponent_ref_viewing_distance[31], mantissa_ref_viewing_distance[31], additional_shift_present_flag[31], num_sample_shift[31]) are sized for at most 31 entries, the subsequent loop 'for (int i = 0; i < s->num_ref_displays; i++)' can write/read one or more elements past the end of these arrays, causing an out-of-bounds access (stack/heap buffer overflow) that was found by OSS-Fuzz.",
+        "location": {
+          "file": "libavcodec/hevc/sei.c",
+          "start_line": 164,
+          "end_line": 169,
+          "start_column": null,
+          "end_column": null,
+          "function": "decode_nal_sei_3d_reference_displays_info",
+          "snippet": "    s->num_ref_displays = get_ue_golomb(gb);\n    if (s->num_ref_displays > 31)\n        return AVERROR_INVALIDDATA;\n    s->num_ref_displays += 1;\n\n    for (int i = 0; i < s->num_ref_displays; i++) {",
+          "snippet_hash": "79695f258ea8bd856432f500026bf16a0a076720e25ba28953ad05411b01a31f",
+          "description": null,
+          "snippet_start_line": 164,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.92,
+        "suggestion": "Decode the Exp-Golomb value into a local unsigned variable (not the uint8_t struct field) and validate its range before ever narrowing/storing it into the uint8_t field, so the range check operates on the full, untruncated value.",
+        "suggestion_code": "unsigned num_ref_displays = get_ue_golomb(gb);\nif (num_ref_displays > 31)\n    return AVERROR_INVALIDDATA;\ns->num_ref_displays = num_ref_displays + 1;",
+        "tags": [
+          "security",
+          "memory-safety",
+          "integer-truncation",
+          "sei-parser"
+        ],
+        "cwe_ids": [
+          "CWE-197",
+          "CWE-125",
+          "CWE-787"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "libavcodec/hevc/sei.c",
+      "libavcodec/hevc/sei.h"
+    ],
+    "root_cause": "The unsigned value decoded from the bitstream via get_ue_golomb() was stored into a narrow uint8_t struct field before validating it, so the validation check operated on an already-truncated (wrapped) value instead of the original decoded value, defeating the intended upper-bound check of 31.",
+    "must_cover": [
+      {
+        "file": "libavcodec/hevc/sei.c",
+        "function": "decode_nal_sei_3d_reference_displays_info",
+        "start_line": 164,
+        "end_line": 169,
+        "role": "primary",
+        "reason": "Primary location of finding: Truncation of num_ref_displays before range check leads to out-of-bounds array access"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "efa9d3deca30b47616721f60d8e79b1ccdaaefbc",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

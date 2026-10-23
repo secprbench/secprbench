@@ -1,0 +1,91 @@
+{
+  "bug_id": "GH-18457",
+  "project": "curl",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "be39ed19a5124a900626ab377e2afe5f41839830",
+    "parent": "91d451b48809f20415ba8627786f5d4f5aaf8bfe",
+    "fix": "c278c508e2acfad5f2603febfdba80a30427cd3f"
+  },
+  "affected_files": [
+    "lib/http.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/curl-gh18457-verification-unified29-v1/cases/curl/ce51eef11889909a7d37/attempts/01/replay/pr_review_GH-18457.result.json",
+    "report": "/research-data/secprbench/curl-gh18457-verification-unified29-v1/cases/curl/ce51eef11889909a7d37/attempts/01/replay/pr_review_GH-18457.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "91d451b48809f20415ba8627786f5d4f5aaf8bfe",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "ORACLE_FIXTURE_SHA256=fa255840ada822122ed5229ad604ed77ff5ec388148bfaf6f0ff0f957810a253\nORACLE_REMOTE_INPUT_SHA256=ef6cb4303ac89c0ba3be7031cee2d87ec646199c8535a09085b97a9d60386a32\nORACLE_HARNESS_SHA256=5d2f2cfa8a13177d4ab752816d060ca6c914eec4f4483cd547bf4e81319e433d\nORACLE_CLIENT_EXIT=0\nORACLE_REQUEST_PATHS=/replace,/main\nORACLE_REPLACEMENT_COMPLETED=true\nORACLE_RESULT=PROTECTED_NO_UAF\nVERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "123c5173293da56217d5c50fbb6238f45e32b2598fc670b15e5731f1b51d635b"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "be39ed19a5124a900626ab377e2afe5f41839830",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer_report": "AIN_COOKIE_UNLOCK=1\nMAIN_COOKIE_UNLOCK=2\nMAIN_COOKIE_UNLOCK=3\nREPLACE_RESULT=0 HTTP=200\nREPLACE_COMPLETED_BEFORE_MAIN_CONTINUES\n=================================================================\n==17==ERROR: AddressSanitizer: heap-use-after-free on address 0x50c000000428 at pc 0x5591f161aac7 bp 0x7fff7381bc30 sp 0x7fff7381bc20\nREAD of size 8 at 0x50c000000428 thread T0\n    #0 0x5591f161aac6 in Curl_node_elem /work/lib/llist.c:236\n    #1 0x5591f173fad0 in Curl_http_cookies /work/lib/http.c:2274\n    #2 0x5591f1741e66 in Curl_http /work/lib/http.c:2698\n    #3 0x5591f16391d8 in multi_do /work/lib/multi.c:1633\n    #4 0x5591f16391d8 in multi_runsingle /work/lib/multi.c:2133\n    #5 0x5591f163be63 in curl_multi_perform /work/lib/multi.c:2659\n    #6 0x5591f160fbf3 in easy_transfer /work/lib/easy.c:700\n    #7 0x5591f160fbf3 in easy_perform /work/lib/easy.c:795\n    #8 0x5591f160fbf3 in curl_easy_perform /work/lib/easy.c:814\n    #9 0x5591f15ff803 in main /poc/cookie-race-remote.cpp:94\n    #10 0x7f6c53f41d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #11 0x7f6c53f41e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #12 0x5591f15fb454 in _start (/tmp/secprbench-gh18457-wufr12eq/cookie-race+0x23d454)\n\n0x50c000000428 is located 40 bytes inside of 120-byte region [0x50c000000400,0x50c000000478)\nfreed by thread T1 here:\n    #0 0x7f6c55063537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x5591f16ead8f in freecookie /work/lib/cookie.c:107\n    #2 0x5591f16eee2a in replace_existing /work/lib/cookie.c:1077\n    #3 0x5591f16eee2a in Curl_cookie_add /work/lib/cookie.c:1164\n    #4 0x5591f17444ee in Curl_http_header /work/lib/http.c:3090\n    #5 0x5591f174b51d in http_rw_hd /work/lib/http.c:3821\n    #6 0x5591f174c08a in http_parse_headers /work/lib/http.c:3931\n    #7 0x5591f174c08a in Curl_http_write_resp_hds /work/lib/http.c:3988\n    #8 0x5591f174c78e in Curl_http_write_resp /work/lib/http.c:4012\n    #9 0x5591f1672d3f in Curl_xfer_write_resp /work/lib/transfer.c:1168\n    #10 0x5591f1674d07 in sendrecv_dl /work/lib/transfer.c:343\n    #11 0x5591f1674d07 in Curl_sendrecv /work/lib/transfer.c:451\n    #12 0x5591f163a58c in multi_runsingle /work/lib/multi.c:2374\n    #13 0x5591f163be63 in curl_multi_perform /work/lib/multi.c:2659\n    #14 0x5591f160fbf3 in easy_transfer /work/lib/easy.c:700\n    #15 0x5591f160fbf3 in easy_perform /work/lib/easy.c:795\n    #16 0x5591f160fbf3 in curl_easy_perform /work/lib/easy.c:814\n    #17 0x5591f1600b35 in operator() /poc/cookie-race-remote.cpp:86\n    #18 0x5591f1600b35 in __invoke_impl<void, main(int, char**)::<lambda()> > /usr/include/c++/11/bits/invoke.h:61\n    #19 0x5591f1600b35 in __invoke<main(int, char**)::<lambda()> > /usr/include/c++/11/bits/invoke.h:96\n    #20 0x5591f1600b35 in _M_invoke<0> /usr/include/c++/11/bits/std_thread.h:259\n    #21 0x5591f1600b35 in operator() /usr/include/c++/11/bits/std_thread.h:266\n    #22 0x5591f1600b35 in _M_run /usr/include/c++/11/bits/std_thread.h:211\n    #23 0x7f6c5495b252  (/lib/x86_64-linux-gnu/libstdc++.so.6+0xdc252)\n\npreviously allocated by thread T0 here:\n    #0 0x7f6c55063a57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154\n    #1 0x5591f16ec518 in Curl_cookie_add /work/lib/cookie.c:1116\n    #2 0x5591f1658199 in Curl_vsetopt /work/lib/setopt.c:947\n    #3 0x5591f1668b1b in curl_easy_setopt /work/lib/setopt.c:3225\n    #4 0x5591f15ff325 in main /poc/cookie-race-remote.cpp:78\n    #5 ",
+        "build_log_tail": "",
+        "run_log_tail": "ll_main.h:58\n\nThread T1 created by T0 here:\n    #0 0x7f6c55007685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x7f6c5495b328 in std::thread::_M_start_thread(std::unique_ptr<std::thread::_State, std::default_delete<std::thread::_State> >, void (*)()) (/lib/x86_64-linux-gnu/libstdc++.so.6+0xdc328)\n    #2 0x7f6c53f41d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-use-after-free /work/lib/llist.c:236 in Curl_node_elem\nShadow bytes around the buggy address:\n  0x0a187fff8030: fa fa fa fa fa fa fa fa 00 00 00 00 00 00 00 00\n  0x0a187fff8040: 00 00 00 00 00 00 00 00 fa fa fa fa fa fa fa fa\n  0x0a187fff8050: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0a187fff8060: fa fa fa fa fa fa fa fa fd fd fd fd fd fd fd fd\n  0x0a187fff8070: fd fd fd fd fd fd fd fd fa fa fa fa fa fa fa fa\n=>0x0a187fff8080: fd fd fd fd fd[fd]fd fd fd fd fd fd fd fd fd fa\n  0x0a187fff8090: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a187fff80a0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a187fff80b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a187fff80c0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a187fff80d0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==17==ABORTING\n\nORACLE_ASAN_LOG_END\nVERIFY_EXIT=1\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e2b1e436eeb001eace48de2a3b699a8d0dedbb748a53f6b7607fb2a04c97678e"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "91d451b48809f20415ba8627786f5d4f5aaf8bfe",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "ORACLE_FIXTURE_SHA256=fa255840ada822122ed5229ad604ed77ff5ec388148bfaf6f0ff0f957810a253\nORACLE_REMOTE_INPUT_SHA256=ef6cb4303ac89c0ba3be7031cee2d87ec646199c8535a09085b97a9d60386a32\nORACLE_HARNESS_SHA256=5d2f2cfa8a13177d4ab752816d060ca6c914eec4f4483cd547bf4e81319e433d\nORACLE_CLIENT_EXIT=0\nORACLE_REQUEST_PATHS=/replace,/main\nORACLE_REPLACEMENT_COMPLETED=true\nORACLE_RESULT=PROTECTED_NO_UAF\nVERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f663c34be2d4b45e85263edf72f97d6a1f6c094d7de1775ed95328d025ac9c6c"
+        }
+      }
+    }
+  },
+  "task_hashes": {
+    "buggy": "92d9581dd4a0148735ea8172b2dc2a70331a35dbf59a7b9ecc36c203075c7151",
+    "benign": "2d44dd9e61836947d9ccefebae6d9b92ef59cf83489406c7eaf610fd3fc4fc9a"
+  }
+}

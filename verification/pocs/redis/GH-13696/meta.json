@@ -1,0 +1,34 @@
+{
+  "task_id": "pr_review_GH-13696",
+  "bug_id": "GH-13696",
+  "bug_type": "DataRace",
+  "intro_commit": "7665bdc91aa6f98289eefdcbdb2def4467864b7a",
+  "intro_parent": "64a40b20d906f019a32fcb227c938768079dd9ed",
+  "fix_commit": "6ea4e2c949c7fa50b85ff59647ee5e3f95e97037",
+  "affected_files": [
+    "src/networking.c",
+    "src/dict.h",
+    "src/module.c",
+    "src/server.c",
+    "src/dict.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "redis",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Two logically-independent bit-fields (pauserehash and useStoredKeyApi) inside struct dict share the same underlying storage unit, so a write to one requires a non-atomic read-modify-write that can race with a concurrent read/write of the other. This latent structural hazard became an actual exploitable/observable data race once PR #13696 introduced concurrent, unsynchronized access to the command dict (server.commands) from I/O threads via lookupCommand()->dictFind(), racing with the main thread's rehash-pause bookkeeping on the same dict.",
+  "findings": [
+    "PR #13696 changed processInputBuffer() so that, when an I/O thread is handling a client (c->running_tid != IOTHREAD_MAIN_THREAD_ID), it calls lookupCommand(c->argv, c->argc) directly from the I/O thread and caches the result in c->iolookedcmd, instead of deferring the whole lookup to the main thread. lookupCommand() ends up calling dictFind() on server.commands, which reads the dict's `useStoredKe"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "4dde5cf89c21a1ccc2ed6a7233c81f802daa453f88966db9938c569ef611a7ca",
+  "generated_artifact_sha256": {
+    "reference": "1b17eaba4ffeb82807f6dfa79762765389acd5bd3c326897d8dd041c8492a905",
+    "introducing": "5994f8a5d6252ed5343e7dfc620338d41e1e28b6fdb6d54970daa291362a0df6",
+    "companion": "58be589246757e94576b5cdbf3473dce3ef09d0a88541c56cb603de614b04d0f"
+  }
+}

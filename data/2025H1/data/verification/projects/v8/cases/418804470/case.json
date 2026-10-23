@@ -1,0 +1,27 @@
+{
+  "bug_id": "418804470",
+  "project": "v8",
+  "bug_type": "BufferOverflow",
+  "commits": {
+    "intro": "d4c91a3691d0bf5273642279964381f1fb7d288b",
+    "parent": "efc6a8a8793300409aea280aa2fd792d5bb47b4c",
+    "fix": "f95643182d7cba7e6053b887b930ee11eb2c220b"
+  },
+  "affected_files": [
+    "src/builtins/builtins-definitions.h",
+    "src/builtins/builtins-typed-array.cc",
+    "src/init/bootstrapper.cc",
+    "src/objects/simd.cc",
+    "src/objects/simd.h",
+    "test/test262/test262.status"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All configured revisions built successfully. The original default PoC was absent/unusable. Normal x64 d8 selected the correctly bounded SIMD path, so the final /poc harness used the same V8 ASan compiler flags while undefining __SSE3__ only in a wrapper translation unit to exercise the labelled scalar fallback without editing target source. The exact same command, `sh /poc/run.sh` with scalar_main.cc, exited 0 on pre_intro (setFromHex is unavailable before the introducing commit), crashed on pos",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

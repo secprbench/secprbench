@@ -1,0 +1,130 @@
+{
+  "task_id": "pr_review_GH-17830",
+  "bug_id": "GH-17830",
+  "commit_sha": "460ead61b6feec048a66914fe9281676fef21018",
+  "commit_message": "tests: add basic ECH tests\n\nTest 4000 and 4001\n\nCloses #17192",
+  "commit_author": "sftcd",
+  "commit_date": "2025-04-25T18:26:04+01:00",
+  "pr_title": "tests: add basic ECH tests",
+  "pr_description": "Test 4000 and 4001\n\nCloses #17192\n",
+  "files": [
+    {
+      "path": "docs/ECH.md",
+      "status": "modified",
+      "additions": 17,
+      "deletions": 0,
+      "diff": "diff --git a/docs/ECH.md b/docs/ECH.md\nindex e82fadd4a1..2c29015a87 100644\n--- a/docs/ECH.md\n+++ b/docs/ECH.md\n@@ -474,5 +474,22 @@ to get the HTTPS RR and pass the ECHConfigList from that on the command line,\n if needed, or one can access the value from command line output in verbose more\n and then reuse that in another invocation.\n \n Both our OpenSSL fork and BoringSSL/AWS-LC have APIs for both controlling GREASE\n and accessing and logging ``retry_configs``, it seems wolfSSL has neither.\n+\n+### Testing ECH\n+\n+We have yet to add a robust test setup for ECH as that requires an ECH-enabled\n+test server.\n+\n+We have added two basic tests though, aiming to ensure that the client sends a\n+GREASE or real ECH extension when requested, and reacts correctly to the\n+failure of ECH in the latter case. (Given that `stunnel` has no ECH support.)\n+\n+As with other similar tests, those tests require the `stunnel` tool be\n+installed. On Ubuntu `sudo apt install stunnel4` achieves that.\n+\n+The test cases are:\n+\n+- data/test4000: GREASE ECH, expected result: connection succeeds\n+- data/test4001: real ECH, connection fails with error 101 (ECH required)\n"
+    },
+    {
+      "path": "lib/vtls/rustls.c",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 2,
+      "diff": "diff --git a/lib/vtls/rustls.c b/lib/vtls/rustls.c\nindex 24ab09caa9..7835a8dd0d 100644\n--- a/lib/vtls/rustls.c\n+++ b/lib/vtls/rustls.c\n@@ -959,12 +959,11 @@ init_config_builder_ech(struct Curl_easy *data,\n       goto cleanup;\n     }\n     return CURLE_OK;\n   }\n \n-  if(data->set.tls_ech & CURLECH_CLA_CFG\n-       && data->set.str[STRING_ECH_CONFIG]) {\n+  if(data->set.tls_ech & CURLECH_CLA_CFG && data->set.str[STRING_ECH_CONFIG]) {\n     const char *b64 = data->set.str[STRING_ECH_CONFIG];\n     size_t decode_result;\n     if(!b64) {\n       infof(data, \"rustls: ECHConfig from command line empty\");\n       result = CURLE_SSL_CONNECT_ERROR;\n@@ -1006,10 +1005,14 @@ init_config_builder_ech(struct Curl_easy *data,\n     rustls_failf(data, rr, \"rustls: failed to configure ECH\");\n     result = CURLE_SSL_CONNECT_ERROR;\n     goto cleanup;\n   }\n cleanup:\n+  /* if we base64 decoded, we can free now */\n+  if(data->set.tls_ech & CURLECH_CLA_CFG && data->set.str[STRING_ECH_CONFIG]) {\n+    free(ech_config);\n+  }\n   if(dns) {\n     Curl_resolv_unlink(data, &dns);\n   }\n   return result;\n }\n"
+    },
+    {
+      "path": "lib/vtls/wolfssl.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 3,
+      "diff": "diff --git a/lib/vtls/wolfssl.c b/lib/vtls/wolfssl.c\nindex 2e1523a4dc..006a17c463 100644\n--- a/lib/vtls/wolfssl.c\n+++ b/lib/vtls/wolfssl.c\n@@ -1350,13 +1350,11 @@ CURLcode Curl_wssl_ctx_init(struct wssl_ctx *wctx,\n       infof(data, \"ECH: outername not (yet) supported with wolfSSL\");\n       result = CURLE_SSL_CONNECT_ERROR;\n       goto out;\n     }\n     if(data->set.tls_ech == CURLECH_GREASE) {\n-      infof(data, \"ECH: GREASE'd ECH not yet supported for wolfSSL\");\n-      result = CURLE_SSL_CONNECT_ERROR;\n-      goto out;\n+      infof(data, \"ECH: GREASE is done by default by wolfSSL: no need to ask\");\n     }\n     if(data->set.tls_ech & CURLECH_CLA_CFG\n        && data->set.str[STRING_ECH_CONFIG]) {\n       char *b64val = data->set.str[STRING_ECH_CONFIG];\n       word32 b64len = 0;\n"
+    },
+    {
+      "path": "tests/data/Makefile.am",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 1,
+      "diff": "diff --git a/tests/data/Makefile.am b/tests/data/Makefile.am\nindex 88cbd49bcb..cf372baa41 100644\n--- a/tests/data/Makefile.am\n+++ b/tests/data/Makefile.am\n@@ -274,8 +274,10 @@ test3024 test3025 test3026 test3027 test3028 test3029 test3030 test3031 \\\n test3032 \\\n \\\n test3100 test3101 test3102 test3103 test3104 test3105 \\\n \\\n test3200 test3201 test3202 test3203 test3204 test3205 test3207 test3208 \\\n-test3209 test3210 test3211 test3212 test3213\n+test3209 test3210 test3211 test3212 test3213 \\\n+\\\n+test4000 test4001\n \n EXTRA_DIST = $(TESTCASES) DISABLED\n"
+    },
+    {
+      "path": "tests/data/test4000",
+      "status": "added",
+      "additions": 51,
+      "deletions": 0,
+      "diff": "diff --git a/tests/data/test4000 b/tests/data/test4000\nnew file mode 100644\nindex 0000000000..0f9e0d528f\n--- /dev/null\n+++ b/tests/data/test4000\n@@ -0,0 +1,51 @@\n+<testcase>\n+<info>\n+<keywords>\n+ECH GREASE\n+</keywords>\n+</info>\n+\n+#\n+# Server-side\n+<reply>\n+<data>\n+HTTP/1.1 200 OK\n+Date: Tue, 09 Nov 2010 14:49:00 GMT\n+Server: test-server/fake\n+Content-Length: 7\n+\n+MooMoo\n+</data>\n+</reply>\n+\n+#\n+# Client-side\n+<client>\n+<features>\n+ECH\n+</features>\n+<server>\n+https\n+</server>\n+<name>\n+HTTPS GET with ECH GREASE\n+</name>\n+# Using '-k' over '--insecure' to also test the short form\n+# Add ECH grease\n+<command>\n+--ech grease -k https://%HOSTIP:%HTTPSPORT/%TESTNUMBER\n+</command>\n+</client>\n+\n+#\n+# Verify data after the test has been \"shot\"\n+<verify>\n+<protocol>\n+GET /%TESTNUMBER HTTP/1.1\n+Host: %HOSTIP:%HTTPSPORT\n+User-Agent: curl/%VERSION\n+Accept: */*\n+\n+</protocol>\n+</verify>\n+</testcase>\n"
+    },
+    {
+      "path": "tests/data/test4001",
+      "status": "added",
+      "additions": 46,
+      "deletions": 0,
+      "diff": "diff --git a/tests/data/test4001 b/tests/data/test4001\nnew file mode 100644\nindex 0000000000..f02a4b94d8\n--- /dev/null\n+++ b/tests/data/test4001\n@@ -0,0 +1,46 @@\n+<testcase>\n+<info>\n+<keywords>\n+ECH try real and fail\n+</keywords>\n+</info>\n+\n+#\n+# Server-side\n+<reply>\n+</reply>\n+\n+#\n+# Client-side\n+<client>\n+<features>\n+ECH\n+</features>\n+<server>\n+https\n+</server>\n+<name>\n+Make real ECH attempt and fail with \"ech required\" error (101)\n+</name>\n+# Using '-k' over '--insecure' to also test the short form\n+<command>\n+--ech ecl:AEv+DQBHdAAgACCCU49qdxKOUXJPs3wlsM06v/t42sMH5xQOL37MAd3HaAAEAAEAAQAYb3RoZXJwdWJsaWMudGVzdC5kZWZvLmllAAA= -k https://%HOSTIP:%HTTPSPORT/%TESTNUMBER\n+</command>\n+</client>\n+\n+#\n+# Verify data after the test has been \"shot\"\n+<verify>\n+<errorcode>\n+%if !wolfssl\n+%if !rustls\n+101\n+%else\n+35\n+%endif\n+%else\n+35\n+%endif\n+</errorcode>\n+</verify>\n+</testcase>\n"
+    },
+    {
+      "path": "tests/runtests.pl",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "diff": "diff --git a/tests/runtests.pl b/tests/runtests.pl\nindex 7c4f43ae54..6aa0b54973 100755\n--- a/tests/runtests.pl\n+++ b/tests/runtests.pl\n@@ -714,10 +714,11 @@ sub checksystemfeatures {\n             # Unicode support\n             $feature{\"Unicode\"} = $feat =~ /Unicode/i;\n             # Thread-safe init\n             $feature{\"threadsafe\"} = $feat =~ /threadsafe/i;\n             $feature{\"HTTPSRR\"} = $feat =~ /HTTPSRR/;\n+            $feature{\"ECH\"} = $feat =~ /ECH/;\n         }\n         #\n         # Test harness currently uses a non-stunnel server in order to\n         # run HTTP TLS-SRP tests required when curl is built with https\n         # protocol support and TLS-SRP feature enabled. For convenience\n"
+    }
+  ],
+  "full_diff": "diff --git a/docs/ECH.md b/docs/ECH.md\nindex e82fadd4a1..2c29015a87 100644\n--- a/docs/ECH.md\n+++ b/docs/ECH.md\n@@ -474,5 +474,22 @@ to get the HTTPS RR and pass the ECHConfigList from that on the command line,\n if needed, or one can access the value from command line output in verbose more\n and then reuse that in another invocation.\n \n Both our OpenSSL fork and BoringSSL/AWS-LC have APIs for both controlling GREASE\n and accessing and logging ``retry_configs``, it seems wolfSSL has neither.\n+\n+### Testing ECH\n+\n+We have yet to add a robust test setup for ECH as that requires an ECH-enabled\n+test server.\n+\n+We have added two basic tests though, aiming to ensure that the client sends a\n+GREASE or real ECH extension when requested, and reacts correctly to the\n+failure of ECH in the latter case. (Given that `stunnel` has no ECH support.)\n+\n+As with other similar tests, those tests require the `stunnel` tool be\n+installed. On Ubuntu `sudo apt install stunnel4` achieves that.\n+\n+The test cases are:\n+\n+- data/test4000: GREASE ECH, expected result: connection succeeds\n+- data/test4001: real ECH, connection fails with error 101 (ECH required)\ndiff --git a/lib/vtls/rustls.c b/lib/vtls/rustls.c\nindex 24ab09caa9..7835a8dd0d 100644\n--- a/lib/vtls/rustls.c\n+++ b/lib/vtls/rustls.c\n@@ -959,12 +959,11 @@ init_config_builder_ech(struct Curl_easy *data,\n       goto cleanup;\n     }\n     return CURLE_OK;\n   }\n \n-  if(data->set.tls_ech & CURLECH_CLA_CFG\n-       && data->set.str[STRING_ECH_CONFIG]) {\n+  if(data->set.tls_ech & CURLECH_CLA_CFG && data->set.str[STRING_ECH_CONFIG]) {\n     const char *b64 = data->set.str[STRING_ECH_CONFIG];\n     size_t decode_result;\n     if(!b64) {\n       infof(data, \"rustls: ECHConfig from command line empty\");\n       result = CURLE_SSL_CONNECT_ERROR;\n@@ -1006,10 +1005,14 @@ init_config_builder_ech(struct Curl_easy *data,\n     rustls_failf(data, rr, \"rustls: failed to configure ECH\");\n     result = CURLE_SSL_CONNECT_ERROR;\n     goto cleanup;\n   }\n cleanup:\n+  /* if we base64 decoded, we can free now */\n+  if(data->set.tls_ech & CURLECH_CLA_CFG && data->set.str[STRING_ECH_CONFIG]) {\n+    free(ech_config);\n+  }\n   if(dns) {\n     Curl_resolv_unlink(data, &dns);\n   }\n   return result;\n }\ndiff --git a/lib/vtls/wolfssl.c b/lib/vtls/wolfssl.c\nindex 2e1523a4dc..006a17c463 100644\n--- a/lib/vtls/wolfssl.c\n+++ b/lib/vtls/wolfssl.c\n@@ -1350,13 +1350,11 @@ CURLcode Curl_wssl_ctx_init(struct wssl_ctx *wctx,\n       infof(data, \"ECH: outername not (yet) supported with wolfSSL\");\n       result = CURLE_SSL_CONNECT_ERROR;\n       goto out;\n     }\n     if(data->set.tls_ech == CURLECH_GREASE) {\n-      infof(data, \"ECH: GREASE'd ECH not yet supported for wolfSSL\");\n-      result = CURLE_SSL_CONNECT_ERROR;\n-      goto out;\n+      infof(data, \"ECH: GREASE is done by default by wolfSSL: no need to ask\");\n     }\n     if(data->set.tls_ech & CURLECH_CLA_CFG\n        && data->set.str[STRING_ECH_CONFIG]) {\n       char *b64val = data->set.str[STRING_ECH_CONFIG];\n       word32 b64len = 0;\ndiff --git a/tests/data/Makefile.am b/tests/data/Makefile.am\nindex 88cbd49bcb..cf372baa41 100644\n--- a/tests/data/Makefile.am\n+++ b/tests/data/Makefile.am\n@@ -274,8 +274,10 @@ test3024 test3025 test3026 test3027 test3028 test3029 test3030 test3031 \\\n test3032 \\\n \\\n test3100 test3101 test3102 test3103 test3104 test3105 \\\n \\\n test3200 test3201 test3202 test3203 test3204 test3205 test3207 test3208 \\\n-test3209 test3210 test3211 test3212 test3213\n+test3209 test3210 test3211 test3212 test3213 \\\n+\\\n+test4000 test4001\n \n EXTRA_DIST = $(TESTCASES) DISABLED\ndiff --git a/tests/data/test4000 b/tests/data/test4000\nnew file mode 100644\nindex 0000000000..0f9e0d528f\n--- /dev/null\n+++ b/tests/data/test4000\n@@ -0,0 +1,51 @@\n+<testcase>\n+<info>\n+<keywords>\n+ECH GREASE\n+</keywords>\n+</info>\n+\n+#\n+# Server-side\n+<reply>\n+<data>\n+HTTP/1.1 200 OK\n+Date: Tue, 09 Nov 2010 14:49:00 GMT\n+Server: test-server/fake\n+Content-Length: 7\n+\n+MooMoo\n+</data>\n+</reply>\n+\n+#\n+# Client-side\n+<client>\n+<features>\n+ECH\n+</features>\n+<server>\n+https\n+</server>\n+<name>\n+HTTPS GET with ECH GREASE\n+</name>\n+# Using '-k' over '--insecure' to also test the short form\n+# Add ECH grease\n+<command>\n+--ech grease -k https://%HOSTIP:%HTTPSPORT/%TESTNUMBER\n+</command>\n+</client>\n+\n+#\n+# Verify data after the test has been \"shot\"\n+<verify>\n+<protocol>\n+GET /%TESTNUMBER HTTP/1.1\n+Host: %HOSTIP:%HTTPSPORT\n+User-Agent: curl/%VERSION\n+Accept: */*\n+\n+</protocol>\n+</verify>\n+</testcase>\ndiff --git a/tests/data/test4001 b/tests/data/test4001\nnew file mode 100644\nindex 0000000000..f02a4b94d8\n--- /dev/null\n+++ b/tests/data/test4001\n@@ -0,0 +1,46 @@\n+<testcase>\n+<info>\n+<keywords>\n+ECH try real and fail\n+</keywords>\n+</info>\n+\n+#\n+# Server-side\n+<reply>\n+</reply>\n+\n+#\n+# Client-side\n+<client>\n+<features>\n+ECH\n+</features>\n+<server>\n+https\n+</server>\n+<name>\n+Make real ECH attempt and fail with \"ech required\" error (101)\n+</name>\n+# Using '-k' over '--insecure' to also test the short form\n+<command>\n+--ech ecl:AEv+DQBHdAAgACCCU49qdxKOUXJPs3wlsM06v/t42sMH5xQOL37MAd3HaAAEAAEAAQAYb3RoZXJwdWJsaWMudGVzdC5kZWZvLmllAAA= -k https://%HOSTIP:%HTTPSPORT/%TESTNUMBER\n+</command>\n+</client>\n+\n+#\n+# Verify data after the test has been \"shot\"\n+<verify>\n+<errorcode>\n+%if !wolfssl\n+%if !rustls\n+101\n+%else\n+35\n+%endif\n+%else\n+35\n+%endif\n+</errorcode>\n+</verify>\n+</testcase>\ndiff --git a/tests/runtests.pl b/tests/runtests.pl\nindex 7c4f43ae54..6aa0b54973 100755\n--- a/tests/runtests.pl\n+++ b/tests/runtests.pl\n@@ -714,10 +714,11 @@ sub checksystemfeatures {\n             # Unicode support\n             $feature{\"Unicode\"} = $feat =~ /Unicode/i;\n             # Thread-safe init\n             $feature{\"threadsafe\"} = $feat =~ /threadsafe/i;\n             $feature{\"HTTPSRR\"} = $feat =~ /HTTPSRR/;\n+            $feature{\"ECH\"} = $feat =~ /ECH/;\n         }\n         #\n         # Test harness currently uses a non-stunnel server in order to\n         # run HTTP TLS-SRP tests required when curl is built with https\n         # protocol support and TLS-SRP feature enabled. For convenience\n",
+  "ground_truth": {
+    "bug_id": "GH-17830",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "cbf261e2de9f349c5b1ef0a8dc980988558455c5",
+      "short_sha": "cbf261e",
+      "message": "rustls: apply memory function overrides, fixing an ECH buffer free",
+      "author": "Viktor Szakats",
+      "date": "2025-07-06T12:35:00+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-mismatched-alloc-free-1",
+        "title": "Raw free() on ECH buffer allocated by curl's overridable malloc, causing invalid free",
+        "message": "In init_config_builder_ech(), when an ECHConfig is supplied via the command line, the base64-decoded buffer `ech_config` is allocated by Curl_base64_decode() (curlx_base64_decode in later refactors), which performs its allocation through curl's internal, potentially-overridden malloc (curl_malloc / memory-tracking wrappers activated via curl_memory.h / memdebug.h when included by the allocating translation unit). In the cleanup path of init_config_builder_ech(), the buffer is released with a plain, unqualified `free(ech_config)` call. Because lib/vtls/rustls.c does not include \"../curl_memory.h\" / \"../memdebug.h\", this free() resolves to the plain libc free() instead of curl's matching deallocation function (Curl_cfree / memdebug free). When curl is built with memory-function overrides (curl_global_init_mem / CURLOPT allocator overrides) or with the debug memory tracker (CURLDEBUG/memdebug), the allocation and the free happen through mismatched allocator APIs. This causes an invalid free (reported by Valgrind and curl's own memory-tracking layer), and can lead to memory corruption or crashes/undefined behavior in builds that use custom allocators, since the pointer being freed was not actually obtained from the allocator that services the raw free() call.",
+        "location": {
+          "file": "lib/vtls/rustls.c",
+          "start_line": 1009,
+          "end_line": 1013,
+          "start_column": null,
+          "end_column": null,
+          "function": "init_config_builder_ech",
+          "snippet": "cleanup:\n  /* if we base64 decoded, we can free now */\n  if(data->set.tls_ech & CURLECH_CLA_CFG && data->set.str[STRING_ECH_CONFIG]) {\n    free(ech_config);\n  }\n  if(dns) {",
+          "snippet_hash": "c0f71fc871b09bf8a9172cc8a72b99b0eaf73bea5eec346cd02e6d8a2d56544f",
+          "description": null,
+          "snippet_start_line": 1009,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "Other",
+        "confidence": 0.85,
+        "suggestion": "Include \"../curl_memory.h\" and \"../memdebug.h\" (as the last includes) in lib/vtls/rustls.c so that malloc/calloc/realloc/free used throughout the file (including this free(ech_config) and the local cipher_suites malloc/free pair) resolve to curl's memory-tracked / overridable allocator wrappers, matching the allocator used by Curl_base64_decode(). This ensures the allocation and free are performed through the same allocator API, eliminating the invalid free detected by Valgrind and enabling correct behavior when memory-function overrides are supplied by the application.",
+        "suggestion_code": "/* The last #include files should be: */\n#include \"../curl_memory.h\"\n#include \"../memdebug.h\"",
+        "tags": [
+          "security",
+          "memory-safety",
+          "invalid-free",
+          "allocator-mismatch"
+        ],
+        "cwe_ids": [
+          "CWE-762",
+          "CWE-590"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "Other",
+    "affected_files": [
+      "lib/vtls/rustls.c"
+    ],
+    "root_cause": "lib/vtls/rustls.c calls Curl_base64_decode() (which allocates through curl's internal, overridable malloc) to obtain the ECHConfig buffer but frees it with the plain libc free() because the translation unit never included curl_memory.h/memdebug.h, which are what redirect malloc/free calls in a given .c file to curl's tracked/overridable allocator functions. This mismatch between the allocator used to obtain memory and the deallocator used to release it is only safe by coincidence in default (no override, no memdebug) builds; it becomes an invalid free once curl's memory function overrides or memory debugging are engaged.",
+    "must_cover": [
+      {
+        "file": "lib/vtls/rustls.c",
+        "function": "init_config_builder_ech",
+        "start_line": 1009,
+        "end_line": 1013,
+        "role": "primary",
+        "reason": "Primary location of finding: Raw free() on ECH buffer allocated by curl's overridable malloc, causing invalid free"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "460ead61b6feec048a66914fe9281676fef21018",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

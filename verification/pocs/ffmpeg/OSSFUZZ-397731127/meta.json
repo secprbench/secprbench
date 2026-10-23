@@ -1,0 +1,31 @@
+{
+  "task_id": "pr_review_OSSFUZZ-397731127",
+  "bug_id": "OSSFUZZ-397731127",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "11a8e0a4e585c0a5acf09397e39bccf45e1ba7ae",
+  "intro_parent": "a4630d479a54058f5abfd56fdcfd0b454e5de0ee",
+  "fix_commit": "d643a5ba0836c4d7ec86cb67fae387984ef3d1a6",
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac.c",
+    "libavcodec/aac/aacdec_dsp_template.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "A refactor moved the noise-offset application from the dequantized float scalefactor (sce->sf, which was numerically safe to add an offset to) onto the raw integer scalefactor-offset value (sce->sfo) that is later used directly as an array index/lookup-table offset, without adding any bounds clamp on the new value. The bitstream-controlled noise.offset field combined with repeated/attacker-influenced sfo values allowed the stored offset to become large enough to index outside the pow2sf lookup table.",
+  "findings": [
+    "In apply_noise_fill(), when a scalefactor band is fully quantized to zero and noise filling is applied, the code adds noise_offset (derived from ue->noise.offset - 16, an 8-bit field that ranges roughly -16..15) directly onto sce->sfo[g*ics->max_sfb + sfb] with no lower-bound clamp: `sce->sfo[g*ics->max_sfb + sfb] += noise_offset;`. This commit changed the target of the offset from sce->sf (a floa"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "7aac858b9859fa5390c2c1fd44342dfde837eba04d97364b2451600a9f696210",
+  "generated_artifact_sha256": {
+    "reference": "19300ed1ed596a88817912b0caffea126b96e74f52966be52511c8f4551c0a4f",
+    "introducing": "d8e193d4e80378fb9657ca1dfbd3a5b874f60c2c40eeb1987239c487b2a4dbfd",
+    "companion": "a2a2f3d3dd2544d2b31ff9307ca907618ed585c23ae9cbc15012ebd02f89cd6b"
+  }
+}

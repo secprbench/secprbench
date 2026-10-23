@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_TESTCASE-49a116e656eb0bb4",
+  "bug_id": "TESTCASE-49a116e656eb0bb4",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "baad75cafa6bac298b72c177f657a2eb8e31cff1",
+  "intro_parent": "86977fdb6bb0ba553a9c654309eb9c028a3777b4",
+  "fix_commit": "2e32276872d330b9a9e97de68d62dd7a679b1221",
+  "affected_files": [
+    "libavcodec/aac/aacdec_usac_mps212.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "huff_decode() mutates the caller's array-of-pointers argument (advancing data[0]/data[1] by one element in certain code paths) as an implementation detail to signal 'first element already consumed', but ec_pair_dec() was written assuming p_data[] always points at the base of the fixed-size data_pair[] arrays. Combined with an unconditional fixed iteration count (nb_bands) in attach_lsb(), the mismatch between the (possibly shifted) pointer and the full-length loop bound produces an out-of-bounds access.",
+  "findings": [
+    "In ec_pair_dec(), p_data[0]/p_data[1] are initially set to point at the base of the fixed-size local arrays data_pair[0]/data_pair[1] (each int16_t[28]) and are then passed by reference (int16_t *data[2] decays to int16_t **) into huff_decode(). Inside huff_decode(), for the 2D 'time_pair' coding path, the code executes 'data[0] += 1; data[1] += 1;' to skip over an already-decoded first sample. Be"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "e86ac5365077cd9e854d3a63b12f9636353f9115d449780b4e090e5baebefc40",
+  "generated_artifact_sha256": {
+    "reference": "ce0fbbff9f8503ec12cddb4ab4181f9891f94967fed17e76ce3c12609164effd",
+    "introducing": "d47723935634708adce97a73558cf6776553ef4443d8a27df5e2b5f7ca270f52",
+    "companion": "67501fb2bbddcf1acd7e204517c0cadb5646f8b2dc228545cf96c6013adf39f8"
+  }
+}

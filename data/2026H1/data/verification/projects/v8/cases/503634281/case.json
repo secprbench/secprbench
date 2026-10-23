@@ -1,0 +1,92 @@
+{
+  "bug_id": "503634281",
+  "project": "v8",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "8a41470735aafa0e339db822e9c6c94859a6f072",
+    "parent": "f4f0f97275752dc3519b70ec14873dd61862a353",
+    "fix": "604e1bec5911da188a4bf1d481ce6c280508fe8f"
+  },
+  "affected_files": [
+    "src/maglev/maglev-graph-builder.cc",
+    "src/maglev/maglev-graph-builder.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/860da242b3ec10871c1a/attempts/01/replay/pr_review_503634281.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/v8/860da242b3ec10871c1a/attempts/01/replay/pr_review_503634281.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "f4f0f97275752dc3519b70ec14873dd61862a353",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "99a1d72642e886ec74d37b2bce4250cd0ff558479df0168e3a81239722063b96"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "8a41470735aafa0e339db822e9c6c94859a6f072",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 139,
+        "crashed": true,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=139\n\nReceived signal 11 SEGV_MAPERR 000000000038\n\n==== C stack trace ===============================\n\n./out.gn/verify/d8(__interceptor_backtrace+0x46)[0x55e5faee4b86]\n./out.gn/verify/d8(+0x635c190)[0x55e5ffe50190]\n/lib/x86_64-linux-gnu/libc.so.6(+0x45330)[0x7f21d839f330]\n./out.gn/verify/d8(+0x344cf3d)[0x55e5fcf40f3d]\n./out.gn/verify/d8(+0x3484006)[0x55e5fcf78006]\n./out.gn/verify/d8(+0x34040e9)[0x55e5fcef80e9]\n./out.gn/verify/d8(+0x3404c37)[0x55e5fcef8c37]\n./out.gn/verify/d8(+0x339ed1b)[0x55e5fce92d1b]\n./out.gn/verify/d8(+0x33dc4a1)[0x55e5fced04a1]\n./out.gn/verify/d8(+0x34076bd)[0x55e5fcefb6bd]\n./out.gn/verify/d8(+0x340aaf1)[0x55e5fcefeaf1]\n./out.gn/verify/d8(+0x33ad601)[0x55e5fcea1601]\n./out.gn/verify/d8(+0x342e81c)[0x55e5fcf2281c]\n./out.gn/verify/d8(+0x342e1ff)[0x55e5fcf221ff]\n./out.gn/verify/d8(+0x33cefb4)[0x55e5fcec2fb4]\n./out.gn/verify/d8(+0x3448ee0)[0x55e5fcf3cee0]\n./out.gn/verify/d8(+0x30fb932)[0x55e5fcbef932]\n./out.gn/verify/d8(+0x336c1dc)[0x55e5fce601dc]\n./out.gn/verify/d8(+0x198a5c7)[0x55e5fb47e5c7]\n./out.gn/verify/d8(+0x33706cd)[0x55e5fce646cd]\n./out.gn/verify/d8(+0x635e370)[0x55e5ffe52370]\n./out.gn/verify/d8(+0x635ef6e)[0x55e5ffe52f6e]\n./out.gn/verify/d8(+0x337143a)[0x55e5fce6543a]\n./out.gn/verify/d8(+0x3e1aa73)[0x55e5fd90ea73]\n./out.gn/verify/d8(+0x336f4c5)[0x55e5fce634c5]\n./out.gn/verify/d8(+0x2dae0b8)[0x55e5fc8a20b8]\n./out.gn/verify/d8(+0x2d4c29a)[0x55e5fc84029a]\n./out.gn/verify/d8(+0x6182e71)[0x55e5ffc76e71]\n[end of stack trace]\n/bin/bash: line 1:     8 Segmentation fault      bash -c 'cd /work && bash /poc/run.sh'\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "76e46af2f81c0462384226e172bad945874bddeef1511d53c0c0d3fd760580bd"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "f4f0f97275752dc3519b70ec14873dd61862a353",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3fb159b171b4688f01f7b9beb808d328adfd4422205a3262b91a9adfa9ab87e5"
+        }
+      }
+    }
+  },
+  "task_hashes": {
+    "buggy": "8cd96e39da09ce95bb20ada33db7ee33b8ef1a653ee75c9fc1deee85aba8f858",
+    "benign": "fd28e1e1f9051b17204813911467d8e1569c46b1f58318d553766f827a3f2397"
+  }
+}

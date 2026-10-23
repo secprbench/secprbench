@@ -1,0 +1,36 @@
+{
+  "task_id": "pr_review_GH-10127",
+  "bug_id": "GH-10127",
+  "bug_type": "LogicError",
+  "intro_commit": "bb5e4bbaf9a60b07213ccdd1973bc0606c22c822",
+  "intro_parent": "f099784806591a4ff6caf570c25c71f946fe2934",
+  "fix_commit": "db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9",
+  "affected_files": [
+    "winch/codegen/src/masm.rs",
+    "winch/codegen/src/isa/x64/masm.rs"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "wasmtime",
+  "source": "poc-watch",
+  "attachments": [
+    "- evidence/candidate_01_c001_v128_load32x2_s_oob_avx.wat: git:db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9:tests/disas/winch/x64/load/v128_load32x2_s_oob_avx.wat",
+    "- evidence/candidate_02_c002_v128_load32x2_u_oob_avx.wat: git:db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9:tests/disas/winch/x64/load/v128_load32x2_u_oob_avx.wat",
+    "- evidence/test_01_cea1f9dfd2c110a4_v128_load32x2_s_oob_avx.wat: tests/disas/winch/x64/load/v128_load32x2_s_oob_avx.wat",
+    "- evidence/test_02_8e5c9b8d0a8ca18c_v128_load32x2_u_oob_avx.wat: tests/disas/winch/x64/load/v128_load32x2_u_oob_avx.wat"
+  ],
+  "input_name": "v128_load32x2_s_oob_avx.wat",
+  "root_cause": "The refactor in #10012 conflated 'bits per source lane before widening' with 'total bytes read from memory' when deriving the OperandSize for vector-extend loads. The derived size is reused for both bounds checking and instruction emission, so an incorrect (too-small) per-lane size was propagated into the memory-safety-relevant bounds computation instead of being independently fixed at 8 bytes (the true width of the SIMD extend-load instructions on x86-64/AArch64).",
+  "findings": [
+    "The Winch baseline compiler's `LoadKind::derive_operand_size()` computes the `OperandSize` that is passed down into `wasm_load`/`load_impl` to perform the Wasm linear-memory bounds check and emit the actual load instruction. For `LoadKind::VectorExtend(vector)` (used for v128 `load8x8`/`load16x4`/`load32x2` sign/zero-extending SIMD loads), this commit routes the size through the newly added `opera"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "f9a5212da3685838af6d09db7177e4ae71d329b56246c50d1cdae786fd63e057",
+  "generated_artifact_sha256": {
+    "reference": "fa3a8b1bc20a245da5c816bd6e31f48b1c40aad27ff8a2f95b7994ea34337353",
+    "introducing": "865ddc1d2ae74b7c3acc61a4a20361cbb5c756aec2a9d6dd4a26b078beac0994",
+    "companion": "4033450ac64b9e14046fe352f4f0339d0ef91899ee48eec3a0489a956a06b5e1"
+  }
+}

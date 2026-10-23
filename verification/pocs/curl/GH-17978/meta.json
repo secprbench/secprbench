@@ -1,0 +1,33 @@
+{
+  "task_id": "pr_review_GH-17978",
+  "bug_id": "GH-17978",
+  "bug_type": "NullPointerDereference",
+  "intro_commit": "9a2663322c330ff11275abafd612e9c99407a94a",
+  "intro_parent": "84b62696d93695cd936b33c7917186df240ee291",
+  "fix_commit": "9657a2041e7745aecd5b16c5c6d812424edfc6fd",
+  "affected_files": [
+    "src/tool_cb_rea.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "candidate_only",
+  "attachments": [
+    "- evidence/test_01_22605b745a1399e6_Makefile.am: tests/data/Makefile.am",
+    "- evidence/test_02_2063eec5e021c901_test1548: tests/data/test1548"
+  ],
+  "input_name": null,
+  "root_cause": "Missing NULL check before calling strcmp() on a pointer (per->uploadfile) that is not guaranteed to be non-NULL in all code paths that reach tool_read_cb().",
+  "findings": [
+    "The added non-blocking STDIN read logic in tool_read_cb() checks whether the current transfer uses `-T .` by calling `strcmp(per->uploadfile, \".\")` without first verifying that `per->uploadfile` is non-NULL. For transfers that read client input (the read callback) but were not configured with an upload file (`per->uploadfile == NULL`, e.g. plain data-reading operations that still invoke this callb"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "0a283ee1b21cda77c8b605c3d057d74b688364c911da89bc3354826b663a33e3",
+  "generated_artifact_sha256": {
+    "reference": "50833a96df613be504e49c0d0b2a79f0bd30b80774143a6b26c8e7e127c3c31a",
+    "introducing": "e971260a13f1cbeb950b4ce0e2fa7a9b037e81d824bf0d5b56d196f8ee072c6e",
+    "companion": "abbf03b834a529682434f2a120103d36af809715ce753b2cb4183470bfc0e03a"
+  }
+}

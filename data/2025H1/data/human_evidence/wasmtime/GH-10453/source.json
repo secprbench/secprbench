@@ -1,0 +1,89 @@
+{
+  "bug_id": "GH-10453",
+  "title": "Fix a bug where arrays of GC refs were misreporting their count of GC edges (#10453)",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "wasmtime",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Official fixing record: https://github.com/bytecodealliance/wasmtime/pull/10453\n\nFix a bug where arrays of GC refs were misreporting their count of GC edges (#10453)\n\n* Fix a bug where arrays of GC refs were misreporting their count of GC edges\n\nThey were accidentally reporting the size of their GC reference elements, rather\nthan the count.\n\n* fix miri ignore attr\n\nPreliminary source observation: The March 17 DRC change stored array byte size as GC edge count. Its March 21 fix stores array length instead. Upstream test paints the heap with a poison value, then creates a guest GC-ref array and collects it; the test says the old behavior panicked while tracing past the GC heap.\nSecurity impact, input reachability, earliest effective fix, and a three-revision oracle require independent review.",
+  "commit_ids": [
+    "04eee21826057ca0f67ad55bd6386ce61d2352ce"
+  ],
+  "fix_commit_sha": "04eee21826057ca0f67ad55bd6386ce61d2352ce",
+  "fix_date": "2025-03-21T17:33:36Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_mainline_ancestor",
+  "season": "2025H1",
+  "affected_files": [
+    "crates/cranelift/src/gc/enabled.rs",
+    "crates/cranelift/src/gc/enabled/drc.rs",
+    "crates/cranelift/src/gc/enabled/null.rs",
+    "tests/all/gc.rs",
+    "tests/disas/gc/drc/array-new-fixed-of-gc-refs.wat",
+    "tests/disas/gc/drc/array-new-fixed.wat",
+    "tests/disas/gc/null/array-new-fixed-of-gc-refs.wat",
+    "tests/disas/gc/null/array-new-fixed.wat"
+  ],
+  "changed_lines": 290,
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "GH-10453",
+      "url": "https://github.com/bytecodealliance/wasmtime/pull/10453",
+      "kind": "official_merged_pull_request",
+      "evidence": "Fix a bug where arrays of GC refs were misreporting their count of GC edges"
+    }
+  ],
+  "candidate_status": "targeted_strong_source_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_guest_triggered_host_panic",
+    "preliminary_source_observation": "The March 17 DRC change stored array byte size as GC edge count. Its March 21 fix stores array length instead. Upstream test paints the heap with a poison value, then creates a guest GC-ref array and collects it; the test says the old behavior panicked while tracing past the GC heap.",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_v10_strong_source_evidence_v1",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/04eee21826057ca0f67ad55bd6386ce61d2352ce.commit",
+      "sha256": "a34c205551049a828be809607a7ad92115d74abaf5dd631d87806f08d02c7b90"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/04eee21826057ca0f67ad55bd6386ce61d2352ce.patch",
+      "sha256": "3506714318f1106d80bca2cdf68db5670ae782921c4b8882b6b4661b17833bf7"
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/tests/04eee21826057ca0f67ad55bd6386ce61d2352ce-gc.rs",
+      "sha256": "ee4be1c65163416bac682dd51ec80c5f21605e4a0aa247f520871eaa09111b5c",
+      "repository_path": "tests/all/gc.rs",
+      "source_revision": "04eee21826057ca0f67ad55bd6386ce61d2352ce",
+      "role": "linked_upstream_regression_test_not_yet_replayed"
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "e846371a94cfb5736199bfe4ee6ac3aa7109db8e",
+    "fix_sha": "04eee21826057ca0f67ad55bd6386ce61d2352ce",
+    "report_details": "official_public_pull_request_and_upstream_regression_test",
+    "preliminary_boundary": "guest Wasm GC reference array with DRC collector and host GC",
+    "introduction_candidate": {
+      "commit_sha": "0a29578f1095679b7b1a84c486cfc338b0b87e7e",
+      "commit_date": "2025-03-18T00:50:22Z",
+      "role": "first_parent_mainline_introduction_of_vulnerable_construct",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/0a29578f1095679b7b1a84c486cfc338b0b87e7e.commit",
+        "sha256": "b6080383111c6b777df01b5ad0d857bb52058667cebe39cc1f36e1600b927c75"
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/04eee21826057ca0f67ad55bd6386ce61d2352ce.intro.blame",
+        "sha256": "bdbb4dbd5950b63112ae24fef68ad493a8a417dfecd7afbfa0d4c474352fc59c"
+      },
+      "marker": "let num_gc_refs = if array_layout.elems_are_gc_refs"
+    },
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/web/pr-10453.json",
+      "sha256": "8b933db820bec7e002faa0483bf8ae84029fee6233c6234da9eb7e68a084f81f"
+    },
+    "source_url": "https://github.com/bytecodealliance/wasmtime/pull/10453"
+  }
+}

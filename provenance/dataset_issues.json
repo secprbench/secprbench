@@ -1,0 +1,32 @@
+{
+  "companion_snapshot": "Historical companion review runs may use the upstream fixing tree while verification evaluates the composed repaired tree; evidence does not transfer automatically between these identities.",
+  "evidence_scope_notes": {
+    "curl/GH-19039": "Provisionally retain; POP3 body omission is reproduced, but distinct security consequence needs clearer documentation.",
+    "ffmpeg/45daaf2caaa3": "Provisionally retain; security reference alleges uninitialized-output/padding issue, but replay checks caption formatting. Calibrate impact and strengthen source evidence.",
+    "ffmpeg/4eca335d94ca": "Retain disclosed source-based repaired control; package evidence and bind distributed companion rather than claim full repaired execution.",
+    "ffmpeg/5021764413a1": "Provisionally retain; security reference also alleges size overflow but saved oracle checks caption output. Calibrate impact and strengthen source evidence.",
+    "ffmpeg/OSSFUZZ-421954767": "Retain human-adjudicated route; saved replay used scratch source with DBG edits. Rerun pristine source and bind binary/source identity.",
+    "ffmpeg/OSSFUZZ-422217206": "Retain adjudicated input-reachable defect; proposed information disclosure is not established by current replay.",
+    "ffmpeg/OSSFUZZ-428055715": "Retain adjudicated input-reachable UBSan overflow; calibrate consequence rather than infer exploitability.",
+    "ffmpeg/OSSFUZZ-471569982": "Retain adjudicated negative-shift/feature-absent-parent evidence; record exact oracle scope.",
+    "firefox/1954042": "Retain human-adjudicated route; legacy ASan ILL/OOM evidence is unbound to current task hashes and does not establish unchecked OOB write. Rebind evidence and calibrate reference.",
+    "freetype/REPORTED-582cea9ee1bfa873": "Retain human-admitted case; saved build disables target feature, so feature-enabled replay remains necessary for mechanical coverage.",
+    "wasmtime/CVE-2025-64345": "Retain feature-absent-parent regression route; bind exact released companion/control identities.",
+    "wasmtime/CVE-2026-34983": "Retain ASan UAF with feature-absent parent and adapted fix; not three executable controls for the distributed companion.",
+    "wasmtime/GH-10387": "Retain; observed HTTP worker-task panic does not establish whole-server death. Correct impact scope.",
+    "wasmtime/GH-10453": "Retain; checked-bounds panic is caught/re-aborted by harness, not direct unchecked ASan OOB. Correct impact scope.",
+    "wasmtime/GH-11749": "Retain; controls also abort due to different stack-exhaustion causes. Use target-specific oracle rather than exit status alone."
+  },
+  "external_artifacts": "Original evidence JSON records may reference historical absolute paths, logs, PoCs, build images, or model trajectories not bundled here. These are provenance only, not runtime dependencies. No claim of complete historical replay portability is made.",
+  "judge_scope": "Frozen companion target-hit verdicts are not calibrated false-alarm measurements. Judge audit and snapshot alignment remain publication work.",
+  "repair_required": {
+    "curl/CVE-2025-0167": "Buggy patch applies but reconstructed tests/data/test478 and test479 lose CRLF bytes, so reconstructed tree differs from declared introduction. Difference is exactly CRLF normalization. Restore byte-preserving patch serialization in a versioned artifact.",
+    "curl/CVE-2026-5545": "Buggy patch applies but reconstructed tests/data/test338 loses CRLF bytes, so reconstructed tree differs from declared introduction. Difference is exactly CRLF normalization. Restore byte-preserving patch serialization in a versioned artifact.",
+    "curl/CVE-2026-9079": "Buggy diff lost CRLF context in tests/data/test503. Strict git apply fails; whitespace-tolerant apply succeeds. Preserve original and produce a versioned byte-correct patch; retain underlying case.",
+    "curl/GH-17830": "Buggy patch applies but reconstructed tests/data/test4000 loses CRLF bytes, so reconstructed tree differs from declared introduction. Difference is exactly CRLF normalization. Restore byte-preserving patch serialization in a versioned artifact.",
+    "curl/GH-19039": "Buggy patch applies but reconstructed tests/data/test997 loses CRLF bytes, so reconstructed tree differs from declared introduction. Difference is exactly CRLF normalization. Restore byte-preserving patch serialization in a versioned artifact.",
+    "sqlite/FORUM-8f384febcc9b": "Stored introduction is branch-3.53 a7751a871bdcb5e88a3f61da8e2bc9ac7ffbe0d9. Matching mainline source/test patch exists at 73975a8f31f1ad6e2c93e4716108ed13944a3fdc. Reconstruct/replay a newly versioned pair; do not transfer old evidence to changed snapshots."
+  },
+  "schema_version": 1,
+  "status": "Known limitations are recorded, not repaired or silently relabeled."
+}

@@ -1,0 +1,32 @@
+{
+  "task_id": "pr_review_482345688",
+  "bug_id": "482345688",
+  "bug_type": "DataRace",
+  "intro_commit": "b9068d13bb1c33f67708cdb207a892994389941f",
+  "intro_parent": "1973b12d6241a7e7a82965447dc40fb6a8fb7bd5",
+  "fix_commit": "e194d3a40d8e676ebdeb1d1d77677d0d812c5dd9",
+  "affected_files": [
+    "src/wasm/wasm-module.cc",
+    "src/wasm/wasm-module.h",
+    "src/wasm/wasm-code-manager.cc"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "v8",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When `signature_zone` (a Zone) was replaced by the custom `WasmModuleSignatureStorage` class in commit b9068d13bb1, the new class's `TotalReservedSize()` accessor was invoked from `WasmModule::EstimateStoredSize()`/`EstimateCurrentMemoryConsumption()` exactly as the old Zone accessor had been \u2014 i.e., without any synchronization \u2014 even though the class's own doc comment states that `signature_storage` is mutated during instantiation on a `const WasmModule`. The call chain `NativeModule::EstimateCurrentMemoryConsumption()` \u2192 `module_->EstimateCurrentMemoryConsumption()` executes before `NativeModule::allocation_mutex_` is acquired in that function, so a concurrent instantiation thread appending to `signature_storage` races with the reading thread.",
+  "findings": [
+    "WasmModule::EstimateStoredSize() reads `signature_storage.TotalReservedSize()` (and the aggregate `WasmModule::EstimateCurrentMemoryConsumption()` which calls EstimateStoredSize()) without acquiring any lock. However, `signature_storage` (introduced in this commit, replacing the former `signature_zone`) is `mutable` and is concurrently mutated during instantiation (e.g. when fast API call signatur"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "ae4132bb92f6d66682d9b49071b9e22cf6bf8a70c75667dec5a37fb6e46bb5b2",
+  "generated_artifact_sha256": {
+    "reference": "dc7bbbc7049075b87b9309c8af78e685864bb7b03c98faffefda0a895a760844",
+    "introducing": "21b19d87105e0f570163bc524ebf0f100e9fcce3a2534d1e2446fca29d6add9c",
+    "companion": "f809dfe108dab591081c2e37bf0d454571b9b73c6cecdbde9e00750906760fbb"
+  }
+}

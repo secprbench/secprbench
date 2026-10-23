@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-2ae4d56c05b1",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "cd74b611f4a36335e864f02f6be3e34dc39f711c",
+    "parent": "fc083ab9731a59ceeece88453a097297260d414e",
+    "fix": "2ae4d56c05b1e5ea11440e6b08c8eea1bdd83ad3"
+  },
+  "affected_files": [
+    "src/main.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The initial target builds failed because UBSan instrumented the 2011 build-time lemon parser generator, which overflowed while generating parse.c. I rebuilt lemon/mkkeywordhash without sanitizers while retaining ASan+UBSan on SQLite and the PoC. With the same harness and command, pre_intro exited 0 and reported that sqlite3ParseUri is absent; post_intro aborted with exit 134 and AddressSanitizer reported a heap-buffer-overflow in sqlite3ParseUri, showing a write immediately past a 32-byte alloca",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

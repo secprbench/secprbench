@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-461519938",
+  "bug_id": "OSSFUZZ-461519938",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "b74f89caaef2174b0bfb2791ea88e44960dba11f",
+  "intro_parent": "0f0afc7fb5d30c40108d81b320823d8f5c9fbedc",
+  "fix_commit": "d41b8d95a7234cf0b34fcb84e307385fb3ef30a1",
+  "affected_files": [
+    "libswscale/output.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The addition Y + R (and Y + G, Y + B) is performed entirely in 32-bit signed integer arithmetic even though the pre-scaled/biased Y value and the chroma-derived R/G/B values can each individually be close to the 32-bit signed integer limits, so their sum can exceed INT32_MAX or go below INT32_MIN, triggering undefined signed integer overflow.",
+  "findings": [
+    "In yuv2gbrp16_full_X_c(), the luma term Y (an `int`, already biased/scaled and holding values that can approach the extremes of the 32-bit signed range: Y is initialized to -0x40000000, accumulated from filter taps, shifted, and further biased by `(1<<13)-(1<<29)`) is added directly to the chroma-derived R/G/B terms (also plain `int`, computed as `V * c->yuv2rgb_v2r_coeff` etc., which themselves c"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "f761ba03b1e7331589e2069c9ce17c65f305c980f4d56e88dacd40cba9b417f4",
+  "generated_artifact_sha256": {
+    "reference": "64b7f483a45539b94ef0cff8fbcebfbbdddf43781254f4f0ddf856d21725a4e4",
+    "introducing": "d729468091d1082dc2c21889058dc0d8a54b11ab83f8ded4e648bc43613848ce",
+    "companion": "1e3b07666a4721ade72782a0ae95559e83b19db5818dcd7d9b601b8a9cfbf551"
+  }
+}

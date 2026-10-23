@@ -1,0 +1,110 @@
+{
+  "task_id": "pr_review_GH-27608",
+  "bug_id": "GH-27608",
+  "commit_sha": "9a055c89170b3e8a2a6e210ec7f7f3df8f67f8a7",
+  "commit_message": "extend internal api to allow for add/lookup token ops\n\nReviewed-by: Matt Caswell <matt@openssl.org>\nReviewed-by: Sa\u0161a Nedv\u011bdick\u00fd <sashan@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/26517)",
+  "commit_author": "Neil Horman",
+  "commit_date": "2025-01-15T15:16:24-05:00",
+  "pr_title": "extend internal api to allow for add/lookup token ops",
+  "pr_description": "Reviewed-by: Matt Caswell <matt@openssl.org>\nReviewed-by: Sa\u0161a Nedv\u011bdick\u00fd <sashan@openssl.org>\n(Merged from https://github.com/openssl/openssl/pull/26517)\n",
+  "files": [
+    {
+      "path": "include/internal/quic_ssl.h",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 0,
+      "diff": "diff --git a/include/internal/quic_ssl.h b/include/internal/quic_ssl.h\nindex e01de740c2..da00816940 100644\n--- a/include/internal/quic_ssl.h\n+++ b/include/internal/quic_ssl.h\n@@ -27,10 +27,14 @@ __owur SSL *ossl_quic_new_domain(SSL_CTX *ctx, uint64_t flags);\n \n SSL_TOKEN_STORE_HANDLE *ossl_quic_new_token_store(void);\n void ossl_quic_free_token_store(SSL_TOKEN_STORE_HANDLE *hdl);\n SSL_TOKEN_STORE_HANDLE *ossl_quic_get_token_store(SSL_CTX *ctx);\n int ossl_quic_set_token_store(SSL_CTX *ctx, SSL_TOKEN_STORE_HANDLE *hdl);\n+int ossl_quic_update_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                                uint8_t *token, size_t token_len);\n+int ossl_quic_get_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                             uint8_t **token, size_t *token_len);\n \n __owur int ossl_quic_init(SSL *s);\n void ossl_quic_deinit(SSL *s);\n void ossl_quic_free(SSL *s);\n int ossl_quic_reset(SSL *s);\n"
+    },
+    {
+      "path": "ssl/quic/quic_impl.c",
+      "status": "modified",
+      "additions": 125,
+      "deletions": 0,
+      "diff": "diff --git a/ssl/quic/quic_impl.c b/ssl/quic/quic_impl.c\nindex 8a03483a8a..cccad727d5 100644\n--- a/ssl/quic/quic_impl.c\n+++ b/ssl/quic/quic_impl.c\n@@ -4739,10 +4739,135 @@ int ossl_quic_set_token_store(SSL_CTX *ctx, SSL_TOKEN_STORE_HANDLE *hdl)\n \n     ossl_quic_free_token_store(old);\n     return 1;\n }\n \n+/**\n+ * @brief build a new QUIC_TOKEN\n+ *\n+ * This function creates a new token storage structure for saving in our \n+ * tokencache\n+ *\n+ * In an effort to make allocation and freeing of these tokens a bit faster\n+ * We do them in a single allocation in this format\n+ * +---------------+        --\\\n+ * |   hashkey *   |---|      |\n+ * |   hashkey_len |   |      | QUIC_TOKEN\n+ * |   token *     |---|--|   |\n+ * |   token_len   |   |  |   |\n+ * +---------------+<--|  | --/\n+ * |  hashkey buf  |      |\n+ * |               |      |\n+ * |---------------|<-----|\n+ * |  token buf    |\n+ * |               |\n+ * +---------------+\n+ *\n+ * @param peer - the peer address that sent the token\n+ * @param token - the buffer holding the token\n+ * @param token_len - the size of token\n+ *\n+ * @returns a QUIC_TOKEN pointer or NULL on error\n+ */\n+static QUIC_TOKEN *ossl_quic_build_new_token(BIO_ADDR *peer, uint8_t *token,\n+                                             size_t token_len)\n+{\n+    QUIC_TOKEN *new_token;\n+    size_t hashkey_len = 0;\n+    size_t addr_len = 0;\n+    int family;\n+    unsigned short port;\n+    int *famptr;\n+    unsigned short *portptr;\n+    uint8_t *addrptr;\n+\n+    if (!BIO_ADDR_rawaddress(peer, NULL, &addr_len))\n+        return NULL;\n+    family = BIO_ADDR_family(peer);\n+    port = BIO_ADDR_rawport(peer);\n+\n+    hashkey_len += sizeof(int); /*hashkey(family)*/\n+    hashkey_len += sizeof(unsigned short); /*hashkey(port)*/\n+    hashkey_len += addr_len; /*hashkey(address)*/\n+\n+    new_token = OPENSSL_zalloc(sizeof(QUIC_TOKEN) + hashkey_len + token_len);\n+    if (new_token == NULL)\n+        return NULL;\n+    new_token->hashkey_len = hashkey_len;\n+    new_token->hashkey = (uint8_t *)(new_token + 1); /*hashkey lives after the struct */\n+    new_token->token = new_token->hashkey + hashkey_len; /*token follows */\n+    new_token->token_len = token_len;\n+    famptr = (int *)new_token->hashkey;\n+    portptr = (unsigned short *)(famptr + 1);\n+    addrptr = (uint8_t *)(portptr + 1);\n+    *famptr = family;\n+    *portptr = port;\n+    BIO_ADDR_rawaddress(peer, addrptr, NULL);\n+    if (token != NULL)\n+        memcpy(new_token->token, token, token_len);\n+\n+    return new_token;\n+}\n+\n+int ossl_quic_update_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                                uint8_t *token, size_t token_len)\n+{\n+    SSL_TOKEN_STORE *c = ctx->tokencache;\n+    QUIC_TOKEN *tok, *old = NULL;\n+\n+    if (ctx->tokencache == NULL)\n+        return 0;\n+\n+    tok = ossl_quic_build_new_token(peer, token, token_len);\n+    if (tok == NULL)\n+        return 0;\n+\n+    /* we might be sharing this cache, lock it */\n+    ossl_crypto_mutex_lock(c->mutex);\n+\n+    old = lh_QUIC_TOKEN_retrieve(c->cache, tok);\n+    if (old != NULL)\n+        lh_QUIC_TOKEN_delete(c->cache, tok);\n+    lh_QUIC_TOKEN_insert(c->cache, tok);\n+\n+    ossl_crypto_mutex_unlock(c->mutex);\n+    free_quic_token(old);\n+    return 1;\n+}\n+\n+int ossl_quic_get_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                             uint8_t **token, size_t *token_len)\n+{\n+    SSL_TOKEN_STORE *c = ctx->tokencache;\n+    QUIC_TOKEN *key = NULL;\n+    QUIC_TOKEN *tok = NULL;\n+    int rc = 0;\n+\n+    if (c == NULL)\n+        return 0;\n+\n+    key = ossl_quic_build_new_token(peer, NULL, 0);\n+    ossl_crypto_mutex_lock(c->mutex);\n+    tok = lh_QUIC_TOKEN_retrieve(c->cache, key);\n+    if (tok != NULL) {\n+        if (tok->token_len > *token_len) {\n+            tok = NULL; /*allow reuse here */\n+            goto out;\n+        }\n+        memcpy(*token, tok->token, tok->token_len);\n+        *token_len = tok->token_len;\n+        lh_QUIC_TOKEN_delete(c->cache, key);\n+        rc = 1;\n+    }\n+   \n+out:\n+    ossl_crypto_mutex_unlock(c->mutex);\n+    free_quic_token(tok);\n+    free_quic_token(key);\n+    return rc;\n+}\n+\n /*\n  * SSL_get_accept_connection_queue_len\n  * -----------------------------------\n  */\n QUIC_TAKES_LOCK\n"
+    }
+  ],
+  "full_diff": "diff --git a/include/internal/quic_ssl.h b/include/internal/quic_ssl.h\nindex e01de740c2..da00816940 100644\n--- a/include/internal/quic_ssl.h\n+++ b/include/internal/quic_ssl.h\n@@ -27,10 +27,14 @@ __owur SSL *ossl_quic_new_domain(SSL_CTX *ctx, uint64_t flags);\n \n SSL_TOKEN_STORE_HANDLE *ossl_quic_new_token_store(void);\n void ossl_quic_free_token_store(SSL_TOKEN_STORE_HANDLE *hdl);\n SSL_TOKEN_STORE_HANDLE *ossl_quic_get_token_store(SSL_CTX *ctx);\n int ossl_quic_set_token_store(SSL_CTX *ctx, SSL_TOKEN_STORE_HANDLE *hdl);\n+int ossl_quic_update_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                                uint8_t *token, size_t token_len);\n+int ossl_quic_get_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                             uint8_t **token, size_t *token_len);\n \n __owur int ossl_quic_init(SSL *s);\n void ossl_quic_deinit(SSL *s);\n void ossl_quic_free(SSL *s);\n int ossl_quic_reset(SSL *s);\ndiff --git a/ssl/quic/quic_impl.c b/ssl/quic/quic_impl.c\nindex 8a03483a8a..cccad727d5 100644\n--- a/ssl/quic/quic_impl.c\n+++ b/ssl/quic/quic_impl.c\n@@ -4739,10 +4739,135 @@ int ossl_quic_set_token_store(SSL_CTX *ctx, SSL_TOKEN_STORE_HANDLE *hdl)\n \n     ossl_quic_free_token_store(old);\n     return 1;\n }\n \n+/**\n+ * @brief build a new QUIC_TOKEN\n+ *\n+ * This function creates a new token storage structure for saving in our \n+ * tokencache\n+ *\n+ * In an effort to make allocation and freeing of these tokens a bit faster\n+ * We do them in a single allocation in this format\n+ * +---------------+        --\\\n+ * |   hashkey *   |---|      |\n+ * |   hashkey_len |   |      | QUIC_TOKEN\n+ * |   token *     |---|--|   |\n+ * |   token_len   |   |  |   |\n+ * +---------------+<--|  | --/\n+ * |  hashkey buf  |      |\n+ * |               |      |\n+ * |---------------|<-----|\n+ * |  token buf    |\n+ * |               |\n+ * +---------------+\n+ *\n+ * @param peer - the peer address that sent the token\n+ * @param token - the buffer holding the token\n+ * @param token_len - the size of token\n+ *\n+ * @returns a QUIC_TOKEN pointer or NULL on error\n+ */\n+static QUIC_TOKEN *ossl_quic_build_new_token(BIO_ADDR *peer, uint8_t *token,\n+                                             size_t token_len)\n+{\n+    QUIC_TOKEN *new_token;\n+    size_t hashkey_len = 0;\n+    size_t addr_len = 0;\n+    int family;\n+    unsigned short port;\n+    int *famptr;\n+    unsigned short *portptr;\n+    uint8_t *addrptr;\n+\n+    if (!BIO_ADDR_rawaddress(peer, NULL, &addr_len))\n+        return NULL;\n+    family = BIO_ADDR_family(peer);\n+    port = BIO_ADDR_rawport(peer);\n+\n+    hashkey_len += sizeof(int); /*hashkey(family)*/\n+    hashkey_len += sizeof(unsigned short); /*hashkey(port)*/\n+    hashkey_len += addr_len; /*hashkey(address)*/\n+\n+    new_token = OPENSSL_zalloc(sizeof(QUIC_TOKEN) + hashkey_len + token_len);\n+    if (new_token == NULL)\n+        return NULL;\n+    new_token->hashkey_len = hashkey_len;\n+    new_token->hashkey = (uint8_t *)(new_token + 1); /*hashkey lives after the struct */\n+    new_token->token = new_token->hashkey + hashkey_len; /*token follows */\n+    new_token->token_len = token_len;\n+    famptr = (int *)new_token->hashkey;\n+    portptr = (unsigned short *)(famptr + 1);\n+    addrptr = (uint8_t *)(portptr + 1);\n+    *famptr = family;\n+    *portptr = port;\n+    BIO_ADDR_rawaddress(peer, addrptr, NULL);\n+    if (token != NULL)\n+        memcpy(new_token->token, token, token_len);\n+\n+    return new_token;\n+}\n+\n+int ossl_quic_update_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                                uint8_t *token, size_t token_len)\n+{\n+    SSL_TOKEN_STORE *c = ctx->tokencache;\n+    QUIC_TOKEN *tok, *old = NULL;\n+\n+    if (ctx->tokencache == NULL)\n+        return 0;\n+\n+    tok = ossl_quic_build_new_token(peer, token, token_len);\n+    if (tok == NULL)\n+        return 0;\n+\n+    /* we might be sharing this cache, lock it */\n+    ossl_crypto_mutex_lock(c->mutex);\n+\n+    old = lh_QUIC_TOKEN_retrieve(c->cache, tok);\n+    if (old != NULL)\n+        lh_QUIC_TOKEN_delete(c->cache, tok);\n+    lh_QUIC_TOKEN_insert(c->cache, tok);\n+\n+    ossl_crypto_mutex_unlock(c->mutex);\n+    free_quic_token(old);\n+    return 1;\n+}\n+\n+int ossl_quic_get_peer_token(SSL_CTX *ctx, BIO_ADDR *peer,\n+                             uint8_t **token, size_t *token_len)\n+{\n+    SSL_TOKEN_STORE *c = ctx->tokencache;\n+    QUIC_TOKEN *key = NULL;\n+    QUIC_TOKEN *tok = NULL;\n+    int rc = 0;\n+\n+    if (c == NULL)\n+        return 0;\n+\n+    key = ossl_quic_build_new_token(peer, NULL, 0);\n+    ossl_crypto_mutex_lock(c->mutex);\n+    tok = lh_QUIC_TOKEN_retrieve(c->cache, key);\n+    if (tok != NULL) {\n+        if (tok->token_len > *token_len) {\n+            tok = NULL; /*allow reuse here */\n+            goto out;\n+        }\n+        memcpy(*token, tok->token, tok->token_len);\n+        *token_len = tok->token_len;\n+        lh_QUIC_TOKEN_delete(c->cache, key);\n+        rc = 1;\n+    }\n+   \n+out:\n+    ossl_crypto_mutex_unlock(c->mutex);\n+    free_quic_token(tok);\n+    free_quic_token(key);\n+    return rc;\n+}\n+\n /*\n  * SSL_get_accept_connection_queue_len\n  * -----------------------------------\n  */\n QUIC_TAKES_LOCK\n",
+  "ground_truth": {
+    "bug_id": "GH-27608",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "99ea6b38430dc977ba63c832694cdb3c2cb3c2c9",
+      "short_sha": "99ea6b3",
+      "message": "Add NULL check in ossl_quic_get_peer_token",
+      "author": "Neil Horman",
+      "date": "2025-05-13T10:48:05-04:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-nullptr-001",
+        "title": "Missing NULL check after ossl_quic_build_new_token causes segmentation fault",
+        "message": "The function ossl_quic_get_peer_token calls ossl_quic_build_new_token(peer, NULL, 0) to create a lookup key, but does not check if the returned key is NULL before using it in lh_QUIC_TOKEN_retrieve(). When the peer address hasn't been set on a QUIC channel yet (as happens early in connection establishment in the http3 demo), ossl_quic_build_new_token returns NULL because BIO_ADDR_rawaddress fails on the uninitialized peer. The NULL key is then passed to lh_QUIC_TOKEN_retrieve which dereferences it, causing a segmentation fault.",
+        "location": {
+          "file": "ssl/quic/quic_impl.c",
+          "start_line": 4848,
+          "end_line": 4850,
+          "start_column": null,
+          "end_column": null,
+          "function": "ossl_quic_get_peer_token",
+          "snippet": "    key = ossl_quic_build_new_token(peer, NULL, 0);\n    ossl_crypto_mutex_lock(c->mutex);\n    tok = lh_QUIC_TOKEN_retrieve(c->cache, key);",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "ssl/quic/quic_impl.c",
+            "start_line": 4783,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "ossl_quic_build_new_token",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "high",
+        "bug_type": "NullPointerDereference",
+        "confidence": 0.95,
+        "suggestion": "Add a NULL check for the key returned by ossl_quic_build_new_token before using it in lh_QUIC_TOKEN_retrieve. Return 0 (failure) if key is NULL.",
+        "suggestion_code": "    key = ossl_quic_build_new_token(peer, NULL, 0);\n    if (key == NULL)\n        return 0;\n\n    ossl_crypto_mutex_lock(c->mutex);",
+        "tags": [
+          "security",
+          "null-pointer",
+          "quic",
+          "crash"
+        ],
+        "cwe_ids": [
+          "CWE-476"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "NullPointerDereference",
+    "affected_files": [
+      "ssl/quic/quic_impl.c"
+    ],
+    "root_cause": "The ossl_quic_get_peer_token function was introduced without proper error handling for the case where ossl_quic_build_new_token returns NULL. The ossl_quic_build_new_token function returns NULL when BIO_ADDR_rawaddress fails on the peer parameter, which occurs when the peer address hasn't been set on the QUIC channel yet. The code proceeds to use this NULL key in lh_QUIC_TOKEN_retrieve without checking.",
+    "must_cover": [
+      {
+        "file": "ssl/quic/quic_impl.c",
+        "function": "ossl_quic_get_peer_token",
+        "start_line": 4848,
+        "end_line": 4850,
+        "role": "primary",
+        "reason": "Primary location of finding: Missing NULL check after ossl_quic_build_new_token causes segmentation fault"
+      },
+      {
+        "file": "ssl/quic/quic_impl.c",
+        "function": "ossl_quic_build_new_token",
+        "start_line": 4783,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Missing NULL check after ossl_quic_build_new_token causes segmentation fault"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "9a055c89170b3e8a2a6e210ec7f7f3df8f67f8a7",
+  "fix_commit_sha": null
+}

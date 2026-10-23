@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-438961582",
+  "bug_id": "OSSFUZZ-438961582",
+  "bug_type": "LogicError",
+  "intro_commit": "2f9936e446d56f6e8da9f179143d3ac5a4546afc",
+  "intro_parent": "939bf30d8275ed13f76f31ae6629bdd4b4d53838",
+  "fix_commit": "cdee519d40e61bd65ba5b3fbec00acd50a08d0d9",
+  "affected_files": [
+    "libavcodec/dxv.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The refactor that introduced texdsp_ctx-based slice_count computation (replacing the previous FFMAX(ctx->texture_block_h, ctx->ctexture_block_h) based divisor) did not add a guard ensuring the coded_height-derived divisor used in av_clip()'s max argument is >= 1 before calling av_clip(), allowing pathological small coded_height values from attacker-controlled input to violate av_clip()'s min<=max invariant.",
+  "findings": [
+    "In dxv_decode(), the slice_count values for the texdsp and chroma-texdsp decompression contexts are computed with av_clip(avctx->thread_count, 1, avctx->coded_height / TEXTURE_BLOCK_H) and av_clip(avctx->thread_count, 1, cavctx.coded_height / TEXTURE_BLOCK_H). TEXTURE_BLOCK_H is 4. If avctx->coded_height (or cavctx.coded_height, which is coded_height/2 for chroma-planar formats) is smaller than TE"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "39fad76647d7b275ed84565a9839bdf6f7866e77d6e2897fd951a73809e11fdd",
+  "generated_artifact_sha256": {
+    "reference": "68cc73d04a1c0886f6cad37525e43053acab7a30213d4f6bfa2feebac620aefc",
+    "introducing": "01c32005849cfb45328a47ab8fc63e098350ff71901a2505835c7b38203247e4",
+    "companion": "6a50d8f1f1aadbad6b30e26d8a54a1d30a27b501339de043e812d62ca077a3ca"
+  }
+}

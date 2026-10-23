@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_OSSFUZZ-435225406",
+  "bug_id": "OSSFUZZ-435225406",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "7c5319e6924fd82772eff890df191f973767d38e",
+  "intro_parent": "ce172bc362f09a12dc422283d81313bde4920f51",
+  "fix_commit": "75f30b4d3e2320275b60be1cf3213ce2cbf55ff8",
+  "affected_files": [
+    "libavcodec/vvc/ctu.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "incomplete",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When ff_vvc_palette_escape_val() was made failable (returning negative AVERROR codes) as part of a broader refactor to bound Exp-Golomb decoding, the caller in palette_subblock_data() was updated to check the new error condition, but the validation check ('if (coeff < 0) return AVERROR_INVALIDDATA;') was placed after the arithmetic expression that uses 'coeff' in a multiplication, rather than before it. This ordering mistake allowed the invalid/error sentinel value to participate in signed multiplication, causing overflow.",
+  "findings": [
+    "In palette_subblock_data() (libavcodec/vvc/ctu.c), when decoding an escape-coded palette sample, ff_vvc_palette_escape_val() is called and can return a negative AVERROR value (e.g. AVERROR_INVALIDDATA) on malformed/corrupt bitstreams. The refactor in commit 7c5319e692 changed the escape-value API to be failable but reordered the code so that the returned 'coeff' is multiplied by 'scale' (coeff * s"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "a41ff0f87e93ceba61e58e9d8a8c1fb6deafdba76a900b3db80c0a68471e4a70",
+  "generated_artifact_sha256": {
+    "reference": "49422e1a72397d53bea7b315418a9ce1f0248f806f7c3978595d88022a9dec02",
+    "introducing": "ab513dc027bd33e6b7d3d9334df9e71088363ed1b4dda18634a1347445c1aaf8",
+    "companion": "b063545684740511e3130b80569eb1a5700e6f41086d749ad407df50704737b9"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_2013739",
+  "bug_id": "2013739",
+  "bug_type": "UseAfterFree",
+  "intro_commit": "fcc2f20e35ec811fd0d3c82286a00e68ffb265be",
+  "intro_parent": "8b0694b5c8a24b1f0b8944ccefc4a5ef79503e0c",
+  "fix_commit": "05ffcde977dfaf75399cbcccf0cf966e46065a76",
+  "affected_files": [
+    "js/src/wasm/WasmGcObject.cpp"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "firefox",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "In the OOL-forwarding branch of WasmArrayObject::obj_moved(), the intended bitwise-OR operation (`uintptr_t(oolHeaderNew) | 1`) that sets bit 0 of the forwarding pointer while preserving the pointer's upper bits was mistakenly written as a bitwise-AND (`uintptr_t(oolHeaderNew) & 1`). Since OOL header pointers are always aligned (bit 0 naturally clear), the AND operation always yields 0, destroying the forwarding pointer entirely instead of merely setting its tag bit.",
+  "findings": [
+    "When a WasmArrayObject with out-of-line (OOL) array data is promoted/relocated during a nursery minor GC, obj_moved() is supposed to store a forwarding pointer to the new OOL block location in the old block's OOLDataHeader::word field, with bit 0 set to mark it as a valid forwarding pointer (this bit is the documented protocol used by isDataInline()/Instance::updateFrameForMovingGC() to distinguis"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "55c5d343a0efa7e8b897da5e9e1fc535a1b92e385b2050724350f9594d4f051f",
+  "generated_artifact_sha256": {
+    "reference": "91a33c9b2e2db3b57b7e4eb6d366bf1a20e4258d67541fe40c86f3efbe7ace13",
+    "introducing": "9d21f40ac4f271a367aab65f2feed4826c68c40030671883a6c0be279ee63687",
+    "companion": "27d11f719f920b5630f588b850a6d38260808e73cf38f4f7aad7a1d56427a5b3"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:secprbench:prediction",
+  "title": "SecPRBench Prediction",
+  "description": "JSON object written by one scanner invocation to its output file. The isolated runner assigns an opaque instance_id and checks every prediction against the public task scope.",
+  "type": "object",
+  "required": ["instance_id", "model", "predictions"],
+  "properties": {
+    "instance_id": { "type": "string", "description": "Must equal SECPRBENCH_RUN_ID supplied by the isolated runner for this invocation." },
+    "model": { "type": "string", "description": "Free-form identifier for the scanner under test (model name, version, prompt-set hash, etc.)." },
+    "scanner_version": { "type": "string" },
+    "predictions": {
+      "type": "array",
+      "description": "Findings the scanner reported for this instance. Empty array = scanner predicts no security issue.",
+      "items": {
+        "type": "object",
+        "required": ["title", "file"],
+        "properties": {
+          "title": { "type": "string", "description": "Short title of the predicted finding." },
+          "message": { "type": "string", "description": "Body explaining the predicted vulnerability." },
+          "bug_type": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+          "file": { "type": "string", "description": "File the prediction points at." },
+          "function": { "type": "string" },
+          "start_line": { "type": "integer" },
+          "end_line": { "type": "integer" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "elapsed_seconds": { "type": "number" },
+    "tokens_in": { "type": "integer" },
+    "tokens_out": { "type": "integer" },
+    "trajectory_uri": {
+      "type": "string",
+      "description": "Optional pointer to the scanner's full trajectory log for reproducibility."
+    }
+  }
+}

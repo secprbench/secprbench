@@ -1,0 +1,88 @@
+{
+  "task_id": "pr_review_OSSFUZZ-485866440",
+  "bug_id": "OSSFUZZ-485866440",
+  "commit_sha": "6e8cf0377fee75de9ad2cc87385ab3e8f2c87143",
+  "commit_message": "avcodec/exr: Simple check for available channels\n\nThe existing is_luma check is fragile as depending on the order\nof channels it can be set or reset\n\nNo testcase\n\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>",
+  "commit_author": "Michael Niedermayer",
+  "commit_date": "2025-09-19T00:20:36+02:00",
+  "pr_title": "avcodec/exr: Simple check for available channels",
+  "pr_description": "The existing is_luma check is fragile as depending on the order\nof channels it can be set or reset\n\nNo testcase\n\nSigned-off-by: Michael Niedermayer <michael@niedermayer.cc>\n",
+  "files": [
+    {
+      "path": "libavcodec/exr.c",
+      "status": "modified",
+      "additions": 25,
+      "deletions": 4,
+      "diff": "diff --git a/libavcodec/exr.c b/libavcodec/exr.c\nindex 5f0d444828..2e500140e0 100644\n--- a/libavcodec/exr.c\n+++ b/libavcodec/exr.c\n@@ -173,10 +173,13 @@ typedef struct EXRContext {\n     int is_multipart;\n     int current_part;\n \n     int is_luma;/* 1 if there is an Y plane */\n \n+#define M(chr) (1<<chr - 'A')\n+    int has_channel; ///< combinatin of flags representing the channel codes A-Z\n+\n     GetByteContext gb;\n     const uint8_t *buf;\n     int buf_size;\n \n     EXRChannel *channels;\n@@ -1620,10 +1623,11 @@ static int decode_header(EXRContext *s, AVFrame *frame)\n     s->tile_attr.xSize    = -1;\n     s->tile_attr.ySize    = -1;\n     s->is_tile            = 0;\n     s->is_multipart       = 0;\n     s->is_luma            = 0;\n+    s->has_channel        = 0;\n     s->current_part       = 0;\n \n     if (bytestream2_get_bytes_left(gb) < 10) {\n         av_log(s->avctx, AV_LOG_ERROR, \"Header too short to parse.\\n\");\n         return AVERROR_INVALIDDATA;\n@@ -1723,27 +1727,30 @@ static int decode_header(EXRContext *s, AVFrame *frame)\n                 } else {\n                     layer_match = 1;\n                 }\n \n                 if (layer_match) { /* only search channel if the layer match is valid */\n+                    if (strlen(ch_gb.buffer) == 1) {\n+                        int ch_chr = av_toupper(*ch_gb.buffer);\n+                        if (ch_chr >= 'A' && ch_chr <= 'Z')\n+                            s->has_channel |= M(ch_chr);\n+                        av_log(s->avctx, AV_LOG_DEBUG, \"%c\\n\", ch_chr);\n+                    }\n+\n                     if (!av_strcasecmp(ch_gb.buffer, \"R\") ||\n                         !av_strcasecmp(ch_gb.buffer, \"X\") ||\n                         !av_strcasecmp(ch_gb.buffer, \"U\")) {\n                         channel_index = 0;\n-                        s->is_luma = 0;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"G\") ||\n                                !av_strcasecmp(ch_gb.buffer, \"V\")) {\n                         channel_index = 1;\n-                        s->is_luma = 0;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"Y\")) {\n                         channel_index = 1;\n-                        s->is_luma = 1;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"B\") ||\n                                !av_strcasecmp(ch_gb.buffer, \"Z\") ||\n                                !av_strcasecmp(ch_gb.buffer, \"W\")) {\n                         channel_index = 2;\n-                        s->is_luma = 0;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"A\")) {\n                         channel_index = 3;\n                     } else {\n                         av_log(s->avctx, AV_LOG_WARNING,\n                                \"Unsupported channel %.256s.\\n\", ch_gb.buffer);\n@@ -1815,10 +1822,24 @@ static int decode_header(EXRContext *s, AVFrame *frame)\n                     s->current_channel_offset += 2;\n                 } else {/* Float or UINT32 */\n                     s->current_channel_offset += 4;\n                 }\n             }\n+            if        (!((M('R') + M('G') + M('B')) & ~s->has_channel)) {\n+                s->is_luma = 0;\n+            } else if (!((M('X') + M('Y') + M('Z')) & ~s->has_channel)) {\n+                s->is_luma = 0;\n+            } else if (!((M('Y') + M('U') + M('V')) & ~s->has_channel)) {\n+                s->is_luma = 0;\n+            } else if (!((M('Y')                  ) & ~s->has_channel) &&\n+                       !((M('R') + M('G') + M('B') + M('U') + M('V') + M('X') + M('Z')) &  s->has_channel)) {\n+                s->is_luma = 1;\n+            } else {\n+                avpriv_request_sample(s->avctx, \"Uncommon channel combination\");\n+                ret = AVERROR(AVERROR_PATCHWELCOME);\n+                goto fail;\n+            }\n \n             /* Check if all channels are set with an offset or if the channels\n              * are causing an overflow  */\n             if (!s->is_luma) {/* if we expected to have at least 3 channels */\n                 if (FFMIN3(s->channel_offsets[0],\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/exr.c b/libavcodec/exr.c\nindex 5f0d444828..2e500140e0 100644\n--- a/libavcodec/exr.c\n+++ b/libavcodec/exr.c\n@@ -173,10 +173,13 @@ typedef struct EXRContext {\n     int is_multipart;\n     int current_part;\n \n     int is_luma;/* 1 if there is an Y plane */\n \n+#define M(chr) (1<<chr - 'A')\n+    int has_channel; ///< combinatin of flags representing the channel codes A-Z\n+\n     GetByteContext gb;\n     const uint8_t *buf;\n     int buf_size;\n \n     EXRChannel *channels;\n@@ -1620,10 +1623,11 @@ static int decode_header(EXRContext *s, AVFrame *frame)\n     s->tile_attr.xSize    = -1;\n     s->tile_attr.ySize    = -1;\n     s->is_tile            = 0;\n     s->is_multipart       = 0;\n     s->is_luma            = 0;\n+    s->has_channel        = 0;\n     s->current_part       = 0;\n \n     if (bytestream2_get_bytes_left(gb) < 10) {\n         av_log(s->avctx, AV_LOG_ERROR, \"Header too short to parse.\\n\");\n         return AVERROR_INVALIDDATA;\n@@ -1723,27 +1727,30 @@ static int decode_header(EXRContext *s, AVFrame *frame)\n                 } else {\n                     layer_match = 1;\n                 }\n \n                 if (layer_match) { /* only search channel if the layer match is valid */\n+                    if (strlen(ch_gb.buffer) == 1) {\n+                        int ch_chr = av_toupper(*ch_gb.buffer);\n+                        if (ch_chr >= 'A' && ch_chr <= 'Z')\n+                            s->has_channel |= M(ch_chr);\n+                        av_log(s->avctx, AV_LOG_DEBUG, \"%c\\n\", ch_chr);\n+                    }\n+\n                     if (!av_strcasecmp(ch_gb.buffer, \"R\") ||\n                         !av_strcasecmp(ch_gb.buffer, \"X\") ||\n                         !av_strcasecmp(ch_gb.buffer, \"U\")) {\n                         channel_index = 0;\n-                        s->is_luma = 0;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"G\") ||\n                                !av_strcasecmp(ch_gb.buffer, \"V\")) {\n                         channel_index = 1;\n-                        s->is_luma = 0;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"Y\")) {\n                         channel_index = 1;\n-                        s->is_luma = 1;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"B\") ||\n                                !av_strcasecmp(ch_gb.buffer, \"Z\") ||\n                                !av_strcasecmp(ch_gb.buffer, \"W\")) {\n                         channel_index = 2;\n-                        s->is_luma = 0;\n                     } else if (!av_strcasecmp(ch_gb.buffer, \"A\")) {\n                         channel_index = 3;\n                     } else {\n                         av_log(s->avctx, AV_LOG_WARNING,\n                                \"Unsupported channel %.256s.\\n\", ch_gb.buffer);\n@@ -1815,10 +1822,24 @@ static int decode_header(EXRContext *s, AVFrame *frame)\n                     s->current_channel_offset += 2;\n                 } else {/* Float or UINT32 */\n                     s->current_channel_offset += 4;\n                 }\n             }\n+            if        (!((M('R') + M('G') + M('B')) & ~s->has_channel)) {\n+                s->is_luma = 0;\n+            } else if (!((M('X') + M('Y') + M('Z')) & ~s->has_channel)) {\n+                s->is_luma = 0;\n+            } else if (!((M('Y') + M('U') + M('V')) & ~s->has_channel)) {\n+                s->is_luma = 0;\n+            } else if (!((M('Y')                  ) & ~s->has_channel) &&\n+                       !((M('R') + M('G') + M('B') + M('U') + M('V') + M('X') + M('Z')) &  s->has_channel)) {\n+                s->is_luma = 1;\n+            } else {\n+                avpriv_request_sample(s->avctx, \"Uncommon channel combination\");\n+                ret = AVERROR(AVERROR_PATCHWELCOME);\n+                goto fail;\n+            }\n \n             /* Check if all channels are set with an offset or if the channels\n              * are causing an overflow  */\n             if (!s->is_luma) {/* if we expected to have at least 3 channels */\n                 if (FFMIN3(s->channel_offsets[0],\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-485866440",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "7e10579f499200c464eabf7077bc35fd1206b515",
+      "short_sha": "7e10579f4",
+      "message": "avcodec/exr: fix AVERROR typo",
+      "author": "Michael Niedermayer",
+      "date": "2026-02-22T14:50:41+01:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logic-001",
+        "title": "Double-negation of AVERROR_PATCHWELCOME turns error return value positive",
+        "message": "In decode_header(), when an 'uncommon' EXR channel combination is detected, the code sets `ret = AVERROR(AVERROR_PATCHWELCOME);` before jumping to the `fail:` label. `AVERROR_PATCHWELCOME` is already defined via `FFERRTAG(...)` as a negative value (like all other FFmpeg AVERROR_* constants). The `AVERROR()` macro negates its argument (`#define AVERROR(e) (-(e))`), so wrapping an already-negative AVERROR_* constant in AVERROR() flips its sign back to positive. As a result, `ret` becomes a positive integer instead of the intended negative error code. Downstream code and callers of decode_header() (and the EXR decode_frame path) check `if (ret < 0) goto fail/return ret;` to detect header-parsing failures; because `ret` is now positive, this error path is not correctly recognized as an error in some callers/paths, allowing the decoder to continue processing a header describing an unsupported/invalid channel layout. This mismatch between intended error signaling and actual state (channel offsets, has_channel flags, is_luma) that was never properly validated contributes to an out-of-bounds read later while decoding EXR channel data, as reported by the OSS-Fuzz test case.",
+        "location": {
+          "file": "libavcodec/exr.c",
+          "start_line": 1836,
+          "end_line": 1840,
+          "start_column": null,
+          "end_column": null,
+          "function": "decode_header",
+          "snippet": "            } else {\n                avpriv_request_sample(s->avctx, \"Uncommon channel combination\");\n                ret = AVERROR(AVERROR_PATCHWELCOME);\n                goto fail;\n            }",
+          "snippet_hash": "601236b9461169df19725176caa69b3109ab6227f450a085c7794837ecfcdb35",
+          "description": null,
+          "snippet_start_line": 1836,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.85,
+        "suggestion": "Do not wrap an already-negative AVERROR_* constant with the AVERROR() macro. Assign the constant directly: `ret = AVERROR_PATCHWELCOME;`. This ensures the value remains negative so that all `ret < 0` error checks in decode_header() and its callers correctly detect the failure and abort processing of the malformed/unsupported EXR channel layout before any out-of-bounds access can occur.",
+        "suggestion_code": "ret = AVERROR_PATCHWELCOME;\ngoto fail;",
+        "tags": [
+          "security",
+          "error-handling",
+          "ffmpeg",
+          "exr"
+        ],
+        "cwe_ids": [
+          "CWE-704",
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "libavcodec/exr.c"
+    ],
+    "root_cause": "A newly written error-handling branch mistakenly wrapped an already-negative AVERROR_* constant in the AVERROR() negation macro, flipping its sign to positive and thereby defeating the standard `ret < 0` failure-detection convention used elsewhere in the codebase.",
+    "must_cover": [
+      {
+        "file": "libavcodec/exr.c",
+        "function": "decode_header",
+        "start_line": 1836,
+        "end_line": 1840,
+        "role": "primary",
+        "reason": "Primary location of finding: Double-negation of AVERROR_PATCHWELCOME turns error return value positive"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "6e8cf0377fee75de9ad2cc87385ab3e8f2c87143",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

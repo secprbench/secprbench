@@ -1,0 +1,198 @@
+{
+  "bug_id": "1987290",
+  "title": "FinalizationRegistryObject::unregister can read arguments out of bound when no arguments are supplied",
+  "severity": "sec-high",
+  "keywords": [
+    "csectype-bounds",
+    "regression",
+    "reporter-external",
+    "sec-high"
+  ],
+  "product": "firefox",
+  "component": "JavaScript Engine",
+  "creation_time": "2025-09-07T04:47:47Z",
+  "resolution_time": "2025-09-09T10:43:15Z",
+  "bug_discussion": "Bugzilla report: https://bugzilla.mozilla.org/show_bug.cgi?id=1987290\n\nCreated attachment 9511856\npoc.js\n\nThis code snippet causes the JS shell to crash on Nightly:\n\n```js\nconst v = new FinalizationRegistry(() => {});\nv.unregister();\n```\n\n```plain-text\n> ../gecko-dev/obj-x86_64-pc-windows-msvc/dist/bin/js.exe poc.js\n[26100] Assertion failure: i < argc_, at D:/Workspace/gecko-dev/obj-x86_64-pc-windows-msvc/dist/include\\js/CallArgs.h:213\n#01: js::FinalizationRegistryObject::unregister (D:\\Workspace\\gecko-dev\\js\\src\\builtin\\FinalizationRegistryObject.cpp:592)\n#02: CallJSNative (D:\\Workspace\\gecko-dev\\js\\src\\vm\\Interpreter.cpp:501)\n#03: js::InternalCallOrConstruct (D:\\Workspace\\gecko-dev\\js\\src\\vm\\Interpreter.cpp:597)\n#04: js::Interpret (D:\\Workspace\\gecko-dev\\js\\src\\vm\\Interpreter.cpp:3287)\n#05: js::RunScript (D:\\Workspace\\gecko-dev\\js\\src\\vm\\Interpreter.cpp:471)\n#06: js::ExecuteKernel (D:\\Workspace\\gecko-dev\\js\\src\\vm\\Interpreter.cpp:866)\n#07: js::Execute (D:\\Workspace\\gecko-dev\\js\\src\\vm\\Interpreter.cpp:895)\n#08: ExecuteScript (D:\\Workspace\\gecko-dev\\js\\src\\vm\\CompilationAndEvaluation.cpp:548)\n#09: JS_ExecuteScript (D:\\Workspace\\gecko-dev\\js\\src\\vm\\CompilationAndEvaluation.cpp:573)\n#10: RunFile (D:\\Workspace\\gecko-dev\\js\\src\\shell\\js.cpp:1315)\n#11: Process (D:\\Workspace\\gecko-dev\\js\\src\\shell\\js.cpp:2086)\n#12: Shell (D:\\Workspace\\gecko-dev\\js\\src\\shell\\js.cpp:12260)\n#13: main (D:\\Workspace\\gecko-dev\\js\\src\\shell\\js.cpp:12663)\n#14: __scrt_common_main_seh (D:\\a\\_work\\1\\s\\src\\vctools\\crt\\vcstartup\\src\\startup\\exe_common.inl:288)\n#15: BaseThreadInitThunk[C:\\WINDOWS\\System32\\KERNEL32.DLL +0x2e8d7]\n#16: RtlUserThreadStart[C:\\WINDOWS\\SYSTEM32\\ntdll.dll +0x8d9c]\n>\n```\n\nThis is regressed by Bug 1863140 [Part 3 (D263113)](https://phabricator.services.mozilla.com/D263113), where a `args[0]` is used to get an element rather than `args.get(0)` at <https://searchfox.org/firefox-main/rev/f985f336deeb9f7cb63d43c4f8dc8612d27b79e4/js/src/builtin/FinalizationRegistryObject.cpp#592>.\n\nCreated attachment 9511857\n(secure)\n\nSet release status flags based on info from the regressing bug 1863140\n\nCreated attachment 9511941\n(secure)\n\n*** Bug 1987378 has been marked as a duplicate of this bug. ***\n\nPushed by jcoppeard@mozilla.com:\nhttps://github.com/mozilla-firefox/firefox/commit/2b8155c2c4c2\nhttps://hg.mozilla.org/integration/autoland/rev/9ecc08118361\nPart 1: Use get() instead of operator[] to get arguments in FinalizationRegistryObject::unregister. r=jonco\nhttps://github.com/mozilla-firefox/firefox/commit/dad31486e264\nhttps://hg.mozilla.org/integration/autoland/rev/85925ba3c8a3\nPart 2: Add FinalizationRegistry/unregister-no-args.js non262 test case. r=jonco\n\nNote that we also found this bug internally on `9/6/2025 11:09 UTC` with the following test case:\n\n```\na = function() {}\nnew FinalizationRegistry(a).unregister()\n```\n\nCreated attachment 9512045\nInternal fuzzing report\n\nhttps://hg.mozilla.org/mozilla-central/rev/9ecc08118361\nhttps://hg.mozilla.org/mozilla-central/rev/85925ba3c8a3\n\nFlagging for bounty consideration at reporter's request to security@\n\nWhile this is a legit report, because it was found internally within the grace period defined in [the Bounty Policy](https://www.mozilla.org/en-US/security/bug-bounty/) it does not qualify. (Sorry)\n\nPublic PoC attachment: https://bugzilla.mozilla.org/attachment.cgi?id=9511856\nFix: https://github.com/mozilla/gecko-dev/commit/2b8155c2c4c299955d4ae81423992ed56a838aee",
+  "commit_ids": [
+    "2b8155c2c4c299955d4ae81423992ed56a838aee"
+  ],
+  "fix_commit_sha": "2b8155c2c4c299955d4ae81423992ed56a838aee",
+  "fix_date": "2025-09-08T15:11:36Z",
+  "season": "2025H2",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "affected_files": [
+    "js/src/builtin/FinalizationRegistryObject.cpp"
+  ],
+  "changed_lines": 2,
+  "aliases": [
+    "Bug 1987290"
+  ],
+  "target_type": "spidermonkey_js_shell",
+  "report_references": [
+    {
+      "id": "1987290",
+      "url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1987290",
+      "kind": "public_bugzilla_report"
+    },
+    {
+      "id": "attachment-9511856",
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9511856",
+      "kind": "public_javascript_poc"
+    }
+  ],
+  "candidate_status": "targeted_public_report_pending_security_and_construction_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "guest_javascript_argument_out_of_bounds_read_and_shell_crash",
+    "untrusted_input_boundary": "attacker-supplied JavaScript invoking FinalizationRegistry.unregister with no argument",
+    "untrusted_input_boundary_proven": true,
+    "oracle": "public PoC shell crash before fix; committed non262 test expects TypeError after fix",
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_firefox_js_public_poc_20261002_v2",
+    "source_url": "https://bugzilla.mozilla.org/show_bug.cgi?id=1987290",
+    "report_details": "fetched",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/reports/bugzilla-1987290.json",
+      "sha256": "32de95abad79170c8cfcbb456c0b0b4cbe78378bc9ca272f7529ec2e8315bd0f",
+      "bytes": 4073,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987290",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987290",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/2b8155c2c4c299955d4ae81423992ed56a838aee.commit",
+      "sha256": "d9e50ea5542647ee08a74b840b4442d2ac9071a705c8f614e5b68eb4fd8d2815",
+      "bytes": 430
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/2b8155c2c4c299955d4ae81423992ed56a838aee.patch",
+      "sha256": "6b4152bf44849d3f852f7eab1ccbbc9d2b14568ee17e8a3fe5f2a2165727d639",
+      "bytes": 1208
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/tests/unregister-no-args.js",
+      "sha256": "41ae1902e628a6dfb873b4bd27f43e3d35ba50d76df8ecf94266ff617e0f71df",
+      "bytes": 144
+    },
+    "raw_bug": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/reports/bugzilla-1987290.json",
+      "sha256": "32de95abad79170c8cfcbb456c0b0b4cbe78378bc9ca272f7529ec2e8315bd0f",
+      "bytes": 4073,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987290",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987290",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_comments": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/reports/bugzilla-1987290-comments.json",
+      "sha256": "0f30504048334ad68170d44217bd178dc96c951f6ba0881b502010c95364de75",
+      "bytes": 9662,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987290/comment",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987290/comment",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_attachment_index": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/reports/bugzilla-1987290-attachments.json",
+      "sha256": "f28397f92ed872156f6be55b2ae6463396b812d0e9ee0b8348cc699fd1727d74",
+      "bytes": 2122,
+      "url": "https://bugzilla.mozilla.org/rest/bug/1987290/attachment?exclude_fields=data",
+      "final_url": "https://bugzilla.mozilla.org/rest/bug/1987290/attachment?exclude_fields=data",
+      "content_type": "application/json; charset=UTF-8"
+    },
+    "raw_poc": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/poc/9511856-poc.js",
+      "sha256": "5e0e20b71d7b0c0f7e7e4af2f0a0ec4d0c4edac3ca2888182253f0f4da2a81a3",
+      "bytes": 64,
+      "url": "https://bugzilla.mozilla.org/attachment.cgi?id=9511856",
+      "final_url": "https://bug1987290.bmoattachments.org/attachment.cgi?id=9511856",
+      "content_type": "application/x-javascript"
+    },
+    "raw_git": {
+      "fix": {
+        "sha": "2b8155c2c4c299955d4ae81423992ed56a838aee",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/2b8155c2c4c299955d4ae81423992ed56a838aee.commit",
+          "sha256": "d9e50ea5542647ee08a74b840b4442d2ac9071a705c8f614e5b68eb4fd8d2815",
+          "bytes": 430
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/2b8155c2c4c299955d4ae81423992ed56a838aee.patch",
+          "sha256": "6b4152bf44849d3f852f7eab1ccbbc9d2b14568ee17e8a3fe5f2a2165727d639",
+          "bytes": 1208
+        }
+      },
+      "introduction": {
+        "sha": "321172222a2ea5ef15aa7ea8ff4fc27be3064c94",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/321172222a2ea5ef15aa7ea8ff4fc27be3064c94.commit",
+          "sha256": "08b1adebd688ba88f98b31fb4b64e231ff4a849c8d09ad25829a3ac5b6f4e3e1",
+          "bytes": 444
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/321172222a2ea5ef15aa7ea8ff4fc27be3064c94.patch",
+          "sha256": "0e09f3716a526087c513d963a080a0949c5b4212d225165051ecdc3704852e67",
+          "bytes": 26710
+        }
+      },
+      "regression_test": {
+        "sha": "dad31486e26400f544222014089927fa93316955",
+        "commit": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/dad31486e26400f544222014089927fa93316955.commit",
+          "sha256": "fdd47e4820fddac25a4e1dea4d356a532a77449eec1ed2f77711a373f2ab46f6",
+          "bytes": 403
+        },
+        "patch": {
+          "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/dad31486e26400f544222014089927fa93316955.patch",
+          "sha256": "76a234070c07be2d50787dcc03614b48ff72a6e44a801faab4cb6b07842bfbb8",
+          "bytes": 1213
+        }
+      }
+    },
+    "raw_blame": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/introduction-blame.txt",
+      "sha256": "af745f1847b4887ae86fbc6536f05361a58badfce9584691130d6cdb4e9c8768",
+      "bytes": 932
+    },
+    "raw_committed_test": {
+      "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/tests/unregister-no-args.js",
+      "sha256": "41ae1902e628a6dfb873b4bd27f43e3d35ba50d76df8ecf94266ff617e0f71df",
+      "bytes": 144
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "1b0c8fac6e93715898d0c6b74ebbf18e4b8b0fe3",
+    "introduction_candidate": {
+      "sha": "321172222a2ea5ef15aa7ea8ff4fc27be3064c94",
+      "committer_date": "2025-09-04T07:32:44Z",
+      "files": 9,
+      "changed_lines": 486,
+      "source_line": "args[0] in FinalizationRegistryObject::unregister",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/321172222a2ea5ef15aa7ea8ff4fc27be3064c94.commit",
+        "sha256": "08b1adebd688ba88f98b31fb4b64e231ff4a849c8d09ad25829a3ac5b6f4e3e1",
+        "bytes": 444
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261002-new-reports/firefox-1987290-v2/raw/git/introduction-blame.txt",
+        "sha256": "af745f1847b4887ae86fbc6536f05361a58badfce9584691130d6cdb4e9c8768",
+        "bytes": 932
+      }
+    },
+    "regressed_by_bug_id": [
+      1863140
+    ],
+    "dedup_snapshot": {
+      "project": "firefox",
+      "bug_id": "1987290",
+      "fix_sha": "2b8155c2c4c299955d4ae81423992ed56a838aee",
+      "exact_matches": [],
+      "compared": {
+        "rows": 15780,
+        "firefox_rows": 1874,
+        "source_records": 374
+      },
+      "input_count": 105
+    }
+  }
+}

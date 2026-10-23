@@ -1,0 +1,205 @@
+{
+  "bug_id": "2003589",
+  "project": "firefox",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "7c0e78c0e4575dda295abed143b32888ac5a8f5d",
+    "parent": "7ef21c323fbce385ee230dc6be03658081af012d",
+    "fix": "1d09788fc8234e4ab0dc3b9f2a99ff66cb90e274"
+  },
+  "affected_files": [
+    "js/src/jit/IonAnalysis.cpp",
+    "js/src/vm/Iteration.cpp",
+    "js/src/jit/CodeGenerator.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; meta.json: intro=7c0e78c0e457 ('Integrate with existing iterator indices optimizations'), parent/pre=7ef21c323fbc, fix/benign-companion=1d09788fc823 ('Only enumerate own properties in Object.keys ObjToIterator'). Root cause per findings: the new LoadIteratorElement/iterator-indices fast path lets Object.keys reuse an iterator built via a path that can still enumerate prototype properties (including through a Proxy trap that runs arbitrary script), which the new optimization did not expect, leading to script execution where none should be allowed (hits the disallowArbitraryCode() assertion / crashes in debug-equivalent ASan build, matching the reported sec-high JIT bug and its committed regression test object-keys-proxy-proto.js).\n\nVerification: used the exact reporter PoC (also matches the committed jit-test regression file byte-for-byte) on all three builds with the same command `js --fuzzing-safe --no-threads --ion-eager poc.js`:\n- pre_intro (7ef21c323fbc): exit=0, no crash.\n- post_intro (7c0e78c0e457): exit=134 (SIGABRT via ASan), crash report is an AddressSanitizer SEGV inside MOZ_CrashSequence / js::RunScript (Interpreter.cpp:406-407), reached through js::Call -> ScriptedProxyHandler::getOwnPropertyDescriptor -> BaseProxyHandler::getOwnEnumerablePropertyKeys -> Proxy::getOwnEnumerablePropertyKeys -> PropertyEnumerator::enumerateProxyProperties -> PropertyEnumerator::snapshot -> GetIteratorImpl -> GetIteratorUnregistered, i.e. exactly the Object.keys iterator/enumeration path named in the root cause and the reported assertion-failure stack.\n- post_benign (companion patch on top of intro, built from commit 7ef21c323fbc tag but containing the fix): exit=0, no crash, matching pre_intro.\n\nThe deterministic fast-path runner used the plain default run command which does not pass the JIT flags (--fuzzing-safe --no-threads --ion-eager) needed to force Ion-eager compilation and hit the optimization; with those flags (taken directly from the reporter's command line in discussion.md) the crash is 100% reproducible on post_intro only. This cleanly satisfies: crash present only in post_intro, absent in both pre_intro and post_benign, under the identical reproducer command/input across all three builds.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/season100-20261002-repairs/firefox-2003589-true-intro-import-v1/verification-unified28-v1/cases/firefox/8afbf1bbe18e6cc7aa88/attempts/01/replay/pr_review_2003589.result.json",
+    "report": "/research-data/secprbench/season100-20261002-repairs/firefox-2003589-true-intro-import-v1/verification-unified28-v1/cases/firefox/8afbf1bbe18e6cc7aa88/attempts/01/replay/pr_review_2003589.report.md",
+    "runs": {
+      "pre_intro": {
+        "version": "pre_intro",
+        "base_commit": "7ef21c323fbce385ee230dc6be03658081af012d",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "751044bf2ad20005890f229bcbce69d13689ec9c2f85228366121784de52b689"
+        }
+      },
+      "post_intro": {
+        "version": "post_intro",
+        "base_commit": "7c0e78c0e4575dda295abed143b32888ac5a8f5d",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f9354695119be51fc2e344b8725b6b48bfaf93f3fa2fd6adee11d21d91f9ec2a"
+        }
+      },
+      "post_benign": {
+        "version": "post_benign",
+        "base_commit": "7ef21c323fbce385ee230dc6be03658081af012d",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": true,
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "VERIFY_EXIT=0\n\n",
+        "note": "",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "fb8f0a36d01afbb8231cb99786a42b55ca613d29f4a345286b8e421d69983f47"
+        }
+      }
+    },
+    "agent": {
+      "verdict": "/research-data/secprbench/season100-20261002-repairs/firefox-2003589-true-intro-import-v1/verification-unified28-v1/cases/firefox/8afbf1bbe18e6cc7aa88/attempts/01/replay/pr_review_2003589.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --ion-eager $INPUT",
+          "input": "poc.js",
+          "poc_sha256": "652aaf53452c537f47db1be866d64af979dd80a84788656827b0a17ad0e297d1",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "7c0e78c0e4575dda295abed143b32888ac5a8f5d",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "f9354695119be51fc2e344b8725b6b48bfaf93f3fa2fd6adee11d21d91f9ec2a"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "st/bin/js +0x3ced955]\n#08: ???[/work/obj-verify-js/dist/bin/js +0x336f855]\n#09: ???[/work/obj-verify-js/dist/bin/js +0x3320426]\n#10: ???[/work/obj-verify-js/dist/bin/js +0x3325a1c]\n#11: ??? (???:???)\nAddressSanitizer:DEADLYSIGNAL\n=================================================================\n==8==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x55eff888e18d bp 0x7ffe3f97b7d0 sp 0x7ffe3f97b6c0 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x55eff888e18d in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3\n    #1 0x55eff888e18d in js::RunScript(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:406:3\n    #2 0x55eff888f51f in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:618:13\n    #3 0x55eff8890f9e in js::Call(JSContext*, JS::Handle<JS::Value>, JS::Handle<JS::Value>, js::AnyInvokeArgs const&, JS::MutableHandle<JS::Value>, js::CallReason) /work/js/src/vm/Interpreter.cpp:685:8\n    #4 0x55eff89f68e8 in js::Call(JSContext*, JS::Handle<JS::Value>, JSObject*, JS::Handle<JS::Value>, JS::Handle<JS::Value>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.h:145:10\n    #5 0x55eff965ba9c in js::ScriptedProxyHandler::getOwnPropertyDescriptor(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<mozilla::Maybe<JS::PropertyDescriptor> >) const /work/js/src/proxy/ScriptedProxyHandler.cpp:544:8\n    #6 0x55eff962ca9a in js::BaseProxyHandler::getOwnEnumerablePropertyKeys(JSContext*, JS::Handle<JSObject*>, JS::MutableHandle<JS::StackGCVector<JS::PropertyKey, js::TempAllocPolicy> >) const /work/js/src/proxy/BaseProxyHandler.cpp:267:10\n    #7 0x55eff9651954 in js::Proxy::getOwnEnumerablePropertyKeys(JSContext*, JS::Handle<JSObject*>, JS::MutableHandle<JS::StackGCVector<JS::PropertyKey, js::TempAllocPolicy> >) /work/js/src/proxy/Proxy.cpp:642:19\n    #8 0x55eff8cd3854 in bool PropertyEnumerator::enumerateProxyProperties<true>(JSContext*) /work/js/src/vm/Iteration.cpp:469:8\n    #9 0x55eff8c84425 in PropertyEnumerator::snapshot(JSContext*) /work/js/src/vm/Iteration.cpp:661:14\n    #10 0x55eff8c89a1b in js::PropertyIteratorObject* GetIteratorImpl<false, true>(JSContext*, JS::Handle<JSObject*>) /work/js/src/vm/Iteration.cpp:1232:21\n    #11 0x55eff8c89a1b in js::GetIteratorUnregistered(JSContext*, JS::Handle<JSObject*>) /work/js/src/vm/Iteration.cpp:1304:10\n    #12 0x27ba999085b5  (<unknown module>)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x00007dd49d0e0080  rcx = 0x0000000000000197  rdx = 0x0000000000000000  \nrdi = 0x000055effc723000  rsi = 0x00007ffe3f97b678  rbp = 0x00007ffe3f97b7d0  rsp = 0x00007ffe3f97b6c0  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007ffe3f97b8c0  r13 = 0x00000abdffa0d09c  r14 = 0x00000fffc7f2f6e4  r15 = 0x00007d749d1331a0  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --ion-eager $INPUT'\n",
+            "stdout_tail": "nknown address 0x000000000000 (pc 0x55eff888e18d bp 0x7ffe3f97b7d0 sp 0x7ffe3f97b6c0 T0)\n==8==The signal is caused by a WRITE memory access.\n==8==Hint: address points to the zero page.\n    #0 0x55eff888e18d in MOZ_CrashSequence(void*, long) /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3\n    #1 0x55eff888e18d in js::RunScript(JSContext*, js::RunState&) /work/js/src/vm/Interpreter.cpp:406:3\n    #2 0x55eff888f51f in js::InternalCallOrConstruct(JSContext*, JS::CallArgs const&, js::MaybeConstruct, js::CallReason) /work/js/src/vm/Interpreter.cpp:618:13\n    #3 0x55eff8890f9e in js::Call(JSContext*, JS::Handle<JS::Value>, JS::Handle<JS::Value>, js::AnyInvokeArgs const&, JS::MutableHandle<JS::Value>, js::CallReason) /work/js/src/vm/Interpreter.cpp:685:8\n    #4 0x55eff89f68e8 in js::Call(JSContext*, JS::Handle<JS::Value>, JSObject*, JS::Handle<JS::Value>, JS::Handle<JS::Value>, JS::MutableHandle<JS::Value>) /work/js/src/vm/Interpreter.h:145:10\n    #5 0x55eff965ba9c in js::ScriptedProxyHandler::getOwnPropertyDescriptor(JSContext*, JS::Handle<JSObject*>, JS::Handle<JS::PropertyKey>, JS::MutableHandle<mozilla::Maybe<JS::PropertyDescriptor> >) const /work/js/src/proxy/ScriptedProxyHandler.cpp:544:8\n    #6 0x55eff962ca9a in js::BaseProxyHandler::getOwnEnumerablePropertyKeys(JSContext*, JS::Handle<JSObject*>, JS::MutableHandle<JS::StackGCVector<JS::PropertyKey, js::TempAllocPolicy> >) const /work/js/src/proxy/BaseProxyHandler.cpp:267:10\n    #7 0x55eff9651954 in js::Proxy::getOwnEnumerablePropertyKeys(JSContext*, JS::Handle<JSObject*>, JS::MutableHandle<JS::StackGCVector<JS::PropertyKey, js::TempAllocPolicy> >) /work/js/src/proxy/Proxy.cpp:642:19\n    #8 0x55eff8cd3854 in bool PropertyEnumerator::enumerateProxyProperties<true>(JSContext*) /work/js/src/vm/Iteration.cpp:469:8\n    #9 0x55eff8c84425 in PropertyEnumerator::snapshot(JSContext*) /work/js/src/vm/Iteration.cpp:661:14\n    #10 0x55eff8c89a1b in js::PropertyIteratorObject* GetIteratorImpl<false, true>(JSContext*, JS::Handle<JSObject*>) /work/js/src/vm/Iteration.cpp:1232:21\n    #11 0x55eff8c89a1b in js::GetIteratorUnregistered(JSContext*, JS::Handle<JSObject*>) /work/js/src/vm/Iteration.cpp:1304:10\n    #12 0x27ba999085b5  (<unknown module>)\n\n==8==Register values:\nrax = 0x0000000000000000  rbx = 0x00007dd49d0e0080  rcx = 0x0000000000000197  rdx = 0x0000000000000000  \nrdi = 0x000055effc723000  rsi = 0x00007ffe3f97b678  rbp = 0x00007ffe3f97b7d0  rsp = 0x00007ffe3f97b6c0  \n r8 = 0x0000000000000000   r9 = 0xffffff0000000000  r10 = 0xefffffffffffffff  r11 = 0x4000000000000000  \nr12 = 0x00007ffe3f97b8c0  r13 = 0x00000abdffa0d09c  r14 = 0x00000fffc7f2f6e4  r15 = 0x00007d749d1331a0  \nAddressSanitizer can not provide additional info.\nSUMMARY: AddressSanitizer: SEGV /work/obj-verify-js/dist/include/mozilla/Assertions.h:237:3 in MOZ_CrashSequence(void*, long)\n==8==ABORTING\n/bin/bash: line 1:     8 Aborted                 bash -c '/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --ion-eager $INPUT'\n"
+          }
+        },
+        "pre_intro": {
+          "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --ion-eager $INPUT",
+          "input": "poc.js",
+          "poc_sha256": "652aaf53452c537f47db1be866d64af979dd80a84788656827b0a17ad0e297d1",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "7ef21c323fbce385ee230dc6be03658081af012d",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "751044bf2ad20005890f229bcbce69d13689ec9c2f85228366121784de52b689"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "/work/obj-verify-js/dist/bin/js --fuzzing-safe --no-threads --ion-eager $INPUT",
+          "input": "poc.js",
+          "poc_sha256": "652aaf53452c537f47db1be866d64af979dd80a84788656827b0a17ad0e297d1",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "7ef21c323fbce385ee230dc6be03658081af012d",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "fb8f0a36d01afbb8231cb99786a42b55ca613d29f4a345286b8e421d69983f47"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "JS reproducer from the Bugzilla report: a loop that sets [].__proto__.__proto__ to a scripted Proxy(Object, Object) and repeatedly calls Object.keys([]). Run with the js shell under `--fuzzing-safe --no-threads --ion-eager` (the reporter's invocation; the project-default run command alone did not reach the bug).",
+        "target_evidence": ""
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "meta.json: intro=7c0e78c0e457 ('Integrate with existing iterator indices optimizations'), parent/pre=7ef21c323fbc, fix/benign-companion=1d09788fc823 ('Only enumerate own properties in Object.keys ObjToIterator'). Root cause per findings: the new LoadIteratorElement/iterator-indices fast path lets Object.keys reuse an iterator built via a path that can still enumerate prototype properties (including through a Proxy trap that runs arbitrary script), which the new optimization did not expect, leading to script execution where none should be allowed (hits the disallowArbitraryCode() assertion / crashes in debug-equivalent ASan build, matching the reported sec-high JIT bug and its committed regression test object-keys-proxy-proto.js).\n\nVerification: used the exact reporter PoC (also matches the committed jit-test regression file byte-for-byte) on all three builds with the same command `js --fuzzing-safe --no-threads --ion-eager poc.js`:\n- pre_intro (7ef21c323fbc): exit=0, no crash.\n- post_intro (7c0e78c0e457): exit=134 (SIGABRT via ASan), crash report is an AddressSanitizer SEGV inside MOZ_CrashSequence / js::RunScript (Interpreter.cpp:406-407), reached through js::Call -> ScriptedProxyHandler::getOwnPropertyDescriptor -> BaseProxyHandler::getOwnEnumerablePropertyKeys -> Proxy::getOwnEnumerablePropertyKeys -> PropertyEnumerator::enumerateProxyProperties -> PropertyEnumerator::snapshot -> GetIteratorImpl -> GetIteratorUnregistered, i.e. exactly the Object.keys iterator/enumeration path named in the root cause and the reported assertion-failure stack.\n- post_benign (companion patch on top of intro, built from commit 7ef21c323fbc tag but containing the fix): exit=0, no crash, matching pre_intro.\n\nThe deterministic fast-path runner used the plain default run command which does not pass the JIT flags (--fuzzing-safe --no-threads --ion-eager) needed to force Ion-eager compilation and hit the optimization; with those flags (taken directly from the reporter's command line in discussion.md) the crash is 100% reproducible on post_intro only. This cleanly satisfies: crash present only in post_intro, absent in both pre_intro and post_benign, under the identical reproducer command/input across all three builds."
+    }
+  },
+  "task_hashes": {
+    "buggy": "796a45c15d73e75c6bff3092600d670393a29743102503eef640b7a7b326be59",
+    "benign": "772b86c0eecb1ee295616d5bd916218b0b10233955b990fce52ee55f9d558a4a"
+  }
+}

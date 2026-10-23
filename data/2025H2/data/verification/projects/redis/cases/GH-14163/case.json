@@ -1,0 +1,142 @@
+{
+  "bug_id": "GH-14163",
+  "project": "redis",
+  "bug_type": "NullPointerDereference",
+  "commits": {
+    "intro": "aa856b39f2ca65dbcc0eaae2d2c52f7a35291bbf",
+    "parent": "9f30dd03cd136eda00f5eb82f28f503452fdd11a",
+    "fix": "4322cebc1764d433b3fce3b3a108252648bf59e7"
+  },
+  "affected_files": [
+    "src/script_lua.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction.; Root cause: luaExtractErrorInformation() in src/script_lua.c reads the Lua error table's 'err' field and only assigns err_info->msg inside `if (lua_isstring(lua, -1))`, with no else/default branch. When the error table has no 'err' field (as produced by `error({})`), err_info->msg stays NULL. The caller luaCallFunction() then unconditionally passes err_info.msg into sdscatfmt() (called from evalGenericCommand), which calls strlen on it. Using the identical run.sh/command on each revision: pre_intro (parent 9f30dd03cd13) returns a normal Lua error reply ('attempt to concatenate...'), exits 0, shuts down cleanly, no sanitizer report, run_poc reports crashed=False. post_intro (intro commit aa856b39f2ca) crashes: run_poc reports crashed=True, exit=1, and UndefinedBehaviorSanitizer reports 'null pointer passed as argument 1, which is declared to never be null' at sds.c:746 inside sdscatfmt, with stack frames #1 luaCallFunction (script_lua.c:1552) <- #2 evalGenericCommand (eval.c:516) <- #3 evalCommand <- processCommand, exactly the code path named in the root cause; the client connection is dropped. post_benign (companion fix applied on the same base) returns a graceful fallback error ('ERR unknown error script: ...'), exits 0, shuts down cleanly, no sanitizer report, crashed=False - consistent with script_lua.c in that build now having an added else branch `err_info->msg = sdsnew(\\\"ERR unknown error\\\")` when 'err' is not a string. This isolates the NULL-pointer-dereference regression to the intro commit and confirms the benign companion removes it, matching the upstream PR's own reproduction (`EVAL error{} 0` crash, redis/redis#14163).",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "verified",
+  "evidence": {
+    "replay": "/research-data/secprbench/season100-balanced-20261001/repair-gh14163-location-v1/verification/cases/redis/3c017bb8faf8033e5c03/attempts/01/replay/pr_review_GH-14163.result.json",
+    "report": "/research-data/secprbench/season100-balanced-20261001/repair-gh14163-location-v1/verification/cases/redis/3c017bb8faf8033e5c03/attempts/01/replay/pr_review_GH-14163.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/season100-balanced-20261001/repair-gh14163-location-v1/verification/cases/redis/3c017bb8faf8033e5c03/attempts/01/replay/pr_review_GH-14163.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "4f5d3e7aee8afdfd9025f32043dee4d0b74c48772bdd0e3ab7a1453a39eb3f9c",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "aa856b39f2ca65dbcc0eaae2d2c52f7a35291bbf",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "4cbb5ba73815d7a29aedcb6e180f14613cc936aed8e2321bb03dc21c52ed3a52"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": true,
+            "sanitizer": "memory=1' for this to take effect.\n9:M 01 Oct 2026 22:11:19.687 * The AOF directory appendonlydir doesn't exist\n9:M 01 Oct 2026 22:11:19.688 * Ready to accept connections\nVERIFY_EXIT=1\n\nsds.c:746:44: runtime error: null pointer passed as argument 1, which is declared to never be null\n/usr/include/string.h:408:33: note: nonnull attribute specified here\n    #0 0x559d9ea11ec7 in sdscatfmt /work/src/sds.c:746:37\n    #1 0x559d9ec6e4ae in luaCallFunction /work/src/script_lua.c:1552:25\n    #2 0x559d9eb61c1d in evalGenericCommand /work/src/eval.c:516:5\n    #3 0x559d9eb6221d in evalCommand /work/src/eval.c:526:9\n    #4 0x559d9e9f5e97 in call /work/src/server.c:3238:5\n    #5 0x559d9e9f91cc in processCommand /work/src/server.c:3833:9\n    #6 0x559d9ea45a21 in processCommandAndResetClient /work/src/networking.c:2409:9\n    #7 0x559d9ea45a21 in processInputBuffer /work/src/networking.c:2504:17\n    #8 0x559d9ea2f408 in readQueryFromClient /work/src/networking.c:2616:10\n    #9 0x559d9ec629e9 in callHandler /work/src/./connhelpers.h:79:18\n    #10 0x559d9ec60a71 in connSocketEventHandler /work/src/connection.c:310:14\n    #11 0x559d9e9d1fb8 in aeProcessEvents /work/src/ae.c:436:17\n    #12 0x559d9e9d310c in aeMain /work/src/ae.c:496:9\n    #13 0x559d9ea0c952 in main /work/src/server.c:6987:5\n    #14 0x7fdcba16fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #15 0x7fdcba16fe3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #16 0x559d9e905a64 in _start (/work/src/redis-server+0x2b4a64) (BuildId: d21dd2b587de6bfd82769c206e61c316f60ecb41)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior sds.c:746:44 in \nError: Server closed the connection\n",
+            "stdout_tail": "9:C 01 Oct 2026 22:11:19.682 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n9:C 01 Oct 2026 22:11:19.682 # Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=9, just started\n9:C 01 Oct 2026 22:11:19.682 # Configuration loaded\n9:M 01 Oct 2026 22:11:19.684 * monotonic clock: POSIX clock_gettime\n9:M 01 Oct 2026 22:11:19.687 * Running mode=standalone, port=16399.\n9:M 01 Oct 2026 22:11:19.687 # Server initialized\n9:M 01 Oct 2026 22:11:19.687 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n9:M 01 Oct 2026 22:11:19.687 * The AOF directory appendonlydir doesn't exist\n9:M 01 Oct 2026 22:11:19.688 * Ready to accept connections\nVERIFY_EXIT=1\n\nsds.c:746:44: runtime error: null pointer passed as argument 1, which is declared to never be null\n/usr/include/string.h:408:33: note: nonnull attribute specified here\n    #0 0x559d9ea11ec7 in sdscatfmt /work/src/sds.c:746:37\n    #1 0x559d9ec6e4ae in luaCallFunction /work/src/script_lua.c:1552:25\n    #2 0x559d9eb61c1d in evalGenericCommand /work/src/eval.c:516:5\n    #3 0x559d9eb6221d in evalCommand /work/src/eval.c:526:9\n    #4 0x559d9e9f5e97 in call /work/src/server.c:3238:5\n    #5 0x559d9e9f91cc in processCommand /work/src/server.c:3833:9\n    #6 0x559d9ea45a21 in processCommandAndResetClient /work/src/networking.c:2409:9\n    #7 0x559d9ea45a21 in processInputBuffer /work/src/networking.c:2504:17\n    #8 0x559d9ea2f408 in readQueryFromClient /work/src/networking.c:2616:10\n    #9 0x559d9ec629e9 in callHandler /work/src/./connhelpers.h:79:18\n    #10 0x559d9ec60a71 in connSocketEventHandler /work/src/connection.c:310:14\n    #11 0x559d9e9d1fb8 in aeProcessEvents /work/src/ae.c:436:17\n    #12 0x559d9e9d310c in aeMain /work/src/ae.c:496:9\n    #13 0x559d9ea0c952 in main /work/src/server.c:6987:5\n    #14 0x7fdcba16fd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #15 0x7fdcba16fe3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #16 0x559d9e905a64 in _start (/work/src/redis-server+0x2b4a64) (BuildId: d21dd2b587de6bfd82769c206e61c316f60ecb41)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior sds.c:746:44 in \nError: Server closed the connection\n"
+          }
+        },
+        "pre_intro": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "4f5d3e7aee8afdfd9025f32043dee4d0b74c48772bdd0e3ab7a1453a39eb3f9c",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "9f30dd03cd136eda00f5eb82f28f503452fdd11a",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "69216986dbad2f6d9cde984370972cb65611dc17942aae54a628f17a5ba76b0a"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ERR Error running script (call to 5988249b2756086f025661223ac4982a2d1701ec): @err_handler_def:8: err_handler_def:8: attempt to concatenate local 'err' (a table value)\n\n9:C 01 Oct 2026 22:11:23.538 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n9:C 01 Oct 2026 22:11:23.538 # Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=9, just started\n9:C 01 Oct 2026 22:11:23.538 # Configuration loaded\n9:M 01 Oct 2026 22:11:23.540 * monotonic clock: POSIX clock_gettime\n9:M 01 Oct 2026 22:11:23.543 * Running mode=standalone, port=16399.\n9:M 01 Oct 2026 22:11:23.543 # Server initialized\n9:M 01 Oct 2026 22:11:23.543 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n9:M 01 Oct 2026 22:11:23.543 * The AOF directory appendonlydir doesn't exist\n9:M 01 Oct 2026 22:11:23.543 * Ready to accept connections\n9:M 01 Oct 2026 22:11:23.758 # User requested shutdown...\n9:M 01 Oct 2026 22:11:23.758 # Redis is now ready to exit, bye bye...\nVERIFY_EXIT=0\n\n"
+          }
+        },
+        "post_benign": {
+          "command": "cd /work && bash /poc/run.sh",
+          "input": null,
+          "poc_sha256": "4f5d3e7aee8afdfd9025f32043dee4d0b74c48772bdd0e3ab7a1453a39eb3f9c",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "9f30dd03cd136eda00f5eb82f28f503452fdd11a",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "8fc47d58057f03ecc1a284de33ee75c0eae3029aa6f8e013ae2d8f448f6a0e78"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "ERR unknown error script: 5988249b2756086f025661223ac4982a2d1701ec, on @user_script:1.\n\n9:C 01 Oct 2026 22:11:25.497 # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n9:C 01 Oct 2026 22:11:25.497 # Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=9, just started\n9:C 01 Oct 2026 22:11:25.497 # Configuration loaded\n9:M 01 Oct 2026 22:11:25.500 * monotonic clock: POSIX clock_gettime\n9:M 01 Oct 2026 22:11:25.502 * Running mode=standalone, port=16399.\n9:M 01 Oct 2026 22:11:25.508 # Server initialized\n9:M 01 Oct 2026 22:11:25.508 # WARNING overcommit_memory is set to 0! Background save may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n9:M 01 Oct 2026 22:11:25.509 * The AOF directory appendonlydir doesn't exist\n9:M 01 Oct 2026 22:11:25.509 * Ready to accept connections\n9:M 01 Oct 2026 22:11:25.714 # User requested shutdown...\n9:M 01 Oct 2026 22:11:25.714 # Redis is now ready to exit, bye bye...\nVERIFY_EXIT=0\n\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "unknown",
+        "bug_marker": "",
+        "pre_marker": "",
+        "benign_marker": "",
+        "description": "/poc/run.sh starts redis-server under sanitizers (with UBSAN_OPTIONS=halt_on_error=0 and ASAN crash-handler interception disabled so the sanitizer diagnostic is captured cleanly) and runs `redis-cli eval 'return error({})' 0` (a Lua script raising an error with an empty table, so no 'err' string field exists), then shuts the server down. Identical run.sh used unchanged across pre_intro, post_intro, and post_benign.",
+        "target_evidence": "post_intro run_poc: exit=1, crashed=True; sanitizer text \"sds.c:746:44: runtime error: null pointer passed as argument 1, which is declared to never be null\" with \"#1 ... in luaCallFunction /work/src/script_lua.c:1552:25\" and \"#2 ... in evalGenericCommand /work/src/eval.c:516:5\", \"SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior sds.c:746:44\", \"Error: Server closed the connection\". pre_intro and post_benign run_poc (identical run.sh/command): exit=0, crashed=False; normal EVAL error reply, \"User requested shutdown...\", \"Redis is now ready to exit, bye bye...\", no sanitizer text in either."
+      },
+      "oracle_assessment": {
+        "status": "verified",
+        "kind": "sanitizer",
+        "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+      },
+      "explanation": "Root cause: luaExtractErrorInformation() in src/script_lua.c reads the Lua error table's 'err' field and only assigns err_info->msg inside `if (lua_isstring(lua, -1))`, with no else/default branch. When the error table has no 'err' field (as produced by `error({})`), err_info->msg stays NULL. The caller luaCallFunction() then unconditionally passes err_info.msg into sdscatfmt() (called from evalGenericCommand), which calls strlen on it. Using the identical run.sh/command on each revision: pre_intro (parent 9f30dd03cd13) returns a normal Lua error reply ('attempt to concatenate...'), exits 0, shuts down cleanly, no sanitizer report, run_poc reports crashed=False. post_intro (intro commit aa856b39f2ca) crashes: run_poc reports crashed=True, exit=1, and UndefinedBehaviorSanitizer reports 'null pointer passed as argument 1, which is declared to never be null' at sds.c:746 inside sdscatfmt, with stack frames #1 luaCallFunction (script_lua.c:1552) <- #2 evalGenericCommand (eval.c:516) <- #3 evalCommand <- processCommand, exactly the code path named in the root cause; the client connection is dropped. post_benign (companion fix applied on the same base) returns a graceful fallback error ('ERR unknown error script: ...'), exits 0, shuts down cleanly, no sanitizer report, crashed=False - consistent with script_lua.c in that build now having an added else branch `err_info->msg = sdsnew(\\\"ERR unknown error\\\")` when 'err' is not a string. This isolates the NULL-pointer-dereference regression to the intro commit and confirms the benign companion removes it, matching the upstream PR's own reproduction (`EVAL error{} 0` crash, redis/redis#14163)."
+    }
+  },
+  "task_hashes": {
+    "buggy": "ba4402d17d894d1d37476e37d4baf7882e407c044f62535db7bd5df08bef94e6",
+    "benign": "371858f909a191829030fe2b5491ebf47b8252392b8e1aa835e490105d27fa45"
+  }
+}

@@ -1,0 +1,149 @@
+{
+  "task_id": "pr_review_OSSFUZZ-490433932",
+  "bug_id": "OSSFUZZ-490433932",
+  "commit_sha": "0409ef32686188c1947298e0fca9fbeadd23c1c3",
+  "commit_message": "Increase precision for B/W rasterizer.\n\n* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\nthe precision.  This corrects rendering of some small glyphs, for\nexample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\non my GNU/Linux box I don't see a performance degradation.",
+  "commit_author": "Werner Lemberg",
+  "commit_date": "2009-06-11T17:32:31+02:00",
+  "pr_title": "Increase precision for B/W rasterizer.",
+  "pr_description": "* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\nthe precision.  This corrects rendering of some small glyphs, for\nexample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\non my GNU/Linux box I don't see a performance degradation.\n",
+  "files": [
+    {
+      "path": "ChangeLog",
+      "status": "modified",
+      "additions": 9,
+      "deletions": 0,
+      "diff": "diff --git a/ChangeLog b/ChangeLog\nindex 36b621027..6edf1050c 100644\n--- a/ChangeLog\n+++ b/ChangeLog\n@@ -1,5 +1,14 @@\n+2009-06-11  Werner Lemberg  <wl@gnu.org>\n+\n+\tIncrease precision for B/W rasterizer.\n+\n+\t* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\n+\tthe precision.  This corrects rendering of some small glyphs, for\n+\texample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\n+\ton my GNU/Linux box I don't see a performance degradation.\n+\n 2009-06-08  Michael Zucchi  <notzed@gmail.com>\n \n \tHandle FT_STROKER_LINECAP_BUTT.\n \tThis fixes Savannah bug #26757.\n \n"
+    },
+    {
+      "path": "src/raster/ftraster.c",
+      "status": "modified",
+      "additions": 3,
+      "deletions": 3,
+      "diff": "diff --git a/src/raster/ftraster.c b/src/raster/ftraster.c\nindex 12a8dff3e..5ade13bef 100644\n--- a/src/raster/ftraster.c\n+++ b/src/raster/ftraster.c\n@@ -586,13 +586,13 @@\n   static void\n   Set_High_Precision( RAS_ARGS Int  High )\n   {\n     if ( High )\n     {\n-      ras.precision_bits   = 10;\n-      ras.precision_step   = 128;\n-      ras.precision_jitter = 24;\n+      ras.precision_bits   = 12;\n+      ras.precision_step   = 256;\n+      ras.precision_jitter = 50;\n     }\n     else\n     {\n       ras.precision_bits   = 6;\n       ras.precision_step   = 32;\n"
+    }
+  ],
+  "full_diff": "diff --git a/ChangeLog b/ChangeLog\nindex 36b621027..6edf1050c 100644\n--- a/ChangeLog\n+++ b/ChangeLog\n@@ -1,5 +1,14 @@\n+2009-06-11  Werner Lemberg  <wl@gnu.org>\n+\n+\tIncrease precision for B/W rasterizer.\n+\n+\t* src/raster/ftraster.c (Set_High_Precision): Add two more bits to\n+\tthe precision.  This corrects rendering of some small glyphs, for\n+\texample, glyph `xi' in verdana.ttf at 13 ppem.  Testing with ftbench\n+\ton my GNU/Linux box I don't see a performance degradation.\n+\n 2009-06-08  Michael Zucchi  <notzed@gmail.com>\n \n \tHandle FT_STROKER_LINECAP_BUTT.\n \tThis fixes Savannah bug #26757.\n \ndiff --git a/src/raster/ftraster.c b/src/raster/ftraster.c\nindex 12a8dff3e..5ade13bef 100644\n--- a/src/raster/ftraster.c\n+++ b/src/raster/ftraster.c\n@@ -586,13 +586,13 @@\n   static void\n   Set_High_Precision( RAS_ARGS Int  High )\n   {\n     if ( High )\n     {\n-      ras.precision_bits   = 10;\n-      ras.precision_step   = 128;\n-      ras.precision_jitter = 24;\n+      ras.precision_bits   = 12;\n+      ras.precision_step   = 256;\n+      ras.precision_jitter = 50;\n     }\n     else\n     {\n       ras.precision_bits   = 6;\n       ras.precision_step   = 32;\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-490433932",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "31401a3b2d7a9c69c1c4292c59030fdd58402661",
+      "short_sha": "31401a3",
+      "message": "* src/raster/ftraster.c (Set_High_Precision): Limit size.",
+      "author": "Alexei Podtelezhnikov",
+      "date": "2026-03-07T22:46:57-05:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-intoverflow-1",
+        "title": "Unconditional 12-bit precision enables integer overflow for large bitmaps",
+        "message": "Set_High_Precision unconditionally sets precision_bits=12 (precision=4096, precision_scale=64) when the High flag is set, regardless of the target bitmap dimensions. When large bitmaps are rendered, the subsequent rasterization arithmetic\u2014particularly in Line_Up and Bezier_Up\u2014multiplies internal coordinates by the 64x precision scale factor, producing values that overflow integer types. The fix restricts high precision to bitmaps where ras.bTop + ras.bRight < 256 (combined maximum row/column index), falling back to the safer 6-bit low-precision mode (precision_scale=1) for larger targets. The 2009 commit that introduced 12-bit precision (previously 10-bit, giving a 16x scale factor) lowered the bitmap size threshold at which overflow could be triggered by a factor of 4.",
+        "location": {
+          "file": "src/raster/ftraster.c",
+          "start_line": 589,
+          "end_line": 608,
+          "start_column": null,
+          "end_column": null,
+          "function": "Set_High_Precision",
+          "snippet": "  if ( High )\n  {\n    ras.precision_bits   = 12;\n    ras.precision_step   = 256;\n    ras.precision_jitter = 50;\n  }",
+          "snippet_hash": null,
+          "description": null
+        },
+        "related_locations": [
+          {
+            "file": "src/raster/ftraster.c",
+            "start_line": 2471,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Render_Single_Pass",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/raster/ftraster.c",
+            "start_line": 980,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Line_Up",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          },
+          {
+            "file": "src/raster/ftraster.c",
+            "start_line": 1113,
+            "end_line": null,
+            "start_column": null,
+            "end_column": null,
+            "function": "Bezier_Up",
+            "snippet": null,
+            "snippet_hash": null,
+            "description": null
+          }
+        ],
+        "severity": "medium",
+        "bug_type": "IntegerOverflow",
+        "confidence": 0.9,
+        "suggestion": "Guard the high-precision branch with a check on the target bitmap dimensions. Only enable 12-bit precision when the bitmap is small enough that the scaled coordinate values cannot overflow. As in the fix, use: `if ( High && ras.bTop + ras.bRight < 256 )` to limit high precision to small glyphs.",
+        "suggestion_code": "if ( High && ras.bTop + ras.bRight < 256 )\n{\n  ras.precision_bits   = 12;\n  ras.precision_step   = 256;\n  ras.precision_jitter = 50;\n}",
+        "corroboration": null,
+        "cited_bug_id": null,
+        "tags": [
+          "security",
+          "integer-overflow",
+          "rasterizer"
+        ],
+        "cwe_ids": [
+          "CWE-190"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "IntegerOverflow",
+    "affected_files": [
+      "src/raster/ftraster.c"
+    ],
+    "root_cause": "The 2009 commit (0409ef32) increased the high-precision bit depth from 10 to 12 bits\u2014raising the internal precision_scale from 16 to 64\u2014to improve rendering quality for small glyphs. No size guard was added to prevent the same high precision from being applied to large bitmaps, where the 64x coordinate scaling makes integer overflow reachable via fuzzed inputs.",
+    "must_cover": [
+      {
+        "file": "src/raster/ftraster.c",
+        "function": "Set_High_Precision",
+        "start_line": 589,
+        "end_line": 608,
+        "role": "primary",
+        "reason": "Primary location of finding: Unconditional 12-bit precision enables integer overflow for large bitmaps"
+      },
+      {
+        "file": "src/raster/ftraster.c",
+        "function": "Render_Single_Pass",
+        "start_line": 2471,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Unconditional 12-bit precision enables integer overflow for large bitmaps"
+      },
+      {
+        "file": "src/raster/ftraster.c",
+        "function": "Line_Up",
+        "start_line": 980,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Unconditional 12-bit precision enables integer overflow for large bitmaps"
+      },
+      {
+        "file": "src/raster/ftraster.c",
+        "function": "Bezier_Up",
+        "start_line": 1113,
+        "end_line": null,
+        "role": "related",
+        "reason": "Related location for: Unconditional 12-bit precision enables integer overflow for large bitmaps"
+      }
+    ]
+  },
+  "task_type": "buggy",
+  "intro_commit_sha": "0409ef32686188c1947298e0fca9fbeadd23c1c3",
+  "fix_commit_sha": null
+}

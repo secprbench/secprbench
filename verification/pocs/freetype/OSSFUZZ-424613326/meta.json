@@ -1,0 +1,31 @@
+{
+  "task_id": "pr_review_OSSFUZZ-424613326",
+  "bug_id": "OSSFUZZ-424613326",
+  "bug_type": "OutOfBoundsRead",
+  "intro_commit": "5a07f41d0eddddcae927957c6434c4174bae4e6a",
+  "intro_parent": "3aeabbf87d858398aeee6397cea568e624f38366",
+  "fix_commit": "d3668e00da732654b50e4e81f982544ed6e26390",
+  "affected_files": [
+    "src/sfnt/ttload.c",
+    "src/sfnt/sfobjs.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "freetype",
+  "source": "locally_fix_derived",
+  "attachments": [],
+  "input_name": "two-sfnt.bin",
+  "root_cause": "The code introduced to implement table-directory access (tag == 1) assumed the face is always part of a TTC and that `face_index` is always a valid index into `ttc_header.offsets`. However, `face_index` is also used for non-TTC container formats (e.g., Mac Resource), and no bounds check was added before dereferencing the `offsets` array. The same oversight exists in `sfobjs.c` where a similar condition (`face_index >= face->ttc_header.count`) needed a comment clarifying the context.",
+  "findings": [
+    "In `tt_face_load_any`, when `tag == 1` (table directory access), the code directly uses `face->root.face_index & 0xFFFF` as an index into `face->ttc_header.offsets[]` without first verifying the index is within bounds (`< face->ttc_header.count`). The `face_index` field is also used to enumerate elements of font containers such as Mac Resource files, which are not TTC collections and may therefore"
+  ],
+  "fix_message": "",
+  "has_run_sh": true,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "ca04f6d9479578a6d2616de4e9356ce08a801d03db0bdeabfe4375e881fc4e9b",
+  "generated_artifact_sha256": {
+    "reference": "14550313904df4bd70fdfa3b290af7185db209e48c010ef84772054c90c49a91",
+    "introducing": "bb66b7b2e577e66cc881da294db4e39763f549e63c820f91c01cec1070aec652",
+    "companion": "55753cc1d8f5e64ac4307dec38cdbc0226ecb585802f76121a616ce35dd09065"
+  }
+}

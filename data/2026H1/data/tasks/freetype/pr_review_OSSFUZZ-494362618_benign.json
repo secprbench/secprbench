@@ -1,0 +1,36 @@
+{
+  "task_id": "pr_review_OSSFUZZ-494362618_benign",
+  "bug_id": "OSSFUZZ-494362618",
+  "commit_sha": "4130e62d23481aae7e61ded08ef3837859b62f69",
+  "commit_message": "[Merged] * src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix allocation.\n\nReported in\n\n  https://mail.gnu.org/archive/html/freetype-devel/2026-02/msg00005.html",
+  "commit_author": "",
+  "commit_date": "2026-09-15T00:50:36.116780",
+  "pr_title": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix allocation.",
+  "pr_description": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix allocation.\n\nReported in\n\n  https://mail.gnu.org/archive/html/freetype-devel/2026-02/msg00005.html",
+  "files": [
+    {
+      "path": "src/sdf/ftsdf.c",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "diff": "diff --git a/src/sdf/ftsdf.c b/src/sdf/ftsdf.c\nindex cdeaa5b53..e86b99594 100644\n--- a/src/sdf/ftsdf.c\n+++ b/src/sdf/ftsdf.c\n@@ -3274,20 +3274,25 @@\n       goto Exit;\n     }\n \n     memory = shape->memory;\n     if ( !memory )\n     {\n       error = FT_THROW( Invalid_Argument );\n       goto Exit;\n     }\n \n+    if ( bitmap->rows > FT_INT_MAX / bitmap->width )\n+    {\n+      error = FT_THROW( Array_Too_Large );\n+      goto Exit;\n+    }\n     if ( FT_NEW_ARRAY( dists, bitmap->rows * bitmap->width ) )\n       goto Exit;\n \n     contours = shape->contours;\n     width    = (FT_Int)bitmap->width;\n     rows     = (FT_Int)bitmap->rows;\n     buffer   = (FT_SDFFormat*)bitmap->buffer;\n \n     if ( USE_SQUARED_DISTANCES )\n       sp_sq = FT_INT_16D16( (FT_Int)( spread * spread ) );\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/sdf/ftsdf.c b/src/sdf/ftsdf.c\nindex cdeaa5b53..e86b99594 100644\n--- a/src/sdf/ftsdf.c\n+++ b/src/sdf/ftsdf.c\n@@ -3274,20 +3274,25 @@\n       goto Exit;\n     }\n \n     memory = shape->memory;\n     if ( !memory )\n     {\n       error = FT_THROW( Invalid_Argument );\n       goto Exit;\n     }\n \n+    if ( bitmap->rows > FT_INT_MAX / bitmap->width )\n+    {\n+      error = FT_THROW( Array_Too_Large );\n+      goto Exit;\n+    }\n     if ( FT_NEW_ARRAY( dists, bitmap->rows * bitmap->width ) )\n       goto Exit;\n \n     contours = shape->contours;\n     width    = (FT_Int)bitmap->width;\n     rows     = (FT_Int)bitmap->rows;\n     buffer   = (FT_SDFFormat*)bitmap->buffer;\n \n     if ( USE_SQUARED_DISTANCES )\n       sp_sq = FT_INT_16D16( (FT_Int)( spread * spread ) );\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-494362618",
+    "expected_finding": false,
+    "reason": "This PR includes the feature with the fix already applied, so the vulnerability is not present",
+    "intro_commit": "bda1d87f694dd228efd7fc93481afd3a9b415a03",
+    "fix_commit": "4130e62d23481aae7e61ded08ef3837859b62f69"
+  },
+  "task_type": "benign",
+  "intro_commit_sha": "bda1d87f694dd228efd7fc93481afd3a9b415a03",
+  "fix_commit_sha": "4130e62d23481aae7e61ded08ef3837859b62f69",
+  "intro_commit_message": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix allocation.\n\nReported in\n\n  https://mail.gnu.org/archive/html/freetype-devel/2026-02/msg00005.html",
+  "fix_commit_message": "* src/sdf/ftsdf.c (sdf_generate_bounding_box): Fix thinko.\n\nBug introduced in commit bda1d87f694dd.\n\nWe would need an `FT_NEW_ARRAY_MULT` array...\n\nReported as\n\n  https://issues.oss-fuzz.com/issues/494362618",
+  "agent_reasoning": "Merged diff composed mechanically by cherry-picking fix 4130e62d2348 on top of intro bda1d87f694d via git's 3-way merge. Vulnerability (BufferOverflow): A heap buffer overflow exists in `sdf_generate_bounding_box` in `src/sdf/ftsdf.c`. Commit bda1d87f694dd replaced a correct `FT_NEW_ARRAY` call (which auto-sizes by `sizeof(*ptr)`) with `FT_ALLOC_MULT(dists, bitmap->rows, bitmap->width)`, which allocates only `bitmap->rows * bitmap->width` raw bytes. Since `dists` is an array of `SDF_Signed_Distance` structs (~12 bytes each), the allocation is roughly 12\u00d7 too small, causing out-of-bounds writes on every access to `dists[index]`. Root cause: The programmer used `FT_ALLOC_MULT(ptr, count, item_size)` with `bitmap->rows` as count and `bitmap->width` as item_size to avoid the unchecked integer overflow in the original `bitmap->rows * bitmap->width` multiplication. However, `FT_ALLOC_MULT`'s `item_size` parameter is a raw byte size \u2014 not an element count \u2014 so the total allocation became `bitmap->rows * bitmap->width` bytes instead of `sizeof(SDF_Signed_Distance) * bitmap->rows * bitmap->width` bytes. A macro `FT_NEW_ARRAY_MULT` (which would accept a count and auto-derive sizeof) does not exist in FreeType, so the correct fix is to add an explicit overflow check and fall back to `FT_NEW_ARRAY`.",
+  "composed_via": "mechanical",
+  "valid_diff": true,
+  "diff_validation_error": ""
+}

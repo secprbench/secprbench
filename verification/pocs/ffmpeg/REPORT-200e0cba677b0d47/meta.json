@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-200e0cba677b0d47",
+  "bug_id": "REPORT-200e0cba677b0d47",
+  "bug_type": "IntegerOverflow",
+  "intro_commit": "e722b443e462ba412c06ac27b3dff5686e322c9b",
+  "intro_parent": "bf1cc9a43be5d72d8aea24e927e07c7423d8298c",
+  "fix_commit": "200e0cba677b0d478576081ecf12af92b7a4a2d2",
+  "affected_files": [
+    "libavfilter/vf_estdif.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "The slice-boundary computation multiplies two int values (`height` and `jobnr+1`) without first widening to a larger integer type, so the multiplication can overflow 32-bit signed int range before the division by `nb_jobs` is applied.",
+  "findings": [
+    "In deinterlace_slice(), the per-thread row range [start, end) is computed as `(height * jobnr) / nb_jobs` and `(height * (jobnr+1)) / nb_jobs`, using plain `int` arithmetic for the multiplication `height * (jobnr+1)`. Because `height`, `jobnr`, and `nb_jobs` are all `int`, the multiplication is performed in 32-bit signed arithmetic before the division. For sufficiently tall frames combined with a "
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "e95dd41dcd045237db0278a9d6e67295353b41a69957504d285fbb902d6a23fe",
+  "generated_artifact_sha256": {
+    "reference": "da2916b646267d6d012c6757b501fca1a0875762a2711223c284c31b55d846be",
+    "introducing": "b780328c43debabfa3a3ef2d4abe4b8c88fc170a82a38c7e0f013dbeffba3835",
+    "companion": "7cfa67ed123e3ec9e7d0f7d06549876764a8b5cfb99d111f2b0fdb1877128275"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "other",
+  "poc_summary": "Custom PoC (no pre-existing PoC/run.sh in the task dir; test1548 evidence gave the exact reproducer). run.sh (deterministic port selection with retry/collision-avoidance) sets UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1 (ASAN_OPTIONS analogously), starts a plain TCP listener via `nc -l 127.0.0.1 <port>` that just accepts and keeps the connection open, then runs the target curl binary as `curl -fsm 2 telnet://127.0.0.1:<port> < input.txt`. Because no `-T`/upload-file option is given, `per->uploadfile` stays NULL while `tool_read_cb()` is still invoked repeatedly (telnet polls stdin through the read callback on every event-loop iteration while the connection is open), so strcmp(NULL, \".\") executes.",
+  "explanation": "Built pre_intro (84b62696d936), post_intro (9a2663322c33) and post_benign (mechanical fix restoring the per->uploadfile NULL check while keeping the added non-blocking-stdin feature, confirmed by reading tool_cb_rea.c in the built tree) with the harness's ASan+UBSan build (-fsanitize=address,undefined -fno-sanitize-recover=all). Ran the IDENTICAL run.sh/input.txt against all three, reproduced multiple times: pre_intro exits cleanly with code 28 (CURLE_OPERATION_TIMEDOUT, matching test1548's own expected verify errorcode) and no sanitizer output/no crash; post_intro crashes every time - UBSan reports \"tool_cb_rea.c:95:7: runtime error: null pointer passed as argument 1, which is declared to never be null\" (null-pointer-dereference class UB) and the process aborts (SIGABRT, exit code 134) with stack trace tool_read_cb -> telnet_do (lib/telnet.c:1603) -> multi_do -> state_do -> multi_runsingle -> curl_multi_perform -> easy_perform -> curl_easy_perform -> serial_transfers -> main; post_benign exits cleanly with code 28, no sanitizer output, no crash. Source inspection confirms: pre_intro's tool_read_cb has no non-blocking-stdin block at all (plain read()); post_intro adds `if(!strcmp(per->uploadfile, \".\") && per->infd > 0)` with no NULL guard; post_benign changes this to `if(per->uploadfile && !strcmp(per->uploadfile, \".\") && per->infd > 0)`, i.e. exactly the upstream fix. This matches the labelled root cause (NULL check missing before strcmp on per->uploadfile) and the upstream fix commit message / test1548 (added by the fix commit, expecting errorcode 28). bug_class is set to 'other' only because the crash manifests as a UBSan nonnull-attribute fatal diagnostic (compiler-inserted check before the real strcmp dereference) rather than an ASan SEGV report; the underlying defect is a textbook NULL pointer dereference (CWE-476).",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom PoC (no pre-existing PoC/run.sh in the task dir; test1548 evidence gave the exact reproducer). run.sh (deterministic port selection with retry/collision-avoidance) sets UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1 (ASAN_OPTIONS analogously), starts a plain TCP listener via `nc -l 127.0.0.1 <port>` that just accepts and keeps the connection open, then runs the target curl binary as `curl -fsm 2 telnet://127.0.0.1:<port> < input.txt`. Because no `-T`/upload-file option is given, `per->uploadfile` stays NULL while `tool_read_cb()` is still invoked repeatedly (telnet polls stdin through the read callback on every event-loop iteration while the connection is open), so strcmp(NULL, \".\") executes.",
+    "target_evidence": "post_intro: UBSan \"tool_cb_rea.c:95:7: runtime error: null pointer passed as argument 1, which is declared to never be null\" at tool_read_cb (tool_cb_rea.c:95), called via telnet_do (lib/telnet.c:1603) -> multi_do -> curl_multi_perform -> curl_easy_perform, then process abort (SIGABRT, exit 134). Reproduced 3 times with identical result. pre_intro and post_benign completed the identical run.sh/input.txt with exit code 28 and no sanitizer diagnostics, reproduced 3 times each with identical result."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "read_context(evidence/test_02_2063eec5e021c901_test1548)",
+    "read_context(evidence/test_01_22605b745a1399e6_Makefile.am)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(input.txt)",
+    "write_file(run.sh)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(post_benign)->crashed=False",
+    "write_file(run.sh)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(ubsan.supp)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "write_file(run.sh)",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False",
+    "write_file(run.sh)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "5009a663c1115de437006799c56a4ddd0db81c05f8337bd839124e6609037165",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "9a2663322c330ff11275abafd612e9c99407a94a",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "713c8eefcb43a259f6fbc85467bde3aa62934d69e4d7c463c997165e88993176"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "/work/src/curl ']'\n+ PORT=20008\n+ NCPID=\n+ i=0\n+ '[' 0 -lt 8 ']'\n+ NCPID=9\n+ sleep 0.3\n+ nc -l 127.0.0.1 20008\n+ kill -0 9\n+ break\n+ /work/src/curl -fsm 2 telnet://127.0.0.1:20008\ntool_cb_rea.c:95:7: runtime error: null pointer passed as argument 1, which is declared to never be null\n    #0 0x5581cd5e8f19 in tool_read_cb /work/src/tool_cb_rea.c:95\n    #1 0x5581cd7c774c in telnet_do /work/lib/telnet.c:1603\n    #2 0x5581cd66f2b7 in multi_do /work/lib/multi.c:1617\n    #3 0x5581cd66f2b7 in state_do /work/lib/multi.c:2018\n    #4 0x5581cd66f2b7 in multi_runsingle /work/lib/multi.c:2447\n    #5 0x5581cd672d95 in curl_multi_perform /work/lib/multi.c:2708\n    #6 0x5581cd6350f7 in easy_transfer /work/lib/easy.c:711\n    #7 0x5581cd6350f7 in easy_perform /work/lib/easy.c:819\n    #8 0x5581cd6350f7 in curl_easy_perform /work/lib/easy.c:838\n    #9 0x5581cd6173cf in serial_transfers /work/src/tool_operate.c:1995\n    #10 0x5581cd6173cf in run_all_transfers /work/src/tool_operate.c:2219\n    #11 0x5581cd6173cf in operate /work/src/tool_operate.c:2359\n    #12 0x5581cd60b8d6 in main /work/src/tool_main.c:284\n    #13 0x7fa3aac83d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #14 0x7fa3aac83e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #15 0x5581cd5dc3b4 in _start (/work/src/curl+0x2a43b4)\n\n/poc/run.sh: line 33:    11 Aborted                 \"$CURL_BIN\" -fsm 2 telnet://127.0.0.1:$PORT < /poc/input.txt\n+ RC=134\n+ echo 'curl exit code: 134'\n+ kill 9\n+ wait 9\n+ exit 134\n",
+        "stdout_tail": "curl exit code: 134\nVERIFY_EXIT=134\n\n+ export UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1\n+ UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1\n+ export ASAN_OPTIONS=halt_on_error=1:abort_on_error=1\n+ ASAN_OPTIONS=halt_on_error=1:abort_on_error=1\n+ CURL_BIN=/work/src/curl\n+ '[' -x /work/src/curl ']'\n+ PORT=20008\n+ NCPID=\n+ i=0\n+ '[' 0 -lt 8 ']'\n+ NCPID=9\n+ sleep 0.3\n+ nc -l 127.0.0.1 20008\n+ kill -0 9\n+ break\n+ /work/src/curl -fsm 2 telnet://127.0.0.1:20008\ntool_cb_rea.c:95:7: runtime error: null pointer passed as argument 1, which is declared to never be null\n    #0 0x5581cd5e8f19 in tool_read_cb /work/src/tool_cb_rea.c:95\n    #1 0x5581cd7c774c in telnet_do /work/lib/telnet.c:1603\n    #2 0x5581cd66f2b7 in multi_do /work/lib/multi.c:1617\n    #3 0x5581cd66f2b7 in state_do /work/lib/multi.c:2018\n    #4 0x5581cd66f2b7 in multi_runsingle /work/lib/multi.c:2447\n    #5 0x5581cd672d95 in curl_multi_perform /work/lib/multi.c:2708\n    #6 0x5581cd6350f7 in easy_transfer /work/lib/easy.c:711\n    #7 0x5581cd6350f7 in easy_perform /work/lib/easy.c:819\n    #8 0x5581cd6350f7 in curl_easy_perform /work/lib/easy.c:838\n    #9 0x5581cd6173cf in serial_transfers /work/src/tool_operate.c:1995\n    #10 0x5581cd6173cf in run_all_transfers /work/src/tool_operate.c:2219\n    #11 0x5581cd6173cf in operate /work/src/tool_operate.c:2359\n    #12 0x5581cd60b8d6 in main /work/src/tool_main.c:284\n    #13 0x7fa3aac83d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #14 0x7fa3aac83e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #15 0x5581cd5dc3b4 in _start (/work/src/curl+0x2a43b4)\n\n/poc/run.sh: line 33:    11 Aborted                 \"$CURL_BIN\" -fsm 2 telnet://127.0.0.1:$PORT < /poc/input.txt\n+ RC=134\n+ echo 'curl exit code: 134'\n+ kill 9\n+ wait 9\n+ exit 134\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "5009a663c1115de437006799c56a4ddd0db81c05f8337bd839124e6609037165",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "84b62696d93695cd936b33c7917186df240ee291",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "092fe66f96b7bdb19927956bfbad083bae515b80c5a9aa29d8ce043b116e4dca"
+        }
+      },
+      "run": {
+        "exit_code": 28,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "curl exit code: 28\nVERIFY_EXIT=28\n\n+ export UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1\n+ UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1\n+ export ASAN_OPTIONS=halt_on_error=1:abort_on_error=1\n+ ASAN_OPTIONS=halt_on_error=1:abort_on_error=1\n+ CURL_BIN=/work/src/curl\n+ '[' -x /work/src/curl ']'\n+ PORT=20008\n+ NCPID=\n+ i=0\n+ '[' 0 -lt 8 ']'\n+ NCPID=9\n+ sleep 0.3\n+ nc -l 127.0.0.1 20008\n+ kill -0 9\n+ break\n+ /work/src/curl -fsm 2 telnet://127.0.0.1:20008\n+ RC=28\n+ echo 'curl exit code: 28'\n+ kill 9\n+ wait 9\n+ exit 28\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "5009a663c1115de437006799c56a4ddd0db81c05f8337bd839124e6609037165",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "84b62696d93695cd936b33c7917186df240ee291",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "fcffad9908cc9a91baed700495b91bd6f0a4ef7d5d18277de0c386b272131e1e"
+        }
+      },
+      "run": {
+        "exit_code": 28,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "curl exit code: 28\nVERIFY_EXIT=28\n\n+ export UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1\n+ UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1\n+ export ASAN_OPTIONS=halt_on_error=1:abort_on_error=1\n+ ASAN_OPTIONS=halt_on_error=1:abort_on_error=1\n+ CURL_BIN=/work/src/curl\n+ '[' -x /work/src/curl ']'\n+ PORT=20008\n+ NCPID=\n+ i=0\n+ '[' 0 -lt 8 ']'\n+ NCPID=9\n+ sleep 0.3\n+ nc -l 127.0.0.1 20008\n+ kill -0 9\n+ break\n+ /work/src/curl -fsm 2 telnet://127.0.0.1:20008\n+ RC=28\n+ echo 'curl exit code: 28'\n+ kill 9\n+ wait 9\n+ exit 28\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "inconclusive",
+    "kind": "unproven",
+    "reason": "The agent claim lacks a matching admissible three-version oracle."
+  }
+}

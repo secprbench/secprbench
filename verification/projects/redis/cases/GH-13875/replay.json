@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-13875",
+    "bug_id": "GH-13875",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "05aed4cab97659f748db309ae5edf79e91366634",
+    "intro_parent": "de7f2f87f74c95857ae91ee77be5a6cda18d2dea",
+    "fix_commit": "2a189709e098139b3158575ee6cb6d7ff266ed45",
+    "affected_files": [
+      "src/t_string.c",
+      "tests/unit/moduleapi/keyspace_events.tcl"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "mechanical"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "The module's KeySpace_NotificationModuleString handler (subscribed to REDISMODULE_NOTIFY_STRING) runs synchronously from notifyKeyspaceEvent() fired during INCR, and calls RedisModule_StringDMA on the key, which invokes dbUnshareStringValue()->dbSetValue(), freeing the 'new' robj that incrDecrCommand just stored as the key's value. In post_intro (05aed4cab976, PR #13505's optimization), incrDecrCommand replies via addReplyLongLongFromStr(c,new) AFTER signalModifiedKey()/notifyKeyspaceEvent() run, so it reads 'new's string buffer after it has been freed by this reentrant module callback. run_poc on post_intro reproduced exactly the upstream-reported AddressSanitizer heap-use-after-free: addReply (networking.c:431) <- addReplyLongLongFromStr <- incrDecrCommand (t_string.c:607) <- incrCommand, freed by zfree<-decrRefCount<-dbSetValue<-dbUnshareStringValueWithDictEntry<-RM_StringDMA<-KeySpace_NotificationModuleString (tests/modules/keyspace_events.c:122) -- matching the frames in the GH-13875 report almost line-for-line. Using a large (non-shared-range) integer with maxmemory-policy allkeys-lru forces a real heap allocation (avoids the shared-integer pool that masked the bug previously, as the reporter noted) so the free is observable. The identical run.sh executed via run_poc against pre_intro (de7f2f87f74c, before the optimization) and post_benign (fix applied) both completed cleanly: INCR returned the correct value 1000000000, PING returned PONG, no sanitizer report, server stayed alive -- only post_intro crashed."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: candidate_only)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/redis/decec4b86c15cef34f33/attempts/01/pocs/redis/GH-13875",
+    "input_file": "/research-data/secprbench/season100-balanced-20261001/verification-v2/cases/redis/decec4b86c15cef34f33/attempts/01/pocs/redis/GH-13875/keyspace_events.tcl",
+    "input_name": "keyspace_events.tcl",
+    "size": 3850,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "88dc30df54231e38f20ead92b1e7f9e32d83a547defee83a15b3a7f1718aebac",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "05aed4cab97659f748db309ae5edf79e91366634",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "3521b1e8fd5f01d67bff15569f9fb331f53fd779de7a882b3316c084314204d0"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "OK\nOK\nOK\nOK\nVERIFY_EXIT=1\n\n=================================================================\n==14==ERROR: AddressSanitizer: heap-use-after-free on address 0x60200006b7f0 at pc 0x56512bc3888c bp 0x7fffdcf9c490 sp 0x7fffdcf9c488\nREAD of size 4 at 0x60200006b7f0 thread T0\n    #0 0x56512bc3888b in addReply /work/src/networking.c:431:9\n    #1 0x56512bc3c894 in addReplyLongLongFromStr /work/src/networking.c:975:5\n    #2 0x56512bcbd390 in incrDecrCommand /work/src/t_string.c:607:5\n    #3 0x56512bcbd61d in incrCommand /work/src/t_string.c:611:5\n    #4 0x56512bbfa612 in call /work/src/server.c:3575:5\n    #5 0x56512bbfe2ad in processCommand /work/src/server.c:4206:9\n    #6 0x56512bc4deff in processCommandAndResetClient /work/src/networking.c:2511:9\n    #7 0x56512bc4e374 in processInputBuffer /work/src/networking.c:2619:17\n    #8 0x56512bc363ca in readQueryFromClient /work/src/networking.c:2765:9\n    #9 0x56512beaebd9 in callHandler /work/src/./connhelpers.h:58:18\n    #10 0x56512beacad2 in connSocketEventHandler /work/src/socket.c:277:14\n    #11 0x56512bbbf409 in aeProcessEvents /work/src/ae.c:417:17\n    #12 0x56512bbc075c in aeMain /work/src/ae.c:477:9\n    #13 0x56512bc12fc8 in main /work/src/server.c:7256:5\n    #14 0x7f120b64dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #15 0x7f120b64de3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #16 0x56512baf1ae4 in _start (/work/src/redis-server+0x308ae4) (BuildId: b7cd8c76777fcf8fd98b381b279ea4d69df72225)\n\n0x60200006b7f0 is located 0 bytes inside of 16-byte region [0x60200006b7f0,0x60200006b800)\nfreed by thread T0 here:\n    #0 0x56512bb74682 in free (/work/src/redis-server+0x38b682) (BuildId: b7cd8c76777fcf8fd98b381b279ea4d69df72225)\n    #1 0x56512bc1c759 in zfree /work/src/zmalloc.c:427:5\n    #2 0x56512bc617c5 in decrRefCount /work/src/object.c:373:9\n    #3 0x56512bc6dc7d in dbSetValue /work/src/db.c:298:9\n    #4 0x56512bc6e961 in dbReplaceValueWithDictEntry /work/src/db.c:313:5\n    #5 0x56512bc6e961 in dbUnshareStringValueWithDictEntry /work/src/db.c:491:9\n    #6 0x56512bc6e86a in dbUnshareStringValue /work/src/db.c:480:12\n    #7 0x56512be11685 in RM_StringDMA /work/src/module.c:4376:22\n    #8 0x7f120b23b268 in KeySpace_NotificationModuleString /work/tests/modules/keyspace_events.c:122:18\n\npreviously allocated by thread T0 here:\n    #0 0x56512bb7492e in __interceptor_malloc (/work/src/redis-server+0x38b92e) (BuildId: b7cd8c76777fcf8fd98b381b279ea4d69df72225)\n    #1 0x56512bc1b32d in ztrymalloc_usable_internal /work/src/zmalloc.c:121:17\n    #2 0x56512bc1b32d in zmalloc /work/src/zmalloc.c:150:17\n    #3 0x56512bc5f521 in createObject /work/src/object.c:23:15\n    #4 0x56512bc5f521 in createStringObjectFromLongLongWithOptions /work/src/object.c:135:17\n    #5 0x56512bc5f7a0 in createStringObjectFromLongLongForValue /work/src/object.c\n    #6 0x56512bcbd136 in incrDecrCommand /work/src/t_string.c:597:15\n    #7 0x56512bcbd61d in incrCommand /work/src/t_string.c:611:5\n    #8 0x56512bbfa612 in call /work/src/server.c:3575:5\n    #9 0x56512bbfe2ad in processCommand /work/src/server.c:4206:9\n    #10 0x56512bc4deff in processCommandAndResetClient /work/src/networking.c:2511:9\n    #11 0x56512bc4e374 in processInputBuffer /work/src/networking.c:2619:17\n    #12 0x56512bc363ca in readQueryFromClient /work/src/networking.c:2765:9\n    #13 0x56512beaebd9 in callHandler /work/src/./connhelpers.h:58:18\n    #14 0x56512beacad2 in connSocketEventHandler /work/src/socket.c:277:14\n  ",
+        "stdout_tail": "x56512bb7492e in __interceptor_malloc (/work/src/redis-server+0x38b92e) (BuildId: b7cd8c76777fcf8fd98b381b279ea4d69df72225)\n    #1 0x56512bc1b32d in ztrymalloc_usable_internal /work/src/zmalloc.c:121:17\n    #2 0x56512bc1b32d in zmalloc /work/src/zmalloc.c:150:17\n    #3 0x56512bc5f521 in createObject /work/src/object.c:23:15\n    #4 0x56512bc5f521 in createStringObjectFromLongLongWithOptions /work/src/object.c:135:17\n    #5 0x56512bc5f7a0 in createStringObjectFromLongLongForValue /work/src/object.c\n    #6 0x56512bcbd136 in incrDecrCommand /work/src/t_string.c:597:15\n    #7 0x56512bcbd61d in incrCommand /work/src/t_string.c:611:5\n    #8 0x56512bbfa612 in call /work/src/server.c:3575:5\n    #9 0x56512bbfe2ad in processCommand /work/src/server.c:4206:9\n    #10 0x56512bc4deff in processCommandAndResetClient /work/src/networking.c:2511:9\n    #11 0x56512bc4e374 in processInputBuffer /work/src/networking.c:2619:17\n    #12 0x56512bc363ca in readQueryFromClient /work/src/networking.c:2765:9\n    #13 0x56512beaebd9 in callHandler /work/src/./connhelpers.h:58:18\n    #14 0x56512beacad2 in connSocketEventHandler /work/src/socket.c:277:14\n    #15 0x56512bbbf409 in aeProcessEvents /work/src/ae.c:417:17\n    #16 0x56512bbc075c in aeMain /work/src/ae.c:477:9\n    #17 0x56512bc12fc8 in main /work/src/server.c:7256:5\n    #18 0x7f120b64dd8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-use-after-free /work/src/networking.c:431:9 in addReply\nShadow bytes around the buggy address:\n  0x0c04800056a0: fa fa fd fa fa fa fd fa fa fa fd fa fa fa fd fa\n  0x0c04800056b0: fa fa fd fd fa fa fd fa fa fa fd fa fa fa fd fa\n  0x0c04800056c0: fa fa fd fa fa fa fd fa fa fa fd fa fa fa fd fa\n  0x0c04800056d0: fa fa fd fa fa fa fd fa fa fa fd fd fa fa fd fd\n  0x0c04800056e0: fa fa 03 fa fa fa fd fd fa fa fd fd fa fa fd fa\n=>0x0c04800056f0: fa fa fd fa fa fa 00 00 fa fa 00 00 fa fa[fd]fd\n  0x0c0480005700: fa fa 00 04 fa fa 00 00 fa fa fa fa fa fa fa fa\n  0x0c0480005710: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0480005720: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0480005730: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c0480005740: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==14==ABORTING\nAddressSanitizer: nested bug in the same thread, aborting.\nError: Server closed the connection\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "88dc30df54231e38f20ead92b1e7f9e32d83a547defee83a15b3a7f1718aebac",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "de7f2f87f74c95857ae91ee77be5a6cda18d2dea",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "9082693b32bc144214200c1d036fcaac0b001ab0fb495435a656232512a1cbc7"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "OK\nOK\nOK\nOK\n1000000000\n---PING---\nPONG\n---LOG TAIL---\n14:C 01 Oct 2026 23:42:49.126 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n14:C 01 Oct 2026 23:42:49.126 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n14:C 01 Oct 2026 23:42:49.126 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=14, just started\n14:C 01 Oct 2026 23:42:49.126 * Configuration loaded\n14:M 01 Oct 2026 23:42:49.128 * monotonic clock: POSIX clock_gettime\n14:M 01 Oct 2026 23:42:49.130 * Running mode=standalone, port=7799.\n14:M 01 Oct 2026 23:42:49.131 * Module 'testkeyspace' loaded from /work/tests/modules/keyspace_events.so\n14:M 01 Oct 2026 23:42:49.131 * Server initialized\n14:M 01 Oct 2026 23:42:49.131 * Ready to accept connections tcp\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "88dc30df54231e38f20ead92b1e7f9e32d83a547defee83a15b3a7f1718aebac",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "de7f2f87f74c95857ae91ee77be5a6cda18d2dea",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "442d30feabca76fb8c06eb686d767898009728f540f65fba7d567ab33d9835d9"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "OK\nOK\nOK\nOK\n1000000000\n---PING---\nPONG\n---LOG TAIL---\n14:C 01 Oct 2026 23:42:51.175 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n14:C 01 Oct 2026 23:42:51.175 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n14:C 01 Oct 2026 23:42:51.175 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=14, just started\n14:C 01 Oct 2026 23:42:51.175 * Configuration loaded\n14:M 01 Oct 2026 23:42:51.177 * monotonic clock: POSIX clock_gettime\n14:M 01 Oct 2026 23:42:51.179 * Running mode=standalone, port=7799.\n14:M 01 Oct 2026 23:42:51.179 * Module 'testkeyspace' loaded from /work/tests/modules/keyspace_events.so\n14:M 01 Oct 2026 23:42:51.180 * Server initialized\n14:M 01 Oct 2026 23:42:51.180 * Ready to accept connections tcp\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/run.sh: build tests/modules/keyspace_events.so, start redis-server with it loaded, CONFIG SET maxmemory-policy allkeys-lru, CONFIG SET maxmemory 1gb, CONFIG SET notify-keyspace-events 'A$', SET x 999999999, INCR x. Run via run_poc identically on pre_intro, post_intro, post_benign.",
+    "target_evidence": "post_intro run_poc: crashed=True, AddressSanitizer heap-use-after-free, READ of size 4, freed by RM_StringDMA/KeySpace_NotificationModuleString via dbUnshareStringValueWithDictEntry/dbSetValue/decrRefCount/zfree, read by addReply<-addReplyLongLongFromStr<-incrDecrCommand<-incrCommand; server then refused connections. pre_intro and post_benign run_poc: crashed=False, exit=0, INCR returned 1000000000, final PING returned PONG, no sanitizer output."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

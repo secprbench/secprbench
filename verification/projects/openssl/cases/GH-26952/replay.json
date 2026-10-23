@@ -1,0 +1,144 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-26952",
+    "bug_id": "GH-26952",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "5949918f9afa85d72535676f114346ed541e0b1e",
+    "intro_parent": "65787e2dc219685c30539c6f60eb6b64b890bf6f",
+    "fix_commit": "6e7be995fd7fd24d38b95982cf90f801ac045743",
+    "affected_files": [
+      "crypto/threads_pthread.c",
+      "crypto/threads_win.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json's root_cause: the write-side \"retire in order\" signal in ossl_synchronize_rcu() was placed before, rather than after, the busy-wait loop confirming the current qp has zero active readers, decoupling the order-enforcement signal from the safety condition it is meant to guarantee. I confirmed this diff directly between post_intro (buggy order) and post_benign (fixed: busy-wait moved inside the still-held prior_lock, so a later writer cannot even begin its own retire-order check until the earlier writer has verified safety). I first tried the project's own test/threadstest.c torture_rcu_high2 (the only in-repo test exercising >3 QPs, itself added by the fix PR) scaled up heavily (TSAN, 8 QPs, 32 readers, 550k+ cycles) without any report, then built a deterministic instrumented harness that proved the underlying invariant violation (two writer generations assigned/retiring one physical qp) occurs only in post_intro -- but per guidance that alone isn't sufficient for a memory-safety verdict, so I escalated to a harness (/poc/poc_orch3.c) with many concurrent ordinary RCU readers (each holding a derefed pointer across a short, realistic sleep) racing against many fast writers on the same small (4-slot) qp pool. This reliably produces a genuine AddressSanitizer heap-use-after-free in post_intro (2/2 runs via run_poc) where a filler writer's premature ossl_synchronize_rcu() return lets it free data a concurrent reader is still using, and reliably does NOT reproduce in pre_intro or post_benign (2/2 clean runs each) using the exact same reproducer invoked identically via run_poc on all three versions."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: candidate_only)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/repair-openssl-gh26952-import-v1/verification/cases/openssl/a508a98e3301641fb8ed/attempts/01/pocs/openssl/GH-26952",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "63f185bf5c7b9cda0626fdc30119449e2eeebf0e73757399f052045138194e55",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "5949918f9afa85d72535676f114346ed541e0b1e",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "891bc7d10787967fe384ef96310d23ec1d3d00f695a42a59a1e2e210479de879"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=1\n\n=================================================================\n==15==ERROR: AddressSanitizer: heap-use-after-free on address 0x50700008a340 at pc 0x56439a24f27c bp 0x7f672e2edca0 sp 0x7f672e2edc90\nREAD of size 8 at 0x50700008a340 thread T19\n    #0 0x56439a24f27b in victim_thread_fn /poc/poc_orch3.c:103\n    #1 0x7f673a433a82 in start_thread nptl/pthread_create.c:442\n    #2 0x7f673a4c4a43 in __clone (/lib/x86_64-linux-gnu/libc.so.6+0x125a43)\n\n0x50700008a340 is located 0 bytes inside of 80-byte region [0x50700008a340,0x50700008a390)\nfreed by thread T5 here:\n    #0 0x7f673acb1537 in __interceptor_free ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:127\n    #1 0x56439a25017c in CRYPTO_free /work/crypto/mem.c:353\n    #2 0x56439a24f532 in filler_writer_fn /poc/poc_orch3.c:64\n    #3 0x7f673a433a82 in start_thread nptl/pthread_create.c:442\n\npreviously allocated by thread T6 here:\n    #0 0x7f673acb1887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x56439a24fd7b in CRYPTO_malloc /work/crypto/mem.c:211\n    #2 0x56439a24fd7b in CRYPTO_zalloc /work/crypto/mem.c:231\n    #3 0x56439a24f417 in filler_writer_fn /poc/poc_orch3.c:51\n    #4 0x7f673a433a82 in start_thread nptl/pthread_create.c:442\n\nThread T19 created by T0 here:\n    #0 0x7f673ac55685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x56439a24f814 in main /poc/poc_orch3.c:134\n    #2 0x7f673a3c8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nThread T5 created by T0 here:\n    #0 0x7f673ac55685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x56439a24f781 in main /poc/poc_orch3.c:132\n    #2 0x7f673a3c8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nThread T6 created by T0 here:\n    #0 0x7f673ac55685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x56439a24f781 in main /poc/poc_orch3.c:132\n    #2 0x7f673a3c8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-use-after-free /poc/poc_orch3.c:103 in victim_thread_fn\nShadow bytes around the buggy address:\n  0x0a0e80009410: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fa fa\n  0x0a0e80009420: fa fa fd fd fd fd fd fd fd fd fd fd fa fa fa fa\n  0x0a0e80009430: fd fd fd fd fd fd fd fd fd fd fa fa fa fa fd fd\n  0x0a0e80009440: fd fd fd fd fd fd fd fd fa fa fa fa fd fd fd fd\n  0x0a0e80009450: fd fd fd fd fd fd fa fa fa fa 00 00 00 00 00 00\n=>0x0a0e80009460: 00 00 00 00 fa fa fa fa[fd]fd fd fd fd fd fd fd\n  0x0a0e80009470: fd fd fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e80009480: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e80009490: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e800094a0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e800094b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object re",
+        "stdout_tail": "zer/asan/asan_malloc_linux.cpp:127\n    #1 0x56439a25017c in CRYPTO_free /work/crypto/mem.c:353\n    #2 0x56439a24f532 in filler_writer_fn /poc/poc_orch3.c:64\n    #3 0x7f673a433a82 in start_thread nptl/pthread_create.c:442\n\npreviously allocated by thread T6 here:\n    #0 0x7f673acb1887 in __interceptor_malloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:145\n    #1 0x56439a24fd7b in CRYPTO_malloc /work/crypto/mem.c:211\n    #2 0x56439a24fd7b in CRYPTO_zalloc /work/crypto/mem.c:231\n    #3 0x56439a24f417 in filler_writer_fn /poc/poc_orch3.c:51\n    #4 0x7f673a433a82 in start_thread nptl/pthread_create.c:442\n\nThread T19 created by T0 here:\n    #0 0x7f673ac55685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x56439a24f814 in main /poc/poc_orch3.c:134\n    #2 0x7f673a3c8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nThread T5 created by T0 here:\n    #0 0x7f673ac55685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x56439a24f781 in main /poc/poc_orch3.c:132\n    #2 0x7f673a3c8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nThread T6 created by T0 here:\n    #0 0x7f673ac55685 in __interceptor_pthread_create ../../../../src/libsanitizer/asan/asan_interceptors.cpp:216\n    #1 0x56439a24f781 in main /poc/poc_orch3.c:132\n    #2 0x7f673a3c8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n\nSUMMARY: AddressSanitizer: heap-use-after-free /poc/poc_orch3.c:103 in victim_thread_fn\nShadow bytes around the buggy address:\n  0x0a0e80009410: fa fa fa fa fd fd fd fd fd fd fd fd fd fd fa fa\n  0x0a0e80009420: fa fa fd fd fd fd fd fd fd fd fd fd fa fa fa fa\n  0x0a0e80009430: fd fd fd fd fd fd fd fd fd fd fa fa fa fa fd fd\n  0x0a0e80009440: fd fd fd fd fd fd fd fd fa fa fa fa fd fd fd fd\n  0x0a0e80009450: fd fd fd fd fd fd fa fa fa fa 00 00 00 00 00 00\n=>0x0a0e80009460: 00 00 00 00 fa fa fa fa[fd]fd fd fd fd fd fd fd\n  0x0a0e80009470: fd fd fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e80009480: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e80009490: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e800094a0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0a0e800094b0: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==15==ABORTING\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "63f185bf5c7b9cda0626fdc30119449e2eeebf0e73757399f052045138194e55",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "65787e2dc219685c30539c6f60eb6b64b890bf6f",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "be2f8496afefe328bd7e17b841f98c9cb406a7de3084c9a911d42629ae565c27"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "DONE: no crash observed (global_seq=13022)\nRESULT: NO_CRASH (reproducer completed without AddressSanitizer report)\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "63f185bf5c7b9cda0626fdc30119449e2eeebf0e73757399f052045138194e55",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "65787e2dc219685c30539c6f60eb6b64b890bf6f",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "e9b345dd51b8f8737a69f9969162caf05faaee6ea8bb7457737eac9748145804"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "DONE: no crash observed (global_seq=12840)\nRESULT: NO_CRASH (reproducer completed without AddressSanitizer report)\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "/poc/poc_orch3.c + /poc/run.sh, run via run_poc identically on pre_intro, post_intro and post_benign. Links directly against the built libcrypto and drives the internal RCU API (ossl_rcu_lock_new(4, NULL) i.e. >3 QPs, the bug's documented precondition: \"can cause use-after-free errors, but only if more than 3 QPs are allocated\"). 8 fast \"filler\" writer threads continuously CRYPTO_zalloc a small tagged struct, ossl_rcu_assign_ptr it in, ossl_synchronize_rcu(), then CRYPTO_free the previous value; 12 \"victim\" threads each repeatedly take an ossl_rcu_read_lock, ossl_rcu_deref the current pointer, publish their own new value via a write, sleep briefly (0.2-3.2ms, simulating an ordinary straggler reader), then re-read the originally-derefed pointer before unlocking -- a completely legitimate RCU read-side usage pattern (hold a derefed pointer across a short critical section). Compiled with the same sanitizer flags as the official build (-fsanitize=address,undefined -fno-sanitize-recover=all) directly against /work's already-built libcrypto.a.",
+    "target_evidence": "crypto/threads_pthread.c, ossl_synchronize_rcu(): in post_intro, the retire-order signal (next_to_retire++ / pthread_cond_broadcast / pthread_mutex_unlock(&lock->prior_lock)) happens BEFORE the busy-wait loop confirming qp->users==0; in post_benign the identical busy-wait is moved INSIDE the still-held prior_lock critical section, i.e. strictly before the increment/broadcast/unlock. This exactly matches meta.json's root_cause. Because prior_lock is released early in post_intro, a writer can race through its own retire-order gate and complete update_qp()/retire_qp() independently of another, still-active straggler reader elsewhere; with the pool capped at group_count=4 (\">3 QPs\") qp slots cycling in a tight circular buffer under heavy writer contention, this lets a filler's ossl_synchronize_rcu() call return -- and its caller CRYPTO_free() the just-superseded data -- while a concurrent victim thread's earlier ossl_rcu_read_lock()/ossl_rcu_deref() reference to that exact data is still live and about to be re-read. AddressSanitizer catches exactly this: READ of size 8 at .../poc_orch3.c:103 in victim_thread_fn, on memory \"freed by thread T.. CRYPTO_free /work/crypto/mem.c:353 / filler_writer_fn /poc/poc_orch3.c:64\", \"previously allocated by ... CRYPTO_zalloc ... filler_writer_fn /poc/poc_orch3.c:51\". Identical reproducer run via run_poc: post_intro crashed=True with this heap-use-after-free on 2/2 runs; pre_intro and post_benign both completed cleanly (crashed=False, \"DONE: no crash observed\") on 2/2 runs each."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

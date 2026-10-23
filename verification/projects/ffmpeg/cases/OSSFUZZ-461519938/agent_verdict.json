@@ -1,0 +1,157 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "No existing PoC/run.sh/corpus was present, and the target's configured build here only enables ASan (no UBSan), while the labelled bug is a signed-integer-overflow (UBSan) issue in libswscale/output.c's yuv2gbrp16_full_X_c(). /poc/run.sh (run via run_poc, identical across all three versions): (1) recompiles the single translation unit libswscale/output.c with -fsanitize=undefined -fno-sanitize-recover=undefined added to the existing flags (tracked source is not modified, only the compiler invocation) and relinks it into ffmpeg_g/ffmpeg so the UBSan runtime is wired in; (2) compiles /poc/poc_driver.c, a small harness added under /poc that #includes the unmodified libswscale/output.c and calls the internal (otherwise static/non-exported) yuv2gbrp16_full_X_c() directly -- the exact function named in both the fix commit and the OSS-Fuzz crash state (yuv2gbrp16_full_X_c -> any_vscale -> ff_swscale). The driver sets lumFilterSize=0 (so Y collapses to the fixed post-scale bias term) and chrFilterSize=1 with one tap (so V, and hence R = V * yuv2rgb_v2r_coeff, is an exact, deliberately large negative value that itself fits comfortably in a 32-bit int -- no UB in the multiplication), mirroring the reporter's crash shape \"-1159988356 + -1082982400 cannot be represented in type 'int'\". (3) runs the resulting binary. run_poc ran this unmodified script/binary against pre_intro, post_intro, and post_benign.",
+  "explanation": "Code inspection: the intro commit (b74f89caaef2) rewrote yuv2gbrp16_full_X_c() in libswscale/output.c so that Y gets an extra bias of -(1<<29) (`Y += (1 << 13) - (1 << 29);`, vs. the parent's `Y += 1 << 13;`) and removed the previous `av_clip_uintp2(Y + R, 30)` clamp that bounded the Y+R sum, replacing it with a direct `((Y + R) >> 14)` on the raw 32-bit sum -- exactly the change the fix commit (d41b8d95a723) targets (\"Use 64bit in addition ... for RGB + Y\").\n\nReproduction results (run_poc, identical /poc/run.sh + /poc/poc_driver.c on all three revisions):\n- pre_intro (0f0afc7fb5d3): exit 0, no sanitizer report; driver prints \"no overflow detected\" (Y is only 8192 here, far from overflowing when summed with R=-2000000000).\n- post_intro (b74f89caaef2): exit 134, UndefinedBehaviorSanitizer report at libswscale/output.c:2380 -- exactly the line/function identified by the fix (\"dest16[2][i] = av_clip_uintp2(((Y + R) >> 14) ...\"): \"runtime error: signed integer overflow: -536862720 + -2000000000 cannot be represented in type 'int'\", the same overflow class/site as OSS-Fuzz issue 461519938's \"signed integer overflow: -1159988356 + -1082982400 cannot be represented in type 'int'\" in yuv2gbrp16_full_X_c.\n- post_benign (0f0afc7fb5d3, mechanically composed as a revert to the intro's parent -- build_version reports the identical commit hash for pre_intro and post_benign): exit 0, no sanitizer report, matching pre_intro exactly.\n\nThe same script/inputs were used unchanged across all three builds (only the extra UBSan compile flag and the relink were applied identically to each), isolating the observed regression to the intro commit's code, with the companion removing it. This directly reproduces the exact vulnerable addition and function named by the OSS-Fuzz report and the fix commit; it does not rely on an arbitrary resource threshold or an unrelated crash, and pre_intro/post_benign complete cleanly under the identical harness.",
+  "oracle": {
+    "kind": "unknown",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "No existing PoC/run.sh/corpus was present, and the target's configured build here only enables ASan (no UBSan), while the labelled bug is a signed-integer-overflow (UBSan) issue in libswscale/output.c's yuv2gbrp16_full_X_c(). /poc/run.sh (run via run_poc, identical across all three versions): (1) recompiles the single translation unit libswscale/output.c with -fsanitize=undefined -fno-sanitize-recover=undefined added to the existing flags (tracked source is not modified, only the compiler invocation) and relinks it into ffmpeg_g/ffmpeg so the UBSan runtime is wired in; (2) compiles /poc/poc_driver.c, a small harness added under /poc that #includes the unmodified libswscale/output.c and calls the internal (otherwise static/non-exported) yuv2gbrp16_full_X_c() directly -- the exact function named in both the fix commit and the OSS-Fuzz crash state (yuv2gbrp16_full_X_c -> any_vscale -> ff_swscale). The driver sets lumFilterSize=0 (so Y collapses to the fixed post-scale bias term) and chrFilterSize=1 with one tap (so V, and hence R = V * yuv2rgb_v2r_coeff, is an exact, deliberately large negative value that itself fits comfortably in a 32-bit int -- no UB in the multiplication), mirroring the reporter's crash shape \"-1159988356 + -1082982400 cannot be represented in type 'int'\". (3) runs the resulting binary. run_poc ran this unmodified script/binary against pre_intro, post_intro, and post_benign.",
+    "target_evidence": ""
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(post_intro)->True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc_driver.c)",
+    "docker_shell(post_intro)",
+    "docker_shell(pre_intro)",
+    "docker_shell(post_benign)",
+    "write_file(run.sh)",
+    "run_poc(post_intro)->crashed=True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "bbd93d6b57aa4d5fc2d91e4ebf5df3643903311c56ae8323a3cba5b3f5b43619",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "b74f89caaef2174b0bfb2791ea88e44960dba11f",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f934f83ce77744bcd62f85d5baee2e777200122efb5d97c800e54638cd281ee1"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "=== running poc_driver against unknown ===\nVERIFY_EXIT=134\n\npoc: calling yuv2gbrp16_full_X_c with Y-bias and R chosen so Y + R overflows a 32-bit int...\nlibswscale/output.c:2380:43: runtime error: signed integer overflow: -536862720 + -2000000000 cannot be represented in type 'int'\n    #0 0x55daa3ef3f06 in yuv2gbrp16_full_X_c /work/./libswscale/output.c:2380:43\n    #1 0x55daa3f6b8da in main /poc/poc_driver.c:80:5\n    #2 0x7ff25112ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #3 0x7ff25112ee3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #4 0x55daa3dd2304 in _start (/tmp/poc_driver+0x48304) (BuildId: e0db9aca65917301e10a50758aeb404aca0870ce)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libswscale/output.c:2380:43 in \n/poc/run.sh: line 44:    24 Aborted                 /tmp/poc_driver\n",
+        "stdout_tail": "=== running poc_driver against unknown ===\nVERIFY_EXIT=134\n\npoc: calling yuv2gbrp16_full_X_c with Y-bias and R chosen so Y + R overflows a 32-bit int...\nlibswscale/output.c:2380:43: runtime error: signed integer overflow: -536862720 + -2000000000 cannot be represented in type 'int'\n    #0 0x55daa3ef3f06 in yuv2gbrp16_full_X_c /work/./libswscale/output.c:2380:43\n    #1 0x55daa3f6b8da in main /poc/poc_driver.c:80:5\n    #2 0x7ff25112ed8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #3 0x7ff25112ee3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #4 0x55daa3dd2304 in _start (/tmp/poc_driver+0x48304) (BuildId: e0db9aca65917301e10a50758aeb404aca0870ce)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libswscale/output.c:2380:43 in \n/poc/run.sh: line 44:    24 Aborted                 /tmp/poc_driver\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "bbd93d6b57aa4d5fc2d91e4ebf5df3643903311c56ae8323a3cba5b3f5b43619",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "0f0afc7fb5d30c40108d81b320823d8f5c9fbedc",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "d311a36dd98e9db9018c6bed879c9fe7a514c4fa034a33881f96cbff7681190b"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "=== running poc_driver against unknown ===\npoc_driver exit code: 0\nVERIFY_EXIT=0\n\npoc: calling yuv2gbrp16_full_X_c with Y-bias and R chosen so Y + R overflows a 32-bit int...\npoc: no overflow detected. rowR[0]=0 rowG[0]=0 rowB[0]=0\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "bbd93d6b57aa4d5fc2d91e4ebf5df3643903311c56ae8323a3cba5b3f5b43619",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "0f0afc7fb5d30c40108d81b320823d8f5c9fbedc",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "7762d8f0684352a29c16c291a00f7b8f2e14187f6a026093172baf0cff3f95aa"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "=== running poc_driver against unknown ===\npoc_driver exit code: 0\nVERIFY_EXIT=0\n\npoc: calling yuv2gbrp16_full_X_c with Y-bias and R chosen so Y + R overflows a 32-bit int...\npoc: no overflow detected. rowR[0]=0 rowG[0]=0 rowB[0]=0\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

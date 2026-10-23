@@ -1,0 +1,89 @@
+{
+  "task_id": "pr_review_OSSFUZZ-391935573",
+  "bug_id": "OSSFUZZ-391935573",
+  "commit_sha": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+  "commit_message": "avcodec/mm: decode partial palette",
+  "commit_author": "Peter Ross",
+  "commit_date": "2024-06-08T18:39:10+10:00",
+  "pr_title": "avcodec/mm: decode partial palette",
+  "pr_description": "",
+  "files": [
+    {
+      "path": "libavcodec/mmvideo.c",
+      "status": "modified",
+      "additions": 4,
+      "deletions": 7,
+      "diff": "diff --git a/libavcodec/mmvideo.c b/libavcodec/mmvideo.c\nindex 3038d9ea92..933d895f96 100644\n--- a/libavcodec/mmvideo.c\n+++ b/libavcodec/mmvideo.c\n@@ -76,17 +76,14 @@ static av_cold int mm_decode_init(AVCodecContext *avctx)\n     return 0;\n }\n \n static void mm_decode_pal(MmContext *s)\n {\n-    int i;\n-\n-    bytestream2_skip(&s->gb, 4);\n-    for (i = 0; i < 128; i++) {\n-        s->palette[i] = 0xFFU << 24 | bytestream2_get_be24(&s->gb);\n-        s->palette[i+128] = s->palette[i]<<2;\n-    }\n+    int start = bytestream2_get_le16(&s->gb);\n+    int count = bytestream2_get_le16(&s->gb);\n+    for (int i = 0; i < count; i++)\n+        s->palette[start+i] = 0xFFU << 24 | (bytestream2_get_be24(&s->gb) << 2);\n }\n \n /**\n  * @param half_horiz Half horizontal resolution (0 or 1)\n  * @param half_vert Half vertical resolution (0 or 1)\n"
+    }
+  ],
+  "full_diff": "diff --git a/libavcodec/mmvideo.c b/libavcodec/mmvideo.c\nindex 3038d9ea92..933d895f96 100644\n--- a/libavcodec/mmvideo.c\n+++ b/libavcodec/mmvideo.c\n@@ -76,17 +76,14 @@ static av_cold int mm_decode_init(AVCodecContext *avctx)\n     return 0;\n }\n \n static void mm_decode_pal(MmContext *s)\n {\n-    int i;\n-\n-    bytestream2_skip(&s->gb, 4);\n-    for (i = 0; i < 128; i++) {\n-        s->palette[i] = 0xFFU << 24 | bytestream2_get_be24(&s->gb);\n-        s->palette[i+128] = s->palette[i]<<2;\n-    }\n+    int start = bytestream2_get_le16(&s->gb);\n+    int count = bytestream2_get_le16(&s->gb);\n+    for (int i = 0; i < count; i++)\n+        s->palette[start+i] = 0xFFU << 24 | (bytestream2_get_be24(&s->gb) << 2);\n }\n \n /**\n  * @param half_horiz Half horizontal resolution (0 or 1)\n  * @param half_vert Half vertical resolution (0 or 1)\n",
+  "ground_truth": {
+    "bug_id": "OSSFUZZ-391935573",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "43926e026dd80918e1387801077c58cf02b6c99d",
+      "short_sha": "43926e0",
+      "message": "avcodec/mmvideo: fix palette index",
+      "author": "Michael Niedermayer <michael@niedermayer.cc>",
+      "date": "2025-05-08T15:30:57+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oob-write-001",
+        "title": "Out-of-bounds write in mm_decode_pal via unchecked start+i palette index",
+        "message": "mm_decode_pal() reads a 16-bit 'start' offset and a 16-bit 'count' directly from the bitstream (both attacker-controlled, up to 65535) and then writes 'count' consecutive unsigned ints into s->palette[start+i] without ever validating that start+i stays within the bounds of the palette array (unsigned int palette[AVPALETTE_COUNT], i.e. 256 entries). Because bytestream2_get_le16() imposes no limit on the returned value, an attacker-crafted MM video stream can supply start and/or count values large enough to make start+i exceed 255, causing writes far past the end of the MmContext::palette array. This is a heap/struct out-of-bounds write (the OSS-Fuzz report calls it out-of-array access), which can corrupt adjacent heap memory and potentially lead to memory corruption or code execution.",
+        "location": {
+          "file": "libavcodec/mmvideo.c",
+          "start_line": 79,
+          "end_line": 85,
+          "start_column": null,
+          "end_column": null,
+          "function": "mm_decode_pal",
+          "snippet": "static void mm_decode_pal(MmContext *s)\n{\n    int start = bytestream2_get_le16(&s->gb);\n    int count = bytestream2_get_le16(&s->gb);\n    for (int i = 0; i < count; i++)\n        s->palette[start+i] = 0xFFU << 24 | (bytestream2_get_be24(&s->gb) << 2);\n}",
+          "snippet_hash": "0990daa617eefd226d5511e4fba79c7abf87f187b1adb655687d906e7bd62a57",
+          "description": null,
+          "snippet_start_line": 79,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "high",
+        "bug_type": "BufferOverflow",
+        "confidence": 0.92,
+        "suggestion": "Mask or clamp the palette write index to the valid range of the palette array (0..AVPALETTE_COUNT-1), e.g. by ANDing (start+i) with 0xFF as done in the actual fix, or by validating that start and count keep start+i within bounds before performing the write, and rejecting/truncating the loop otherwise.",
+        "suggestion_code": "static void mm_decode_pal(MmContext *s)\n{\n    int start = bytestream2_get_le16(&s->gb);\n    int count = bytestream2_get_le16(&s->gb);\n    for (int i = 0; i < count; i++)\n        s->palette[(start+i)&0xFF] = 0xFFU << 24 | (bytestream2_get_be24(&s->gb) << 2);\n}",
+        "tags": [
+          "security",
+          "memory-safety",
+          "buffer-overflow",
+          "ffmpeg",
+          "oss-fuzz"
+        ],
+        "cwe_ids": [
+          "CWE-787",
+          "CWE-129"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "BufferOverflow",
+    "affected_files": [
+      "libavcodec/mmvideo.c"
+    ],
+    "root_cause": "The refactor in commit 63ea1660fa (\"avcodec/mm: decode partial palette\") replaced a previous fixed 128-iteration loop with a stream-controlled 'start' offset and 'count' loop bound, but failed to mask/clamp the resulting array index (start+i) to the valid range of the palette array, allowing attacker-controlled values to index arbitrarily far outside the array.",
+    "must_cover": [
+      {
+        "file": "libavcodec/mmvideo.c",
+        "function": "mm_decode_pal",
+        "start_line": 79,
+        "end_line": 85,
+        "role": "primary",
+        "reason": "Primary location of finding: Out-of-bounds write in mm_decode_pal via unchecked start+i palette index"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "63ea1660fa06d30c3bcbad68373a6caf88ac9c4c",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

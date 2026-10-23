@@ -1,0 +1,32 @@
+{
+  "bug_id": "1965081",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "c4432f819ee4cd25b8cf54ed21391475cf560c33",
+    "parent": "04ca39ca8942109d2c82d2bbd3b78042871f53c1",
+    "fix": "a3b707e1ce70462dd867a7832797568d33f92774"
+  },
+  "affected_files": [
+    "layout/generic/nsGridContainerFrame.cpp"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three configured sanitizer builds succeeded. Using the identical /poc/harness.html + /poc/testcase.html, profile preferences, Xvfb setup, and 15-second browser command across revisions: pre_intro exited 0 with crashed=False and no sanitizer report; post_intro exited 245 with crashed=True and AddressSanitizer reporting heap-use-after-free (WRITE of size 4) in CachedBAxisMeasurement::Update, called from MeasuringReflow, followed by ABORTING and content-process signal 6; post_benign exited 0 wi",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.82.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three configured sanitizer builds succeeded. Using the identical /poc/harness.html + /poc/testcase.html, profile preferences, Xvfb setup, and 15-second browser command across revisions: pre_intro exited 0 with crashed=False and no sanitizer report; post_intro exited 245 with crashed=True and AddressSanitizer reporting heap-use-after-free (WRITE of size 4) in CachedBAxisMeasurement::Update, called from MeasuringReflow, followed by ABORTING and content-process signal 6; post_benign exited 0 with crashed=False and no sanitizer report. This is the required no-crash / crash / no-crash pattern a",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1965081.json"
+  },
+  "final_disposition": "verified"
+}

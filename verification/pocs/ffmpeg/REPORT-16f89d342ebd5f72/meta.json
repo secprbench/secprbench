@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_REPORT-16f89d342ebd5f72",
+  "bug_id": "REPORT-16f89d342ebd5f72",
+  "bug_type": "BufferOverflow",
+  "intro_commit": "536475ea058245e71f5c2e7f3d5c39b0cad465e5",
+  "intro_parent": "3b1214a89767ccd4ccdf0561952c79566cbc5b7d",
+  "fix_commit": "16f89d342ebd5f726a5787e2e00069f339c7b446",
+  "affected_files": [
+    "libavformat/mpegts.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "ffmpeg",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "Missing bounds validation of an attacker-controlled length field (header_size) read from network/file input before it is used in pointer arithmetic that adjusts a buffer's base pointer and size, which are later used to compute a memset destination address.",
+  "findings": [
+    "In new_pes_packet(), when a JPEG-XS elementary stream PES payload is detected (stream_id == 0xbd, stream_type == 0x32, and the 'jxes' marker present), the code reads a 32-bit header_size value directly from the untrusted packet payload (AV_RB32(pkt->data)) and immediately uses it to advance pkt->data and shrink pkt->size (pkt->data += header_size; pkt->size -= header_size;) with no validation that"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "0f003103ec52bc30d1b8d110d34a17bdd43e2571dd10377a2e72e6a9df8e614d",
+  "generated_artifact_sha256": {
+    "reference": "cf969a2aaab5ac1b2127e5608b65e2721b5a1ffea6c455061afb38645731229e",
+    "introducing": "1e83f7f78eb7cb9a42664cfb7753c2a134515a95f5d78734a1a7478978490d30",
+    "companion": "ea0910f43f69013a414b3aa9c5dae0b5a05b5c6f3f71f690de0e91402aa3d1bd"
+  }
+}

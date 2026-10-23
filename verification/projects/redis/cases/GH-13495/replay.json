@@ -1,0 +1,143 @@
+{
+  "summary": {
+    "task_id": "pr_review_GH-13495",
+    "bug_id": "GH-13495",
+    "bug_type": "UseAfterFree",
+    "intro_commit": "a7afd1d2b2b0b9b64c44fd950d57e49ad8823bde",
+    "intro_parent": "3fcddfb61f903d7112da186cba8b1c93a99dc87f",
+    "fix_commit": "a0da8390a28a92e7068fef7a00ebc9b767e70500",
+    "affected_files": [
+      "src/replication.c"
+    ],
+    "has_benign": true,
+    "benign_composed_via": "agent"
+  },
+  "verdict": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reasons": [
+      "The same Docker reproducer triggered a sanitizer or race report only after introduction.",
+      "meta.json's root cause: PR #13495 reordered code so emptyData() runs after functions_lib_ctx is fetched via functionsLibCtxGetCurrent(); emptyData() frees/recreates the functions lib context, leaving the captured pointer dangling. Fix commit a0da8390a28a reorders to call emptyData() before fetching the pointer. No existing PoC/run.sh was provided (fast-path found none), so I inspected src/replication.c in post_intro directly: lines ~2061-2103 show the non-SWAPDB branch fetching functions_lib_ctx before the later emptyData() call at line 2090, with the pointer then passed into rdbLoadingCtx used by rdbLoadRioWithLoadingCtx at line 2103; src/db.c confirmed emptyData() synchronously frees the current functions lib ctx via functionsLibCtxClearCurrent(async=0)->functionsLibCtxFree when replica-lazy-flush is no (default). I crafted run.sh exercising exactly this path: a master with a loaded Lua function library syncing diskless to an on-empty-db replica. First iteration of the script backgrounded both servers and always exited 0 regardless of a child crash, which run_poc's crash-detection read as crashed=False despite an embedded ASan report in the output (record_verdict correctly rejected that evidence). I fixed the script to detect the replica dying and `wait` on its PID to propagate the real (SIGABRT-driven) exit status, re-ran all three versions with this corrected script, and confirmed: post_intro now reports exit=1 crashed=True with a clean, unambiguous AddressSanitizer heap-use-after-free (READ in functionsCreateWithLibraryCtx <- rdbFunctionLoad <- rdbLoadRioWithLoadingCtx <- readSyncBulkPayload:2103; freed by functionsLibCtxFree <- functionsLibCtxClearCurrent <- emptyData <- readSyncBulkPayload:2090); pre_intro and post_benign both ran the identical script/config/commands and completed with exit=0 crashed=False, replica reaching full sync ('REPLICA SURVIVED / SYNCED OK'), no sanitizer report. This satisfies the same-reproducer invariance requirement and cleanly distinguishes introduction (post_intro only) from parent and companion fix."
+    ],
+    "needs_agent": false
+  },
+  "poc": {
+    "source": "agent-generated (initial source: candidate_only)",
+    "poc_dir": "/research-data/secprbench/season100-balanced-20261001/verification/cases/redis/ac5b49ed8ac064a862f9/attempts/01/pocs/redis/GH-13495",
+    "input_file": null,
+    "input_name": null,
+    "size": 0,
+    "has_run_sh": true,
+    "note": ""
+  },
+  "runs": {},
+  "agent_executions": {
+    "post_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "e06e695b6d88b36e9cb2b579c425c4a6b4a05c651d33fa1714285b887ad6cef0",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "a7afd1d2b2b0b9b64c44fd950d57e49ad8823bde",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "4fe98d0fc122c0fd1dcef999ef9e41c70607e32fa2655ebe5adbd2a6c1b650f6"
+        }
+      },
+      "run": {
+        "exit_code": 1,
+        "crashed": true,
+        "sanitizer": "succeeded\n10:M 02 Oct 2026 00:24:41.360 * Connection with replica 127.0.0.1:7701 lost.\nREPLICA PROCESS DIED rc=1\nVERIFY_EXIT=1\n\n=================================================================\n==11==ERROR: AddressSanitizer: heap-use-after-free on address 0x60300001d710 at pc 0x5652a5330c4b bp 0x7ffd5f0642b0 sp 0x7ffd5f0642a8\nREAD of size 8 at 0x60300001d710 thread T0\n    #0 0x5652a5330c4a in functionsCreateWithLibraryCtx /work/src/functions.c:970:38\n    #1 0x5652a511a293 in rdbFunctionLoad /work/src/rdb.c:3297:30\n    #2 0x5652a511b0a7 in rdbLoadRioWithLoadingCtx /work/src/rdb.c:3557:17\n    #3 0x5652a50f75ec in readSyncBulkPayload /work/src/replication.c:2103:13\n    #4 0x5652a5317d59 in callHandler /work/src/./connhelpers.h:58:18\n    #5 0x5652a5315c52 in connSocketEventHandler /work/src/socket.c:277:14\n    #6 0x5652a5029409 in aeProcessEvents /work/src/ae.c:417:17\n    #7 0x5652a502a75c in aeMain /work/src/ae.c:477:9\n    #8 0x5652a507cfc8 in main /work/src/server.c:7256:5\n    #9 0x7fd044c33d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #10 0x7fd044c33e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #11 0x5652a4f5bae4 in _start (/work/src/redis-server+0x307ae4) (BuildId: fc1b85d38d3e1d5160edf25f1e0d16deb656eb31)\n\n0x60300001d710 is located 0 bytes inside of 32-byte region [0x60300001d710,0x60300001d730)\nfreed by thread T0 here:\n    #0 0x5652a4fde682 in free (/work/src/redis-server+0x38a682) (BuildId: fc1b85d38d3e1d5160edf25f1e0d16deb656eb31)\n    #1 0x5652a5086759 in zfree /work/src/zmalloc.c:427:5\n    #2 0x5652a532b01d in functionsLibCtxFree /work/src/functions.c:195:5\n    #3 0x5652a532af63 in functionsLibCtxClearCurrent /work/src/functions.c:183:9\n    #4 0x5652a50d8db5 in emptyData /work/src/db.c:546:9\n    #5 0x5652a50f7500 in readSyncBulkPayload /work/src/replication.c:2090:13\n    #6 0x5652a5317d59 in callHandler /work/src/./connhelpers.h:58:18\n    #7 0x5652a5315c52 in connSocketEventHandler /work/src/socket.c:277:14\n    #8 0x5652a5029409 in aeProcessEvents /work/src/ae.c:417:17\n    #9 0x5652a502a75c in aeMain /work/src/ae.c:477:9\n    #10 0x5652a507cfc8 in main /work/src/server.c:7256:5\n    #11 0x7fd044c33d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\npreviously allocated by thread T0 here:\n    #0 0x5652a4fde92e in __interceptor_malloc (/work/src/redis-server+0x38a92e) (BuildId: fc1b85d38d3e1d5160edf25f1e0d16deb656eb31)\n    #1 0x5652a508532d in ztrymalloc_usable_internal /work/src/zmalloc.c:121:17\n    #2 0x5652a508532d in zmalloc /work/src/zmalloc.c:150:17\n    #3 0x5652a532b107 in functionsLibCtxCreate /work/src/functions.c:212:28\n    #4 0x5652a532b09d in functionsInit /work/src/functions.c:1118:30\n    #5 0x5652a505f07f in initServer /work/src/server.c:2787:9\n    #6 0x5652a507cdc6 in main /work/src/server.c:7189:5\n    #7 0x7fd044c33d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-use-after-free /work/src/functions.c:970:38 in functionsCreateWithLibraryCtx\nShadow bytes around the buggy address:\n  0x0c067fffba90: fd fd fa fa fd fd fd fd fa fa fd fd fd fd fa fa\n  0x0c067fffbaa0: fd fd fd fd fa fa fd fd fd fd fa fa fd fd fd fd\n  0x0c067fffbab0: fa fa fd fd fd fd fa fa fd fd fd fd fa fa fd fd\n  0x0c067fffbac0: fd fd fa fa fd fd fd fd fa fa fd fd fd fd fa fa\n  0x0c067fffbad0: fd fd fd fa fa fa fd fd fd fd fa fa fd fd fd fa\n=>0x0c067fffbae0: fa fa[fd]fd fd fd fa fa fd fd fd fd fa fa fd fd\n  0x0c067fffbaf0",
+        "stdout_tail": " #1 0x5652a5086759 in zfree /work/src/zmalloc.c:427:5\n    #2 0x5652a532b01d in functionsLibCtxFree /work/src/functions.c:195:5\n    #3 0x5652a532af63 in functionsLibCtxClearCurrent /work/src/functions.c:183:9\n    #4 0x5652a50d8db5 in emptyData /work/src/db.c:546:9\n    #5 0x5652a50f7500 in readSyncBulkPayload /work/src/replication.c:2090:13\n    #6 0x5652a5317d59 in callHandler /work/src/./connhelpers.h:58:18\n    #7 0x5652a5315c52 in connSocketEventHandler /work/src/socket.c:277:14\n    #8 0x5652a5029409 in aeProcessEvents /work/src/ae.c:417:17\n    #9 0x5652a502a75c in aeMain /work/src/ae.c:477:9\n    #10 0x5652a507cfc8 in main /work/src/server.c:7256:5\n    #11 0x7fd044c33d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\npreviously allocated by thread T0 here:\n    #0 0x5652a4fde92e in __interceptor_malloc (/work/src/redis-server+0x38a92e) (BuildId: fc1b85d38d3e1d5160edf25f1e0d16deb656eb31)\n    #1 0x5652a508532d in ztrymalloc_usable_internal /work/src/zmalloc.c:121:17\n    #2 0x5652a508532d in zmalloc /work/src/zmalloc.c:150:17\n    #3 0x5652a532b107 in functionsLibCtxCreate /work/src/functions.c:212:28\n    #4 0x5652a532b09d in functionsInit /work/src/functions.c:1118:30\n    #5 0x5652a505f07f in initServer /work/src/server.c:2787:9\n    #6 0x5652a507cdc6 in main /work/src/server.c:7189:5\n    #7 0x7fd044c33d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n\nSUMMARY: AddressSanitizer: heap-use-after-free /work/src/functions.c:970:38 in functionsCreateWithLibraryCtx\nShadow bytes around the buggy address:\n  0x0c067fffba90: fd fd fa fa fd fd fd fd fa fa fd fd fd fd fa fa\n  0x0c067fffbaa0: fd fd fd fd fa fa fd fd fd fd fa fa fd fd fd fd\n  0x0c067fffbab0: fa fa fd fd fd fd fa fa fd fd fd fd fa fa fd fd\n  0x0c067fffbac0: fd fd fa fa fd fd fd fd fa fa fd fd fd fd fa fa\n  0x0c067fffbad0: fd fd fd fa fa fa fd fd fd fd fa fa fd fd fd fa\n=>0x0c067fffbae0: fa fa[fd]fd fd fd fa fa fd fd fd fd fa fa fd fd\n  0x0c067fffbaf0: fd fa fa fa fd fd fd fa fa fa fd fd fd fa fa fa\n  0x0c067fffbb00: fd fd fd fd fa fa fd fd fd fd fa fa fa fa fa fa\n  0x0c067fffbb10: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fffbb20: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\n  0x0c067fffbb30: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n==11==ABORTING\nAddressSanitizer: nested bug in the same thread, aborting.\n"
+      }
+    },
+    "pre_intro": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "e06e695b6d88b36e9cb2b579c425c4a6b4a05c651d33fa1714285b887ad6cef0",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "3fcddfb61f903d7112da186cba8b1c93a99dc87f",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "0849eabcc89595d289b420402b717cf7d134f0024227570e33ee70bbcfa5ac52"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "6340 argv-mem=22 multi-mem=0 rbs=16384 rbp=16384 obl=0 oll=0 omem=0 tot-mem=33604 events=r cmd=replicaof user=default redir=-1 resp=2 lib-name= lib-ver=')\n11:S 02 Oct 2026 00:24:45.855 * Non blocking connect for SYNC fired the event.\n11:S 02 Oct 2026 00:24:45.855 * Master replied to PING, replication can continue...\n11:S 02 Oct 2026 00:24:45.856 * Trying a partial resynchronization (request 4382a165a2a1d4924b1abe64299ba88fdc89739f:1).\n11:S 02 Oct 2026 00:24:45.857 * Full resync from master: 2c620061f89ff9cac20efe13d67504223f2d4247:0\n11:S 02 Oct 2026 00:24:45.862 * MASTER <-> REPLICA sync: receiving streamed RDB from master with EOF to parser\n11:S 02 Oct 2026 00:24:45.862 * Discarding previously cached master state.\n11:S 02 Oct 2026 00:24:45.862 * MASTER <-> REPLICA sync: Flushing old data\n11:S 02 Oct 2026 00:24:45.863 * MASTER <-> REPLICA sync: Loading DB in memory\n11:S 02 Oct 2026 00:24:45.863 * Loading RDB produced by version 255.255.255\n11:S 02 Oct 2026 00:24:45.863 * RDB age 0 seconds\n11:S 02 Oct 2026 00:24:45.863 * RDB memory usage when created 0.95 Mb\n11:S 02 Oct 2026 00:24:45.863 * Done loading RDB, keys loaded: 1, keys expired: 0.\n11:S 02 Oct 2026 00:24:45.863 * MASTER <-> REPLICA sync: Finished with success\n---- master log ----\n10:C 02 Oct 2026 00:24:44.825 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n10:C 02 Oct 2026 00:24:44.825 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n10:C 02 Oct 2026 00:24:44.825 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=10, just started\n10:C 02 Oct 2026 00:24:44.825 * Configuration loaded\n10:M 02 Oct 2026 00:24:44.827 * monotonic clock: POSIX clock_gettime\n10:M 02 Oct 2026 00:24:44.829 * Running mode=standalone, port=7700.\n10:M 02 Oct 2026 00:24:44.830 * Server initialized\n10:M 02 Oct 2026 00:24:44.830 * Ready to accept connections tcp\n10:M 02 Oct 2026 00:24:45.856 * Replica 127.0.0.1:7701 asks for synchronization\n10:M 02 Oct 2026 00:24:45.856 * Partial resynchronization not accepted: Replication ID mismatch (Replica asked for '4382a165a2a1d4924b1abe64299ba88fdc89739f', my replication IDs are 'a3bbf65cd7e9ef48c17440d6f22ca64c0acf7db7' and '0000000000000000000000000000000000000000')\n10:M 02 Oct 2026 00:24:45.856 * Replication backlog created, my new replication IDs are '2c620061f89ff9cac20efe13d67504223f2d4247' and '0000000000000000000000000000000000000000'\n10:M 02 Oct 2026 00:24:45.856 * Starting BGSAVE for SYNC with target: replicas sockets\n10:M 02 Oct 2026 00:24:45.858 * Background RDB transfer started by pid 27\n27:C 02 Oct 2026 00:24:45.863 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB\n10:M 02 Oct 2026 00:24:45.863 * Diskless rdb transfer, done reading from pipe, 1 replicas still up.\nREPLICA SURVIVED / SYNCED OK\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "cd /work && bash /poc/run.sh",
+      "input": null,
+      "poc_sha256": "e06e695b6d88b36e9cb2b579c425c4a6b4a05c651d33fa1714285b887ad6cef0",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "3fcddfb61f903d7112da186cba8b1c93a99dc87f",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "33ee4419beb5b3bf975600cd1c17bdb9135ab0c6294f8b7b7cb4e5ebaeb5a79c"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "6340 argv-mem=22 multi-mem=0 rbs=16384 rbp=16384 obl=0 oll=0 omem=0 tot-mem=33604 events=r cmd=replicaof user=default redir=-1 resp=2 lib-name= lib-ver=')\n11:S 02 Oct 2026 00:24:48.025 * Non blocking connect for SYNC fired the event.\n11:S 02 Oct 2026 00:24:48.025 * Master replied to PING, replication can continue...\n11:S 02 Oct 2026 00:24:48.026 * Trying a partial resynchronization (request abe94edc65b75df05d7cf0cbbda43dc4a05fb96e:1).\n11:S 02 Oct 2026 00:24:48.026 * Full resync from master: e2a317500ee7aecd042e139057ab9880965a6ea9:0\n11:S 02 Oct 2026 00:24:48.031 * MASTER <-> REPLICA sync: receiving streamed RDB from master with EOF to parser\n11:S 02 Oct 2026 00:24:48.031 * Discarding previously cached master state.\n11:S 02 Oct 2026 00:24:48.032 * MASTER <-> REPLICA sync: Loading DB in memory\n11:S 02 Oct 2026 00:24:48.032 * MASTER <-> REPLICA sync: Flushing old data\n11:S 02 Oct 2026 00:24:48.033 * Loading RDB produced by version 255.255.255\n11:S 02 Oct 2026 00:24:48.033 * RDB age 0 seconds\n11:S 02 Oct 2026 00:24:48.033 * RDB memory usage when created 0.95 Mb\n11:S 02 Oct 2026 00:24:48.033 * Done loading RDB, keys loaded: 1, keys expired: 0.\n11:S 02 Oct 2026 00:24:48.033 * MASTER <-> REPLICA sync: Finished with success\n---- master log ----\n10:C 02 Oct 2026 00:24:46.997 # WARNING Memory overcommit must be enabled! Without it, a background save or replication may fail under low memory condition. To fix this issue add 'vm.overcommit_memory = 1' to /etc/sysctl.conf and then reboot or run the command 'sysctl vm.overcommit_memory=1' for this to take effect.\n10:C 02 Oct 2026 00:24:46.998 * oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo\n10:C 02 Oct 2026 00:24:46.998 * Redis version=255.255.255, bits=64, commit=00000000, modified=0, pid=10, just started\n10:C 02 Oct 2026 00:24:46.998 * Configuration loaded\n10:M 02 Oct 2026 00:24:47.001 * monotonic clock: POSIX clock_gettime\n10:M 02 Oct 2026 00:24:47.003 * Running mode=standalone, port=7700.\n10:M 02 Oct 2026 00:24:47.004 * Server initialized\n10:M 02 Oct 2026 00:24:47.004 * Ready to accept connections tcp\n10:M 02 Oct 2026 00:24:48.026 * Replica 127.0.0.1:7701 asks for synchronization\n10:M 02 Oct 2026 00:24:48.026 * Partial resynchronization not accepted: Replication ID mismatch (Replica asked for 'abe94edc65b75df05d7cf0cbbda43dc4a05fb96e', my replication IDs are '2910bbbb96d44902617e99308dfd804706abdb79' and '0000000000000000000000000000000000000000')\n10:M 02 Oct 2026 00:24:48.026 * Replication backlog created, my new replication IDs are 'e2a317500ee7aecd042e139057ab9880965a6ea9' and '0000000000000000000000000000000000000000'\n10:M 02 Oct 2026 00:24:48.026 * Starting BGSAVE for SYNC with target: replicas sockets\n10:M 02 Oct 2026 00:24:48.028 * Background RDB transfer started by pid 26\n26:C 02 Oct 2026 00:24:48.033 * Fork CoW for RDB: current 0 MB, peak 0 MB, average 0 MB\n10:M 02 Oct 2026 00:24:48.033 * Diskless rdb transfer, done reading from pipe, 1 replicas still up.\nREPLICA SURVIVED / SYNCED OK\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "agent_oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "Custom /poc/run.sh starts a master and replica redis-server pair (both ASan-built). Replica is configured with --repl-diskless-load on-empty-db --replica-lazy-flush no (empty db, sync flush). Master gets --repl-diskless-sync yes, a FUNCTION LOAD of a small Lua library, and a SET; then the replica issues REPLICAOF to force a full resync. The script waits for either full sync (\"up\") or the replica process dying, then reaps the replica's real exit status via `wait` (propagating SIGABRT from ASan as a nonzero exit) instead of masking it, so run_poc's crash detection is accurate across versions. In readSyncBulkPayload(), since repl_diskless_load != SWAPDB and the replica db is empty, use_diskless_load is true and the non-swapdb branch runs: it fetches functions_lib_ctx = functionsLibCtxGetCurrent() then (introduced ordering) calls emptyData(), which synchronously frees that same context via functionsLibCtxFree()/zfree and creates a fresh one. The stale pointer is still stored in rdbLoadingCtx and passed to rdbLoadRioWithLoadingCtx -> rdbFunctionLoad(), which dereferences the freed context to load the replicated function library.",
+    "target_evidence": "post_intro: exit=1 crashed=True. AddressSanitizer: heap-use-after-free on address 0x60300001d710; READ of size 8 in functionsCreateWithLibraryCtx /work/src/functions.c:970:38 <- rdbFunctionLoad /work/src/rdb.c:3297:30 <- rdbLoadRioWithLoadingCtx /work/src/rdb.c:3557:17 <- readSyncBulkPayload /work/src/replication.c:2103:13. Freed by: functionsLibCtxFree /work/src/functions.c:195 <- functionsLibCtxClearCurrent /work/src/functions.c:183 <- emptyData /work/src/db.c:546 <- readSyncBulkPayload /work/src/replication.c:2090. pre_intro: exit=0 crashed=False, log shows normal diskless full sync completing ('Diskless rdb transfer, done reading from pipe' / 'REPLICA SURVIVED / SYNCED OK'), no sanitizer output. post_benign: exit=0 crashed=False, identical clean full-sync completion, no sanitizer output. Same run.sh/config/commands used for all three."
+  },
+  "agent_oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

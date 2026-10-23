@@ -1,0 +1,24 @@
+{
+  "bug_id": "395053819",
+  "project": "v8",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "dcbc9e7460732aa3cf836cc3d0d9b53406786a1e",
+    "parent": "e7baa622b1d335b57d1b38e24b239f81c16383f6",
+    "fix": "f99c2e013acce0c54611c0a67bcb6212577693d4"
+  },
+  "affected_files": [
+    "src/objects/name.h",
+    "src/strings/string-hasher-inl.h",
+    "src/utils/utils.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The identical /poc/poc.cc and /poc/run.sh were run through the verifier toolkit on all three versions. pre_intro printed hash=643852576 and exited 0 with crashed=False. post_intro reached the affected parser and reported 'DCHECK failure at ../../src/strings/string-hasher-inl.h:183: index > 0 (0 vs. 0)', then aborted with exit 134 and crashed=True. post_benign printed the same hash as pre_intro and exited 0 with crashed=False. The benign worktree remained at intro parent e7baa622b1d3 plus only th",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

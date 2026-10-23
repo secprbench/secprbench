@@ -1,0 +1,142 @@
+{
+  "bug_id": "OSSFUZZ-471569982",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "589b3ed943d46ba163cea383634d67319af11cba",
+    "parent": "5674879db5ea411b42e55c3906fa586f540bf637",
+    "fix": "be1fd6d9d4b1e6371c1e0852168d728aaecb71b2"
+  },
+  "affected_files": [
+    "libavcodec/prores_raw.c"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "The agent claim lacks a matching admissible three-version oracle.; post_intro (589b3ed943d4, the commit that adds the entire ProRes RAW decoder including prores_raw.c) crashes deterministically with exactly the reported defect: `libavcodec/prores_raw.c:143:31: runtime error: shift exponent -1 is negative` at `const int block_mask = (1 << log2_nb_blocks) - 1;` inside decode_comp(), reached via decode_tile -> decode_tiles -> avcodec_default_execute2 -> decode_frame — matching the OSS-Fuzz reported crash stack (decode_comp/decode_tiles/avcodec_default_execute2) and crash type (Undefined-shift) exactly. pre_intro (5674879db5ea) has no prores_raw.c at all (only prores_raw_parser.c exists there; AV_CODEC_ID_PRORES_RAW is a declared enum value but no decoder is registered), so avcodec_find_decoder() returns NULL and the harness exits cleanly printing 'no decoder' — the flaw cannot manifest because the feature containing it doesn't exist yet, confirming the bug was introduced exactly at 589b3ed943d4. post_benign, rebuilt the same way and run on the identical input, completes cleanly (exit=0, no sanitizer report); avcodec_send_packet instead returns an AVERROR (invalid data), because that source now contains the validation `if (avctx->width - tile->x < 16) return AVERROR_INVALIDDATA;` added to the per-tile offset-parsing loop (confirmed present in post_benign and absent in post_intro by direct grep), matching exactly what the real fix commit be1fd6d9d4b1 (\"Tiles of width less than 16 result in undefined behavior\") does. All three runs used the identical crafted input.bin via run_poc, isolating the observed sanitizer/behavior difference to the labelled code change.",
+    "source": "secprbench replay"
+  },
+  "final_disposition": "inconclusive",
+  "evidence": {
+    "replay": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/ee81b0b8c341cf989f28/attempts/01/replay/pr_review_OSSFUZZ-471569982.result.json",
+    "report": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/ee81b0b8c341cf989f28/attempts/01/replay/pr_review_OSSFUZZ-471569982.report.md",
+    "runs": {},
+    "agent": {
+      "verdict": "/research-data/secprbench/campaign-100-20260928/operations/verify-watch-sonnet5-v7/cases/ffmpeg/ee81b0b8c341cf989f28/attempts/01/replay/pr_review_OSSFUZZ-471569982.agent_verdict.json",
+      "executions": {
+        "post_intro": {
+          "command": "bash -c '\nset -e\ncd /work\nif [ -f libavcodec/prores_raw.c ]; then\n  clang -I. -I./ -D_ISOC11_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -DPIC -I./compat/stdbit -DZLIB_CONST -DHAVE_AV_CONFIG_H -DBUILDING_avcodec -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -std=c17 -fPIC -pthread -g -Wno-parentheses -fno-math-errno -fno-signed-zeros -mstack-alignment=16 -Qunused-arguments -c -o /tmp/prores_raw_ubsan.o libavcodec/prores_raw.c\n  cp /work/libavcodec/libavcodec.a /tmp/libavcodec_test.a\n  ar d /tmp/libavcodec_test.a prores_raw.o\n  EXTRA_OBJ=/tmp/prores_raw_ubsan.o\n  ARC=/tmp/libavcodec_test.a\nelse\n  EXTRA_OBJ=\n  ARC=/work/libavcodec/libavcodec.a\nfi\ncp /poc/poc.c /tmp/poc.c\nclang -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -I/work -DHAVE_AV_CONFIG_H -o /tmp/poc /tmp/poc.c $EXTRA_OBJ $ARC /work/libavformat/libavformat.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lpthread -lz\n/tmp/poc /poc/input.bin\necho RUN_EXIT=$?\n'",
+          "input": "input.bin",
+          "poc_sha256": "f2b8ec485fd46dda85760332b53da203a9d8d7cbd9a1f06868e97e2b826c73be",
+          "build": {
+            "version": "post_intro",
+            "base_commit": "589b3ed943d46ba163cea383634d67319af11cba",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "e09c671da2535888a635455c356a6fbd5683af25da78b053d88695b83a6894aa"
+            }
+          },
+          "run": {
+            "exit_code": 134,
+            "crashed": true,
+            "sanitizer": "VERIFY_EXIT=134\n\n[prores_raw @ 0x618000000080] picture resolution change: 0x0 -> 130x16\nlibavcodec/prores_raw.c:143:31: runtime error: shift exponent -1 is negative\n    #0 0x56527f8d50f7 in decode_comp /work/libavcodec/prores_raw.c:143:31\n    #1 0x56527f8d240c in decode_tile /work/libavcodec/prores_raw.c:278:11\n    #2 0x56527f8d240c in decode_tiles /work/libavcodec/prores_raw.c:311:12\n    #3 0x56527f942c20 in avcodec_default_execute2 /work/libavcodec/avcodec.c:92:17\n    #4 0x56527f8cfc3e in decode_frame /work/libavcodec/prores_raw.c:482:9\n    #5 0x56527fb39a19 in decode_simple_internal /work/libavcodec/decode.c:439:16\n    #6 0x56527fb39a19 in decode_simple_receive_frame /work/libavcodec/decode.c:597:15\n    #7 0x56527fb39a19 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:633:15\n    #8 0x56527fb3b458 in decode_receive_frame_internal /work/libavcodec/decode.c:650:15\n    #9 0x56527fb3b2e8 in avcodec_send_packet /work/libavcodec/decode.c:726:15\n    #10 0x56527f8cca97 in main /tmp/poc.c:29:15\n    #11 0x7fe5c2939d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7fe5c2939e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x56527f80eaa4 in _start (/tmp/poc+0x44eaa4) (BuildId: bab7e071fd615033ba5913da1e1d1633ab906ed4)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/prores_raw.c:143:31 in \nbash: line 16:    16 Aborted                 /tmp/poc /poc/input.bin\n",
+            "stdout_tail": "VERIFY_EXIT=134\n\n[prores_raw @ 0x618000000080] picture resolution change: 0x0 -> 130x16\nlibavcodec/prores_raw.c:143:31: runtime error: shift exponent -1 is negative\n    #0 0x56527f8d50f7 in decode_comp /work/libavcodec/prores_raw.c:143:31\n    #1 0x56527f8d240c in decode_tile /work/libavcodec/prores_raw.c:278:11\n    #2 0x56527f8d240c in decode_tiles /work/libavcodec/prores_raw.c:311:12\n    #3 0x56527f942c20 in avcodec_default_execute2 /work/libavcodec/avcodec.c:92:17\n    #4 0x56527f8cfc3e in decode_frame /work/libavcodec/prores_raw.c:482:9\n    #5 0x56527fb39a19 in decode_simple_internal /work/libavcodec/decode.c:439:16\n    #6 0x56527fb39a19 in decode_simple_receive_frame /work/libavcodec/decode.c:597:15\n    #7 0x56527fb39a19 in ff_decode_receive_frame_internal /work/libavcodec/decode.c:633:15\n    #8 0x56527fb3b458 in decode_receive_frame_internal /work/libavcodec/decode.c:650:15\n    #9 0x56527fb3b2e8 in avcodec_send_packet /work/libavcodec/decode.c:726:15\n    #10 0x56527f8cca97 in main /tmp/poc.c:29:15\n    #11 0x7fe5c2939d8f in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:58:16\n    #12 0x7fe5c2939e3f in __libc_start_main csu/../csu/libc-start.c:392:3\n    #13 0x56527f80eaa4 in _start (/tmp/poc+0x44eaa4) (BuildId: bab7e071fd615033ba5913da1e1d1633ab906ed4)\n\nSUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/prores_raw.c:143:31 in \nbash: line 16:    16 Aborted                 /tmp/poc /poc/input.bin\n"
+          }
+        },
+        "pre_intro": {
+          "command": "bash -c '\nset -e\ncd /work\nif [ -f libavcodec/prores_raw.c ]; then\n  clang -I. -I./ -D_ISOC11_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -DPIC -I./compat/stdbit -DZLIB_CONST -DHAVE_AV_CONFIG_H -DBUILDING_avcodec -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -std=c17 -fPIC -pthread -g -Wno-parentheses -fno-math-errno -fno-signed-zeros -mstack-alignment=16 -Qunused-arguments -c -o /tmp/prores_raw_ubsan.o libavcodec/prores_raw.c\n  cp /work/libavcodec/libavcodec.a /tmp/libavcodec_test.a\n  ar d /tmp/libavcodec_test.a prores_raw.o\n  EXTRA_OBJ=/tmp/prores_raw_ubsan.o\n  ARC=/tmp/libavcodec_test.a\nelse\n  EXTRA_OBJ=\n  ARC=/work/libavcodec/libavcodec.a\nfi\ncp /poc/poc.c /tmp/poc.c\nclang -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -I/work -DHAVE_AV_CONFIG_H -o /tmp/poc /tmp/poc.c $EXTRA_OBJ $ARC /work/libavformat/libavformat.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lpthread -lz\n/tmp/poc /poc/input.bin\necho RUN_EXIT=$?\n'",
+          "input": "input.bin",
+          "poc_sha256": "f2b8ec485fd46dda85760332b53da203a9d8d7cbd9a1f06868e97e2b826c73be",
+          "build": {
+            "version": "pre_intro",
+            "base_commit": "5674879db5ea411b42e55c3906fa586f540bf637",
+            "patched": false,
+            "patch_method": "",
+            "patch_clean": null,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "8b03e44d7d40e13e6784354d6c159fdebf6182bea3172dd9a056c0683e2f0cda"
+            }
+          },
+          "run": {
+            "exit_code": 1,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "VERIFY_EXIT=1\n\nno decoder\n"
+          }
+        },
+        "post_benign": {
+          "command": "bash -c '\nset -e\ncd /work\nif [ -f libavcodec/prores_raw.c ]; then\n  clang -I. -I./ -D_ISOC11_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_POSIX_C_SOURCE=200112 -D_XOPEN_SOURCE=600 -DPIC -I./compat/stdbit -DZLIB_CONST -DHAVE_AV_CONFIG_H -DBUILDING_avcodec -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -std=c17 -fPIC -pthread -g -Wno-parentheses -fno-math-errno -fno-signed-zeros -mstack-alignment=16 -Qunused-arguments -c -o /tmp/prores_raw_ubsan.o libavcodec/prores_raw.c\n  cp /work/libavcodec/libavcodec.a /tmp/libavcodec_test.a\n  ar d /tmp/libavcodec_test.a prores_raw.o\n  EXTRA_OBJ=/tmp/prores_raw_ubsan.o\n  ARC=/tmp/libavcodec_test.a\nelse\n  EXTRA_OBJ=\n  ARC=/work/libavcodec/libavcodec.a\nfi\ncp /poc/poc.c /tmp/poc.c\nclang -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer -I/work -DHAVE_AV_CONFIG_H -o /tmp/poc /tmp/poc.c $EXTRA_OBJ $ARC /work/libavformat/libavformat.a /work/libavutil/libavutil.a /work/libswresample/libswresample.a -lm -lpthread -lz\n/tmp/poc /poc/input.bin\necho RUN_EXIT=$?\n'",
+          "input": "input.bin",
+          "poc_sha256": "f2b8ec485fd46dda85760332b53da203a9d8d7cbd9a1f06868e97e2b826c73be",
+          "build": {
+            "version": "post_benign",
+            "base_commit": "5674879db5ea411b42e55c3906fa586f540bf637",
+            "patched": true,
+            "patch_method": "plain",
+            "patch_clean": true,
+            "build_ok": true,
+            "poc_ran": false,
+            "exit_code": null,
+            "crashed": false,
+            "sanitizer_report": "",
+            "build_log_tail": "",
+            "run_log_tail": "",
+            "note": "build cached",
+            "source_integrity": {
+              "ok": true,
+              "stage": "after_poc",
+              "fingerprint": "7f571463ad99c058b9ef3b126284aed22daef151bbb98cf30ed92e2eb697d527"
+            }
+          },
+          "run": {
+            "exit_code": 0,
+            "crashed": false,
+            "sanitizer": "",
+            "stdout_tail": "RUN_EXIT=0\nVERIFY_EXIT=0\n\n[prores_raw @ 0x618000000080] picture resolution change: 0x0 -> 130x16\nsend_packet ret=-1163346256\nDONE\n"
+          }
+        }
+      },
+      "oracle": {
+        "kind": "behavioral",
+        "bug_marker": "libavcodec/prores_raw.c:143:31: runtime error: shift exponent -1 is negative ... SUMMARY: UndefinedBehaviorSanitizer: undefined-behavior libavcodec/prores_raw.c:143:31",
+        "pre_marker": "no decoder (AV_CODEC_ID_PRORES_RAW enum exists but no decoder registered; feature not yet introduced)",
+        "benign_marker": "send_packet ret=-1163346256 (AVERROR_INVALIDDATA); DONE — exit=0, no sanitizer report, clean rejection via the new `avctx->width - tile->x < 16` check",
+        "description": "Sanitizer-based oracle: recompiled the target's own unmodified prores_raw.c per revision with -fsanitize=address,undefined (the cached target build used ASan only) and ran a minimal direct-decoder harness on an identical crafted 'prrf' packet engineered so the rightmost tile's visible width (2px) falls under the 16px minimum assumed by decode_comp's block-count/log2 computation.",
+        "target_evidence": "post_intro stack via run_poc: #0 decode_comp libavcodec/prores_raw.c:143:31, #1 decode_tile prores_raw.c:278, #2 decode_tiles prores_raw.c:311, #3 avcodec_default_execute2, #4 decode_frame prores_raw.c:482 — matches OSS-Fuzz reported Crash State (decode_comp/decode_tiles/avcodec_default_execute2) and Crash Type Undefined-shift. Source grep confirms `if (avctx->width - tile->x < 16) return AVERROR_INVALIDDATA;` is present in post_benign and absent in post_intro, matching fix commit be1fd6d9d4b1's stated purpose."
+      },
+      "oracle_assessment": {
+        "status": "inconclusive",
+        "kind": "unproven",
+        "reason": "The agent claim lacks a matching admissible three-version oracle."
+      },
+      "explanation": "post_intro (589b3ed943d4, the commit that adds the entire ProRes RAW decoder including prores_raw.c) crashes deterministically with exactly the reported defect: `libavcodec/prores_raw.c:143:31: runtime error: shift exponent -1 is negative` at `const int block_mask = (1 << log2_nb_blocks) - 1;` inside decode_comp(), reached via decode_tile -> decode_tiles -> avcodec_default_execute2 -> decode_frame — matching the OSS-Fuzz reported crash stack (decode_comp/decode_tiles/avcodec_default_execute2) and crash type (Undefined-shift) exactly. pre_intro (5674879db5ea) has no prores_raw.c at all (only prores_raw_parser.c exists there; AV_CODEC_ID_PRORES_RAW is a declared enum value but no decoder is registered), so avcodec_find_decoder() returns NULL and the harness exits cleanly printing 'no decoder' — the flaw cannot manifest because the feature containing it doesn't exist yet, confirming the bug was introduced exactly at 589b3ed943d4. post_benign, rebuilt the same way and run on the identical input, completes cleanly (exit=0, no sanitizer report); avcodec_send_packet instead returns an AVERROR (invalid data), because that source now contains the validation `if (avctx->width - tile->x < 16) return AVERROR_INVALIDDATA;` added to the per-tile offset-parsing loop (confirmed present in post_benign and absent in post_intro by direct grep), matching exactly what the real fix commit be1fd6d9d4b1 (\"Tiles of width less than 16 result in undefined behavior\") does. All three runs used the identical crafted input.bin via run_poc, isolating the observed sanitizer/behavior difference to the labelled code change."
+    }
+  },
+  "task_hashes": {
+    "buggy": "eca9a8d5c1ea12417fda135b640d31a28cab5e654163907b9b88e00bc7f4b99a",
+    "benign": "4bb49c6cc12ce91367861fa03506bf90af6d3b168debd880deb87d66a297fe9a"
+  }
+}

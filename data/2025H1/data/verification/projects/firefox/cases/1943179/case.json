@@ -1,0 +1,33 @@
+{
+  "bug_id": "1943179",
+  "project": "firefox",
+  "bug_type": "UninitializedMemory",
+  "commits": {
+    "intro": "70014fe558dd1919548ac4f3c0ad920da6db535a",
+    "parent": "11efee8e7b9b9e363bca64b4ed2a98871fe5a2d6",
+    "fix": "6624852dc9460bfd61953cd3ef926759ad06d495"
+  },
+  "affected_files": [
+    "dom/base/Selection.cpp",
+    "dom/base/ContentIterator.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer browser builds succeeded. The packaged/default attempt had no input and did not exercise the API, so I created /poc/poc.html. Using the identical finite screenshot command and input on every revision, pre_intro exited 0 with crashed=False and saved the screenshot. post_intro was reported crashed=True and emitted AddressSanitizer:DEADLYSIGNAL for a read SEGV in nsINode::HasChildren -> ContentIteratorBase<nsINode*>::NextNode/Next -> SelectionNodeCache::MaybeCollect at Selection",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, agent)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": "memory-safety",
+    "poc_source": "saved/era-harness",
+    "reason": "All three sanitizer browser builds succeeded. The packaged/default attempt had no input and did not exercise the API, so I created /poc/poc.html. Using the identical finite screenshot command and input on every revision, pre_intro exited 0 with crashed=False and saved the screenshot. post_intro was reported crashed=True and emitted AddressSanitizer:DEADLYSIGNAL for a read SEGV in nsINode::HasChildren -> ContentIteratorBase<nsINode*>::NextNode/Next -> SelectionNodeCache::MaybeCollect at Selection.cpp:343; ASan aborted the content process on signal 6. post_benign exited 0 with crashed=False and ",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1943179.json"
+  },
+  "final_disposition": "verified"
+}

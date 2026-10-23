@@ -1,0 +1,107 @@
+{
+  "affected_files": [
+    "src/truetype/ttgxvar.c"
+  ],
+  "aliases": [
+    "GLMR-371"
+  ],
+  "bug_discussion": "Upstream GitLab MR !371 (https://gitlab.freedesktop.org/freetype/freetype/-/merge_requests/371) states that the allocation regression was introduced by 582de1a4b6f6269bdb358605f9b23406988cd5b5. The mainline fixing commit 702e4a1d32e4b911e85cc7df84b3ba395c28dab3 states 'Fix allocation' and adds sizeof(*peak_coords) to the peak coordinate pool size. The captured ASan preflight using one controlled variable-font input shows a heap-buffer-overflow write on the introducing revision and clean runs on its parent and the fixing revision. No separate public bug report, upstream PoC, or committed regression test was found. Security review, construction, and Docker verification remain pending.",
+  "bug_id": "REPORTED-702e4a1d32e4",
+  "candidate_status": "local_asan_preflight_passed_pending_security_review",
+  "changed_lines": 14,
+  "commit_ids": [
+    "702e4a1d32e4b911e85cc7df84b3ba395c28dab3"
+  ],
+  "component": "",
+  "creation_time": "2025-05-21T20:56:34.851Z",
+  "date_basis": "git_committer_date_on_captured_mainline",
+  "fix_commit_sha": "702e4a1d32e4b911e85cc7df84b3ba395c28dab3",
+  "fix_date": "2025-05-22T04:57:17+02:00",
+  "keywords": [],
+  "mainline_verified": true,
+  "product": "freetype",
+  "provenance": {
+    "apply_check": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/apply_check.json",
+      "sha256": "717fea7bf2a033461f2fc01dc0b6a7a28a99990d32a3fc69535f1733e74ad123"
+    },
+    "collector": "targeted_h1_freetype_oob_preflight_v1",
+    "commit_api": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/commit_api.json",
+      "sha256": "20b4fa9a9805d6d9cbd008ce608fedff881b9c4776bde697c55cefd1775c3575"
+    },
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/fix.commit",
+      "sha256": "ad393068b921630871d14859b9f6229a0c998987408c55cf06efe0ee2f46814d"
+    },
+    "companion_prerequisites": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/companion_prerequisites.json",
+      "sha256": "73bc3c04d32c1b6ecead6d7d87dd3beeb78112d4e591d6b9c9513ada4ee86764"
+    },
+    "dedup_audit": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/dedup_audit_full.json",
+      "sha256": "811f069bd86d99d6b8cbbd4f6dbeb520314304fa417cbe3f7267275df9980611"
+    },
+    "fix_sha": "702e4a1d32e4b911e85cc7df84b3ba395c28dab3",
+    "introduction_candidate": {
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/intro.blame",
+        "sha256": "0be702fb1ea49baac8a606a6e5f97ac173060f3d5f34a8cca77f28a0fad5fde1"
+      },
+      "changed_files": [
+        "src/truetype/ttgxvar.c"
+      ],
+      "changed_lines": 48,
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/intro.commit",
+        "sha256": "719a4c53d8286aaf57d5119f4f1f1762d32cf3078f42ac61784e48dd1da5aad0"
+      },
+      "date": "2025-05-21T14:39:22+02:00",
+      "parent_revision": "fd92af79d801880faf070c84d0c274081369eb76",
+      "patch": {
+        "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/intro.patch",
+        "sha256": "081cbe61b0d66812a7f736893d48d54edd7bdff06922a5519a1e0edf8da4fc1a"
+      },
+      "sha": "582de1a4b6f6269bdb358605f9b23406988cd5b5"
+    },
+    "mainline_ref": "origin/master",
+    "mainline_tip": "b6c6934a76fae579fce081b03e2e74aca17e7eeb",
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/fix.patch",
+      "sha256": "7c2ad1b452e174dfd71ad6eedbdec8d480c8094d4210bf9bbc1b037757dbbb7d"
+    },
+    "public_commit_url": "https://github.com/freetype/freetype/commit/702e4a1d32e4b911e85cc7df84b3ba395c28dab3",
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/gitlab_mr371.json",
+      "sha256": "a62e0949d4e578cd22f167e542aae0eb38cbc56fb4b98ab133e88e261c6b6452"
+    },
+    "report_details": "public_fix_discussion_only_no_external_poc",
+    "source_url": "https://gitlab.freedesktop.org/freetype/freetype/-/merge_requests/371",
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261002-h1-security-intake-v1/freetype/REPORTED-702e4a1d32e4/preflight/evidence.json",
+      "sha256": "b054ab10edb0d44e3abd3f7445f387a7fdfee823ddf124b80b1fb325210e7305"
+    }
+  },
+  "report_references": [
+    {
+      "evidence": "Was introduced in 582de1a4b6f6269bdb358605f9b23406988cd5b5",
+      "id": "GLMR-371",
+      "kind": "upstream_fix_discussion",
+      "url": "https://gitlab.freedesktop.org/freetype/freetype/-/merge_requests/371"
+    }
+  ],
+  "resolution_time": null,
+  "season": "2025H1",
+  "security_screen": {
+    "earliest_fix_review_required": true,
+    "fix_role_review_required": true,
+    "preliminary_defect_classes": [
+      "heap-buffer-overflow"
+    ],
+    "same_input_three_version_preflight": true,
+    "status": "pending",
+    "untrusted_input_boundary": "font-controlled fvar/gvar variation axes and tuple data"
+  },
+  "severity": "unknown",
+  "title": "FreeType gvar glyph coordinate pool underallocation"
+}

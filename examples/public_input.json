@@ -1,0 +1,15 @@
+{
+  "files": [
+    {
+      "path": "example.c",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "@@ -1 +1 @@\n-int example(void) { return 1; }\n+int example(void) { return 2; }\n"
+    }
+  ],
+  "full_diff": "diff --git a/example.c b/example.c\n--- a/example.c\n+++ b/example.c\n@@ -1 +1 @@\n-int example(void) { return 1; }\n+int example(void) { return 2; }\n",
+  "commit_message": "Update example return value",
+  "pr_title": "Update example return value",
+  "pr_description": "Synthetic input for the output-contract example."
+}

@@ -1,0 +1,107 @@
+{
+  "bug_id": "FOSSIL-2adaee9aa90f280a",
+  "title": "Fix a bug in the NOT NULL/IS NULL optimization of check-in [cb94350185f555c3]",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "sqlite",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Official fixing record: https://www.sqlite.org/src/info/2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27\n\nFix a bug in the NOT NULL/IS NULL optimization of check-in [cb94350185f555c3]\nthat can cause invalid data to be used for a column if that column has a\nCHECK constraint that includes the NOT NULL or IS NULL operator.\nProblem discovered by the \n[https://issues.chromium.org/issues/415397143|Chromium fuzzer].  Never\nseen in the wild, as far as anybody knows.\n\nFossilOrigin-Name: 2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27\n\nPreliminary source observation: The 2022 IS NULL/IS NOT NULL optimization skipped loading a column value that a CHECK constraint later needed. The official 3.49.2 release notes describe a memory error if abused. The May 6 fix and immediately following test cover CHECK plus large blobs.\nSecurity impact, input reachability, earliest effective fix, and a three-revision oracle require independent review.",
+  "commit_ids": [
+    "288f35685473c82b12bd47610e473ec34524bba7"
+  ],
+  "fix_commit_sha": "288f35685473c82b12bd47610e473ec34524bba7",
+  "fix_date": "2025-05-06T17:53:27Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_mainline_ancestor_exact_fossil_bridge",
+  "season": "2025H1",
+  "affected_files": [
+    "manifest",
+    "manifest.uuid",
+    "src/expr.c",
+    "src/vdbe.c"
+  ],
+  "changed_lines": 25,
+  "aliases": [
+    "CHROMIUM-415397143"
+  ],
+  "report_references": [
+    {
+      "id": "FOSSIL-2adaee9aa90f280a",
+      "url": "https://www.sqlite.org/src/info/2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27",
+      "kind": "official_fossil_fix",
+      "evidence": "Fix a bug in the NOT NULL/IS NULL optimization of check-in [cb94350185f555c3]"
+    },
+    {
+      "id": "CHROMIUM-415397143",
+      "url": "https://issues.chromium.org/issues/415397143",
+      "kind": "fix_commit_report_attribution",
+      "evidence": "Issue linked by the official fix commit; issue body unavailable"
+    }
+  ],
+  "candidate_status": "targeted_strong_source_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_invalid_column_data_or_memory_error",
+    "preliminary_source_observation": "The 2022 IS NULL/IS NOT NULL optimization skipped loading a column value that a CHECK constraint later needed. The official 3.49.2 release notes describe a memory error if abused. The May 6 fix and immediately following test cover CHECK plus large blobs.",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_v10_strong_source_evidence_v1",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/288f35685473c82b12bd47610e473ec34524bba7.commit",
+      "sha256": "b5e4fd35bf3c8946fb63c26c628db9cb80a4e314558c1b51d386d7640de26fe5"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/288f35685473c82b12bd47610e473ec34524bba7.patch",
+      "sha256": "d5ed990dc434fed6f3877255a27c9af58c42fb03d5a27c215d2c5eaf56d09d69"
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/tests/f67058367b09ebf31dd5aaf199715ba0fd6265fe-check.test",
+      "sha256": "4be053c5dff3e475716a3e5c65f5d1b88a0cc3afaa0a2eed5f98cc768812fa2a",
+      "repository_path": "test/check.test",
+      "source_revision": "f67058367b09ebf31dd5aaf199715ba0fd6265fe",
+      "role": "linked_upstream_regression_test_not_yet_replayed"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "849be20583a69f53c508258dec453194b6a8cad2",
+    "fix_sha": "288f35685473c82b12bd47610e473ec34524bba7",
+    "report_details": "chromium_issue_attributed_by_fix_but_body_not_publicly_retrievable",
+    "preliminary_boundary": "SQL-controlled CHECK constraint and UPDATE/REPLACE on a large value",
+    "introduction_candidate": {
+      "commit_sha": "921acff92767b6dcda8ed2134c73497fe33905c6",
+      "commit_date": "2022-10-13T15:09:44Z",
+      "role": "first_parent_mainline_introduction_of_vulnerable_construct",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/921acff92767b6dcda8ed2134c73497fe33905c6.commit",
+        "sha256": "7a940b7724c074a633447f4dec57e89e5e68259c5827215cbd05a0d134eaf47c"
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/288f35685473c82b12bd47610e473ec34524bba7.intro.blame",
+        "sha256": "6e92cc8aef49a642e885fbec0c4146016e767374ed625a02daa8fe7ffc34df0d"
+      },
+      "marker": "sqlite3VdbeTypeofColumn(v, r1)"
+    },
+    "fossil_bridge": "exact_committed_manifest.uuid_and_FossilOrigin-Name",
+    "fossil_origin": "2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27",
+    "source_url": "https://www.sqlite.org/src/info/2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27",
+    "fossil_fix_page": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27.html",
+      "sha256": "1af3bbb6e86a0accc405d9ba9bad60e9ad03d314b3f588a0a05659e7bd7cebdf"
+    },
+    "fossil_intro_page": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/cb94350185f555c333b628ee846c47bcc9df5f76bb82de569b8322f30dbbe1bc.html",
+      "sha256": "2697efaadf922319c32cb49e50fe08836c2a960d40adc32b7efd89e1a41846c8"
+    },
+    "official_release_page": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/sqlite-changes.html",
+      "sha256": "7affb06012865c2b6026630fb6e9c2307642d5930a91857068184a17a0740f41"
+    },
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/2adaee9aa90f280a406007695fbc4a314806584c93d6b62b46c031492b31ec27.html",
+      "sha256": "1af3bbb6e86a0accc405d9ba9bad60e9ad03d314b3f588a0a05659e7bd7cebdf"
+    }
+  }
+}

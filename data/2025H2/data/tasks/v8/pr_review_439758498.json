@@ -1,0 +1,95 @@
+{
+  "task_id": "pr_review_439758498",
+  "bug_id": "439758498",
+  "commit_sha": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+  "commit_message": "[regexp] Simdify global atom match with single character pattern\n\nUse highway to find matching characters for RegExp with a single\ncharacter atom pattern.\n\nBug: 413411337\nChange-Id: I9bf686aca2da37025613a9227eb0ec69176a676f\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6487695\nReviewed-by: Jakob Linke <jgruber@chromium.org>\nCommit-Queue: Patrick Thier <pthier@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100006}",
+  "commit_author": "pthier",
+  "commit_date": "2025-04-30T16:36:02+02:00",
+  "pr_title": "[regexp] Simdify global atom match with single character pattern",
+  "pr_description": "Use highway to find matching characters for RegExp with a single\ncharacter atom pattern.\n\nBug: 413411337\nChange-Id: I9bf686aca2da37025613a9227eb0ec69176a676f\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6487695\nReviewed-by: Jakob Linke <jgruber@chromium.org>\nCommit-Queue: Patrick Thier <pthier@chromium.org>\nCr-Commit-Position: refs/heads/main@{#100006}\n",
+  "files": [
+    {
+      "path": "src/runtime/runtime-regexp.cc",
+      "status": "modified",
+      "additions": 88,
+      "deletions": 7,
+      "diff": "diff --git a/src/runtime/runtime-regexp.cc b/src/runtime/runtime-regexp.cc\nindex 5689cdc8d1d..f8e504e7fc9 100644\n--- a/src/runtime/runtime-regexp.cc\n+++ b/src/runtime/runtime-regexp.cc\n@@ -1,11 +1,13 @@\n // Copyright 2014 the V8 project authors. All rights reserved.\n // Use of this source code is governed by a BSD-style license that can be\n // found in the LICENSE file.\n \n #include <functional>\n+#include <type_traits>\n \n+#include \"hwy/highway.h\"\n #include \"src/base/small-vector.h\"\n #include \"src/base/strings.h\"\n #include \"src/common/message-template.h\"\n #include \"src/execution/arguments-inl.h\"\n #include \"src/execution/isolate-inl.h\"\n@@ -2162,17 +2164,96 @@ namespace {\n template <typename SChar, typename PChar>\n inline void RegExpMatchGlobalAtom_OneCharPattern(\n     Isolate* isolate, base::Vector<const SChar> subject, const PChar pattern,\n     int start_index, int* number_of_matches, int* last_match_index,\n     const DisallowGarbageCollection& no_gc) {\n-  for (int i = start_index; i < subject.length(); i++) {\n-    // Subtle: the valid variants are {SChar,PChar} in:\n-    // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n-    // we cast the uint8_t pattern to uc16 for the comparison.\n-    if (subject[i] != static_cast<const SChar>(pattern)) continue;\n-    (*number_of_matches)++;\n-    (*last_match_index) = i;\n+  static_assert(std::is_unsigned_v<SChar>);\n+  static_assert(std::is_unsigned_v<PChar>);\n+  // We can utilize SIMD to check multiple characters at once.\n+  // Since the pattern is a single char, we create a mask setting each lane in\n+  // the vector to the pattern char.\n+  // Since reductions from a vector to a general purpose register (i.e.\n+  // ReduceSum in this algorithm) are expensive, we keep a count for each lane\n+  // in a vector until the count could potentially overflow and only reduce to\n+  // a general purpose register then. I.e. if SChar is uint8_t, we have a\n+  // 16xuint8_t vector to count matches, which we reduce to an int every 255\n+  // blocks.\n+  namespace hw = hwy::HWY_NAMESPACE;\n+  hw::ScalableTag<SChar> tag;\n+  // We need a wider tag to avoid overflows on lanes when summing up submatches.\n+  using WidenedTag = hw::RepartitionToWide<decltype(tag)>;\n+  WidenedTag sum_tag;\n+  static constexpr size_t stride = hw::Lanes(tag);\n+  // Subtle: the valid variants are {SChar,PChar} in:\n+  // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n+  // we cast the uint8_t pattern to uc16 for the comparison.\n+  const auto mask = hw::Set(tag, static_cast<const SChar>(pattern));\n+\n+  int matches = 0;\n+  auto submatches = hw::Zero(tag);\n+  const SChar* last_match_block = nullptr;\n+  hw::Mask<decltype(tag)> last_match_vec;\n+\n+  const SChar* block = subject.data() + start_index;\n+  const SChar* end = subject.data() + subject.length();\n+\n+  // ReduceSum is expensive, so we gather matches into a vector. max_count is\n+  // the maximum number of matches we can count in the vector before it\n+  // overflows.\n+  int max_count = std::numeric_limits<SChar>::max();\n+  while (block + stride * max_count <= end) {\n+    for (int i = 0; i < max_count; i++, block += stride) {\n+      const auto input = hw::LoadU(tag, block);\n+      const auto match = input == mask;\n+      // Lanes with matches have all bits set, so we subtract to increase the\n+      // count by 1.\n+      submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+      if (!hw::AllFalse(tag, match)) {\n+        last_match_block = block;\n+        last_match_vec = match;\n+      }\n+    }\n+    // SumsOf2 promotes the sum of 2 consecutive lanes into a wider lane.\n+    auto promoted_submatches = hw::SumsOf2(submatches);\n+    // Wider lane sums can be reduces without overflows.\n+    matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+    submatches = hw::Zero(tag);\n+  }\n+\n+  // For blocks shorter than stride * max_count, lanes in submatches can't\n+  // overflow.\n+  DCHECK_LT(end - block, stride * max_count);\n+  for (; block + stride <= end; block += stride) {\n+    const auto input = hw::LoadU(tag, block);\n+    const auto match = input == mask;\n+    submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+    if (!hw::AllFalse(tag, match)) {\n+      last_match_block = block;\n+      last_match_vec = match;\n+    }\n+  }\n+  auto promoted_submatches = hw::SumsOf2(submatches);\n+  matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+\n+  // Handle remaining chars.\n+  // last_match_block already contains the last match position, so use a special\n+  // vector with lane 0 set to extract the last_match_index later.\n+  const auto scalar_last_match_vec = hw::FirstN(tag, 1);\n+  for (SChar c = *block; block < end; c = *(++block)) {\n+    if (c != static_cast<const SChar>(pattern)) continue;\n+    matches++;\n+    last_match_block = block;\n+    last_match_vec = scalar_last_match_vec;\n+  }\n+\n+  // Store results.\n+  *number_of_matches = matches;\n+  if (last_match_block != nullptr) {\n+    DCHECK(!hw::AllFalse(tag, last_match_vec));\n+    *last_match_index = static_cast<int>(\n+        last_match_block + hw::FindKnownLastTrue(tag, last_match_vec) -\n+        subject.data());\n   }\n }\n \n // Unimplemented.\n template <>\n"
+    },
+    {
+      "path": "test/mjsunit/regexp-global.js",
+      "status": "modified",
+      "additions": 18,
+      "deletions": 0,
+      "diff": "diff --git a/test/mjsunit/regexp-global.js b/test/mjsunit/regexp-global.js\nindex 85016994581..8588a763c60 100644\n--- a/test/mjsunit/regexp-global.js\n+++ b/test/mjsunit/regexp-global.js\n@@ -250,5 +250,23 @@ new RegExp(crosscheck);\n var subject = \"ascii~only~string~here~\";\n var replacement = \"\\x80\";\n var result = subject.replace(/~/g, replacement);\n for (var i = 0; i < 5; i++) result += result;\n new RegExp(result);\n+\n+// Global Atom RegExp with a single char pattern.\n+// We chose a match count greater then 255*16, as this is the maximum count\n+// we can keep in a vector register before it overflows.\n+// In addition the string length shouldn't be a multiple of 16 to also test\n+// the scalar part.\n+// See RegExpMatchGlobalAtom_OneCharPattern() for details.\n+let text = 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n+\n+// Two-byte.\n+const smiley = '\\u{D83D}\\u{DE0A}';\n+text = smiley.repeat(255*17+5)\n+assertEquals(4340, text.match(new RegExp(smiley,'g')).length);\n+\n+// Two-byte subject with one-byte pattern.\n+text = smiley + 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n"
+    }
+  ],
+  "full_diff": "diff --git a/src/runtime/runtime-regexp.cc b/src/runtime/runtime-regexp.cc\nindex 5689cdc8d1d..f8e504e7fc9 100644\n--- a/src/runtime/runtime-regexp.cc\n+++ b/src/runtime/runtime-regexp.cc\n@@ -1,11 +1,13 @@\n // Copyright 2014 the V8 project authors. All rights reserved.\n // Use of this source code is governed by a BSD-style license that can be\n // found in the LICENSE file.\n \n #include <functional>\n+#include <type_traits>\n \n+#include \"hwy/highway.h\"\n #include \"src/base/small-vector.h\"\n #include \"src/base/strings.h\"\n #include \"src/common/message-template.h\"\n #include \"src/execution/arguments-inl.h\"\n #include \"src/execution/isolate-inl.h\"\n@@ -2162,17 +2164,96 @@ namespace {\n template <typename SChar, typename PChar>\n inline void RegExpMatchGlobalAtom_OneCharPattern(\n     Isolate* isolate, base::Vector<const SChar> subject, const PChar pattern,\n     int start_index, int* number_of_matches, int* last_match_index,\n     const DisallowGarbageCollection& no_gc) {\n-  for (int i = start_index; i < subject.length(); i++) {\n-    // Subtle: the valid variants are {SChar,PChar} in:\n-    // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n-    // we cast the uint8_t pattern to uc16 for the comparison.\n-    if (subject[i] != static_cast<const SChar>(pattern)) continue;\n-    (*number_of_matches)++;\n-    (*last_match_index) = i;\n+  static_assert(std::is_unsigned_v<SChar>);\n+  static_assert(std::is_unsigned_v<PChar>);\n+  // We can utilize SIMD to check multiple characters at once.\n+  // Since the pattern is a single char, we create a mask setting each lane in\n+  // the vector to the pattern char.\n+  // Since reductions from a vector to a general purpose register (i.e.\n+  // ReduceSum in this algorithm) are expensive, we keep a count for each lane\n+  // in a vector until the count could potentially overflow and only reduce to\n+  // a general purpose register then. I.e. if SChar is uint8_t, we have a\n+  // 16xuint8_t vector to count matches, which we reduce to an int every 255\n+  // blocks.\n+  namespace hw = hwy::HWY_NAMESPACE;\n+  hw::ScalableTag<SChar> tag;\n+  // We need a wider tag to avoid overflows on lanes when summing up submatches.\n+  using WidenedTag = hw::RepartitionToWide<decltype(tag)>;\n+  WidenedTag sum_tag;\n+  static constexpr size_t stride = hw::Lanes(tag);\n+  // Subtle: the valid variants are {SChar,PChar} in:\n+  // {uint8_t,uint8_t}, {uc16,uc16}, {uc16,uint8_t}. In the latter case,\n+  // we cast the uint8_t pattern to uc16 for the comparison.\n+  const auto mask = hw::Set(tag, static_cast<const SChar>(pattern));\n+\n+  int matches = 0;\n+  auto submatches = hw::Zero(tag);\n+  const SChar* last_match_block = nullptr;\n+  hw::Mask<decltype(tag)> last_match_vec;\n+\n+  const SChar* block = subject.data() + start_index;\n+  const SChar* end = subject.data() + subject.length();\n+\n+  // ReduceSum is expensive, so we gather matches into a vector. max_count is\n+  // the maximum number of matches we can count in the vector before it\n+  // overflows.\n+  int max_count = std::numeric_limits<SChar>::max();\n+  while (block + stride * max_count <= end) {\n+    for (int i = 0; i < max_count; i++, block += stride) {\n+      const auto input = hw::LoadU(tag, block);\n+      const auto match = input == mask;\n+      // Lanes with matches have all bits set, so we subtract to increase the\n+      // count by 1.\n+      submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+      if (!hw::AllFalse(tag, match)) {\n+        last_match_block = block;\n+        last_match_vec = match;\n+      }\n+    }\n+    // SumsOf2 promotes the sum of 2 consecutive lanes into a wider lane.\n+    auto promoted_submatches = hw::SumsOf2(submatches);\n+    // Wider lane sums can be reduces without overflows.\n+    matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+    submatches = hw::Zero(tag);\n+  }\n+\n+  // For blocks shorter than stride * max_count, lanes in submatches can't\n+  // overflow.\n+  DCHECK_LT(end - block, stride * max_count);\n+  for (; block + stride <= end; block += stride) {\n+    const auto input = hw::LoadU(tag, block);\n+    const auto match = input == mask;\n+    submatches = hw::Sub(submatches, hw::VecFromMask(tag, match));\n+    if (!hw::AllFalse(tag, match)) {\n+      last_match_block = block;\n+      last_match_vec = match;\n+    }\n+  }\n+  auto promoted_submatches = hw::SumsOf2(submatches);\n+  matches += hw::ReduceSum(sum_tag, promoted_submatches);\n+\n+  // Handle remaining chars.\n+  // last_match_block already contains the last match position, so use a special\n+  // vector with lane 0 set to extract the last_match_index later.\n+  const auto scalar_last_match_vec = hw::FirstN(tag, 1);\n+  for (SChar c = *block; block < end; c = *(++block)) {\n+    if (c != static_cast<const SChar>(pattern)) continue;\n+    matches++;\n+    last_match_block = block;\n+    last_match_vec = scalar_last_match_vec;\n+  }\n+\n+  // Store results.\n+  *number_of_matches = matches;\n+  if (last_match_block != nullptr) {\n+    DCHECK(!hw::AllFalse(tag, last_match_vec));\n+    *last_match_index = static_cast<int>(\n+        last_match_block + hw::FindKnownLastTrue(tag, last_match_vec) -\n+        subject.data());\n   }\n }\n \n // Unimplemented.\n template <>\ndiff --git a/test/mjsunit/regexp-global.js b/test/mjsunit/regexp-global.js\nindex 85016994581..8588a763c60 100644\n--- a/test/mjsunit/regexp-global.js\n+++ b/test/mjsunit/regexp-global.js\n@@ -250,5 +250,23 @@ new RegExp(crosscheck);\n var subject = \"ascii~only~string~here~\";\n var replacement = \"\\x80\";\n var result = subject.replace(/~/g, replacement);\n for (var i = 0; i < 5; i++) result += result;\n new RegExp(result);\n+\n+// Global Atom RegExp with a single char pattern.\n+// We chose a match count greater then 255*16, as this is the maximum count\n+// we can keep in a vector register before it overflows.\n+// In addition the string length shouldn't be a multiple of 16 to also test\n+// the scalar part.\n+// See RegExpMatchGlobalAtom_OneCharPattern() for details.\n+let text = 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n+\n+// Two-byte.\n+const smiley = '\\u{D83D}\\u{DE0A}';\n+text = smiley.repeat(255*17+5)\n+assertEquals(4340, text.match(new RegExp(smiley,'g')).length);\n+\n+// Two-byte subject with one-byte pattern.\n+text = smiley + 'a'.repeat(255*17+5);\n+assertEquals(4340, text.match(/a/g).length);\n",
+  "ground_truth": {
+    "bug_id": "439758498",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "5666bca708c0a2f888b78e34281b00ed20356cb2",
+      "short_sha": "5666bca",
+      "message": "[regexp] Fix OOB read in RegExpMatchGlobalAtom_OneCharPattern",
+      "author": "pthier <pthier@chromium.org>",
+      "date": "2025-08-21T18:08:08+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-oobread-001",
+        "title": "Out-of-bounds read of one character past subject buffer end in scalar tail loop",
+        "message": "In the scalar 'remaining characters' tail loop of RegExpMatchGlobalAtom_OneCharPattern, the loop is written as a C-style for loop where the initializer unconditionally dereferences `*block` before the loop condition `block < end` is evaluated: `for (SChar c = *block; block < end; c = *(++block))`. Because the initializer executes exactly once regardless of the loop condition, when the preceding SIMD block-processing loops have already advanced `block` to equal `end` (i.e., there are zero remaining scalar characters to process), this initializer still performs `*block`, reading one character past the end of the allocated subject string buffer. Although the loaded value is discarded (the loop body never executes since `block < end` is false), the read itself is undefined behavior and can be flagged by ASan/MSan or crash on the last page of a mapped buffer, constituting an out-of-bounds read vulnerability.",
+        "location": {
+          "file": "src/runtime/runtime-regexp.cc",
+          "start_line": 2241,
+          "end_line": 2241,
+          "start_column": null,
+          "end_column": null,
+          "function": "RegExpMatchGlobalAtom_OneCharPattern",
+          "snippet": "  // Handle remaining chars.\n  // last_match_block already contains the last match position, so use a special\n  // vector with lane 0 set to extract the last_match_index later.\n  const auto scalar_last_match_vec = hw::FirstN(tag, 1);\n  for (SChar c = *block; block < end; c = *(++block)) {\n    if (c != static_cast<const SChar>(pattern)) continue;",
+          "snippet_hash": "e1ea36f3abc29626386b6ce6e5f8907e015a55e502455ea9cedbc4d011367437",
+          "description": null,
+          "snippet_start_line": 2237,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "OutOfBoundsRead",
+        "confidence": 0.9,
+        "suggestion": "Do not dereference `*block` in the loop initializer before verifying `block < end`. Restructure the loop so the character is only loaded after the bounds check, e.g. move the load inside the loop body: `for (; block < end; ++block) { SChar c = *block; ... }`. This guarantees the pointer is never dereferenced once it has reached `end`.",
+        "suggestion_code": "for (; block < end; ++block) {\n  SChar c = *block;\n  if (c != static_cast<const SChar>(pattern)) continue;\n  matches++;\n  last_match_block = block;\n  last_match_vec = scalar_last_match_vec;\n}",
+        "tags": [
+          "security",
+          "memory-safety",
+          "out-of-bounds-read",
+          "v8",
+          "regexp"
+        ],
+        "cwe_ids": [
+          "CWE-125"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "OutOfBoundsRead",
+    "affected_files": [
+      "src/runtime/runtime-regexp.cc"
+    ],
+    "root_cause": "The scalar cleanup loop's for-statement puts a pointer dereference in the initializer clause, which is unconditionally evaluated once before the loop's controlling condition is checked. This violates the invariant that `block` must be checked against `end` before every dereference, allowing a read exactly at (one past) the end of the subject string's backing buffer when there are no trailing characters left to scan.",
+    "must_cover": [
+      {
+        "file": "src/runtime/runtime-regexp.cc",
+        "function": "RegExpMatchGlobalAtom_OneCharPattern",
+        "start_line": 2241,
+        "end_line": 2241,
+        "role": "primary",
+        "reason": "Primary location of finding: Out-of-bounds read of one character past subject buffer end in scalar tail loop"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "36f07e9a04484dd4b97713f8e821d3b83ade8f53",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

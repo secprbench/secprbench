@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "identity": "wasmtime/GH-10387",
+  "case_id": "247196d9ead2dab29444",
+  "project": "wasmtime",
+  "bug_id": "GH-10387",
+  "season": "2025H1",
+  "source_sha256": "d18d3cd9d9e530a5873c96e8c16bc6840c275c1c58b44e25e225fc662f18c32f",
+  "generated_artifact_sha256": {
+    "reference": "9c6fb8816a13b4d63dae2cfd68a8310a04859b2625e571efbb072e42da630d4e",
+    "introducing": "cfb9c6df541374dffeabda7a0ad9b3efa561e6bdcf2aec868a78054239605d57",
+    "companion": "adf67edc700a36ff770579ff5417b2386a42a903a90801c7c555b6cabe573ba9"
+  },
+  "poc_status": "candidate_only",
+  "fingerprint": "46566758d415bc86531996359bc51ee23e7b0235690cdf7bb1b04eeb82965a67",
+  "recipe_source_sha256": "5aa53094d116bd574096bda0592efa110378568b83e825ad88d3c593688009fa",
+  "generation_verification_status": "not_run",
+  "verifier_policy": "agent-oracles-v3",
+  "auth_mode": "subscription",
+  "status": "inconclusive",
+  "attempts": [
+    {
+      "number": 1,
+      "directory": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/247196d9ead2dab29444/attempts/01",
+      "started_at": "2026-10-02T05:41:30.764370+00:00",
+      "status": "inconclusive",
+      "cache_lane": 0,
+      "auth_mode": "subscription",
+      "worker_exit_code": 0,
+      "log": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/247196d9ead2dab29444/attempts/01/worker.log",
+      "result": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/247196d9ead2dab29444/attempts/01/result.json",
+      "agent_used": true,
+      "ended_at": "2026-10-02T05:59:45.310329+00:00"
+    }
+  ],
+  "updated_at": "2026-10-02T05:59:45.310329+00:00",
+  "case_record": "/research-data/secprbench/season100-balanced-20261001/verification/verification/projects/wasmtime/cases/GH-10387/case.json",
+  "report": "/research-data/secprbench/season100-balanced-20261001/verification/cases/wasmtime/247196d9ead2dab29444/attempts/01/replay/pr_review_GH-10387.report.md",
+  "agent_used": true,
+  "recipe_sha256": "463d78b654c438b8c66c",
+  "final_poc_sha256": "7ff016b5b27262a941e9e6ed4257536e6653c4a33db0a2d2d07ae8d075c2d00d"
+}

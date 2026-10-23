@@ -1,0 +1,132 @@
+{
+  "intro_verified": "yes",
+  "benign_verified": "yes",
+  "bug_class": "memory-safety",
+  "poc_summary": "SQL script: CREATE TABLE t(x, CHECK ( x IS NULL OR length(x) > 0 )); INSERT INTO t VALUES(zeroblob(200000)); UPDATE t SET x=x; SELECT count(*) FROM t; \u2014 fed to the ASAN/UBSAN-built sqlite3 CLI (sh -c \"/work/sqlite3 /tmp/dbx.db < /poc/poc.sql\").",
+  "explanation": "Root cause matches meta.json: the 2022 IS NULL/NOT NULL optimization (sqlite3VdbeTypeofColumn / OPFLAG_TYPEOFARG) tags the OP_Column opcode that loads a column into a register so the VDBE only materializes the column's type, not its full content, whenever that register is the immediate target of an IS NULL/NOT NULL test. It does this without checking whether the same register is a shared/cached column register that will later be re-read for its real value by another part of the same CHECK expression. In my PoC, the CHECK constraint `x IS NULL OR length(x) > 0` is recompiled for the UPDATE (UPDATE t SET x=x), forcing the column `x` to be loaded via OP_Column into a cached register that is first consulted for the IS NULL test (tagging the opcode TYPEOFARG, which skips materializing content for the large 200000-byte blob) and then reused by length(x) for the real value, which now contains a bogus/under-loaded length. This corrupted length later drives a memcpy in sqlite3VdbeMemGrow/vdbeMemAddTerminator/sqlite3VdbeMemMakeWriteable that reads far past a small global buffer (sqlite3CtypeMap/sqlite3UpperToLower), i.e., a genuine out-of-bounds read, reported by AddressSanitizer as 'global-buffer-overflow ... READ of size 200000'.\n- pre_intro (1ffb6be1195c): script runs cleanly, exit=0, prints '1', no sanitizer report.\n- post_intro (e995d2c226e2): same script crashes immediately, exit=134, with a clear AddressSanitizer global-buffer-overflow READ report through sqlite3VdbeMemGrow/vdbeMemAddTerminator/sqlite3VdbeMemMakeWriteable/sqlite3VdbeExec \u2014 exactly the code path touched by the intro commit (src/expr.c TK_ISNULL/TK_NOTNULL calling sqlite3VdbeTypeofColumn, and src/vdbeaux.c's new sqlite3VdbeTypeofColumn/vdbe.c OPFLAG_TYPEOFARG handling for OP_Column).\n- post_benign (fix applied): identical script runs cleanly again, exit=0, prints '1', no sanitizer report.\nThe same exact command/input was used unchanged across all three builds, so the pre/post/benign comparison is valid and the OutOfBoundsRead regression is confirmed introduced by e995d2c226e2 and removed by the fix/benign commit.",
+  "oracle": {
+    "kind": "sanitizer",
+    "bug_marker": "",
+    "pre_marker": "",
+    "benign_marker": "",
+    "description": "SQL script: CREATE TABLE t(x, CHECK ( x IS NULL OR length(x) > 0 )); INSERT INTO t VALUES(zeroblob(200000)); UPDATE t SET x=x; SELECT count(*) FROM t; \u2014 fed to the ASAN/UBSAN-built sqlite3 CLI (sh -c \"/work/sqlite3 /tmp/dbx.db < /poc/poc.sql\").",
+    "target_evidence": "AddressSanitizer: global-buffer-overflow on address ...; READ of size 200000 at ...; #2 sqlite3VdbeMemGrow /work/sqlite3.c:80163; #3 vdbeMemAddTerminator /work/sqlite3.c:80210; #4 sqlite3VdbeMemMakeWriteable /work/sqlite3.c:80233; #5 sqlite3VdbeExec /work/sqlite3.c:91076; location: '... to the left of global variable sqlite3UpperToLower ... 0 bytes to the right of global variable sqlite3CtypeMap'. Seen only on post_intro; absent (clean exit=0) on pre_intro and post_benign with the identical reproducer."
+  },
+  "tool_calls": [
+    "read_context(meta.json)",
+    "read_context(discussion.md)",
+    "build_version(post_intro)->True",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "docker_shell(post_intro)",
+    "write_file(poc.sql)",
+    "run_poc(post_intro)->crashed=False",
+    "run_poc(post_intro)->crashed=True",
+    "build_version(pre_intro)->True",
+    "build_version(post_benign)->True",
+    "run_poc(pre_intro)->crashed=False",
+    "run_poc(post_benign)->crashed=False"
+  ],
+  "executions": {
+    "post_intro": {
+      "command": "sh -c \"/work/sqlite3 /tmp/dbx.db < /poc/poc.sql\"",
+      "input": null,
+      "poc_sha256": "fafb7e248ab79d3cfc3170083097aaea4601a2a840aa8720bdc2ae9cd1b9f909",
+      "build": {
+        "version": "post_intro",
+        "base_commit": "e995d2c226e2b65c5e40cd238415bdfeb0936e8c",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "263928e104be088cdab567b195a79b09c2aebcc7402106e8b722b747d1a6d4c6"
+        }
+      },
+      "run": {
+        "exit_code": 134,
+        "crashed": true,
+        "sanitizer": "VERIFY_EXIT=134\n\n=================================================================\n==9==ERROR: AddressSanitizer: global-buffer-overflow on address 0x55ae26359c20 at pc 0x7f633ee4a397 bp 0x7ffc76399480 sp 0x7ffc76398c28\nREAD of size 200000 at 0x55ae26359c20 thread T0\n    #0 0x7f633ee4a396 in __interceptor_memcpy ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827\n    #1 0x55ae26074630 in memcpy /usr/include/x86_64-linux-gnu/bits/string_fortified.h:29\n    #2 0x55ae26074630 in sqlite3VdbeMemGrow /work/sqlite3.c:80163\n    #3 0x55ae26076b34 in vdbeMemAddTerminator /work/sqlite3.c:80210\n    #4 0x55ae26076e2a in sqlite3VdbeMemMakeWriteable /work/sqlite3.c:80233\n    #5 0x55ae261efc84 in sqlite3VdbeExec /work/sqlite3.c:91076\n    #6 0x55ae2622028c in sqlite3Step /work/sqlite3.c:87938\n    #7 0x55ae2622028c in sqlite3_step /work/sqlite3.c:87999\n    #8 0x55ae25f8e86c in exec_prepared_stmt /work/shell.c:14844\n    #9 0x55ae25fa6f00 in shell_exec /work/shell.c:15160\n    #10 0x55ae25faab6f in runOneSqlLine /work/shell.c:22767\n    #11 0x55ae25fd080a in process_input /work/shell.c:22931\n    #12 0x55ae25fd3c9a in main /work/shell.c:23786\n    #13 0x7f633e4d8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #14 0x7f633e4d8e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #15 0x55ae25f4d2c4 in _start (/work/sqlite3+0x48c2c4)\n\n0x55ae26359c20 is located 32 bytes to the left of global variable 'sqlite3UpperToLower' defined in 'sqlite3.c:21844:36' (0x55ae26359c40) of size 274\n0x55ae26359c20 is located 0 bytes to the right of global variable 'sqlite3CtypeMap' defined in 'sqlite3.c:21938:36' (0x55ae26359b20) of size 256\nSUMMARY: AddressSanitizer: global-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827 in __interceptor_memcpy\nShadow bytes around the buggy address:\n  0x0ab644c63330: 06 f9 f9 f9 f9 f9 f9 f9 06 f9 f9 f9 f9 f9 f9 f9\n  0x0ab644c63340: 07 f9 f9 f9 f9 f9 f9 f9 00 00 00 00 00 00 00 00\n  0x0ab644c63350: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03\n  0x0ab644c63360: f9 f9 f9 f9 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ab644c63370: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0ab644c63380: 00 00 00 00[f9]f9 f9 f9 00 00 00 00 00 00 00 00\n  0x0ab644c63390: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ab644c633a0: 00 00 00 00 00 00 00 00 00 00 02 f9 f9 f9 f9 f9\n  0x0ab644c633b0: 00 00 04 f9 f9 f9 f9 f9 00 00 04 f9 f9 f9 f9 f9\n  0x0ab644c633c0: 00 00 03 f9 f9 f9 f9 f9 00 00 00 01 f9 f9 f9 f9\n  0x0ab644c633d0: 00 00 06 f9 f9 f9 f9 f9 00 00 00 06 f9 f9 f9 f9\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==9==ABORTING\nAborted\n",
+        "stdout_tail": "a396 in __interceptor_memcpy ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827\n    #1 0x55ae26074630 in memcpy /usr/include/x86_64-linux-gnu/bits/string_fortified.h:29\n    #2 0x55ae26074630 in sqlite3VdbeMemGrow /work/sqlite3.c:80163\n    #3 0x55ae26076b34 in vdbeMemAddTerminator /work/sqlite3.c:80210\n    #4 0x55ae26076e2a in sqlite3VdbeMemMakeWriteable /work/sqlite3.c:80233\n    #5 0x55ae261efc84 in sqlite3VdbeExec /work/sqlite3.c:91076\n    #6 0x55ae2622028c in sqlite3Step /work/sqlite3.c:87938\n    #7 0x55ae2622028c in sqlite3_step /work/sqlite3.c:87999\n    #8 0x55ae25f8e86c in exec_prepared_stmt /work/shell.c:14844\n    #9 0x55ae25fa6f00 in shell_exec /work/shell.c:15160\n    #10 0x55ae25faab6f in runOneSqlLine /work/shell.c:22767\n    #11 0x55ae25fd080a in process_input /work/shell.c:22931\n    #12 0x55ae25fd3c9a in main /work/shell.c:23786\n    #13 0x7f633e4d8d8f in __libc_start_call_main ../sysdeps/nptl/libc_start_call_main.h:58\n    #14 0x7f633e4d8e3f in __libc_start_main_impl ../csu/libc-start.c:392\n    #15 0x55ae25f4d2c4 in _start (/work/sqlite3+0x48c2c4)\n\n0x55ae26359c20 is located 32 bytes to the left of global variable 'sqlite3UpperToLower' defined in 'sqlite3.c:21844:36' (0x55ae26359c40) of size 274\n0x55ae26359c20 is located 0 bytes to the right of global variable 'sqlite3CtypeMap' defined in 'sqlite3.c:21938:36' (0x55ae26359b20) of size 256\nSUMMARY: AddressSanitizer: global-buffer-overflow ../../../../src/libsanitizer/sanitizer_common/sanitizer_common_interceptors.inc:827 in __interceptor_memcpy\nShadow bytes around the buggy address:\n  0x0ab644c63330: 06 f9 f9 f9 f9 f9 f9 f9 06 f9 f9 f9 f9 f9 f9 f9\n  0x0ab644c63340: 07 f9 f9 f9 f9 f9 f9 f9 00 00 00 00 00 00 00 00\n  0x0ab644c63350: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 03\n  0x0ab644c63360: f9 f9 f9 f9 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ab644c63370: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n=>0x0ab644c63380: 00 00 00 00[f9]f9 f9 f9 00 00 00 00 00 00 00 00\n  0x0ab644c63390: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00\n  0x0ab644c633a0: 00 00 00 00 00 00 00 00 00 00 02 f9 f9 f9 f9 f9\n  0x0ab644c633b0: 00 00 04 f9 f9 f9 f9 f9 00 00 04 f9 f9 f9 f9 f9\n  0x0ab644c633c0: 00 00 03 f9 f9 f9 f9 f9 00 00 00 01 f9 f9 f9 f9\n  0x0ab644c633d0: 00 00 06 f9 f9 f9 f9 f9 00 00 00 06 f9 f9 f9 f9\nShadow byte legend (one shadow byte represents 8 application bytes):\n  Addressable:           00\n  Partially addressable: 01 02 03 04 05 06 07 \n  Heap left redzone:       fa\n  Freed heap region:       fd\n  Stack left redzone:      f1\n  Stack mid redzone:       f2\n  Stack right redzone:     f3\n  Stack after return:      f5\n  Stack use after scope:   f8\n  Global redzone:          f9\n  Global init order:       f6\n  Poisoned by user:        f7\n  Container overflow:      fc\n  Array cookie:            ac\n  Intra object redzone:    bb\n  ASan internal:           fe\n  Left alloca redzone:     ca\n  Right alloca redzone:    cb\n  Shadow gap:              cc\n==9==ABORTING\nAborted\n"
+      }
+    },
+    "pre_intro": {
+      "command": "sh -c \"/work/sqlite3 /tmp/dbx.db < /poc/poc.sql\"",
+      "input": null,
+      "poc_sha256": "fafb7e248ab79d3cfc3170083097aaea4601a2a840aa8720bdc2ae9cd1b9f909",
+      "build": {
+        "version": "pre_intro",
+        "base_commit": "1ffb6be1195c592e6c85d57603984b1f36bfde62",
+        "patched": false,
+        "patch_method": "",
+        "patch_clean": null,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "924b53490b533e7d5446d591bf3a0b936dccba460df195a95d6feccd393b2430"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "1\nVERIFY_EXIT=0\n\n"
+      }
+    },
+    "post_benign": {
+      "command": "sh -c \"/work/sqlite3 /tmp/dbx.db < /poc/poc.sql\"",
+      "input": null,
+      "poc_sha256": "fafb7e248ab79d3cfc3170083097aaea4601a2a840aa8720bdc2ae9cd1b9f909",
+      "build": {
+        "version": "post_benign",
+        "base_commit": "1ffb6be1195c592e6c85d57603984b1f36bfde62",
+        "patched": true,
+        "patch_method": "plain",
+        "patch_clean": true,
+        "build_ok": true,
+        "poc_ran": false,
+        "exit_code": null,
+        "crashed": false,
+        "sanitizer_report": "",
+        "build_log_tail": "",
+        "run_log_tail": "",
+        "note": "build cached",
+        "source_integrity": {
+          "ok": true,
+          "stage": "after_poc",
+          "fingerprint": "f4f54bd8012b2a535173ab5b375e1edbb8c9aae8670ec7d63bbdc86c710dd30e"
+        }
+      },
+      "run": {
+        "exit_code": 0,
+        "crashed": false,
+        "sanitizer": "",
+        "stdout_tail": "1\nVERIFY_EXIT=0\n\n"
+      }
+    }
+  },
+  "oracle_assessment": {
+    "status": "verified",
+    "kind": "sanitizer",
+    "reason": "The same Docker reproducer triggered a sanitizer or race report only after introduction."
+  }
+}

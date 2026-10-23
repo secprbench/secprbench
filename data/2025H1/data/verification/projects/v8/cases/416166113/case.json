@@ -1,0 +1,25 @@
+{
+  "bug_id": "416166113",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "58cb97a0b35d0a8da3ec19e0816e39c984788dbb",
+    "parent": "cb9795e11fa6e92ba967ef4dbced60ace149d251",
+    "fix": "dfd7a5a3c9f57795d09bf22ce80bec0e2e14c7b2"
+  },
+  "affected_files": [
+    "src/builtins/builtins-definitions.h",
+    "src/builtins/builtins-typed-array.cc",
+    "src/init/bootstrapper.cc",
+    "test/test262/test262.status"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All configured ASan Docker builds succeeded and the same /poc/run.sh was run on each. The PoC keeps 256 small on-heap Uint8Arrays alive and parses a V8 heap snapshot for native 63-byte JSArrayBufferData entries. pre_intro had no toBase64 API, created 0 backing stores, and exited 0. post_intro exposed toBase64, created exactly 256 backing stores, and the behavioral oracle exited 42, proving the introduced GetBuffer() path materialized every array inside the no-GC scope. The cleanly applied post_b",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

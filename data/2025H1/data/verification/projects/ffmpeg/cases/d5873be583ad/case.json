@@ -1,0 +1,23 @@
+{
+  "bug_id": "d5873be583ad",
+  "project": "ffmpeg",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "d38fc25519cf12a9212dadcba1258fc176ffbade",
+    "parent": "8ad34e97b62c0e4afdacda58d5e02a6dee16fac5",
+    "fix": "d5873be583ada9e1fb887e2fe8dcfd4b12e0efcd"
+  },
+  "affected_files": [
+    "libavformat/iamf_parse.c",
+    "libavformat/iamf_reader.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The existing poc44 reaches the introduced IAMF subblock-duration error path. Using the same command for every revision (`ASAN_OPTIONS=abort_on_error=1:detect_leaks=1:allocator_may_return_null=1 ./ffmpeg -nostdin -hide_banner -loglevel error -i /poc/poc44 -f null -`), pre_intro exited 183 with no sanitizer report; post_intro aborted with exit 134 and LeakSanitizer reported a direct 48-byte leak whose stack is av_mallocz -> av_iamf_param_definition_alloc -> param_parse at libavformat/iamf_parse.c:",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

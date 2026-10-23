@@ -1,0 +1,33 @@
+{
+  "bug_id": "1941876",
+  "project": "firefox",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "c002e9bc863ce406e1da2f6a386aaad04de6ccb8",
+    "parent": "0939a811d6fa291413d3a326b8e11d359031c9e5",
+    "fix": "f2c46512ec4814949ccf1563110f3ccdc11948f3"
+  },
+  "affected_files": [
+    "js/src/vm/JSObject.cpp",
+    "js/src/vm/NativeObject.h"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "verified",
+    "method": "firefox-verify (era 1.76.0, None)",
+    "intro_verified": true,
+    "benign_verified": true,
+    "oracle": null,
+    "poc_source": "saved/era-harness",
+    "reason": "",
+    "verified_by": "firefox-verify",
+    "config_file": "tooling/firefox-verify/cases/1941876.json"
+  },
+  "final_disposition": "verified"
+}

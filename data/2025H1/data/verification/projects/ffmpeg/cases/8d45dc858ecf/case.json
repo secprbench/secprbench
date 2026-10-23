@@ -1,0 +1,23 @@
+{
+  "bug_id": "8d45dc858ecf",
+  "project": "ffmpeg",
+  "bug_type": "UseAfterFree",
+  "commits": {
+    "intro": "1917270d32e386e8a1623a760baf1bc436aef2a3",
+    "parent": "765f29c61efcce598dcd1ddd9f29f19c5902d651",
+    "fix": "8d45dc858ecfcd615e0c517b81034f300e3f9832"
+  },
+  "affected_files": [
+    "libavcodec/dovi_rpu.h",
+    "libavcodec/dovi_rpuenc.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "All three sanitizer builds succeeded. With the identical harness command, pre_intro exited 0 and printed retained side-data byte 0x5a; post_intro exited 134 and ASan reported heap-use-after-free on that byte, with the free stack at av_packet_side_data_free -> avcodec_parameters_to_context (codec_par.c:262) -> ff_dovi_configure (dovi_rpuenc.c:226); post_benign exited 0 and printed 0x5a with no sanitizer crash. Thus the INTRO commit introduces the labelled UAF and the BENIGN companion removes it.",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

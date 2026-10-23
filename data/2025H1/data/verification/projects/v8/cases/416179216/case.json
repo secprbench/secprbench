@@ -1,0 +1,33 @@
+{
+  "bug_id": "416179216",
+  "project": "v8",
+  "bug_type": "LogicError",
+  "commits": {
+    "intro": "b663e2746c1dd79529509f87ab7f817f6ec4a4d3",
+    "parent": "41649069b03ceb44fbaf2e2496ca330c81372cc6",
+    "fix": "1cf6af44b01727570818a681c52ba67e1f605e3b"
+  },
+  "affected_files": [
+    "src/compiler/simplified-lowering.cc",
+    "test/mjsunit/regress-408370964.js"
+  ],
+  "baseline": {
+    "status": "inconclusive",
+    "intro_verified": null,
+    "benign_verified": null,
+    "reason": "The fix-side regression pattern was adapted into /poc/poc.js and forced through TurboFan with the identical command `/work/out.gn/verify/d8 --allow-natives-syntax --no-maglev --assert-types --turbo-verify /poc/poc.js`. pre_intro, post_intro, and post_benign all printed `PASS status=81`, exited 0, and had no sanitizer or verifier failure. A TurboFan trace on post_intro confirmed the intended Unsigned32 range (2147483597..2147483697) reached simplified lowering, so the harness exercised the affect",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": {
+    "status": "not_reproduced",
+    "method": "dcheck_differential",
+    "intro_verified": null,
+    "benign_verified": null,
+    "poc_source": "saved/anypoc",
+    "reason": "Does not reproduce with available artifacts. The IsUseLessGeneral monotonicity check is #ifdef DEBUG only, so it needs is_debug=true. Built a full debug d8 (is_debug=true, dcheck_always_on, slow dchecks) at the exact intro commit b663e274 and ran the saved PoC with --allow-natives-syntax [--no-maglev --assert-types --turbo-verify]: it optimizes and returns the correct value (PASS status=81) with no DCHECK/CHECK abort. The saved PoC does not trigger the documented UseInfo monotonicity violation at this revision. Also: the fix-commit simplified-lowering.cc is incompatible with the intro tree (re",
+    "target_match": null,
+    "verified_by": "benchmark-verify",
+    "case_dir": "projects/v8/cases/416179216"
+  },
+  "final_disposition": "not_reproduced"
+}

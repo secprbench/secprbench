@@ -1,0 +1,102 @@
+{
+  "task_id": "pr_review_GH-21652",
+  "bug_id": "GH-21652",
+  "commit_sha": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+  "commit_message": "urlapi: consume trailing dots after IPv4 numerical addresses\n\nIf the hostname is specified as an IPv4 numerical address and it is\nfollowed by a single dot, acccept that as a valid IPv4 and remove the\ndot when normalizing.\n\nThis prevents otherwise legitimate IPv4 hostnames to have trailing dots.\nSeems to match what browsers do.\n\nExtended test 1560 to verify.\n\nCloses #21635",
+  "commit_author": "Daniel Stenberg",
+  "commit_date": "2026-05-15T17:04:26+02:00",
+  "pr_title": "urlapi: consume trailing dots after IPv4 numerical addresses",
+  "pr_description": "If the hostname is specified as an IPv4 numerical address and it is\nfollowed by a single dot, acccept that as a valid IPv4 and remove the\ndot when normalizing.\n\nThis prevents otherwise legitimate IPv4 hostnames to have trailing dots.\nSeems to match what browsers do.\n\nExtended test 1560 to verify.\n\nCloses #21635\n",
+  "files": [
+    {
+      "path": "lib/urlapi.c",
+      "status": "modified",
+      "additions": 20,
+      "deletions": 8,
+      "diff": "diff --git a/lib/urlapi.c b/lib/urlapi.c\nindex a3111f9db6..a2d3c7e35a 100644\n--- a/lib/urlapi.c\n+++ b/lib/urlapi.c\n@@ -494,10 +494,13 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,\n  * example is too big, this function returns HOST_NAME.\n  *\n  * Output the \"normalized\" version of that input string in plain quad decimal\n  * integers.\n  *\n+ * A single dot following the numerical address is accepted and \"swallowed\" as\n+ * if it was never there.\n+ *\n  * Returns the host type.\n  *\n  * @unittest 1675\n  */\n \n@@ -525,21 +528,30 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)\n         rc = curlx_str_octal(&c, &l, UINT_MAX);\n     }\n     else\n       rc = curlx_str_number(&c, &l, UINT_MAX);\n \n-    if(rc)\n-      return HOST_NAME;\n-\n-    parts[n] = (unsigned int)l;\n+    if(rc) {\n+      if(!n || (rc != STRE_NO_NUM) || *c)\n+        return HOST_NAME;\n+      n--;\n+    }\n+    else\n+      parts[n] = (unsigned int)l;\n \n     switch(*c) {\n     case '.':\n-      if(n == 3)\n-        return HOST_NAME;\n-      n++;\n-      c++;\n+      if(n == 3) {\n+        if(c[1])\n+          /* something follows this dot */\n+          return HOST_NAME;\n+        done = TRUE;\n+      }\n+      else {\n+        n++;\n+        c++;\n+      }\n       break;\n \n     case '\\0':\n       done = TRUE;\n       break;\n"
+    },
+    {
+      "path": "tests/data/test1560",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 1,
+      "diff": "diff --git a/tests/data/test1560 b/tests/data/test1560\nindex e0d792800b..e27229739f 100644\n--- a/tests/data/test1560\n+++ b/tests/data/test1560\n@@ -35,9 +35,9 @@ lib%TESTNUMBER\n <verify>\n <stdout>\n success\n </stdout>\n <limits>\n-Allocations: 3100\n+Allocations: 3200\n </limits>\n </verify>\n </testcase>\n"
+    },
+    {
+      "path": "tests/libtest/lib1560.c",
+      "status": "modified",
+      "additions": 19,
+      "deletions": 2,
+      "diff": "diff --git a/tests/libtest/lib1560.c b/tests/libtest/lib1560.c\nindex e833c304e3..533a44e983 100644\n--- a/tests/libtest/lib1560.c\n+++ b/tests/libtest/lib1560.c\n@@ -623,10 +623,27 @@ static const struct testcase get_parts_list[] = {\n     0, 0, CURLUE_OK },\n   {NULL, NULL, 0, 0, CURLUE_OK},\n };\n \n static const struct urltestcase get_url_list[] = {\n+  {\"https://127.1.\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.:443\", \"https://127.0.0.1:443/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.?moo\", \"https://127.0.0.1/?moo\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.#moo\", \"https://127.0.0.1/#moo\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.a\", \"https://127.1.a/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1..\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1..:443\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1..?moo\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1..#moo\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1.1.\", \"https://127.1.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.1./foo\", \"https://127.1.0.1/foo\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.1.1.\", \"https://127.1.1.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.0.0.1.\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.0.0.0xff.\", \"https://127.0.0.255/\", 0, 0, CURLUE_OK},\n+  {\"https://127.0.0.1..\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.0.0.256..\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://hej./\", \"http://hej./\", 0, 0, CURLUE_OK},\n   {\"http://hej../\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://hej.../\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://hej..../index.html\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://.\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n@@ -741,13 +758,13 @@ static const struct urltestcase get_url_list[] = {\n \n   /* IPv4 trickeries */\n   {\"https://16843009\", \"https://1.1.1.1/\", 0, 0, CURLUE_OK},\n   {\"https://0177.1\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n   {\"https://0111.02.0x3\", \"https://73.2.0.3/\", 0, 0, CURLUE_OK},\n-  {\"https://0111.02.0x3.\", \"https://0111.02.0x3./\", 0, 0, CURLUE_OK},\n+  {\"https://0111.02.0x3.\", \"https://73.2.0.3/\", 0, 0, CURLUE_OK},\n   {\"https://0111.02.030\", \"https://73.2.0.24/\", 0, 0, CURLUE_OK},\n-  {\"https://0111.02.030.\", \"https://0111.02.030./\", 0, 0, CURLUE_OK},\n+  {\"https://0111.02.030.\", \"https://73.2.0.24/\", 0, 0, CURLUE_OK},\n   {\"https://0xff.0xff.0377.255\", \"https://255.255.255.255/\", 0, 0, CURLUE_OK},\n   {\"https://1.0xffffff\", \"https://1.255.255.255/\", 0, 0, CURLUE_OK},\n   /* IPv4 numerical overflows or syntax errors will not normalize */\n   {\"https://a127.0.0.1\", \"https://a127.0.0.1/\", 0, 0, CURLUE_OK},\n   {\"https://\\xff.127.0.0.1\", \"https://%FF.127.0.0.1/\", 0, CURLU_URLENCODE,\n"
+    }
+  ],
+  "full_diff": "diff --git a/lib/urlapi.c b/lib/urlapi.c\nindex a3111f9db6..a2d3c7e35a 100644\n--- a/lib/urlapi.c\n+++ b/lib/urlapi.c\n@@ -494,10 +494,13 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,\n  * example is too big, this function returns HOST_NAME.\n  *\n  * Output the \"normalized\" version of that input string in plain quad decimal\n  * integers.\n  *\n+ * A single dot following the numerical address is accepted and \"swallowed\" as\n+ * if it was never there.\n+ *\n  * Returns the host type.\n  *\n  * @unittest 1675\n  */\n \n@@ -525,21 +528,30 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)\n         rc = curlx_str_octal(&c, &l, UINT_MAX);\n     }\n     else\n       rc = curlx_str_number(&c, &l, UINT_MAX);\n \n-    if(rc)\n-      return HOST_NAME;\n-\n-    parts[n] = (unsigned int)l;\n+    if(rc) {\n+      if(!n || (rc != STRE_NO_NUM) || *c)\n+        return HOST_NAME;\n+      n--;\n+    }\n+    else\n+      parts[n] = (unsigned int)l;\n \n     switch(*c) {\n     case '.':\n-      if(n == 3)\n-        return HOST_NAME;\n-      n++;\n-      c++;\n+      if(n == 3) {\n+        if(c[1])\n+          /* something follows this dot */\n+          return HOST_NAME;\n+        done = TRUE;\n+      }\n+      else {\n+        n++;\n+        c++;\n+      }\n       break;\n \n     case '\\0':\n       done = TRUE;\n       break;\ndiff --git a/tests/data/test1560 b/tests/data/test1560\nindex e0d792800b..e27229739f 100644\n--- a/tests/data/test1560\n+++ b/tests/data/test1560\n@@ -35,9 +35,9 @@ lib%TESTNUMBER\n <verify>\n <stdout>\n success\n </stdout>\n <limits>\n-Allocations: 3100\n+Allocations: 3200\n </limits>\n </verify>\n </testcase>\ndiff --git a/tests/libtest/lib1560.c b/tests/libtest/lib1560.c\nindex e833c304e3..533a44e983 100644\n--- a/tests/libtest/lib1560.c\n+++ b/tests/libtest/lib1560.c\n@@ -623,10 +623,27 @@ static const struct testcase get_parts_list[] = {\n     0, 0, CURLUE_OK },\n   {NULL, NULL, 0, 0, CURLUE_OK},\n };\n \n static const struct urltestcase get_url_list[] = {\n+  {\"https://127.1.\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.:443\", \"https://127.0.0.1:443/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.?moo\", \"https://127.0.0.1/?moo\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.#moo\", \"https://127.0.0.1/#moo\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.a\", \"https://127.1.a/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1..\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1..:443\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1..?moo\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1..#moo\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.1.1.\", \"https://127.1.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.1./foo\", \"https://127.1.0.1/foo\", 0, 0, CURLUE_OK},\n+  {\"https://127.1.1.1.\", \"https://127.1.1.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.1\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.0.0.1.\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n+  {\"https://127.0.0.0xff.\", \"https://127.0.0.255/\", 0, 0, CURLUE_OK},\n+  {\"https://127.0.0.1..\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n+  {\"https://127.0.0.256..\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://hej./\", \"http://hej./\", 0, 0, CURLUE_OK},\n   {\"http://hej../\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://hej.../\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://hej..../index.html\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n   {\"http://.\", \"\", 0, 0, CURLUE_BAD_HOSTNAME},\n@@ -741,13 +758,13 @@ static const struct urltestcase get_url_list[] = {\n \n   /* IPv4 trickeries */\n   {\"https://16843009\", \"https://1.1.1.1/\", 0, 0, CURLUE_OK},\n   {\"https://0177.1\", \"https://127.0.0.1/\", 0, 0, CURLUE_OK},\n   {\"https://0111.02.0x3\", \"https://73.2.0.3/\", 0, 0, CURLUE_OK},\n-  {\"https://0111.02.0x3.\", \"https://0111.02.0x3./\", 0, 0, CURLUE_OK},\n+  {\"https://0111.02.0x3.\", \"https://73.2.0.3/\", 0, 0, CURLUE_OK},\n   {\"https://0111.02.030\", \"https://73.2.0.24/\", 0, 0, CURLUE_OK},\n-  {\"https://0111.02.030.\", \"https://0111.02.030./\", 0, 0, CURLUE_OK},\n+  {\"https://0111.02.030.\", \"https://73.2.0.24/\", 0, 0, CURLUE_OK},\n   {\"https://0xff.0xff.0377.255\", \"https://255.255.255.255/\", 0, 0, CURLUE_OK},\n   {\"https://1.0xffffff\", \"https://1.255.255.255/\", 0, 0, CURLUE_OK},\n   /* IPv4 numerical overflows or syntax errors will not normalize */\n   {\"https://a127.0.0.1\", \"https://a127.0.0.1/\", 0, 0, CURLUE_OK},\n   {\"https://\\xff.127.0.0.1\", \"https://%FF.127.0.0.1/\", 0, CURLU_URLENCODE,\n",
+  "ground_truth": {
+    "bug_id": "GH-21652",
+    "expected_finding": true,
+    "fix_commit": {
+      "sha": "d74c0ada4e317566f19b4fac44d91a9eaa93d2bf",
+      "short_sha": "d74c0ad",
+      "message": "urlapi: prevent a terminal `.0x` component to normalize IPv4",
+      "author": "Daniel Stenberg",
+      "date": "2026-05-17T00:27:30+02:00"
+    },
+    "findings": [
+      {
+        "rule_id": "sec-logicerror-1",
+        "title": "Terminal '.0x' component incorrectly normalized as valid IPv4",
+        "message": "ipv4_normalize() was changed to tolerate a failing numeric-parse (rc != 0) as a 'trailing dot was swallowed' case whenever the prior component index n is nonzero, the failure code is STRE_NO_NUM, and the cursor c now points at the string terminator. This check is applied uniformly after the '0'/'0x'/'0' (octal)/decimal number-parsing dispatch, but it does not distinguish between a genuine trailing-dot situation (e.g. '127.1.') and a component that began with the hex prefix '0x' but contained no hex digits after it (e.g. the final component in '127.1.0x'). In the latter case, curlx_str_hex() advances c past the consumed '0x' prefix, fails to find any digit, sets rc to STRE_NO_NUM, and leaves *c as '\\0' (end of string) -- which makes the generic 'n && rc == STRE_NO_NUM && !*c' leniency check at line 534 treat the malformed '.0x' terminal component as if it were simply a legitimate trailing dot, decrementing n and accepting the host as a valid, fully-specified IPv4 address. This lets strings such as 'https://127.1.0x' normalize/parse as IPv4 host '127.0.0.1' even though '0x' is not a valid numeric component, which can confuse consumers that rely on urlapi's IPv4 host classification/normalization for security decisions (e.g. SSRF filtering, host allow/deny lists).",
+        "location": {
+          "file": "lib/urlapi.c",
+          "start_line": 522,
+          "end_line": 539,
+          "start_column": null,
+          "end_column": null,
+          "function": "ipv4_normalize",
+          "snippet": "    if(*c == '0') {\n      if(c[1] == 'x') {\n        c += 2; /* skip the prefix */\n        rc = curlx_str_hex(&c, &l, UINT_MAX);\n      }\n      else\n        rc = curlx_str_octal(&c, &l, UINT_MAX);\n    }\n    else\n      rc = curlx_str_number(&c, &l, UINT_MAX);\n\n    if(rc) {\n      if(!n || (rc != STRE_NO_NUM) || *c)\n        return HOST_NAME;\n      n--;\n    }\n    else\n      parts[n] = (unsigned int)l;",
+          "snippet_hash": "e1c7fb9d0a1643affc3792dc472e2789d26f5b1a2c56ad33e5b9ec35f6309028",
+          "description": null,
+          "snippet_start_line": 522,
+          "revision_validated": true
+        },
+        "related_locations": [],
+        "severity": "medium",
+        "bug_type": "LogicError",
+        "confidence": 0.85,
+        "suggestion": "After the hex-specific parse (curlx_str_hex), immediately check its own rc and return HOST_NAME on failure before falling through to the generic/shared 'trailing dot' leniency check, since that generic check was designed only for the trailing-dot case and is not valid for a '0x' prefix with no following hex digits.",
+        "suggestion_code": "      if(c[1] == 'x') {\n        c += 2; /* skip the prefix */\n        rc = curlx_str_hex(&c, &l, UINT_MAX);\n        if(rc)\n          return HOST_NAME;\n      }",
+        "tags": [
+          "security",
+          "url-parsing",
+          "ssrf",
+          "ipv4-normalization"
+        ],
+        "cwe_ids": [
+          "CWE-697",
+          "CWE-20"
+        ],
+        "references": []
+      }
+    ],
+    "bug_type": "LogicError",
+    "affected_files": [
+      "lib/urlapi.c"
+    ],
+    "root_cause": "Commit 831a1514843bfa4d4d006627 (urlapi: consume trailing dots after IPv4 numerical addresses) replaced the previous unconditional 'if(rc) return HOST_NAME;' check after the number-parsing dispatch with a conditional that allows a failed parse to be tolerated when n is nonzero, rc == STRE_NO_NUM, and the cursor is at the end of the string -- intending to permit a trailing dot after the last IPv4 octet to be silently dropped. However this same lenient path is also reachable when the component begins with the '0x' prefix (handled by curlx_str_hex) but contains no hex digits at all, because curlx_str_hex also returns STRE_NO_NUM and leaves the cursor at end-of-string in that scenario. The code did not special-case the hex-prefix branch to reject rc failures immediately, so a hex-prefixed-but-empty terminal component is misclassified as the 'trailing dot was swallowed' case.",
+    "must_cover": [
+      {
+        "file": "lib/urlapi.c",
+        "function": "ipv4_normalize",
+        "start_line": 522,
+        "end_line": 539,
+        "role": "primary",
+        "reason": "Primary location of finding: Terminal '.0x' component incorrectly normalized as valid IPv4"
+      }
+    ]
+  },
+  "must_cover": null,
+  "task_type": "buggy",
+  "intro_commit_sha": "831a1514843bfa4d4d006627fb84c06ced8ea700",
+  "fix_commit_sha": null,
+  "intro_commit_message": null
+}

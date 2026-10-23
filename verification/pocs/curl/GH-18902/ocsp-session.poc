@@ -1,0 +1,1 @@
+{"fixture_manifest_sha256": "589b03d3856f241f70e6444e28d1af207756a3d6be0f608939d024f331af3905", "good_der_sha256": "8dad996918eb7d1ecfae76e6ceb15923a5ef46df939f23cdf0a5dd9177033f9a", "replay": "good then revoked OCSP on two connections with one libcurl easy handle", "revoked_der_sha256": "4471a2c461c4b1b2b293ec1c7cf5dfc1009cd71ab971be5095670a27c20874b7"}

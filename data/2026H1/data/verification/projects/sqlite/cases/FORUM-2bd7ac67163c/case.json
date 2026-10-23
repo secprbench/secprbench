@@ -1,0 +1,22 @@
+{
+  "bug_id": "FORUM-2bd7ac67163c",
+  "project": "sqlite",
+  "bug_type": "IntegerOverflow",
+  "commits": {
+    "intro": "0b3791b537dca9bee9cb73546b8657f22637526e",
+    "parent": "d1fbaa071bac376206cc009ecdce95b13e131b62",
+    "fix": "2bd7ac67163ca61f17e1cc54abf9a04ea08dcc83"
+  },
+  "affected_files": [
+    "ext/fts5/fts5_index.c"
+  ],
+  "baseline": {
+    "status": "verified",
+    "intro_verified": true,
+    "benign_verified": true,
+    "reason": "The identical /poc/run.sh was used for all three revisions. It compiled sqlite3.c with SQLITE_ENABLE_FTS5 and ASan/UBSan, created one tombstone page, changed its 32-bit element count to 536870912 (0x20000000), and issued another DELETE. pre_intro completed with exit 0 and no sanitizer crash. post_intro exited 1 with crashed=True and an unambiguous UBSan report at fts5IndexTombstoneRebuild: signed integer overflow, 536870912 * 4 cannot be represented in int; the stack continued through fts5IndexT",
+    "source": "shared cgsa-verify pipeline"
+  },
+  "followup": null,
+  "final_disposition": "verified"
+}

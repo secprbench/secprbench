@@ -1,0 +1,110 @@
+{
+  "bug_id": "FOSSIL-26f39ac806a5582f",
+  "title": "Add the SQLITE_PREPARE_FROM_DDL flag to sqlite3_prepare_v3(). Use this to prevent fts3/4 tables in non-trusted schemas from calling unsafe SQL functions.",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "sqlite",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Official fixing record: https://www.sqlite.org/src/info/26f39ac806a5582fab1497e38a4ce68dad2b79df8c8aade43c4e21eed7576931\n\nAdd the SQLITE_PREPARE_FROM_DDL flag to sqlite3_prepare_v3(). Use this to prevent fts3/4 tables in non-trusted schemas from calling unsafe SQL functions.\n\nFossilOrigin-Name: 26f39ac806a5582fab1497e38a4ce68dad2b79df8c8aade43c4e21eed7576931\n\nPreliminary source observation: FTS3/4 became innocuous in 2023, allowing use in non-trusted schemas. Internal FTS4 SQL then prepared unsafe application functions as top-level statements. The December 2025 fix sets SQLITE_PREPARE_FROM_DDL; its tests check the unsafe function is not invoked. A researcher published a retrospective analysis in March 2026, after the fix; its CVE label is unverified.\nSecurity impact, input reachability, earliest effective fix, and a three-revision oracle require independent review.",
+  "commit_ids": [
+    "add73c831bfe86288839f6053b7fcc7adfa72a87"
+  ],
+  "fix_commit_sha": "add73c831bfe86288839f6053b7fcc7adfa72a87",
+  "fix_date": "2025-12-22T15:22:02Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_mainline_ancestor_exact_fossil_bridge",
+  "season": "2025H2",
+  "affected_files": [
+    "ext/fts3/fts3.c",
+    "ext/fts3/fts3Int.h",
+    "ext/fts3/fts3_write.c",
+    "manifest",
+    "manifest.uuid",
+    "src/delete.c",
+    "src/expr.c",
+    "src/select.c",
+    "src/sqlite.h.in",
+    "src/vdbe.h",
+    "test/fts3comp1.test",
+    "test/fts4content.test"
+  ],
+  "changed_lines": 204,
+  "aliases": [],
+  "report_references": [
+    {
+      "id": "FOSSIL-26f39ac806a5582f",
+      "url": "https://www.sqlite.org/src/info/26f39ac806a5582fab1497e38a4ce68dad2b79df8c8aade43c4e21eed7576931",
+      "kind": "official_fossil_fix",
+      "evidence": "Add the SQLITE_PREPARE_FROM_DDL flag to sqlite3_prepare_v3(). Use this to prevent fts3/4 tables in non-trusted schemas from calling unsafe SQL functions."
+    },
+    {
+      "id": null,
+      "url": "https://gist.github.com/cnwangjihe/7bb28e7c721cbe552155acb66e02d3c5",
+      "kind": "retrospective_researcher_analysis",
+      "evidence": "Published 2026-03; CVE label not independently confirmed"
+    }
+  ],
+  "candidate_status": "targeted_strong_source_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_trusted_schema_policy_bypass",
+    "preliminary_source_observation": "FTS3/4 became innocuous in 2023, allowing use in non-trusted schemas. Internal FTS4 SQL then prepared unsafe application functions as top-level statements. The December 2025 fix sets SQLITE_PREPARE_FROM_DDL; its tests check the unsafe function is not invoked. A researcher published a retrospective analysis in March 2026, after the fix; its CVE label is unverified.",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_v10_strong_source_evidence_v1",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/add73c831bfe86288839f6053b7fcc7adfa72a87.commit",
+      "sha256": "839e9b94d1e5af816944bbf9d519c85f9fbc280679da6e0ee41b0f4e9570eb05"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/add73c831bfe86288839f6053b7fcc7adfa72a87.patch",
+      "sha256": "4a74179573680e928d3d340b453cffeca32727f90557411f3383325cf530faf5"
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/tests/add73c831bfe86288839f6053b7fcc7adfa72a87-fts3comp1.test",
+      "sha256": "0f4ae06f993bfb0117024621d52068c3ffcab94485b258b67dbb2a7e364176eb",
+      "repository_path": "test/fts3comp1.test",
+      "source_revision": "add73c831bfe86288839f6053b7fcc7adfa72a87",
+      "role": "linked_upstream_regression_test_not_yet_replayed"
+    },
+    "mainline_ref": "refs/remotes/origin/master",
+    "mainline_tip": "849be20583a69f53c508258dec453194b6a8cad2",
+    "fix_sha": "add73c831bfe86288839f6053b7fcc7adfa72a87",
+    "report_details": "retrospective_researcher_gist_after_fix_cve_id_unverified",
+    "preliminary_boundary": "attacker-controlled FTS4 schema with compress/uncompress function names in a database read by an application using trusted_schema=OFF",
+    "introduction_candidate": {
+      "commit_sha": "4b136ed70a1eb656efca8cc4079e515d6fc33dd6",
+      "commit_date": "2023-10-12T18:46:27Z",
+      "role": "first_parent_mainline_introduction_of_vulnerable_construct",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/4b136ed70a1eb656efca8cc4079e515d6fc33dd6.commit",
+        "sha256": "7f691aaa0e4f2ef9bd13463352f9aa8f1900171af9678fe4f35f47d318fa5b05"
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/git/add73c831bfe86288839f6053b7fcc7adfa72a87.intro.blame",
+        "sha256": "57ec38e15506be598b11f24b61dcf88c5bc3dafb2f4cc99c175f69be50aca7c2"
+      },
+      "marker": "sqlite3_vtab_config(p->db, SQLITE_VTAB_INNOCUOUS)"
+    },
+    "fossil_bridge": "exact_committed_manifest.uuid_and_FossilOrigin-Name",
+    "fossil_origin": "26f39ac806a5582fab1497e38a4ce68dad2b79df8c8aade43c4e21eed7576931",
+    "source_url": "https://www.sqlite.org/src/info/26f39ac806a5582fab1497e38a4ce68dad2b79df8c8aade43c4e21eed7576931",
+    "fossil_fix_page": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/26f39ac806a5582fab1497e38a4ce68dad2b79df8c8aade43c4e21eed7576931.html",
+      "sha256": "c43eea1dec8466b65e11d2aaf4b7d4daaf8a5ec9d0eee6a739000ba04ada43cf"
+    },
+    "fossil_intro_page": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/f34c533b6c1f8ef3f69c75c1039406c12751cdde1fbdcb4d9776b24455facf8a.html",
+      "sha256": "f3438aaeee9ed265a473559ee5f2624b04e44b0e3e5cfaff4361d79daf2a4f49"
+    },
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/sqlite/web/researcher-gist.json",
+      "sha256": "5098cce393ec0abb9e63c344eb8dd75995d68f8a1c79b93a00b26a9b6f03c6ef"
+    },
+    "report_published_after_fix": true
+  }
+}

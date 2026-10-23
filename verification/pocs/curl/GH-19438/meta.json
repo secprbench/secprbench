@@ -1,0 +1,30 @@
+{
+  "task_id": "pr_review_GH-19438",
+  "bug_id": "GH-19438",
+  "bug_type": "DoubleFree",
+  "intro_commit": "cd3be116b688f293376a3071ed1db3130c5139fa",
+  "intro_parent": "76d13c721bcd992e3e19f52d3a5281b8755283f3",
+  "fix_commit": "00872d5c98bf977eff7d4276eb7379c2b3a7eed6",
+  "affected_files": [
+    "lib/curl_rtmp.c"
+  ],
+  "has_benign": true,
+  "benign_composed_via": "mechanical",
+  "project": "curl",
+  "source": "no_poc",
+  "attachments": [],
+  "input_name": null,
+  "root_cause": "When ownership/lifetime management of the RTMP* was moved to the connection meta-data hash (with an automatic destructor), the pre-existing manual free on the URL-parse-error early-return path was not removed, leaving two independent code paths (the manual free and the meta destructor) that both free the same object.",
+  "findings": [
+    "rtmp_setup_connection() allocates an RTMP handle with RTMP_Alloc() and immediately registers it in the connection's meta hash via Curl_conn_meta_set(conn, CURL_META_RTMP_CONN, r, rtmp_conn_dtor). From this point on, ownership of `r` is effectively transferred to the connection meta store, which will invoke rtmp_conn_dtor() (calling RTMP_Close(r) and RTMP_Free(r)) automatically whenever the connect"
+  ],
+  "fix_message": "",
+  "has_run_sh": false,
+  "use_project_default_run_cmd": true,
+  "source_sha256": "d183873d7add7c4aa3781d1afb596faa6b5e07b2e6b233172b63b0a7236801ae",
+  "generated_artifact_sha256": {
+    "reference": "d7c9731bea69c18863c9d06bb4df7e4c6297052d9d3a80c8740d3c737472d38f",
+    "introducing": "8bdb6e094db39e0641a147fd1a1aca7a75359b60060fb1ef576ab66ddd6951af",
+    "companion": "6a7efad86cf8fed7fe43d81bba4128a2b74f2525069458e00511630d3e6c693b"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "bug_id": "439758498",
+  "title": "[regexp] Fix OOB read in RegExpMatchGlobalAtom_OneCharPattern",
+  "severity": "unknown",
+  "keywords": [
+    "explicit_fixed_footer",
+    "memory_safety"
+  ],
+  "product": "v8",
+  "component": "",
+  "creation_time": "2025-08-21T09:44:22-07:00",
+  "resolution_time": null,
+  "bug_discussion": "Public V8 fixing commit: https://github.com/v8/v8/commit/5666bca708c0a2f888b78e34281b00ed20356cb2\nExplicit numeric issue footer: 439758498\nThe issue page was not fetched. The public commit message documents the defect:\n\n[regexp] Fix OOB read in RegExpMatchGlobalAtom_OneCharPattern\n\nWe were loading (just not accessing) a character potentially beyond\nthe allocated string subject buffer.\n\nFixed: 439758498\nChange-Id: I250670122c765640602b20e6640d604c9d33be03\nReviewed-on: https://chromium-review.googlesource.com/c/v8/v8/+/6871496\nCommit-Queue: Patrick Thier <pthier@chromium.org>\nCommit-Queue: Igor Sheludko <ishell@chromium.org>\nAuto-Submit: Patrick Thier <pthier@chromium.org>\nReviewed-by: Igor Sheludko <ishell@chromium.org>\nCr-Commit-Position: refs/heads/main@{#101982}\n\nTreat this as an attributed fixing candidate. Derive the introducing revision independently during task construction; no introducing-date filter or bug verification has run.",
+  "commit_ids": [
+    "5666bca708c0a2f888b78e34281b00ed20356cb2"
+  ],
+  "fix_commit_sha": "5666bca708c0a2f888b78e34281b00ed20356cb2",
+  "fix_date": "2025-08-21T09:44:22-07:00",
+  "fix_date_utc": "2025-08-21T16:44:22Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_timestamp_on_captured_mainline",
+  "season": "2025H2",
+  "provenance": {
+    "source_type": "public_git_commit_message_with_exact_numeric_fixed_footer",
+    "source_url": "https://github.com/v8/v8/commit/5666bca708c0a2f888b78e34281b00ed20356cb2",
+    "issue_ids": [
+      "439758498"
+    ],
+    "issue_details": "not_fetched",
+    "raw_commit_record": "/research-data/secprbench/campaign-100-20260928/intake/v8-history/raw/commit_messages/5666bca708c0a2f888b78e34281b00ed20356cb2.json",
+    "raw_commit_record_sha256": "8b42c31cc095741de7cc6133c3a7982ef70804df735f11d72c369c2cd0ee0095",
+    "selection_policy_version": "v8-explicit-fixed-footer-v1",
+    "selection_policy_sha256": "5460882e1a5d1e6789316e9242df33e72b1fedcf3496836cc4f276612548149c",
+    "defect_classes": [
+      "memory_safety"
+    ],
+    "changed_paths": [
+      "src/runtime/runtime-regexp.cc"
+    ],
+    "production_paths": [
+      "src/runtime/runtime-regexp.cc"
+    ],
+    "mainline_proof": {
+      "ref": "refs/remotes/origin/main",
+      "tip": "f1d2db6bb88aa249853e11bc2a654d37aa6bdac1",
+      "fix_sha": "5666bca708c0a2f888b78e34281b00ed20356cb2",
+      "merge_base_is_ancestor": true,
+      "command": [
+        "git",
+        "merge-base",
+        "--is-ancestor",
+        "5666bca708c0a2f888b78e34281b00ed20356cb2",
+        "f1d2db6bb88aa249853e11bc2a654d37aa6bdac1"
+      ]
+    }
+  },
+  "candidate_status": "documented_git_fix_pending_construction_and_verification"
+}

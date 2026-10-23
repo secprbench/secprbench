@@ -1,0 +1,96 @@
+{
+  "bug_id": "GH-10127",
+  "title": "Winch: Fix Wasm vector loads to operate on 64-bits (#10127)",
+  "severity": "unknown",
+  "keywords": [],
+  "product": "wasmtime",
+  "component": "",
+  "creation_time": "",
+  "resolution_time": null,
+  "bug_discussion": "Official fixing record: https://github.com/bytecodealliance/wasmtime/pull/10127\n\nWinch: Fix Wasm vector loads to operate on 64-bits (#10127)\n\n\n\nPreliminary source observation: A January 2025 Winch refactor derived 1, 2, or 4-byte access sizes for SIMD vector-extend loads that actually read 8 bytes. The PR says the correction restores bounds enforcement; its WAT disassembly tests use an out-of-bounds linear-memory address. Whether host bytes can be observed is still unproven.\nSecurity impact, input reachability, earliest effective fix, and a three-revision oracle require independent review.",
+  "commit_ids": [
+    "db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9"
+  ],
+  "fix_commit_sha": "db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9",
+  "fix_date": "2025-01-27T20:09:18Z",
+  "mainline_verified": true,
+  "date_basis": "git_committer_date_mainline_ancestor",
+  "season": "2025H1",
+  "affected_files": [
+    "tests/disas/winch/x64/load/v128_load32x2_s_oob_avx.wat",
+    "tests/disas/winch/x64/load/v128_load32x2_u_oob_avx.wat",
+    "winch/codegen/src/masm.rs"
+  ],
+  "changed_lines": 94,
+  "aliases": [
+    "GH-10115"
+  ],
+  "report_references": [
+    {
+      "id": "GH-10127",
+      "url": "https://github.com/bytecodealliance/wasmtime/pull/10127",
+      "kind": "official_merged_pull_request",
+      "evidence": "Winch: Fix Wasm vector loads to operate on 64-bits"
+    },
+    {
+      "id": "GH-10115",
+      "url": "https://github.com/bytecodealliance/wasmtime/issues/10115",
+      "kind": "official_issue_linked_by_fix",
+      "evidence": "Corruption (?) with simd + winch + fuel on spec tests"
+    }
+  ],
+  "candidate_status": "targeted_strong_source_pending_security_review",
+  "security_screen": {
+    "status": "pending",
+    "preliminary_impact": "candidate_guest_out_of_bounds_memory_read",
+    "preliminary_source_observation": "A January 2025 Winch refactor derived 1, 2, or 4-byte access sizes for SIMD vector-extend loads that actually read 8 bytes. The PR says the correction restores bounds enforcement; its WAT disassembly tests use an out-of-bounds linear-memory address. Whether host bytes can be observed is still unproven.",
+    "untrusted_input_boundary_proven": false,
+    "earliest_fix_review_required": true
+  },
+  "provenance": {
+    "collector": "targeted_v10_strong_source_evidence_v1",
+    "commit_object": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9.commit",
+      "sha256": "a4e9d5e82926d7bdaa87c495ea2ee20266b80c7b53e59cbbaa6216ba40ab8de6"
+    },
+    "patch": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9.patch",
+      "sha256": "902911627de6a2662c1d60c72b4e07e997fc28d68c31bd3bce299e42d59120d7"
+    },
+    "test_evidence": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/tests/db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9-v128_load32x2_s_oob_avx.wat",
+      "sha256": "179a94caa2cf7e8d8e0404d9e9b4e5cfab61d78b994d5ddfa462cbdaa453387e",
+      "repository_path": "tests/disas/winch/x64/load/v128_load32x2_s_oob_avx.wat",
+      "source_revision": "db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9",
+      "role": "linked_upstream_regression_test_not_yet_replayed"
+    },
+    "mainline_ref": "refs/remotes/origin/main",
+    "mainline_tip": "e846371a94cfb5736199bfe4ee6ac3aa7109db8e",
+    "fix_sha": "db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9",
+    "report_details": "official_public_issue_and_pull_request",
+    "preliminary_boundary": "guest Wasm SIMD load compiled by Winch x86-64 with AVX",
+    "introduction_candidate": {
+      "commit_sha": "bb5e4bbaf9a60b07213ccdd1973bc0606c22c822",
+      "commit_date": "2025-01-15T00:01:21Z",
+      "role": "first_parent_mainline_introduction_of_vulnerable_construct",
+      "commit_object": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/bb5e4bbaf9a60b07213ccdd1973bc0606c22c822.commit",
+        "sha256": "07bb14e1f1268012e195a4c7a5339eb924a15f7cbdbe32192336b752545ed8fb"
+      },
+      "blame": {
+        "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/git/db7fb47b8e1414c43d0ebe3b619a547fd7a0bcf9.intro.blame",
+        "sha256": "bedf41fe2828ba43dc46d87467588742e54538eb90a89df2a437ea995d87f728"
+      },
+      "marker": "fn operand_size_for_vector"
+    },
+    "raw_report": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/web/pr-10127.json",
+      "sha256": "c9a9841da15f90cead0d4b1e7e2fe7c0f5deb957e8a8847ca862fb164dfec941"
+    },
+    "source_url": "https://github.com/bytecodealliance/wasmtime/pull/10127",
+    "linked_issue": {
+      "path": "/research-data/secprbench/season100-20261001-v10-targeted/strong-sparse-sources-v1/raw/wasmtime/web/issue-10115.json",
+      "sha256": "37481cf129d0256fdb13ce8e9aaa53b0157c3ee345a2899696d420a1e67634ec"
+    }
+  }
+}
