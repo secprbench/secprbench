@@ -65,8 +65,7 @@ example is in [`examples/`](../examples/README.md).
   the archived recall-oriented review prompts. It exposes finding and coverage
   reporting tools. Optional project context changes the prompt configuration.
 - `defending` wraps the vendored security-review skill and converts its output.
-  The static skill retains the adjacent Apache-2.0 license. Do not infer that
-  this static harness reproduces every later external paper campaign adapter.
+  The static skill retains the adjacent Apache-2.0 license.
 - `codex` invokes a pinned Codex CLI with structured output and ignores host
   project settings. Its own internal sandbox is disabled inside the enforced
   Docker boundary. It disables unnecessary plugin, app, web, and telemetry

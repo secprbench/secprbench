@@ -13,8 +13,7 @@ python3.11 tools/check_release.py --root .
 
 `data/roster.json` is the execution authority. `instances/*.jsonl` is a convenient
 export for analysis; it contains private labels and must not be mounted in a
-reviewer container. Frozen source evidence can retain historical absolute paths
-as provenance. Use the roster and current manifests for portable file lookup.
+reviewer container.
 
 ## 2. Prepare source
 
@@ -52,9 +51,9 @@ PY
 ```
 
 The output contains `workspace/` and `input/`; `input/` contains only
-`input.json` and `brief.md`. The materializer exports `task.commit_sha`.
-See [protocol](PROTOCOL.md) for companion-snapshot semantics and
-[known issues](KNOWN_ISSUES.md) for patch-fidelity limits.
+`input.json` and `brief.md`. The materializer exports `task.commit_sha`:
+the introducing commit for a buggy task, and the upstream fixing commit for its
+companion.
 
 ## 3. Configure and build the reviewer
 
@@ -133,9 +132,6 @@ is implemented. Harnesses receive only `/workspace`, `/task/input.json`, and
 `/task/brief.md` and write the public prediction envelope to `/out/findings.json`.
 See the [full contract](HARNESS_CONTRACT.md).
 
-For a comparison or artifact submission, retain the exact roster hash, package
-revision, backend/harness configuration, image IDs, scanner version, prompt,
-budgets, prediction files, run manifests, audit records, judge configuration and
-verdicts, and resulting reports. Submit failures and incomplete assignments as
-such. Record any protocol deviations. This repository does not yet expose a
-hosted submission service or leaderboard.
+When you report results, include the roster hash, package revision, backend
+and harness configuration, image IDs, scanner version, judge configuration, and
+every failed or incomplete assignment.

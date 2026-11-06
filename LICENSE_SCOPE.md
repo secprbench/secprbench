@@ -2,7 +2,6 @@
 
 This repository does not grant a new blanket
 license for the current SecPRBench code, dataset, annotations, or PoC bundle.
-The imported SecPRBench source did not provide a top-level license grant.
 
 The earlier CGSA-Bench repository grants MIT for its benchmark tooling,
 metadata, and schemas, and separately describes CC BY 4.0 for its per-bug
@@ -22,8 +21,3 @@ licenses. Copied advisories, issue text, saved logs, and PoCs retain their
 original ownership and applicable licenses. A source URL or available file
 does not by itself establish redistribution permission. Verification asset
 manifests record provenance and coverage, not a licensing determination.
-
-Before public publication, confirm the grant for author-owned code and
-annotations, preserve applicable upstream notices, and decide whether each
-third-party artifact can be distributed or should instead be retrieved by a
-documented, checksummed download. Record that decision per artifact class.
